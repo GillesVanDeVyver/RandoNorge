@@ -28,10 +28,10 @@ export function Map({ mode, route, onRouteChange }: Props) {
         attribution='&copy; <a href="https://www.kartverket.no/">Kartverket</a>'
       />
       <TileLayer
-        url="https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_2024/MapServer/tile/{z}/{y}/{x}"
+        url="https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}"
         opacity={0.6}
         maxNativeZoom={16}
-        attribution='Bratthet &copy; <a href="https://www.nve.no/">NVE</a>'
+        attribution='Bratthet med utløp &copy; <a href="https://www.nve.no/">NVE</a>'
       />
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
       <HoverMarker />
