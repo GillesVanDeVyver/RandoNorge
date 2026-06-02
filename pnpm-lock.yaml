@@ -11,12 +11,6 @@ importers:
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
-      proj4:
-        specifier: ^2.20.8
-        version: 2.20.8
-      proj4leaflet:
-        specifier: ^1.0.2
-        version: 1.0.2
       react:
         specifier: ^19.2.6
         version: 19.2.7
@@ -36,9 +30,6 @@ importers:
       '@types/node':
         specifier: ^24.12.3
         version: 24.12.4
-      '@types/proj4leaflet':
-        specifier: ^1.0.12
-        version: 1.0.12
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.16
@@ -357,9 +348,6 @@ packages:
 
   '@types/node@24.12.4':
     resolution: {integrity: sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA==}
-
-  '@types/proj4leaflet@1.0.12':
-    resolution: {integrity: sha512-SkWDAdQK3ddPSq995UGYe/WZODQR1bf3CDMjp+S7cq9+AnISSIhKr8vUQ7g/hMAWYNiNIFjH/atTcMAkNl3c9w==}
 
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -757,9 +745,6 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  mgrs@1.0.0:
-    resolution: {integrity: sha512-awNbTOqCxK1DBGjalK3xqWIstBZgN6fxsMSiXLs9/spqWkF2pAhb2rrYCFSsr1/tT7PhcDGjZndG8SWYn0byYA==}
-
   minimatch@10.2.5:
     resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
     engines: {node: 18 || 20 || >=22}
@@ -813,12 +798,6 @@ packages:
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
-
-  proj4@2.20.8:
-    resolution: {integrity: sha512-1C8sfT4xY4PAPwk0MroFBTGF4R4bzDXdmPQTGYVLsoNssrZ9odzObxS2dTeGBty8jW8KO7h16C1Hs2JP+ctfFw==}
-
-  proj4leaflet@1.0.2:
-    resolution: {integrity: sha512-6GdDeUlhX/tHUiMEj80xQhlPjwrXcdfD0D5OBymY8WvxfbmZcdhNqQk7n7nFf53ue6QdP9ls9ZPjsAxnbZDTsw==}
 
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
@@ -957,9 +936,6 @@ packages:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
     hasBin: true
-
-  wkt-parser@1.5.5:
-    resolution: {integrity: sha512-/zMYi94/7D7fxcOSlVmWn6vnOMj3Gq5d1xvVjaYOS9n6h0qOJ4I7YYVxBWYcH1vq9+suhqzXkn05Yx47zQNUIA==}
 
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
@@ -1254,12 +1230,6 @@ snapshots:
   '@types/node@24.12.4':
     dependencies:
       undici-types: 7.16.0
-
-  '@types/proj4leaflet@1.0.12':
-    dependencies:
-      '@types/geojson': 7946.0.16
-      '@types/leaflet': 1.9.21
-      proj4: 2.20.8
 
   '@types/react-dom@19.2.3(@types/react@19.2.16)':
     dependencies:
@@ -1636,8 +1606,6 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  mgrs@1.0.0: {}
-
   minimatch@10.2.5:
     dependencies:
       brace-expansion: 5.0.6
@@ -1682,15 +1650,6 @@ snapshots:
       source-map-js: 1.2.1
 
   prelude-ls@1.2.1: {}
-
-  proj4@2.20.8:
-    dependencies:
-      mgrs: 1.0.0
-      wkt-parser: 1.5.5
-
-  proj4leaflet@1.0.2:
-    dependencies:
-      proj4: 2.20.8
 
   punycode@2.3.1: {}
 
@@ -1798,8 +1757,6 @@ snapshots:
   which@2.0.2:
     dependencies:
       isexe: 2.0.0
-
-  wkt-parser@1.5.5: {}
 
   word-wrap@1.2.5: {}
 
