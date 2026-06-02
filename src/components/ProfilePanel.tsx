@@ -41,10 +41,35 @@ const fmtKm = (m: number) =>
   m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 const fmtElev = (m: number) => `${Math.round(m)} m`;
 
+// Generate round, evenly-spaced tick values covering [min, max] with
+// step sizes from the 1/2/5 × 10ⁿ "nice" set. Targets ~5 ticks.
+function niceTicks(min: number, max: number, target = 5): number[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+    return [Math.round(min)];
+  }
+  const rawStep = (max - min) / target;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const norm = rawStep / magnitude;
+  const step =
+    (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * magnitude;
+  const start = Math.floor(min / step) * step;
+  const end = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let v = start; v <= end + 1e-9; v += step) ticks.push(Math.round(v));
+  return ticks;
+}
+
 export function ProfilePanel({ profile, loading, error }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const chartData = useMemo(
     () => (profile ? flattenForChart(profile) : []),
+    [profile],
+  );
+  const yTicks = useMemo(
+    () =>
+      profile
+        ? niceTicks(profile.stats.minElevation, profile.stats.maxElevation)
+        : [],
     [profile],
   );
 
@@ -121,6 +146,9 @@ export function ProfilePanel({ profile, loading, error }: Props) {
                   />
                   <YAxis
                     dataKey="elevation"
+                    domain={[yTicks[0], yTicks[yTicks.length - 1]]}
+                    ticks={yTicks}
+                    interval={0}
                     tickFormatter={(v) => `${Math.round(v)}`}
                     stroke="#666"
                     fontSize={11}
