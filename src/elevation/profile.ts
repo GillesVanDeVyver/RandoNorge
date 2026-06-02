@@ -5,12 +5,19 @@ import { fetchElevations } from './api';
 const RESAMPLE_INTERVAL_M = 20;
 const MIN_SEGMENT_LENGTH_M = 50;
 const ASCENT_THRESHOLD_M = 3;
+// Half-distance (m) between paired neighbor samples used to estimate the
+// terrain gradient at each route point. The Kartverket DTM is on a 10 m
+// grid, so anything <= ~10 m gets lost to quantization. 30 m spans several
+// cells in each direction and gives a stable slope estimate while still
+// being local enough to match the Bratthet overlay visually.
+const SLOPE_SAMPLE_OFFSET_M = 30;
 
 export interface ProfilePoint {
   distance: number; // cumulative distance from route start, meters
   elevation: number; // meters above sea level
   lat: number;
   lng: number;
+  slopeDeg: number; // terrain slope at this point (degrees), NaN if unknown
 }
 
 export interface ProfileStats {
@@ -59,22 +66,57 @@ export async function computeProfile(
     };
   }
 
-  const elevations = await fetchElevations(flat, signal);
+  // Build neighbor points (N/S/E/W) for each route point so we can compute
+  // the terrain gradient via central differences. Layout in `neighbors`:
+  // [p0_N, p0_S, p0_E, p0_W, p1_N, p1_S, p1_E, p1_W, ...].
+  const neighbors: LatLng[] = [];
+  for (const [lat, lng] of flat) {
+    const dLat = SLOPE_SAMPLE_OFFSET_M / 111320;
+    const dLng =
+      SLOPE_SAMPLE_OFFSET_M / (111320 * Math.cos((lat * Math.PI) / 180));
+    neighbors.push([lat + dLat, lng]); // N
+    neighbors.push([lat - dLat, lng]); // S
+    neighbors.push([lat, lng + dLng]); // E
+    neighbors.push([lat, lng - dLng]); // W
+  }
+
+  const [elevations, neighborElev] = await Promise.all([
+    fetchElevations(flat, signal),
+    fetchElevations(neighbors, signal),
+  ]);
 
   // Rebuild per-segment profile points with cumulative distance.
   const segments: ProfilePoint[][] = [];
   let cumDist = 0;
   let flatIdx = 0;
+  const twoD = 2 * SLOPE_SAMPLE_OFFSET_M;
   for (let s = 0; s < resampled.length; s++) {
     const seg = resampled[s];
     const segPoints: ProfilePoint[] = [];
     for (let i = 0; i < seg.length; i++) {
       if (i > 0) cumDist += haversine(seg[i - 1], seg[i]);
+      const zN = neighborElev[flatIdx * 4];
+      const zS = neighborElev[flatIdx * 4 + 1];
+      const zE = neighborElev[flatIdx * 4 + 2];
+      const zW = neighborElev[flatIdx * 4 + 3];
+      let slopeDeg = NaN;
+      if (
+        Number.isFinite(zN) &&
+        Number.isFinite(zS) &&
+        Number.isFinite(zE) &&
+        Number.isFinite(zW)
+      ) {
+        const dzdy = (zN - zS) / twoD;
+        const dzdx = (zE - zW) / twoD;
+        slopeDeg =
+          (Math.atan(Math.hypot(dzdx, dzdy)) * 180) / Math.PI;
+      }
       segPoints.push({
         distance: cumDist,
         elevation: elevations[flatIdx],
         lat: seg[i][0],
         lng: seg[i][1],
+        slopeDeg,
       });
       flatIdx++;
     }

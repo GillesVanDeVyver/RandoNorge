@@ -3,6 +3,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,16 +22,21 @@ interface Props {
 // Insert a null-elevation entry between segments so the line renders
 // as a discontinuous chart with gaps where the eraser cut the route.
 function flattenForChart(profile: ProfileData) {
-  const out: { distance: number; elevation: number | null }[] = [];
+  const out: {
+    distance: number;
+    elevation: number | null;
+    slopeDeg: number;
+  }[] = [];
   for (let s = 0; s < profile.segments.length; s++) {
     const seg = profile.segments[s];
     if (s > 0 && seg.length > 0) {
-      out.push({ distance: seg[0].distance, elevation: null });
+      out.push({ distance: seg[0].distance, elevation: null, slopeDeg: NaN });
     }
     for (const p of seg) {
       out.push({
         distance: p.distance,
         elevation: Number.isFinite(p.elevation) ? p.elevation : null,
+        slopeDeg: p.slopeDeg,
       });
     }
   }
@@ -40,6 +46,42 @@ function flattenForChart(profile: ProfileData) {
 const fmtKm = (m: number) =>
   m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 const fmtElev = (m: number) => `${Math.round(m)} m`;
+
+// NVE Bratthet 2024 color bands — same as the map overlay.
+// Class 1 (< 27°) is transparent on the map; we use a neutral gray on the
+// chart so the line stays visible against a white background.
+const STEEPNESS_BANDS: { max: number; color: string }[] = [
+  { max: 27, color: '#666666' },
+  { max: 30, color: '#38a800' },
+  { max: 35, color: '#ffff00' },
+  { max: 40, color: '#ffaa00' },
+  { max: 45, color: '#ff5500' },
+  { max: 50, color: '#ff0000' },
+  { max: Infinity, color: '#730000' },
+];
+
+function steepnessColor(deg: number): string {
+  for (const b of STEEPNESS_BANDS) if (deg < b.max) return b.color;
+  return STEEPNESS_BANDS[STEEPNESS_BANDS.length - 1].color;
+}
+
+type ChartPoint = {
+  distance: number;
+  elevation: number | null;
+  slopeDeg: number;
+};
+
+// Mean terrain slope of the segment between two chart points (used to pick
+// a color). Falls back to whichever endpoint has a finite slope; if both
+// are NaN, returns 0 (gray).
+function segmentSlope(a: ChartPoint, b: ChartPoint): number {
+  const aS = Number.isFinite(a.slopeDeg) ? a.slopeDeg : NaN;
+  const bS = Number.isFinite(b.slopeDeg) ? b.slopeDeg : NaN;
+  if (Number.isFinite(aS) && Number.isFinite(bS)) return (aS + bS) / 2;
+  if (Number.isFinite(aS)) return aS;
+  if (Number.isFinite(bS)) return bS;
+  return 0;
+}
 
 // Generate round, evenly-spaced tick values covering [min, max] with
 // step sizes from the 1/2/5 × 10ⁿ "nice" set. Targets ~5 ticks.
@@ -72,6 +114,27 @@ export function ProfilePanel({ profile, loading, error }: Props) {
         : [],
     [profile],
   );
+  // Build a colored ReferenceLine per chart segment. ReferenceLine.segment
+  // takes data-space coordinates so we don't depend on Recharts' internal
+  // scale objects (which changed in v3 and are no longer exposed via
+  // Customized).
+  const segmentLines = useMemo(() => {
+    const lines: { key: number; x1: number; y1: number; x2: number; y2: number; color: string }[] = [];
+    for (let i = 0; i < chartData.length - 1; i++) {
+      const a = chartData[i];
+      const b = chartData[i + 1];
+      if (a.elevation == null || b.elevation == null) continue;
+      lines.push({
+        key: i,
+        x1: a.distance,
+        y1: a.elevation,
+        x2: b.distance,
+        y2: b.elevation,
+        color: steepnessColor(segmentSlope(a, b)),
+      });
+    }
+    return lines;
+  }, [chartData]);
 
   if (!profile && !loading && !error) return null;
 
@@ -131,8 +194,8 @@ export function ProfilePanel({ profile, loading, error }: Props) {
                 >
                   <defs>
                     <linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#E91E63" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#E91E63" stopOpacity={0.05} />
+                      <stop offset="0%" stopColor="#999" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#999" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
@@ -160,14 +223,26 @@ export function ProfilePanel({ profile, loading, error }: Props) {
                     labelFormatter={(d: number) => fmtKm(d)}
                   />
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="elevation"
-                    stroke="#E91E63"
-                    strokeWidth={2}
+                    stroke="transparent"
                     fill="url(#elevFill)"
                     connectNulls={false}
                     isAnimationActive={false}
+                    activeDot={false}
                   />
+                  {segmentLines.map((s) => (
+                    <ReferenceLine
+                      key={s.key}
+                      segment={[
+                        { x: s.x1, y: s.y1 },
+                        { x: s.x2, y: s.y2 },
+                      ]}
+                      stroke={s.color}
+                      strokeWidth={2.5}
+                      ifOverflow="extendDomain"
+                    />
+                  ))}
                 </AreaChart>
               </ResponsiveContainer>
             )}
