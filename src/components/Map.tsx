@@ -2,6 +2,7 @@ import { MapContainer, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Mode, Route } from '../types';
 import { DrawingHandler } from './DrawingHandler';
+import { HoverMarker } from './HoverMarker';
 import styles from './Map.module.css';
 
 const INITIAL_CENTER: [number, number] = [65, 13];
@@ -33,6 +34,7 @@ export function Map({ mode, route, onRouteChange }: Props) {
         attribution='Bratthet &copy; <a href="https://www.nve.no/">NVE</a>'
       />
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
+      <HoverMarker />
     </MapContainer>
   );
 }

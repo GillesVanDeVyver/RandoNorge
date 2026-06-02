@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { ProfileData } from '../elevation/profile';
+import { setHoverPoint } from '../hoverStore';
 import styles from './ProfilePanel.module.css';
 
 interface Props {
@@ -26,17 +27,27 @@ function flattenForChart(profile: ProfileData) {
     distance: number;
     elevation: number | null;
     slopeDeg: number;
+    lat: number | null;
+    lng: number | null;
   }[] = [];
   for (let s = 0; s < profile.segments.length; s++) {
     const seg = profile.segments[s];
     if (s > 0 && seg.length > 0) {
-      out.push({ distance: seg[0].distance, elevation: null, slopeDeg: NaN });
+      out.push({
+        distance: seg[0].distance,
+        elevation: null,
+        slopeDeg: NaN,
+        lat: null,
+        lng: null,
+      });
     }
     for (const p of seg) {
       out.push({
         distance: p.distance,
         elevation: Number.isFinite(p.elevation) ? p.elevation : null,
         slopeDeg: p.slopeDeg,
+        lat: p.lat,
+        lng: p.lng,
       });
     }
   }
@@ -69,6 +80,8 @@ type ChartPoint = {
   distance: number;
   elevation: number | null;
   slopeDeg: number;
+  lat: number | null;
+  lng: number | null;
 };
 
 // Mean terrain slope of the segment between two chart points (used to pick
@@ -103,6 +116,10 @@ function niceTicks(min: number, max: number, target = 5): number[] {
 
 export function ProfilePanel({ profile, loading, error }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  // Track the last-emitted hover index so we don't fire setHoverPoint for
+  // every sub-pixel mouse move when the cursor is still on the same data
+  // point.
+  const lastHoverIdx = useRef<number | null>(null);
   const chartData = useMemo(
     () => (profile ? flattenForChart(profile) : []),
     [profile],
@@ -191,6 +208,32 @@ export function ProfilePanel({ profile, loading, error }: Props) {
                 <AreaChart
                   data={chartData}
                   margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
+                  onMouseMove={(e: unknown) => {
+                    // Recharts 3.x: activeTooltipIndex is a numeric string
+                    // ("0".."N") or null when the cursor is outside the
+                    // plot area. activePayload no longer exists.
+                    const ev = e as { activeTooltipIndex?: string | null };
+                    const raw = ev?.activeTooltipIndex;
+                    const idx = raw != null ? Number(raw) : NaN;
+                    const next = Number.isFinite(idx) ? idx : null;
+                    if (next === lastHoverIdx.current) return;
+                    lastHoverIdx.current = next;
+                    const cp = next != null ? chartData[next] : undefined;
+                    if (
+                      cp &&
+                      typeof cp.lat === 'number' &&
+                      typeof cp.lng === 'number'
+                    ) {
+                      setHoverPoint([cp.lat, cp.lng]);
+                    } else {
+                      setHoverPoint(null);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (lastHoverIdx.current === null) return;
+                    lastHoverIdx.current = null;
+                    setHoverPoint(null);
+                  }}
                 >
                   <defs>
                     <linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
