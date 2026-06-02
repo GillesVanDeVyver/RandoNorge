@@ -29,6 +29,7 @@ function flattenForChart(profile: ProfileData) {
     slopeDeg: number;
     lat: number | null;
     lng: number | null;
+    runoutLevel: number;
   }[] = [];
   for (let s = 0; s < profile.segments.length; s++) {
     const seg = profile.segments[s];
@@ -39,6 +40,7 @@ function flattenForChart(profile: ProfileData) {
         slopeDeg: NaN,
         lat: null,
         lng: null,
+        runoutLevel: 0,
       });
     }
     for (const p of seg) {
@@ -48,6 +50,7 @@ function flattenForChart(profile: ProfileData) {
         slopeDeg: p.slopeDeg,
         lat: p.lat,
         lng: p.lng,
+        runoutLevel: p.runoutLevel,
       });
     }
   }
@@ -61,8 +64,13 @@ const fmtElev = (m: number) => `${Math.round(m)} m`;
 // NVE Bratthet 2024 color bands — same as the map overlay.
 // Class 1 (< 27°) is transparent on the map; we use a neutral gray on the
 // chart so the line stays visible against a white background.
+const GRAY = '#666666';
+// NVE Bratthet_med_utlop_2024 layer 2/3/4 fill colors (decoded from the
+// service legend). Indexed by RunoutLevel: 0 unused, 1=long, 2=medium,
+// 3=short runout.
+const RUNOUT_COLORS = ['', '#9AB1E6', '#4C9BFF', '#004DA8'];
 const STEEPNESS_BANDS: { max: number; color: string }[] = [
-  { max: 27, color: '#666666' },
+  { max: 27, color: GRAY },
   { max: 30, color: '#38a800' },
   { max: 35, color: '#ffff00' },
   { max: 40, color: '#ffaa00' },
@@ -82,6 +90,7 @@ type ChartPoint = {
   slopeDeg: number;
   lat: number | null;
   lng: number | null;
+  runoutLevel: number;
 };
 
 // Mean terrain slope of the segment between two chart points (used to pick
@@ -141,13 +150,23 @@ export function ProfilePanel({ profile, loading, error }: Props) {
       const a = chartData[i];
       const b = chartData[i + 1];
       if (a.elevation == null || b.elevation == null) continue;
+      let color = steepnessColor(segmentSlope(a, b));
+      // Override the "flat terrain" gray with NVE's runout-zone blue when
+      // both endpoints fall inside a modeled snow-avalanche runout polygon.
+      // Colored (steep) segments keep their steepness color. Picking the
+      // lower severity of the two endpoints (lighter blue) keeps the chart
+      // visually conservative at boundaries.
+      if (color === GRAY) {
+        const lvl = Math.min(a.runoutLevel, b.runoutLevel);
+        if (lvl > 0) color = RUNOUT_COLORS[lvl];
+      }
       lines.push({
         key: i,
         x1: a.distance,
         y1: a.elevation,
         x2: b.distance,
         y2: b.elevation,
-        color: steepnessColor(segmentSlope(a, b)),
+        color,
       });
     }
     return lines;

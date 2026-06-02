@@ -1,6 +1,7 @@
 import type { LatLng, Route } from '../types';
 import { haversine, resample } from '../geometry';
 import { fetchElevations } from './api';
+import { fetchRunoutLevels, type RunoutLevel } from './runout';
 
 const RESAMPLE_INTERVAL_M = 20;
 const MIN_SEGMENT_LENGTH_M = 50;
@@ -18,6 +19,7 @@ export interface ProfilePoint {
   lat: number;
   lng: number;
   slopeDeg: number; // terrain slope at this point (degrees), NaN if unknown
+  runoutLevel: RunoutLevel; // 0=none, 1=long, 2=medium, 3=short runout
 }
 
 export interface ProfileStats {
@@ -80,9 +82,10 @@ export async function computeProfile(
     neighbors.push([lat, lng - dLng]); // W
   }
 
-  const [elevations, neighborElev] = await Promise.all([
+  const [elevations, neighborElev, runoutLevels] = await Promise.all([
     fetchElevations(flat, signal),
     fetchElevations(neighbors, signal),
+    fetchRunoutLevels(flat, signal),
   ]);
 
   // Rebuild per-segment profile points with cumulative distance.
@@ -117,6 +120,7 @@ export async function computeProfile(
         lat: seg[i][0],
         lng: seg[i][1],
         slopeDeg,
+        runoutLevel: runoutLevels[flatIdx],
       });
       flatIdx++;
     }
