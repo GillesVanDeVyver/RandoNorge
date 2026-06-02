@@ -1,12 +1,19 @@
 import { MapContainer, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import type { Mode, Route } from '../types';
+import { DrawingHandler } from './DrawingHandler';
 import styles from './Map.module.css';
 
-// Initial view: all of Norway.
 const INITIAL_CENTER: [number, number] = [65, 13];
 const INITIAL_ZOOM = 5;
 
-export function Map() {
+interface Props {
+  mode: Mode;
+  route: Route;
+  onRouteChange: (route: Route) => void;
+}
+
+export function Map({ mode, route, onRouteChange }: Props) {
   return (
     <MapContainer
       center={INITIAL_CENTER}
@@ -25,6 +32,7 @@ export function Map() {
         maxNativeZoom={16}
         attribution='Bratthet &copy; <a href="https://www.nve.no/">NVE</a>'
       />
+      <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
     </MapContainer>
   );
 }
