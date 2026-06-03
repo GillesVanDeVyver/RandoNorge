@@ -1,0 +1,3 @@
+cd /home/gilles/Projects/PrivateProjects/RandoNorge/RandoNorge
+pnpm install
+pnpm dev
