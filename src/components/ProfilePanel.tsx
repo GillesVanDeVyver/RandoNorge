@@ -281,8 +281,31 @@ export function ProfilePanel({ profile, loading, error }: Props) {
                     unit=" m"
                   />
                   <Tooltip
-                    formatter={(v: number) => [`${Math.round(v)} m`, 'Elev.']}
-                    labelFormatter={(d: number) => fmtKm(d)}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const p = payload[0].payload as ChartPoint;
+                      if (p.elevation == null) return null;
+                      const slope = Number.isFinite(p.slopeDeg)
+                        ? `${p.slopeDeg.toFixed(1)}°`
+                        : '–';
+                      return (
+                        <div
+                          style={{
+                            background: 'rgba(255,255,255,0.95)',
+                            border: '1px solid #ccc',
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          <div style={{ color: '#666' }}>
+                            {fmtKm(label as number)}
+                          </div>
+                          <div>Elev.: {Math.round(p.elevation)} m</div>
+                          <div>Slope: {slope}</div>
+                        </div>
+                      );
+                    }}
                   />
                   <Area
                     type="linear"
