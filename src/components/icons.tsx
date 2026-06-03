@@ -40,3 +40,53 @@ export function TrashIcon() {
     </svg>
   );
 }
+
+export function SearchIcon() {
+  return (
+    <svg {...baseProps}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+export function FullscreenIcon() {
+  return (
+    <svg {...baseProps}>
+      <path d="M3 9V3h6" />
+      <path d="M21 9V3h-6" />
+      <path d="M3 15v6h6" />
+      <path d="M21 15v6h-6" />
+    </svg>
+  );
+}
+
+export function LocateIcon() {
+  return (
+    <svg {...baseProps}>
+      <line x1="12" y1="2" x2="12" y2="5" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="5" y2="12" />
+      <line x1="19" y1="12" x2="22" y2="12" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function PlusIcon() {
+  return (
+    <svg {...baseProps}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+export function MinusIcon() {
+  return (
+    <svg {...baseProps}>
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}

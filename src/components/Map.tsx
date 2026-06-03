@@ -3,6 +3,7 @@ import 'leaflet/dist/leaflet.css';
 import type { Mode, Route } from '../types';
 import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
+import { MapControls } from './MapControls';
 import styles from './Map.module.css';
 
 const INITIAL_CENTER: [number, number] = [65, 13];
@@ -21,6 +22,7 @@ export function Map({ mode, route, onRouteChange }: Props) {
       zoom={INITIAL_ZOOM}
       minZoom={3}
       maxZoom={18}
+      zoomControl={false}
       className={styles.map}
     >
       <TileLayer
@@ -35,6 +37,7 @@ export function Map({ mode, route, onRouteChange }: Props) {
       />
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
       <HoverMarker />
+      <MapControls />
     </MapContainer>
   );
 }
