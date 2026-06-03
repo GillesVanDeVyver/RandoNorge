@@ -277,7 +277,7 @@ export function ProfilePanel({ profile, loading, error }: Props) {
                     tickFormatter={(v) => `${Math.round(v)}`}
                     stroke="#666"
                     fontSize={11}
-                    width={40}
+                    width={58}
                     unit=" m"
                   />
                   <Tooltip
