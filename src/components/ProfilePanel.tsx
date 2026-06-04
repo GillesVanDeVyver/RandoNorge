@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { ProfileData } from '../elevation/profile';
+import type { SnowData } from '../snow/useSnow';
 import { setHoverPoint } from '../hoverStore';
 import styles from './ProfilePanel.module.css';
 
@@ -17,12 +18,17 @@ interface Props {
   profile: ProfileData | null;
   loading: boolean;
   error: string | null;
+  snow: SnowData | null;
+  snowLoading: boolean;
+  snowError: string | null;
+  date: string;
+  onDateChange: (date: string) => void;
 }
 
 // Flatten multi-segment profile to a single Recharts-friendly array.
 // Insert a null-elevation entry between segments so the line renders
 // as a discontinuous chart with gaps where the eraser cut the route.
-function flattenForChart(profile: ProfileData) {
+function flattenForChart(profile: ProfileData, snow: SnowData | null) {
   const out: {
     distance: number;
     elevation: number | null;
@@ -30,9 +36,11 @@ function flattenForChart(profile: ProfileData) {
     lat: number | null;
     lng: number | null;
     runoutLevel: number;
+    snow: number | null;
   }[] = [];
   for (let s = 0; s < profile.segments.length; s++) {
     const seg = profile.segments[s];
+    const snowSeg = snow?.depths[s];
     if (s > 0 && seg.length > 0) {
       out.push({
         distance: seg[0].distance,
@@ -41,9 +49,12 @@ function flattenForChart(profile: ProfileData) {
         lat: null,
         lng: null,
         runoutLevel: 0,
+        snow: null,
       });
     }
-    for (const p of seg) {
+    for (let i = 0; i < seg.length; i++) {
+      const p = seg[i];
+      const sd = snowSeg?.[i];
       out.push({
         distance: p.distance,
         elevation: Number.isFinite(p.elevation) ? p.elevation : null,
@@ -51,6 +62,7 @@ function flattenForChart(profile: ProfileData) {
         lat: p.lat,
         lng: p.lng,
         runoutLevel: p.runoutLevel,
+        snow: typeof sd === 'number' && Number.isFinite(sd) ? sd : null,
       });
     }
   }
@@ -91,6 +103,7 @@ type ChartPoint = {
   lat: number | null;
   lng: number | null;
   runoutLevel: number;
+  snow: number | null;
 };
 
 // Mean terrain slope of the segment between two chart points (used to pick
@@ -123,15 +136,24 @@ function niceTicks(min: number, max: number, target = 5): number[] {
   return ticks;
 }
 
-export function ProfilePanel({ profile, loading, error }: Props) {
+export function ProfilePanel({
+  profile,
+  loading,
+  error,
+  snow,
+  snowLoading,
+  snowError,
+  date,
+  onDateChange,
+}: Props) {
   const [collapsed, setCollapsed] = useState(false);
   // Track the last-emitted hover index so we don't fire setHoverPoint for
   // every sub-pixel mouse move when the cursor is still on the same data
   // point.
   const lastHoverIdx = useRef<number | null>(null);
   const chartData = useMemo(
-    () => (profile ? flattenForChart(profile) : []),
-    [profile],
+    () => (profile ? flattenForChart(profile, snow) : []),
+    [profile, snow],
   );
   const yTicks = useMemo(
     () =>
@@ -140,6 +162,18 @@ export function ProfilePanel({ profile, loading, error }: Props) {
         : [],
     [profile],
   );
+  const snowMax = useMemo(() => {
+    let m = 0;
+    for (const p of chartData) {
+      if (typeof p.snow === 'number' && p.snow > m) m = p.snow;
+    }
+    return m;
+  }, [chartData]);
+  const snowTicks = useMemo(
+    () => (snowMax > 0 ? niceTicks(0, snowMax) : [0, 10]),
+    [snowMax],
+  );
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   // Build a colored ReferenceLine per chart segment. ReferenceLine.segment
   // takes data-space coordinates so we don't depend on Recharts' internal
   // scale objects (which changed in v3 and are no longer exposed via
@@ -213,6 +247,16 @@ export function ProfilePanel({ profile, loading, error }: Props) {
                 {loading ? 'Loading elevations…' : error ? `Error: ${error}` : ''}
               </span>
             )}
+            <div className={styles.dateField}>
+              <span className={styles.statLabel}>Snow date</span>
+              <input
+                type="date"
+                className={styles.dateInput}
+                value={date}
+                max={today}
+                onChange={(e) => onDateChange(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className={styles.chart}>
@@ -328,6 +372,109 @@ export function ProfilePanel({ profile, loading, error }: Props) {
                       ifOverflow="extendDomain"
                     />
                   ))}
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className={styles.chart}>
+            {snowLoading && !snow && profile && (
+              <div className={styles.overlay}>Loading snow depth…</div>
+            )}
+            {snowError && !snow && profile && (
+              <div className={styles.overlay}>Snow data unavailable</div>
+            )}
+            {profile && (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={chartData}
+                  margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
+                  onMouseMove={(e: unknown) => {
+                    const ev = e as { activeTooltipIndex?: string | null };
+                    const raw = ev?.activeTooltipIndex;
+                    const idx = raw != null ? Number(raw) : NaN;
+                    const next = Number.isFinite(idx) ? idx : null;
+                    if (next === lastHoverIdx.current) return;
+                    lastHoverIdx.current = next;
+                    const cp = next != null ? chartData[next] : undefined;
+                    if (
+                      cp &&
+                      typeof cp.lat === 'number' &&
+                      typeof cp.lng === 'number'
+                    ) {
+                      setHoverPoint([cp.lat, cp.lng]);
+                    } else {
+                      setHoverPoint(null);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (lastHoverIdx.current === null) return;
+                    lastHoverIdx.current = null;
+                    setHoverPoint(null);
+                  }}
+                >
+                  <defs>
+                    <linearGradient id="snowFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4a90e2" stopOpacity={0.55} />
+                      <stop offset="100%" stopColor="#4a90e2" stopOpacity={0.1} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="distance"
+                    type="number"
+                    domain={[0, 'dataMax']}
+                    tickFormatter={fmtKm}
+                    stroke="#666"
+                    fontSize={11}
+                  />
+                  <YAxis
+                    dataKey="snow"
+                    domain={[snowTicks[0], snowTicks[snowTicks.length - 1]]}
+                    ticks={snowTicks}
+                    interval={0}
+                    tickFormatter={(v) => `${Math.round(v)}`}
+                    stroke="#666"
+                    fontSize={11}
+                    width={58}
+                    unit=" cm"
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const p = payload[0].payload as ChartPoint;
+                      const snowStr =
+                        typeof p.snow === 'number'
+                          ? `${Math.round(p.snow)} cm`
+                          : '–';
+                      return (
+                        <div
+                          style={{
+                            background: 'rgba(255,255,255,0.95)',
+                            border: '1px solid #ccc',
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          <div style={{ color: '#666' }}>
+                            {fmtKm(label as number)}
+                          </div>
+                          <div>Snow: {snowStr}</div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Area
+                    type="linear"
+                    dataKey="snow"
+                    stroke="#2a6fbf"
+                    strokeWidth={1.5}
+                    fill="url(#snowFill)"
+                    connectNulls={false}
+                    isAnimationActive={false}
+                    activeDot={{ r: 3 }}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             )}

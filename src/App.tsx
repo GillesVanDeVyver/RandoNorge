@@ -3,12 +3,17 @@ import { Map } from './components/Map';
 import { ProfilePanel } from './components/ProfilePanel';
 import { Toolbar } from './components/Toolbar';
 import { useElevation } from './elevation/useElevation';
+import { useSnow } from './snow/useSnow';
 import type { Mode, Route } from './types';
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
 
 function App() {
   const [mode, setMode] = useState<Mode>('idle');
   const [route, setRoute] = useState<Route>([]);
+  const [snowDate, setSnowDate] = useState<string>(todayIso);
   const elevation = useElevation(route);
+  const snow = useSnow(elevation.profile, snowDate);
 
   // Esc exits the current mode.
   useEffect(() => {
@@ -46,6 +51,11 @@ function App() {
         profile={elevation.profile}
         loading={elevation.loading}
         error={elevation.error}
+        snow={snow.snow}
+        snowLoading={snow.loading}
+        snowError={snow.error}
+        date={snowDate}
+        onDateChange={setSnowDate}
       />
     </>
   );
