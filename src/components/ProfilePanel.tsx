@@ -251,6 +251,7 @@ export function ProfilePanel({
               <span className={styles.statLabel}>Snow date</span>
               <input
                 type="date"
+                lang="en-GB"
                 className={styles.dateInput}
                 value={date}
                 max={today}
@@ -270,6 +271,7 @@ export function ProfilePanel({
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={chartData}
+                  syncId="route"
                   margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
                   onMouseMove={(e: unknown) => {
                     // Recharts 3.x: activeTooltipIndex is a numeric string
@@ -351,8 +353,8 @@ export function ProfilePanel({
                           <div style={{ color: '#666' }}>
                             {fmtKm(label as number)}
                           </div>
-                          <div>Elev.: {Math.round(p.elevation)} m</div>
-                          <div>Slope: {slope}</div>
+                          <div>Elevation: {Math.round(p.elevation)} m</div>
+                          <div>Steepness: {slope}</div>
                         </div>
                       );
                     }}
@@ -374,7 +376,7 @@ export function ProfilePanel({
                         { x: s.x2, y: s.y2 },
                       ]}
                       stroke={s.color}
-                      strokeWidth={2.5}
+                      strokeWidth={4}
                       ifOverflow="extendDomain"
                     />
                   ))}
@@ -394,6 +396,7 @@ export function ProfilePanel({
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={chartData}
+                  syncId="route"
                   margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
                   onMouseMove={(e: unknown) => {
                     const ev = e as { activeTooltipIndex?: string | null };
@@ -517,7 +520,7 @@ export function ProfilePanel({
                           <div style={{ color: '#666' }}>
                             {fmtKm(label as number)}
                           </div>
-                          <div>Snow: {snowStr}</div>
+                          <div>Snow depth: {snowStr}</div>
                         </div>
                       );
                     }}
