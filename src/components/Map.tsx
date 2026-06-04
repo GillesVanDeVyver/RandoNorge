@@ -60,6 +60,23 @@ export function Map({
           transparent
           version="1.1.1"
           opacity={0.75}
+          // The seNorge ImageServer has no tile cache and renders each WMS
+          // request on the fly, so we tune Leaflet to make as few requests
+          // as possible:
+          //  - tileSize 512 + zoomOffset -1 → 4× fewer tiles per viewport
+          //    while keeping the same effective resolution.
+          //  - maxNativeZoom 9: seNorge is a 1 km grid; beyond zoom 9 the
+          //    raster is already oversampled, so we let Leaflet upscale
+          //    on the client instead of asking the server for more detail.
+          //  - updateWhenIdle: don't fire requests during panning.
+          //  - keepBuffer: hold on to a wider buffer of off-screen tiles
+          //    so they're already there when the user pans back.
+          tileSize={512}
+          zoomOffset={-1}
+          maxNativeZoom={9}
+          updateWhenIdle
+          keepBuffer={4}
+          crossOrigin
           // `time` is a non-standard WMS dimension param accepted by the
           // ArcGIS endpoint; cast because Leaflet's WMSParams type only
           // models the standard set.
