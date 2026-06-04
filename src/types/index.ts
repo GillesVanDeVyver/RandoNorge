@@ -8,3 +8,6 @@ export type Segment = LatLng[];
 export type Route = Segment[];
 
 export type Mode = 'idle' | 'draw' | 'erase';
+
+// Which thematic overlay is shown on top of the base map.
+export type Overlay = 'steepness' | 'snowdepth';

@@ -4,7 +4,7 @@ import { ProfilePanel } from './components/ProfilePanel';
 import { Toolbar } from './components/Toolbar';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
-import type { Mode, Route } from './types';
+import type { Mode, Overlay, Route } from './types';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -12,6 +12,7 @@ function App() {
   const [mode, setMode] = useState<Mode>('idle');
   const [route, setRoute] = useState<Route>([]);
   const [snowDate, setSnowDate] = useState<string>(todayIso);
+  const [overlay, setOverlay] = useState<Overlay>('steepness');
   const elevation = useElevation(route);
   const snow = useSnow(elevation.profile, snowDate);
 
@@ -40,7 +41,14 @@ function App() {
 
   return (
     <>
-      <Map mode={mode} route={route} onRouteChange={setRoute} />
+      <Map
+        mode={mode}
+        route={route}
+        onRouteChange={setRoute}
+        overlay={overlay}
+        onOverlayChange={setOverlay}
+        snowDate={snowDate}
+      />
       <Toolbar
         mode={mode}
         onModeChange={setMode}

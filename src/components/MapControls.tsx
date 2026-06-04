@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
+import type { Overlay } from '../types';
 import {
   FullscreenIcon,
   LocateIcon,
   MinusIcon,
+  MountainIcon,
   PlusIcon,
   SearchIcon,
+  SnowflakeIcon,
 } from './icons';
 import styles from './MapControls.module.css';
 
-export function MapControls() {
+interface Props {
+  overlay: Overlay;
+  onOverlayChange: (overlay: Overlay) => void;
+}
+
+export function MapControls({ overlay, onOverlayChange }: Props) {
   const map = useMap();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -62,8 +70,24 @@ export function MapControls() {
     [map, query],
   );
 
+  const handleToggleOverlay = useCallback(() => {
+    onOverlayChange(overlay === 'steepness' ? 'snowdepth' : 'steepness');
+  }, [overlay, onOverlayChange]);
+
+  const overlayLabel =
+    overlay === 'steepness' ? 'Show snow depth' : 'Show steepness';
+
   return (
     <div className={styles.controls}>
+      <button
+        type="button"
+        className={styles.btn}
+        onClick={handleToggleOverlay}
+        title={overlayLabel}
+        aria-label={overlayLabel}
+      >
+        {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
+      </button>
       <div style={{ position: 'relative' }}>
         <button
           type="button"

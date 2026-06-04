@@ -90,3 +90,27 @@ export function MinusIcon() {
     </svg>
   );
 }
+
+export function SnowflakeIcon() {
+  return (
+    <svg {...baseProps}>
+      <line x1="12" y1="2" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <line x1="4.5" y1="4.5" x2="19.5" y2="19.5" />
+      <line x1="19.5" y1="4.5" x2="4.5" y2="19.5" />
+      <polyline points="9,4 12,7 15,4" />
+      <polyline points="9,20 12,17 15,20" />
+      <polyline points="4,9 7,12 4,15" />
+      <polyline points="20,9 17,12 20,15" />
+    </svg>
+  );
+}
+
+export function MountainIcon() {
+  return (
+    <svg {...baseProps}>
+      <path d="m3 20 6-10 4 6 3-4 5 8z" />
+      <circle cx="17" cy="6" r="1.5" />
+    </svg>
+  );
+}
