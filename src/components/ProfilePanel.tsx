@@ -299,9 +299,15 @@ export function ProfilePanel({
                   }}
                 >
                   <defs>
+                    {/* Rock-like fill: weathered tan at the ridge, darker
+                        granite/basalt tones at depth. Stops are tuned to
+                        keep the colored steepness ReferenceLines on top
+                        clearly visible. */}
                     <linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#999" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#999" stopOpacity={0.05} />
+                      <stop offset="0%" stopColor="#a89072" stopOpacity={0.55} />
+                      <stop offset="35%" stopColor="#7a624a" stopOpacity={0.7} />
+                      <stop offset="70%" stopColor="#544334" stopOpacity={0.85} />
+                      <stop offset="100%" stopColor="#332821" stopOpacity={0.95} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
@@ -414,10 +420,61 @@ export function ProfilePanel({
                   }}
                 >
                   <defs>
+                    {/* Snow-like fill: bright sun-lit surface up top, soft
+                        blue snow-shadow in the body, fading to a deeper
+                        firn/ice blue at depth. */}
                     <linearGradient id="snowFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4a90e2" stopOpacity={0.55} />
-                      <stop offset="100%" stopColor="#4a90e2" stopOpacity={0.1} />
+                      <stop offset="0%" stopColor="#ffffff" stopOpacity={0.98} />
+                      <stop offset="35%" stopColor="#eaf3fb" stopOpacity={0.95} />
+                      <stop offset="70%" stopColor="#bcd6ec" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#7fa8cf" stopOpacity={0.9} />
                     </linearGradient>
+                    {/* Snowflake tile, stamped over the gradient via a
+                        second Area layer. Two snowflakes per 28×28 cell at
+                        different sizes give a non-mechanical scatter. */}
+                    <pattern
+                      id="snowflakePattern"
+                      x="0"
+                      y="0"
+                      width="28"
+                      height="28"
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <g
+                        transform="translate(8,9)"
+                        stroke="#ffffff"
+                        strokeWidth="0.8"
+                        strokeLinecap="round"
+                        opacity="0.9"
+                      >
+                        <line x1="0" y1="-5" x2="0" y2="5" />
+                        <line x1="-4.33" y1="-2.5" x2="4.33" y2="2.5" />
+                        <line x1="-4.33" y1="2.5" x2="4.33" y2="-2.5" />
+                        {/* barbs on the top arm */}
+                        <line x1="-1.2" y1="-3.5" x2="0" y2="-2.3" />
+                        <line x1="1.2" y1="-3.5" x2="0" y2="-2.3" />
+                        {/* barbs on the bottom arm */}
+                        <line x1="-1.2" y1="3.5" x2="0" y2="2.3" />
+                        <line x1="1.2" y1="3.5" x2="0" y2="2.3" />
+                        {/* barbs on the NE arm */}
+                        <line x1="3.2" y1="-2.6" x2="2.0" y2="-1.15" />
+                        <line x1="3.9" y1="-1.2" x2="2.0" y2="-1.15" />
+                        {/* barbs on the SW arm */}
+                        <line x1="-3.2" y1="2.6" x2="-2.0" y2="1.15" />
+                        <line x1="-3.9" y1="1.2" x2="-2.0" y2="1.15" />
+                      </g>
+                      <g
+                        transform="translate(21,21)"
+                        stroke="#ffffff"
+                        strokeWidth="0.65"
+                        strokeLinecap="round"
+                        opacity="0.7"
+                      >
+                        <line x1="0" y1="-3.2" x2="0" y2="3.2" />
+                        <line x1="-2.77" y1="-1.6" x2="2.77" y2="1.6" />
+                        <line x1="-2.77" y1="1.6" x2="2.77" y2="-1.6" />
+                      </g>
+                    </pattern>
                   </defs>
                   <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
                   <XAxis
@@ -465,15 +522,27 @@ export function ProfilePanel({
                       );
                     }}
                   />
+                  {/* Base snowpack — gradient fill with the surface line. */}
                   <Area
-                    type="linear"
+                    type="monotone"
                     dataKey="snow"
-                    stroke="#2a6fbf"
-                    strokeWidth={1.5}
+                    stroke="#5b8bc5"
+                    strokeWidth={1.25}
                     fill="url(#snowFill)"
                     connectNulls={false}
                     isAnimationActive={false}
                     activeDot={{ r: 3 }}
+                  />
+                  {/* Snowflake stamps, clipped to the snowpack area. */}
+                  <Area
+                    type="monotone"
+                    dataKey="snow"
+                    stroke="none"
+                    fill="url(#snowflakePattern)"
+                    connectNulls={false}
+                    isAnimationActive={false}
+                    activeDot={false}
+                    legendType="none"
                   />
                 </AreaChart>
               </ResponsiveContainer>
