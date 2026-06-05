@@ -10,7 +10,7 @@ interface Props {
 }
 
 const RDP_EPSILON_M = 8;
-const ERASER_RADIUS_M = 20;
+const ERASER_RADIUS_M = 120;
 const ROUTE_COLOR = '#E91E63';
 const ROUTE_WEIGHT = 4;
 
@@ -18,13 +18,14 @@ const ROUTE_WEIGHT = 4;
 // cursor while in erase mode. Hotspot is set to the bottom-left
 // working corner of the rotated rect (~(7, 22) in the 28×28 viewport),
 // so the disk is centred on the visible eraser tip.
-const ERASER_CURSOR_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'>
-  <g transform='rotate(-30 14 14)'>
-    <rect x='4' y='10' width='20' height='8' rx='1' fill='#F8BBD0' stroke='#222' stroke-width='1.5'/>
-    <line x1='17' y1='10' x2='17' y2='18' stroke='#222' stroke-width='1.5' stroke-linecap='round'/>
+const ERASER_CURSOR_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'>
+  <g transform='rotate(-30 22 22)' fill='#FFFFFF' stroke='#111' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'>
+    <rect x='5' y='18' width='34' height='10' rx='2.5'/>
+    <rect x='5' y='14' width='34' height='8' rx='2.5'/>
+    <line x1='19' y1='14' x2='19' y2='22'/>
   </g>
 </svg>`;
-const ERASER_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(ERASER_CURSOR_SVG)}") 7 22, cell`;
+const ERASER_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(ERASER_CURSOR_SVG)}") 10 36, cell`;
 
 export function DrawingHandler({ mode, route, onRouteChange }: Props) {
   const map = useMap();
