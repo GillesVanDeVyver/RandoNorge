@@ -643,10 +643,12 @@ function DatePopover({
 
   const dim = daysInMonth(view.y, view.m);
   const lead = firstDowMon(view.y, view.m);
+  // Always render a fixed 6×7 = 42-cell grid so the popover height
+  // doesn't shift between months that span 5 vs 6 calendar rows.
   const cells: (number | null)[] = [];
   for (let i = 0; i < lead; i++) cells.push(null);
   for (let d = 1; d <= dim; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
+  while (cells.length < 42) cells.push(null);
 
   return (
     <div ref={wrapRef} className={styles.dateWrap}>
