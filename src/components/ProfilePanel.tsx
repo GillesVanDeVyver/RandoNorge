@@ -580,6 +580,10 @@ function Stat({
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const fmtYMD = (y: number, m: number, d: number) =>
   `${y}-${pad2(m)}-${pad2(d)}`;
+const fmtMDY = (s: string) => {
+  const { y, m, d } = parseYMD(s);
+  return `${pad2(m)}/${pad2(d)}/${y}`;
+};
 function parseYMD(s: string): { y: number; m: number; d: number } {
   const [y, m, d] = s.split('-').map(Number);
   return { y, m, d };
@@ -657,7 +661,7 @@ function DatePopover({
         className={styles.dateInput}
         onClick={() => setOpen((o) => !o)}
       >
-        {value}
+        {fmtMDY(value)}
       </button>
       {open && (
         <div className={styles.datePopover} role="dialog">

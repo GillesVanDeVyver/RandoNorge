@@ -1,0 +1,128 @@
+import type { ReactNode } from 'react';
+import styles from './SnowDateBar.module.css';
+
+interface Props {
+  date: string; // YYYY-MM-DD
+  onDateChange: (date: string) => void;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const toYMD = (d: Date) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const fromYMD = (s: string) => {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
+function shiftDays(date: string, days: number): string {
+  const d = fromYMD(date);
+  d.setDate(d.getDate() + days);
+  return toYMD(d);
+}
+
+function shiftYears(date: string, years: number): string {
+  const d = fromYMD(date);
+  d.setFullYear(d.getFullYear() + years);
+  return toYMD(d);
+}
+
+export function SnowDateBar({ date, onDateChange }: Props) {
+  const today = toYMD(new Date());
+  const set = (next: string) => onDateChange(next > today ? today : next);
+  const isToday = date === today;
+
+  return (
+    <div className={styles.bar}>
+      <NavButton
+        label="Year"
+        title="Previous year"
+        onClick={() => set(shiftYears(date, -1))}
+      >
+        ‹‹‹
+      </NavButton>
+      <NavButton
+        label="Week"
+        title="Previous week"
+        onClick={() => set(shiftDays(date, -7))}
+      >
+        ‹‹
+      </NavButton>
+      <NavButton
+        label="Day"
+        title="Previous day"
+        onClick={() => set(shiftDays(date, -1))}
+      >
+        ‹
+      </NavButton>
+      <input
+        type="date"
+        className={styles.dateInput}
+        value={date}
+        max={today}
+        onChange={(e) => {
+          if (e.target.value) set(e.target.value);
+        }}
+      />
+      <NavButton
+        label="Day"
+        title="Next day"
+        onClick={() => set(shiftDays(date, 1))}
+        disabled={isToday}
+      >
+        ›
+      </NavButton>
+      <NavButton
+        label="Week"
+        title="Next week"
+        onClick={() => set(shiftDays(date, 7))}
+        disabled={isToday}
+      >
+        ››
+      </NavButton>
+      <NavButton
+        label="Year"
+        title="Next year"
+        onClick={() => set(shiftYears(date, 1))}
+        disabled={isToday}
+      >
+        ›››
+      </NavButton>
+      <NavButton
+        label="Now"
+        title="Today"
+        onClick={() => set(today)}
+        disabled={isToday}
+      >
+        ↺
+      </NavButton>
+    </div>
+  );
+}
+
+function NavButton({
+  children,
+  label,
+  title,
+  onClick,
+  disabled = false,
+}: {
+  children: ReactNode;
+  label: string;
+  title: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={styles.btn}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+    >
+      <span className={styles.icon}>{children}</span>
+      <span className={styles.label}>{label}</span>
+    </button>
+  );
+}

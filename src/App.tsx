@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Map } from './components/Map';
 import { ProfilePanel } from './components/ProfilePanel';
+import { SnowDateBar } from './components/SnowDateBar';
 import { Toolbar } from './components/Toolbar';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
@@ -55,6 +56,9 @@ function App() {
         onClear={handleClear}
         hasRoute={route.length > 0}
       />
+      {overlay === 'snowdepth' && (
+        <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
+      )}
       <ProfilePanel
         profile={elevation.profile}
         loading={elevation.loading}
