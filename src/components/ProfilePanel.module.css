@@ -82,12 +82,106 @@
 
 .dateInput {
   font-size: 13px;
-  padding: 2px 4px;
+  padding: 2px 8px;
   border: 1px solid #c0c0c0;
   border-radius: 4px;
   background: #fff;
   color: #333;
   font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dateWrap {
+  position: relative;
+}
+
+.datePopover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 4px);
+  z-index: 1100;
+  background: #fff;
+  border: 1px solid #c0c0c0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  width: 224px;
+  font-size: 12px;
+  color: #333;
+}
+
+.popHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.popNav {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: #555;
+  border-radius: 4px;
+}
+
+.popNav:hover {
+  background: #eee;
+}
+
+.popTitle {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.popDows,
+.popGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.popDow {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  padding: 2px 0;
+}
+
+.popEmpty {
+  height: 26px;
+}
+
+.popDay {
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #333;
+  font-family: inherit;
+  padding: 0;
+}
+
+.popDay:hover:not(:disabled) {
+  background: #eef3f9;
+}
+
+.popDay:disabled {
+  color: #ccc;
+  cursor: default;
+}
+
+.popDaySelected,
+.popDaySelected:hover {
+  background: #3478f6;
+  color: #fff;
 }
 
 .chart {
