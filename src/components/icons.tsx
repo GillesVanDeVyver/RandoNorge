@@ -20,11 +20,16 @@ export function PencilIcon() {
 }
 
 export function EraserIcon() {
+  // Classic tilted school-eraser block. The short transverse line near
+  // the right end reads as the ferrule / colour band on a rubber, and
+  // the baseline below suggests the surface being erased.
   return (
     <svg {...baseProps}>
-      <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
-      <path d="M22 21H7" />
-      <path d="m5 11 9 9" />
+      <g transform="rotate(-30 12 12)">
+        <rect x="3" y="9" width="18" height="6" rx="0.8" />
+        <line x1="15" y1="9" x2="15" y2="15" />
+      </g>
+      <line x1="3" y1="21" x2="21" y2="21" />
     </svg>
   );
 }
