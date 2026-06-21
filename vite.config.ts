@@ -15,6 +15,23 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace(/^\/gts-api/, '/api'),
       },
+      // MET Norway's locationforecast (yr.no weather) requires an identifying
+      // User-Agent header. Browsers don't allow fetch() to set User-Agent, so
+      // we proxy through the dev server and stamp the header here.
+      '/metno-api': {
+        target: 'https://api.met.no',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/metno-api/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader(
+              'User-Agent',
+              'RandoNorge/0.1 https://github.com/randonorge',
+            );
+          });
+        },
+      },
     },
   },
 })

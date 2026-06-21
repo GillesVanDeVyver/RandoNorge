@@ -7,6 +7,7 @@ import { Toolbar } from './components/Toolbar';
 import { PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
+import { useWeather } from './weather/useWeather';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
@@ -23,6 +24,7 @@ function App() {
   const toastTimer = useRef<number | null>(null);
   const elevation = useElevation(route);
   const snow = useSnow(elevation.profile, snowDate);
+  const weather = useWeather(elevation.profile);
 
   // Esc exits the current mode.
   useEffect(() => {
@@ -108,6 +110,9 @@ function App() {
         snowError={snow.error}
         date={snowDate}
         onDateChange={setSnowDate}
+        weather={weather.hours}
+        weatherLoading={weather.loading}
+        weatherError={weather.error}
       />
       {clearedRoute && (
         <Toast

@@ -11,7 +11,9 @@ import {
 } from 'recharts';
 import type { ProfileData } from '../elevation/profile';
 import type { SnowData } from '../snow/useSnow';
+import type { WeatherHour } from '../weather/api';
 import { setHoverPoint } from '../hoverStore';
+import { WeatherPanel } from './WeatherPanel';
 import styles from './ProfilePanel.module.css';
 
 interface Props {
@@ -23,6 +25,9 @@ interface Props {
   snowError: string | null;
   date: string;
   onDateChange: (date: string) => void;
+  weather: WeatherHour[] | null;
+  weatherLoading: boolean;
+  weatherError: string | null;
 }
 
 // Flatten multi-segment profile to a single Recharts-friendly array.
@@ -173,6 +178,9 @@ export function ProfilePanel({
   snowError,
   date,
   onDateChange,
+  weather,
+  weatherLoading,
+  weatherError,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   // Track the last-emitted hover index so we don't fire setHoverPoint for
@@ -710,6 +718,13 @@ export function ProfilePanel({
               </ResponsiveContainer>
             )}
           </div>
+          {profile && (
+            <WeatherPanel
+              hours={weather}
+              loading={weatherLoading}
+              error={weatherError}
+            />
+          )}
           </div>
         </div>
       )}
