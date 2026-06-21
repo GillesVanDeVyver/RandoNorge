@@ -35,61 +35,118 @@
 
 .body {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
   padding: 8px 12px 12px;
+  gap: 16px;
+}
+
+.leftCol {
+  flex: 0 0 19.1%;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 16px 4px 4px;
+  border-right: 1px solid #ececec;
+}
+
+.leftElev {
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  min-height: 0;
+}
+
+.leftSnow {
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+}
+
+.rightCol {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
 .stats {
-  display: flex;
-  gap: 24px;
-  align-items: baseline;
-  min-height: 22px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16px;
+  row-gap: 18px;
+  align-items: start;
+  width: 100%;
 }
 
 .stat {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 4px;
+  min-width: 0;
 }
 
 .statLabel {
   font-size: 11px;
-  color: #666;
+  color: #8a8a8a;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  font-weight: 500;
 }
 
 .statValue {
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
-  color: #333;
+  color: #1d1d1f;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .statusText {
   font-size: 13px;
   color: #666;
   font-style: italic;
+  grid-column: 1 / -1;
 }
 
 .dateField {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  margin-left: auto;
+  gap: 6px;
+  width: 100%;
 }
 
 .dateInput {
-  font-size: 13px;
-  padding: 2px 8px;
-  border: 1px solid #c0c0c0;
-  border-radius: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 10px 14px;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
   background: #fff;
-  color: #333;
+  color: #1d1d1f;
   font-family: inherit;
   cursor: pointer;
   text-align: left;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  width: 100%;
+}
+
+.dateInput:hover {
+  border-color: #b8b8b8;
+}
+
+.dateInput:focus-visible {
+  outline: none;
+  border-color: #3478f6;
+  box-shadow: 0 0 0 3px rgba(52, 120, 246, 0.18);
 }
 
 .dateWrap {
@@ -98,7 +155,7 @@
 
 .datePopover {
   position: absolute;
-  right: 0;
+  left: 0;
   bottom: calc(100% + 4px);
   z-index: 1100;
   background: #fff;

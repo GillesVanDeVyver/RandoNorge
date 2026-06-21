@@ -326,36 +326,46 @@ export function ProfilePanel({
 
       {!collapsed && (
         <div className={styles.body}>
-          <div className={styles.stats}>
-            {profile ? (
-              <>
-                <Stat label="Distance" value={fmtKm(profile.stats.distance)} />
-                <Stat
-                  label="Ascent"
-                  value={fmtElev(profile.stats.ascent)}
-                  color="#2e7d32"
-                />
-                <Stat
-                  label="Descent"
-                  value={fmtElev(profile.stats.descent)}
-                  color="#c62828"
-                />
-                <Stat
-                  label="Min / Max"
-                  value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
-                />
-              </>
-            ) : (
-              <span className={styles.statusText}>
-                {loading ? 'Loading elevations…' : error ? `Error: ${error}` : ''}
-              </span>
-            )}
-            <div className={styles.dateField}>
-              <span className={styles.statLabel}>Snow date</span>
-              <DatePopover value={date} max={today} onChange={onDateChange} />
+          <div className={styles.leftCol}>
+            <div
+              className={styles.leftElev}
+              style={{ height: elevReservedHeight }}
+            >
+              <div className={styles.stats}>
+                {profile ? (
+                  <>
+                    <Stat label="Distance" value={fmtKm(profile.stats.distance)} />
+                    <Stat
+                      label="Ascent"
+                      value={fmtElev(profile.stats.ascent)}
+                      color="#2e7d32"
+                    />
+                    <Stat
+                      label="Descent"
+                      value={fmtElev(profile.stats.descent)}
+                      color="#c62828"
+                    />
+                    <Stat
+                      label="Min / Max"
+                      value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
+                    />
+                  </>
+                ) : (
+                  <span className={styles.statusText}>
+                    {loading ? 'Loading elevations…' : error ? `Error: ${error}` : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className={styles.leftSnow}>
+              <div className={styles.dateField}>
+                <span className={styles.statLabel}>Snow date</span>
+                <DatePopover value={date} max={today} onChange={onDateChange} />
+              </div>
             </div>
           </div>
 
+          <div className={styles.rightCol}>
           <div
             style={{
               height: elevReservedHeight,
@@ -659,6 +669,7 @@ export function ProfilePanel({
                 </AreaChart>
               </ResponsiveContainer>
             )}
+          </div>
           </div>
         </div>
       )}
