@@ -25,6 +25,32 @@ function App() {
   const toastTimer = useRef<number | null>(null);
   const elevation = useElevation(route);
   const snow = useSnow(elevation.profile, snowDate);
+  // While the elevation worker (and the follow-up snow lookup) is still
+  // crunching, drawing must be locked out: re-running the pipeline on a
+  // half-finished route is wasted work and was the source of the previous
+  // "unresponsive page" behavior.
+  const loading = elevation.loading || snow.loading;
+
+  // The route just got extended (a draw stroke committed) or replaced — drop
+  // back to navigation mode so the map shows the grab cursor and the user
+  // can pan/zoom while the worker is busy. Erase strokes also flow through
+  // onRouteChange, so leave erase mode alone: erase commits on every
+  // mouseup and we don't want to kick the user out mid-edit.
+  const handleRouteChange = useCallback((next: Route) => {
+    setRoute(next);
+    setMode((m) => (m === 'draw' ? 'idle' : m));
+  }, []);
+
+  // Block transitions into draw mode while loading. Direct setMode calls
+  // from the toolbar are already gated by a disabled button, but the
+  // pencil hint button and any future entry points go through this guard.
+  const handleModeChange = useCallback(
+    (next: Mode) => {
+      if (next === 'draw' && loading) return;
+      setMode(next);
+    },
+    [loading],
+  );
 
   // Esc exits the current mode.
   useEffect(() => {
@@ -81,16 +107,17 @@ function App() {
         <Map
           mode={mode}
           route={route}
-          onRouteChange={setRoute}
+          onRouteChange={handleRouteChange}
           overlay={overlay}
           onOverlayChange={setOverlay}
           snowDate={snowDate}
         />
         <Toolbar
           mode={mode}
-          onModeChange={setMode}
+          onModeChange={handleModeChange}
           onClear={handleClear}
           hasRoute={hasRoute}
+          loading={loading}
         />
         {overlay === 'snowdepth' && (
           <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
@@ -99,7 +126,7 @@ function App() {
           <button
             type="button"
             className={styles.hint}
-            onClick={() => setMode('draw')}
+            onClick={() => handleModeChange('draw')}
             aria-label="Start drawing a route"
           >
             <PencilIcon />

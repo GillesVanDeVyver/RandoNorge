@@ -7,9 +7,13 @@ interface Props {
   onModeChange: (mode: Mode) => void;
   onClear: () => void;
   hasRoute: boolean;
+  // True while the elevation worker is computing — the pencil is locked
+  // out so the user can't queue another stroke on top of an in-flight
+  // route computation.
+  loading: boolean;
 }
 
-export function Toolbar({ mode, onModeChange, onClear, hasRoute }: Props) {
+export function Toolbar({ mode, onModeChange, onClear, hasRoute, loading }: Props) {
   const toggle = (target: Mode) =>
     onModeChange(mode === target ? 'idle' : target);
 
@@ -19,8 +23,9 @@ export function Toolbar({ mode, onModeChange, onClear, hasRoute }: Props) {
         type="button"
         className={`${styles.btn} ${mode === 'draw' ? styles.active : ''}`}
         onClick={() => toggle('draw')}
-        title="Draw route (freehand)"
+        title={loading ? 'Loading route data…' : 'Draw route (freehand)'}
         aria-label="Draw"
+        disabled={loading}
       >
         <PencilIcon />
       </button>

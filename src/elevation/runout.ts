@@ -59,22 +59,6 @@ function classify(r: number, g: number, b: number, a: number): RunoutLevel {
   return best;
 }
 
-function loadImage(url: string, signal?: AbortSignal): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('runout image load failed'));
-    if (signal) {
-      if (signal.aborted) return reject(new Error('aborted'));
-      signal.addEventListener('abort', () => reject(new Error('aborted')), {
-        once: true,
-      });
-    }
-    img.src = url;
-  });
-}
-
 export async function fetchRunoutLevels(
   points: LatLng[],
   signal?: AbortSignal,
@@ -120,25 +104,33 @@ export async function fetchRunoutLevels(
   });
   const url = `${EXPORT_URL}?${params.toString()}`;
 
-  let img: HTMLImageElement;
+  // Fetch as Blob + createImageBitmap + OffscreenCanvas, all of which are
+  // available in both DedicatedWorkerGlobalScope and the main window. This
+  // lets the whole pipeline run inside the elevation profile worker without
+  // touching DOM-only APIs (HTMLImageElement / HTMLCanvasElement).
+  let bitmap: ImageBitmap;
   try {
-    img = await loadImage(url, signal);
+    const res = await fetch(url, { signal });
+    if (!res.ok) return new Array(points.length).fill(0);
+    const blob = await res.blob();
+    bitmap = await createImageBitmap(blob);
   } catch {
     return new Array(points.length).fill(0);
   }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return new Array(points.length).fill(0);
-  ctx.drawImage(img, 0, 0, width, height);
+  if (!ctx) {
+    bitmap.close();
+    return new Array(points.length).fill(0);
+  }
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
 
   let data: ImageData;
   try {
     data = ctx.getImageData(0, 0, width, height);
   } catch {
-    // CORS-tainted canvas — fall back gracefully.
     return new Array(points.length).fill(0);
   }
 

@@ -82,6 +82,15 @@ export function Map({
       minZoom={3}
       maxZoom={18}
       zoomControl={false}
+      // Render vector overlays (the route polylines) through L.Canvas
+      // instead of the default SVG renderer. SVG rebuilds the entire
+      // <path> element on every positions update, which becomes the
+      // bottleneck on long strokes (Polyline re-renders once per rAF
+      // while drawing, growing linearly with stroke length and freezing
+      // the page on multi-thousand-point routes). Canvas updates are
+      // O(N) blit-only with no DOM reflow and scale orders of magnitude
+      // better.
+      preferCanvas
       className={styles.map}
     >
       <TileLayer
