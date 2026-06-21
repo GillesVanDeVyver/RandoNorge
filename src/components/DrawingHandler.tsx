@@ -13,6 +13,12 @@ const RDP_EPSILON_M = 8;
 const ERASER_RADIUS_M = 120;
 const ROUTE_COLOR = '#FF3D81';
 const ROUTE_WEIGHT = 4;
+// Minimum pixel distance between consecutive accepted points while drawing.
+// Caps the number of accumulated points to be proportional to stroke length
+// rather than stroke duration, which otherwise blows up O(N²) work on long
+// strokes (slice + Polyline rebuild on every mousemove).
+const MIN_DRAW_PX = 3;
+const MIN_DRAW_PX2 = MIN_DRAW_PX * MIN_DRAW_PX;
 
 // Pink tilted eraser block matching the toolbar icon, used as the
 // cursor while in erase mode. Hotspot is set to the bottom-left
@@ -32,6 +38,28 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
   const drawingRef = useRef<Segment | null>(null);
   const erasingRef = useRef(false);
   const [livePoints, setLivePoints] = useState<Segment>([]);
+  // Last accepted cursor position in container-pixel space, used by the
+  // distance gate in draw mode.
+  const lastDrawPxRef = useRef<{ x: number; y: number } | null>(null);
+  // rAF id for the coalesced live-preview update. At most one re-render of
+  // the in-progress Polyline per animation frame, regardless of mousemove
+  // event rate.
+  const liveRafRef = useRef<number | null>(null);
+
+  const scheduleLiveUpdate = () => {
+    if (liveRafRef.current !== null) return;
+    liveRafRef.current = requestAnimationFrame(() => {
+      liveRafRef.current = null;
+      if (drawingRef.current) setLivePoints(drawingRef.current.slice());
+    });
+  };
+
+  const cancelLiveUpdate = () => {
+    if (liveRafRef.current !== null) {
+      cancelAnimationFrame(liveRafRef.current);
+      liveRafRef.current = null;
+    }
+  };
   // While the user holds the eraser, mutations are accumulated here so the
   // expensive elevation/snow recompute (driven by onRouteChange) only fires
   // once on mouseup. Null when not actively erasing.
@@ -202,6 +230,7 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
     mousedown(e) {
       if (mode === 'draw') {
         drawingRef.current = [[e.latlng.lat, e.latlng.lng]];
+        lastDrawPxRef.current = map.latLngToContainerPoint(e.latlng);
         setLivePoints(drawingRef.current.slice());
       } else if (mode === 'erase') {
         erasingRef.current = true;
@@ -210,19 +239,29 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
     },
     mousemove(e) {
       if (mode === 'draw' && drawingRef.current) {
+        const pt = map.latLngToContainerPoint(e.latlng);
+        const last = lastDrawPxRef.current;
+        if (last) {
+          const dx = pt.x - last.x;
+          const dy = pt.y - last.y;
+          if (dx * dx + dy * dy < MIN_DRAW_PX2) return;
+        }
+        lastDrawPxRef.current = pt;
         drawingRef.current.push([e.latlng.lat, e.latlng.lng]);
-        setLivePoints(drawingRef.current.slice());
+        scheduleLiveUpdate();
       } else if (mode === 'erase' && erasingRef.current) {
         eraseAt([e.latlng.lat, e.latlng.lng]);
       }
     },
     mouseup() {
       if (mode === 'draw' && drawingRef.current) {
+        cancelLiveUpdate();
         const simplified = simplify(drawingRef.current, RDP_EPSILON_M);
         if (simplified.length >= 2) {
           onRouteChange([...route, simplified]);
         }
         drawingRef.current = null;
+        lastDrawPxRef.current = null;
         setLivePoints([]);
       }
       commitErase();
@@ -230,11 +269,13 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
     mouseout() {
       // If the user drags off the map, commit or discard cleanly.
       if (mode === 'draw' && drawingRef.current) {
+        cancelLiveUpdate();
         const simplified = simplify(drawingRef.current, RDP_EPSILON_M);
         if (simplified.length >= 2) {
           onRouteChange([...route, simplified]);
         }
         drawingRef.current = null;
+        lastDrawPxRef.current = null;
         setLivePoints([]);
       }
       commitErase();
