@@ -96,12 +96,17 @@ function App() {
           <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
         )}
         {showHint && (
-          <div className={styles.hint}>
+          <button
+            type="button"
+            className={styles.hint}
+            onClick={() => setMode('draw')}
+            aria-label="Start drawing a route"
+          >
             <PencilIcon />
             <span>
               <strong>Draw a route</strong> to start
             </span>
-          </div>
+          </button>
         )}
         {clearedRoute && (
           <Toast
