@@ -25,7 +25,7 @@
    Non-interactive so it never blocks drawing. */
 .hint {
   position: absolute;
-  bottom: var(--space-6);
+  top: var(--space-6);
   left: 50%;
   transform: translateX(-50%);
   z-index: 900;

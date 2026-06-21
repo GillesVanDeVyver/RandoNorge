@@ -446,7 +446,7 @@ export function SnowPanel({
     return m;
   }, [chartData]);
   const snowTicks = useMemo(
-    () => (snowMax > 0 ? niceTicks(0, snowMax) : [0, 10]),
+    () => niceTicks(0, Math.max(snowMax, 50)),
     [snowMax],
   );
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);

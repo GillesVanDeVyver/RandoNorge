@@ -99,7 +99,7 @@ function App() {
           <div className={styles.hint}>
             <PencilIcon />
             <span>
-              <strong>Draw a route</strong> to see its elevation &amp; snow profile
+              <strong>Draw a route</strong> to start
             </span>
           </div>
         )}
