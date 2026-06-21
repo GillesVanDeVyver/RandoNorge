@@ -119,3 +119,79 @@ export function MountainIcon() {
     </svg>
   );
 }
+
+// --- Date-bar navigation chevrons ---------------------------------------
+// Single = day, double = week, double-with-bar (skip) = year.
+
+export function ChevronLeftIcon() {
+  return (
+    <svg {...baseProps}>
+      <polyline points="15 5 8 12 15 19" />
+    </svg>
+  );
+}
+
+export function ChevronRightIcon() {
+  return (
+    <svg {...baseProps}>
+      <polyline points="9 5 16 12 9 19" />
+    </svg>
+  );
+}
+
+export function ChevronsLeftIcon() {
+  return (
+    <svg {...baseProps}>
+      <polyline points="17 5 10 12 17 19" />
+      <polyline points="11 5 4 12 11 19" />
+    </svg>
+  );
+}
+
+export function ChevronsRightIcon() {
+  return (
+    <svg {...baseProps}>
+      <polyline points="7 5 14 12 7 19" />
+      <polyline points="13 5 20 12 13 19" />
+    </svg>
+  );
+}
+
+export function SkipBackIcon() {
+  return (
+    <svg {...baseProps}>
+      <line x1="5" y1="5" x2="5" y2="19" />
+      <polyline points="19 6 11 12 19 18" />
+      <polyline points="13 6 5 12 13 18" fill="none" />
+    </svg>
+  );
+}
+
+export function SkipForwardIcon() {
+  return (
+    <svg {...baseProps}>
+      <line x1="19" y1="5" x2="19" y2="19" />
+      <polyline points="5 6 13 12 5 18" />
+      <polyline points="11 6 19 12 11 18" fill="none" />
+    </svg>
+  );
+}
+
+export function ResetIcon() {
+  // Counter-clockwise "back to now" arrow.
+  return (
+    <svg {...baseProps}>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <polyline points="3 3 3 8 8 8" />
+    </svg>
+  );
+}
+
+export function UndoIcon() {
+  return (
+    <svg {...baseProps}>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h11a5 5 0 0 1 0 10h-1" />
+    </svg>
+  );
+}

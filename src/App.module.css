@@ -1,0 +1,46 @@
+/* Quiet onboarding hint shown over the map when no route exists yet.
+   Non-interactive so it never blocks drawing. */
+.hint {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  pointer-events: none;
+  animation: hint-in var(--dur-slow) var(--ease);
+}
+
+.hint strong {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.hint svg {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+
+@keyframes hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

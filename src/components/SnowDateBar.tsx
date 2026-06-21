@@ -1,4 +1,14 @@
 import type { ReactNode } from 'react';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
+  ResetIcon,
+  SkipBackIcon,
+  SkipForwardIcon,
+  SnowflakeIcon,
+} from './icons';
 import styles from './SnowDateBar.module.css';
 
 interface Props {
@@ -33,30 +43,33 @@ export function SnowDateBar({ date, onDateChange }: Props) {
 
   return (
     <div className={styles.bar}>
+      <span className={styles.brand} aria-hidden="true">
+        <SnowflakeIcon />
+      </span>
       <NavButton
         label="Year"
         title="Previous year"
         onClick={() => set(shiftYears(date, -1))}
       >
-        ‹‹‹
+        <SkipBackIcon />
       </NavButton>
       <NavButton
         label="Week"
         title="Previous week"
         onClick={() => set(shiftDays(date, -7))}
       >
-        ‹‹
+        <ChevronsLeftIcon />
       </NavButton>
       <NavButton
         label="Day"
         title="Previous day"
         onClick={() => set(shiftDays(date, -1))}
       >
-        ‹
+        <ChevronLeftIcon />
       </NavButton>
       <input
         type="date"
-        className={styles.dateInput}
+        className={`${styles.dateInput} tnum`}
         value={date}
         max={today}
         onChange={(e) => {
@@ -69,7 +82,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         onClick={() => set(shiftDays(date, 1))}
         disabled={isToday}
       >
-        ›
+        <ChevronRightIcon />
       </NavButton>
       <NavButton
         label="Week"
@@ -77,7 +90,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         onClick={() => set(shiftDays(date, 7))}
         disabled={isToday}
       >
-        ››
+        <ChevronsRightIcon />
       </NavButton>
       <NavButton
         label="Year"
@@ -85,15 +98,16 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         onClick={() => set(shiftYears(date, 1))}
         disabled={isToday}
       >
-        ›››
+        <SkipForwardIcon />
       </NavButton>
       <NavButton
         label="Now"
-        title="Today"
+        title="Jump to today"
         onClick={() => set(today)}
         disabled={isToday}
+        accent
       >
-        ↺
+        <ResetIcon />
       </NavButton>
     </div>
   );
@@ -105,17 +119,19 @@ function NavButton({
   title,
   onClick,
   disabled = false,
+  accent = false,
 }: {
   children: ReactNode;
   label: string;
   title: string;
   onClick: () => void;
   disabled?: boolean;
+  accent?: boolean;
 }) {
   return (
     <button
       type="button"
-      className={styles.btn}
+      className={`${styles.btn} ${accent ? styles.accentBtn : ''}`}
       onClick={onClick}
       disabled={disabled}
       title={title}

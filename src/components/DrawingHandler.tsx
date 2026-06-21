@@ -11,7 +11,7 @@ interface Props {
 
 const RDP_EPSILON_M = 8;
 const ERASER_RADIUS_M = 120;
-const ROUTE_COLOR = '#E91E63';
+const ROUTE_COLOR = '#FF3D81';
 const ROUTE_WEIGHT = 4;
 
 // Pink tilted eraser block matching the toolbar icon, used as the

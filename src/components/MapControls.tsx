@@ -114,6 +114,7 @@ export function MapControls({ overlay, onOverlayChange }: Props) {
           </form>
         )}
       </div>
+      <div className={styles.divider} />
       <button
         type="button"
         className={styles.btn}
@@ -132,6 +133,7 @@ export function MapControls({ overlay, onOverlayChange }: Props) {
       >
         <LocateIcon />
       </button>
+      <div className={styles.divider} />
       <button
         type="button"
         className={styles.btn}

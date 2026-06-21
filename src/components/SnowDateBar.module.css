@@ -1,18 +1,36 @@
 .bar {
   position: absolute;
-  top: 8px;
+  top: max(var(--space-2), env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
   display: flex;
   align-items: stretch;
   gap: 2px;
-  padding: 4px 8px;
-  background: #0b3a5c;
-  color: #fff;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  padding: var(--space-1);
+  max-width: calc(100vw - 2 * var(--space-3));
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-2);
+  color: var(--text-1);
   font-family: inherit;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-1) 0 var(--space-2);
+  color: var(--accent);
+}
+
+.brand svg {
+  width: 18px;
+  height: 18px;
 }
 
 .btn {
@@ -21,45 +39,79 @@
   align-items: center;
   justify-content: center;
   background: transparent;
-  color: #fff;
-  border: none;
+  color: var(--text-1);
+  border: 1px solid transparent;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
   font-family: inherit;
-  min-width: 36px;
+  min-width: 38px;
+  gap: 2px;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--surface-hover);
+}
+
+.btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .btn:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: default;
 }
 
+.accentBtn:not(:disabled) {
+  color: var(--accent);
+}
+
 .icon {
-  font-size: 18px;
+  display: flex;
   line-height: 1;
-  letter-spacing: -2px;
-  font-weight: 600;
+}
+
+.icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .label {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1;
-  margin-top: 3px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
 }
 
 .dateInput {
   align-self: center;
-  background: #fff;
-  color: #333;
-  border: 1px solid #c0c0c0;
-  border-radius: 4px;
-  padding: 4px 6px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-2);
   font-family: inherit;
-  font-size: 13px;
-  margin: 0 4px;
+  font-size: var(--text-sm);
+  margin: 0 var(--space-1);
+}
+
+.dateInput:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+@media (max-width: 640px) {
+  .label {
+    display: none;
+  }
+  .btn {
+    min-width: 34px;
+  }
 }

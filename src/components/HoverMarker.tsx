@@ -15,7 +15,7 @@ export function HoverMarker() {
       pathOptions={{
         color: '#ffffff',
         weight: 2,
-        fillColor: '#E91E63',
+        fillColor: '#FF3D81',
         fillOpacity: 1,
       }}
       interactive={false}

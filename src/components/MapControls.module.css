@@ -1,11 +1,26 @@
 .controls {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-2);
+}
+
+/* A faint divider groups the layer toggle / search away from map nav. */
+.divider {
+  height: 1px;
+  margin: 2px var(--space-1);
+  background: var(--hairline);
 }
 
 .btn {
@@ -14,43 +29,84 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: #1e3a5f;
-  color: #fff;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-1);
   cursor: pointer;
   padding: 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  transition: background 120ms;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .btn:hover:not(:disabled) {
-  background: #2c4f80;
+  background: var(--surface-hover);
+  border-color: var(--hairline);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  background: var(--surface-active);
+}
+
+.btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .btn:disabled {
-  opacity: 0.4;
+  opacity: 0.32;
   cursor: not-allowed;
+}
+
+.active,
+.active:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .searchBox {
   position: absolute;
   top: 0;
-  right: 52px;
+  right: calc(100% + var(--space-2));
   display: flex;
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  align-items: center;
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-float);
   overflow: hidden;
 }
 
 .searchInput {
-  width: 220px;
+  width: 240px;
+  max-width: 60vw;
   height: 40px;
   border: none;
   outline: none;
-  padding: 0 12px;
+  padding: 0 var(--space-3);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-sm);
+  color: var(--text-1);
   background: transparent;
+  caret-color: var(--accent);
+}
+
+.searchInput::placeholder {
+  color: var(--text-3);
+}
+
+@media (pointer: coarse) {
+  .btn {
+    width: 44px;
+    height: 44px;
+  }
 }
