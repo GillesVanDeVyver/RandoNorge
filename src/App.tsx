@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Map } from './components/Map';
-import { ProfilePanel } from './components/ProfilePanel';
+import { ElevationPanel, SnowPanel } from './components/ProfilePanel';
 import { SnowDateBar } from './components/SnowDateBar';
 import { SummaryCard, SummaryPanel } from './components/SummaryPanel';
 import { Toast } from './components/Toast';
@@ -114,14 +114,19 @@ function App() {
       </div>
       {hasRoute && (
         <SummaryPanel>
-          <SummaryCard title="Elevation & snow">
-            <ProfilePanel
+          <SummaryCard title="Elevation">
+            <ElevationPanel
               profile={elevation.profile}
               loading={elevation.loading}
               error={elevation.error}
+            />
+          </SummaryCard>
+          <SummaryCard title="Snow">
+            <SnowPanel
+              profile={elevation.profile}
               snow={snow.snow}
-              snowLoading={snow.loading}
-              snowError={snow.error}
+              loading={snow.loading}
+              error={snow.error}
               date={snowDate}
               onDateChange={setSnowDate}
             />

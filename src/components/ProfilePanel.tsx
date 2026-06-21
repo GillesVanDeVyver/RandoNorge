@@ -14,13 +14,17 @@ import type { SnowData } from '../snow/useSnow';
 import { setHoverPoint } from '../hoverStore';
 import styles from './ProfilePanel.module.css';
 
-interface Props {
+interface ElevationProps {
   profile: ProfileData | null;
   loading: boolean;
   error: string | null;
+}
+
+interface SnowProps {
+  profile: ProfileData | null;
   snow: SnowData | null;
-  snowLoading: boolean;
-  snowError: string | null;
+  loading: boolean;
+  error: string | null;
   date: string;
   onDateChange: (date: string) => void;
 }
@@ -164,20 +168,34 @@ const ELEV_CHART_WORST_CASE_RANGE = 2500;
 // the outer container collapses to the actual chart height.
 const ELEV_CHART_RESERVE_WORST_CASE = false;
 
-export function ProfilePanel({
-  profile,
-  loading,
-  error,
-  snow,
-  snowLoading,
-  snowError,
-  date,
-  onDateChange,
-}: Props) {
-  // Track the last-emitted hover index so we don't fire setHoverPoint for
-  // every sub-pixel mouse move when the cursor is still on the same data
-  // point.
+// Shared hover handler factory. Both charts emit map-marker updates
+// from the same chartData, and Recharts' syncId="route" keeps their
+// tooltip cursors aligned.
+function useChartHover(chartData: ChartPoint[]) {
   const lastHoverIdx = useRef<number | null>(null);
+  const onMouseMove = (e: unknown) => {
+    const ev = e as { activeTooltipIndex?: string | null };
+    const raw = ev?.activeTooltipIndex;
+    const idx = raw != null ? Number(raw) : NaN;
+    const next = Number.isFinite(idx) ? idx : null;
+    if (next === lastHoverIdx.current) return;
+    lastHoverIdx.current = next;
+    const cp = next != null ? chartData[next] : undefined;
+    if (cp && typeof cp.lat === 'number' && typeof cp.lng === 'number') {
+      setHoverPoint([cp.lat, cp.lng]);
+    } else {
+      setHoverPoint(null);
+    }
+  };
+  const onMouseLeave = () => {
+    if (lastHoverIdx.current === null) return;
+    lastHoverIdx.current = null;
+    setHoverPoint(null);
+  };
+  return { onMouseMove, onMouseLeave };
+}
+
+export function ElevationPanel({ profile, loading, error }: ElevationProps) {
   // Live pixel size of the elevation chart container, used to keep the
   // y-axis at true 1:1 metres-per-pixel (modulo ELEV_EXAGGERATION) so
   // the curve's visual slope reflects real terrain steepness.
@@ -196,8 +214,8 @@ export function ProfilePanel({
     return () => ro.disconnect();
   }, []);
   const chartData = useMemo(
-    () => (profile ? flattenForChart(profile, snow) : []),
-    [profile, snow],
+    () => (profile ? flattenForChart(profile, null) : []),
+    [profile],
   );
   // Plot height (range, distance) -> container height needed to render
   // that elevation range at true 1:1 m/px, with ~10% headroom and the
@@ -264,18 +282,6 @@ export function ProfilePanel({
     }
     return niceTicks(domainLo, domainHi);
   }, [profile, elevChartSize]);
-  const snowMax = useMemo(() => {
-    let m = 0;
-    for (const p of chartData) {
-      if (typeof p.snow === 'number' && p.snow > m) m = p.snow;
-    }
-    return m;
-  }, [chartData]);
-  const snowTicks = useMemo(
-    () => (snowMax > 0 ? niceTicks(0, snowMax) : [0, 10]),
-    [snowMax],
-  );
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   // Build a colored ReferenceLine per chart segment. ReferenceLine.segment
   // takes data-space coordinates so we don't depend on Recharts' internal
   // scale objects (which changed in v3 and are no longer exposed via
@@ -308,42 +314,38 @@ export function ProfilePanel({
     return lines;
   }, [chartData]);
 
+  const hover = useChartHover(chartData);
+
   if (!profile && !loading && !error) return null;
 
   return (
     <div className={styles.panel}>
       <div className={styles.body}>
-          <div className={styles.sectionHeader}>
-            {profile ? (
-              <div className={styles.stats}>
-                <Stat label="Distance" value={fmtKm(profile.stats.distance)} />
-                <Stat
-                  label="Ascent ↗"
-                  value={fmtElev(profile.stats.ascent)}
-                />
-                <Stat
-                  label="Descent ↘"
-                  value={fmtElev(profile.stats.descent)}
-                />
-                <Stat
-                  label="Min / Max"
-                  value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
-                />
-              </div>
-            ) : (
-              <span className={styles.statusText}>
-                {loading ? 'Loading elevations…' : error ? `Error: ${error}` : ''}
-              </span>
-            )}
-          </div>
-          <div
-            style={{
-              height: elevReservedHeight,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'stretch',
-            }}
-          >
+        <div className={styles.sectionHeader}>
+          {profile ? (
+            <div className={styles.stats}>
+              <Stat label="Distance" value={fmtKm(profile.stats.distance)} />
+              <Stat label="Ascent ↗" value={fmtElev(profile.stats.ascent)} />
+              <Stat label="Descent ↘" value={fmtElev(profile.stats.descent)} />
+              <Stat
+                label="Min / Max"
+                value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
+              />
+            </div>
+          ) : (
+            <span className={styles.statusText}>
+              {loading ? 'Loading elevations…' : error ? `Error: ${error}` : ''}
+            </span>
+          )}
+        </div>
+        <div
+          style={{
+            height: elevReservedHeight,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'stretch',
+          }}
+        >
           <div
             className={styles.chart}
             ref={elevChartRef}
@@ -361,32 +363,8 @@ export function ProfilePanel({
                   data={chartData}
                   syncId="route"
                   margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
-                  onMouseMove={(e: unknown) => {
-                    // Recharts 3.x: activeTooltipIndex is a numeric string
-                    // ("0".."N") or null when the cursor is outside the
-                    // plot area. activePayload no longer exists.
-                    const ev = e as { activeTooltipIndex?: string | null };
-                    const raw = ev?.activeTooltipIndex;
-                    const idx = raw != null ? Number(raw) : NaN;
-                    const next = Number.isFinite(idx) ? idx : null;
-                    if (next === lastHoverIdx.current) return;
-                    lastHoverIdx.current = next;
-                    const cp = next != null ? chartData[next] : undefined;
-                    if (
-                      cp &&
-                      typeof cp.lat === 'number' &&
-                      typeof cp.lng === 'number'
-                    ) {
-                      setHoverPoint([cp.lat, cp.lng]);
-                    } else {
-                      setHoverPoint(null);
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    if (lastHoverIdx.current === null) return;
-                    lastHoverIdx.current = null;
-                    setHoverPoint(null);
-                  }}
+                  onMouseMove={hover.onMouseMove}
+                  onMouseLeave={hover.onMouseLeave}
                 >
                   <defs>
                     {/* Rock-like fill: weathered tan at the ridge, darker
@@ -493,199 +471,214 @@ export function ProfilePanel({
               </ResponsiveContainer>
             )}
           </div>
-          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          <div className={`${styles.sectionHeader} ${styles.sectionHeaderRight}`}>
-            <div className={styles.dateField}>
-              <span className={styles.statLabel}>Snow date</span>
-              <DatePopover value={date} max={today} onChange={onDateChange} />
-            </div>
+export function SnowPanel({
+  profile,
+  snow,
+  loading,
+  error,
+  date,
+  onDateChange,
+}: SnowProps) {
+  const chartData = useMemo(
+    () => (profile ? flattenForChart(profile, snow) : []),
+    [profile, snow],
+  );
+  const snowMax = useMemo(() => {
+    let m = 0;
+    for (const p of chartData) {
+      if (typeof p.snow === 'number' && p.snow > m) m = p.snow;
+    }
+    return m;
+  }, [chartData]);
+  const snowTicks = useMemo(
+    () => (snowMax > 0 ? niceTicks(0, snowMax) : [0, 10]),
+    [snowMax],
+  );
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const hover = useChartHover(chartData);
+
+  if (!profile && !loading && !error) return null;
+
+  return (
+    <div className={styles.panel}>
+      <div className={styles.body}>
+        <div className={`${styles.sectionHeader} ${styles.sectionHeaderRight}`}>
+          <div className={styles.dateField}>
+            <span className={styles.statLabel}>Snow date</span>
+            <DatePopover value={date} max={today} onChange={onDateChange} />
           </div>
-          <div className={styles.chart}>
-            {snowLoading && !snow && profile && (
-              <div className={styles.overlay}>Loading snow depth…</div>
-            )}
-            {snowError && !snow && profile && (
-              <div className={styles.overlay}>Snow data unavailable</div>
-            )}
-            {profile && (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={chartData}
-                  syncId="route"
-                  margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
-                  onMouseMove={(e: unknown) => {
-                    const ev = e as { activeTooltipIndex?: string | null };
-                    const raw = ev?.activeTooltipIndex;
-                    const idx = raw != null ? Number(raw) : NaN;
-                    const next = Number.isFinite(idx) ? idx : null;
-                    if (next === lastHoverIdx.current) return;
-                    lastHoverIdx.current = next;
-                    const cp = next != null ? chartData[next] : undefined;
-                    if (
-                      cp &&
-                      typeof cp.lat === 'number' &&
-                      typeof cp.lng === 'number'
-                    ) {
-                      setHoverPoint([cp.lat, cp.lng]);
-                    } else {
-                      setHoverPoint(null);
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    if (lastHoverIdx.current === null) return;
-                    lastHoverIdx.current = null;
-                    setHoverPoint(null);
-                  }}
-                >
-                  <defs>
-                    {/* Snow-like fill: bright sun-lit surface up top, soft
-                        blue snow-shadow in the body, fading to a deeper
-                        firn/ice blue at depth. */}
-                    <linearGradient id="snowFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ffffff" stopOpacity={0.98} />
-                      <stop offset="35%" stopColor="#eaf3fb" stopOpacity={0.95} />
-                      <stop offset="70%" stopColor="#bcd6ec" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#7fa8cf" stopOpacity={0.9} />
-                    </linearGradient>
-                    {/* Snowflake tile, stamped over the gradient via a
-                        second Area layer. Two snowflakes per 28×28 cell at
-                        different sizes give a non-mechanical scatter. */}
-                    <pattern
-                      id="snowflakePattern"
-                      x="0"
-                      y="0"
-                      width="28"
-                      height="28"
-                      patternUnits="userSpaceOnUse"
+        </div>
+        <div className={styles.chart}>
+          {loading && !snow && profile && (
+            <div className={styles.overlay}>Loading snow depth…</div>
+          )}
+          {error && !snow && profile && (
+            <div className={styles.overlay}>Snow data unavailable</div>
+          )}
+          {profile && (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={chartData}
+                syncId="route"
+                margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
+                onMouseMove={hover.onMouseMove}
+                onMouseLeave={hover.onMouseLeave}
+              >
+                <defs>
+                  {/* Snow-like fill: bright sun-lit surface up top, soft
+                      blue snow-shadow in the body, fading to a deeper
+                      firn/ice blue at depth. */}
+                  <linearGradient id="snowFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity={0.98} />
+                    <stop offset="35%" stopColor="#eaf3fb" stopOpacity={0.95} />
+                    <stop offset="70%" stopColor="#bcd6ec" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#7fa8cf" stopOpacity={0.9} />
+                  </linearGradient>
+                  {/* Snowflake tile, stamped over the gradient via a
+                      second Area layer. Two snowflakes per 28×28 cell at
+                      different sizes give a non-mechanical scatter. */}
+                  <pattern
+                    id="snowflakePattern"
+                    x="0"
+                    y="0"
+                    width="28"
+                    height="28"
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <g
+                      transform="translate(8,9)"
+                      stroke="#ffffff"
+                      strokeWidth="0.8"
+                      strokeLinecap="round"
+                      opacity="0.9"
                     >
-                      <g
-                        transform="translate(8,9)"
-                        stroke="#ffffff"
-                        strokeWidth="0.8"
-                        strokeLinecap="round"
-                        opacity="0.9"
+                      <line x1="0" y1="-5" x2="0" y2="5" />
+                      <line x1="-4.33" y1="-2.5" x2="4.33" y2="2.5" />
+                      <line x1="-4.33" y1="2.5" x2="4.33" y2="-2.5" />
+                      {/* barbs on the top arm */}
+                      <line x1="-1.2" y1="-3.5" x2="0" y2="-2.3" />
+                      <line x1="1.2" y1="-3.5" x2="0" y2="-2.3" />
+                      {/* barbs on the bottom arm */}
+                      <line x1="-1.2" y1="3.5" x2="0" y2="2.3" />
+                      <line x1="1.2" y1="3.5" x2="0" y2="2.3" />
+                      {/* barbs on the NE arm */}
+                      <line x1="3.2" y1="-2.6" x2="2.0" y2="-1.15" />
+                      <line x1="3.9" y1="-1.2" x2="2.0" y2="-1.15" />
+                      {/* barbs on the SW arm */}
+                      <line x1="-3.2" y1="2.6" x2="-2.0" y2="1.15" />
+                      <line x1="-3.9" y1="1.2" x2="-2.0" y2="1.15" />
+                    </g>
+                    <g
+                      transform="translate(21,21)"
+                      stroke="#ffffff"
+                      strokeWidth="0.65"
+                      strokeLinecap="round"
+                      opacity="0.7"
+                    >
+                      <line x1="0" y1="-3.2" x2="0" y2="3.2" />
+                      <line x1="-2.77" y1="-1.6" x2="2.77" y2="1.6" />
+                      <line x1="-2.77" y1="1.6" x2="2.77" y2="-1.6" />
+                    </g>
+                  </pattern>
+                </defs>
+                <CartesianGrid stroke="#f1f2f4" strokeDasharray="2 4" vertical={false} />
+                <XAxis
+                  dataKey="distance"
+                  type="number"
+                  domain={[0, 'dataMax']}
+                  tickFormatter={fmtKm}
+                  stroke="transparent"
+                  tick={{ fill: '#9ca3af', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  dataKey="snow"
+                  domain={[snowTicks[0], snowTicks[snowTicks.length - 1]]}
+                  ticks={snowTicks}
+                  interval={0}
+                  tickFormatter={(v) => `${Math.round(v)}`}
+                  stroke="transparent"
+                  tick={{ fill: '#9ca3af', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={58}
+                  unit=" cm"
+                />
+                <Tooltip
+                  cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    const p = payload[0].payload as ChartPoint;
+                    const snowStr =
+                      typeof p.snow === 'number'
+                        ? `${Math.round(p.snow)} cm`
+                        : '–';
+                    return (
+                      <div
+                        style={{
+                          background: '#ffffff',
+                          border: '1px solid rgba(0,0,0,0.06)',
+                          borderRadius: 10,
+                          padding: '8px 12px',
+                          fontSize: 12,
+                          lineHeight: 1.5,
+                          color: '#1d1d1f',
+                          fontVariantNumeric: 'tabular-nums',
+                          boxShadow:
+                            '0 10px 24px -8px rgba(15,23,42,0.18), 0 4px 8px -4px rgba(15,23,42,0.08)',
+                        }}
                       >
-                        <line x1="0" y1="-5" x2="0" y2="5" />
-                        <line x1="-4.33" y1="-2.5" x2="4.33" y2="2.5" />
-                        <line x1="-4.33" y1="2.5" x2="4.33" y2="-2.5" />
-                        {/* barbs on the top arm */}
-                        <line x1="-1.2" y1="-3.5" x2="0" y2="-2.3" />
-                        <line x1="1.2" y1="-3.5" x2="0" y2="-2.3" />
-                        {/* barbs on the bottom arm */}
-                        <line x1="-1.2" y1="3.5" x2="0" y2="2.3" />
-                        <line x1="1.2" y1="3.5" x2="0" y2="2.3" />
-                        {/* barbs on the NE arm */}
-                        <line x1="3.2" y1="-2.6" x2="2.0" y2="-1.15" />
-                        <line x1="3.9" y1="-1.2" x2="2.0" y2="-1.15" />
-                        {/* barbs on the SW arm */}
-                        <line x1="-3.2" y1="2.6" x2="-2.0" y2="1.15" />
-                        <line x1="-3.9" y1="1.2" x2="-2.0" y2="1.15" />
-                      </g>
-                      <g
-                        transform="translate(21,21)"
-                        stroke="#ffffff"
-                        strokeWidth="0.65"
-                        strokeLinecap="round"
-                        opacity="0.7"
-                      >
-                        <line x1="0" y1="-3.2" x2="0" y2="3.2" />
-                        <line x1="-2.77" y1="-1.6" x2="2.77" y2="1.6" />
-                        <line x1="-2.77" y1="1.6" x2="2.77" y2="-1.6" />
-                      </g>
-                    </pattern>
-                  </defs>
-                  <CartesianGrid stroke="#f1f2f4" strokeDasharray="2 4" vertical={false} />
-                  <XAxis
-                    dataKey="distance"
-                    type="number"
-                    domain={[0, 'dataMax']}
-                    tickFormatter={fmtKm}
-                    stroke="transparent"
-                    tick={{ fill: '#9ca3af', fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    dataKey="snow"
-                    domain={[snowTicks[0], snowTicks[snowTicks.length - 1]]}
-                    ticks={snowTicks}
-                    interval={0}
-                    tickFormatter={(v) => `${Math.round(v)}`}
-                    stroke="transparent"
-                    tick={{ fill: '#9ca3af', fontSize: 11 }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={58}
-                    unit=" cm"
-                  />
-                  <Tooltip
-                    cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload || payload.length === 0) return null;
-                      const p = payload[0].payload as ChartPoint;
-                      const snowStr =
-                        typeof p.snow === 'number'
-                          ? `${Math.round(p.snow)} cm`
-                          : '–';
-                      return (
                         <div
                           style={{
-                            background: '#ffffff',
-                            border: '1px solid rgba(0,0,0,0.06)',
-                            borderRadius: 10,
-                            padding: '8px 12px',
-                            fontSize: 12,
-                            lineHeight: 1.5,
-                            color: '#1d1d1f',
-                            fontVariantNumeric: 'tabular-nums',
-                            boxShadow:
-                              '0 10px 24px -8px rgba(15,23,42,0.18), 0 4px 8px -4px rgba(15,23,42,0.08)',
+                            color: '#9ca3af',
+                            fontSize: 10,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            fontWeight: 600,
+                            marginBottom: 4,
                           }}
                         >
-                          <div
-                            style={{
-                              color: '#9ca3af',
-                              fontSize: 10,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.08em',
-                              fontWeight: 600,
-                              marginBottom: 4,
-                            }}
-                          >
-                            {fmtKm(label as number)}
-                          </div>
-                          <div style={{ fontWeight: 600 }}>Snow {snowStr}</div>
+                          {fmtKm(label as number)}
                         </div>
-                      );
-                    }}
-                  />
-                  {/* Base snowpack — gradient fill with the surface line. */}
-                  <Area
-                    type="monotone"
-                    dataKey="snow"
-                    stroke="#5b8bc5"
-                    strokeWidth={1.25}
-                    fill="url(#snowFill)"
-                    connectNulls={false}
-                    isAnimationActive={false}
-                    activeDot={{ r: 3 }}
-                  />
-                  {/* Snowflake stamps, clipped to the snowpack area. */}
-                  <Area
-                    type="monotone"
-                    dataKey="snow"
-                    stroke="none"
-                    fill="url(#snowflakePattern)"
-                    connectNulls={false}
-                    isAnimationActive={false}
-                    activeDot={false}
-                    legendType="none"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+                        <div style={{ fontWeight: 600 }}>Snow {snowStr}</div>
+                      </div>
+                    );
+                  }}
+                />
+                {/* Base snowpack — gradient fill with the surface line. */}
+                <Area
+                  type="monotone"
+                  dataKey="snow"
+                  stroke="#5b8bc5"
+                  strokeWidth={1.25}
+                  fill="url(#snowFill)"
+                  connectNulls={false}
+                  isAnimationActive={false}
+                  activeDot={{ r: 3 }}
+                />
+                {/* Snowflake stamps, clipped to the snowpack area. */}
+                <Area
+                  type="monotone"
+                  dataKey="snow"
+                  stroke="none"
+                  fill="url(#snowflakePattern)"
+                  connectNulls={false}
+                  isAnimationActive={false}
+                  activeDot={false}
+                  legendType="none"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
     </div>
   );
