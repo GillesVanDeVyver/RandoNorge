@@ -68,51 +68,28 @@
 
 .body {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: stretch;
   padding: 18px 24px 22px;
-  gap: 24px;
-}
-
-.leftCol {
-  flex: 0 0 19.1%;
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
-  padding: 4px 20px 4px 4px;
-  border-right: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.leftElev {
+.sectionHeader {
   display: flex;
-  align-items: center;
-  justify-content: stretch;
-  min-height: 0;
+  align-items: flex-end;
+  padding: 0 4px;
 }
 
-.leftSnow {
-  height: 180px;
-  display: flex;
-  align-items: center;
-  justify-content: stretch;
-}
-
-.rightCol {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.sectionHeaderRight {
+  justify-content: flex-end;
 }
 
 .stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  column-gap: 16px;
-  row-gap: 18px;
+  grid-template-columns: repeat(4, auto);
+  column-gap: 28px;
+  row-gap: 0;
   align-items: start;
-  width: 100%;
 }
 
 .stat {
@@ -152,8 +129,9 @@
 .dateField {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 100%;
+  gap: 4px;
+  align-items: flex-end;
+  width: 160px;
 }
 
 .dateInput {
