@@ -1,6 +1,6 @@
 .controls {
   position: absolute;
-  top: max(var(--space-3), env(safe-area-inset-top));
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 40px + var(--space-1) * 2 + 2px + var(--space-2));
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1000;
   display: flex;
@@ -104,9 +104,39 @@
   color: var(--text-3);
 }
 
+.overlayPanel {
+  position: absolute;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  right: max(var(--space-3), env(safe-area-inset-right));
+  z-index: 1001;
+  display: flex;
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-2);
+}
+
+.overlayToggle {
+  width: auto;
+  padding: 0 var(--space-2);
+  gap: var(--space-1);
+}
+
+.overlayLabel {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
 @media (pointer: coarse) {
   .btn {
     width: 44px;
     height: 44px;
+  }
+
+  .overlayToggle {
+    width: auto;
   }
 }

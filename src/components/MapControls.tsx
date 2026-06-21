@@ -78,80 +78,85 @@ export function MapControls({ overlay, onOverlayChange }: Props) {
     overlay === 'steepness' ? 'Show snow depth' : 'Show steepness';
 
   return (
-    <div className={styles.controls}>
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={handleToggleOverlay}
-        title={overlayLabel}
-        aria-label={overlayLabel}
-      >
-        {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
-      </button>
-      <div style={{ position: 'relative' }}>
+    <>
+      <div className={styles.overlayPanel}>
+        <button
+          type="button"
+          className={`${styles.btn} ${styles.overlayToggle}`}
+          onClick={handleToggleOverlay}
+          title={overlayLabel}
+          aria-label={overlayLabel}
+        >
+          {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
+          <span className={styles.overlayLabel}>{overlayLabel}</span>
+        </button>
+      </div>
+      <div className={styles.controls}>
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => setSearchOpen((v) => !v)}
+            title="Search"
+            aria-label="Search"
+          >
+            <SearchIcon />
+          </button>
+          {searchOpen && (
+            <form className={styles.searchBox} onSubmit={handleSearch}>
+              <input
+                ref={inputRef}
+                type="text"
+                className={styles.searchInput}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setSearchOpen(false);
+                }}
+                placeholder="Search place..."
+              />
+            </form>
+          )}
+        </div>
+        <div className={styles.divider} />
         <button
           type="button"
           className={styles.btn}
-          onClick={() => setSearchOpen((v) => !v)}
-          title="Search"
-          aria-label="Search"
+          onClick={handleFullscreen}
+          title="Fullscreen"
+          aria-label="Fullscreen"
         >
-          <SearchIcon />
+          <FullscreenIcon />
         </button>
-        {searchOpen && (
-          <form className={styles.searchBox} onSubmit={handleSearch}>
-            <input
-              ref={inputRef}
-              type="text"
-              className={styles.searchInput}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setSearchOpen(false);
-              }}
-              placeholder="Search place..."
-            />
-          </form>
-        )}
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={handleLocate}
+          title="My location"
+          aria-label="My location"
+        >
+          <LocateIcon />
+        </button>
+        <div className={styles.divider} />
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={handleZoomIn}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <PlusIcon />
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={handleZoomOut}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <MinusIcon />
+        </button>
       </div>
-      <div className={styles.divider} />
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={handleFullscreen}
-        title="Fullscreen"
-        aria-label="Fullscreen"
-      >
-        <FullscreenIcon />
-      </button>
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={handleLocate}
-        title="My location"
-        aria-label="My location"
-      >
-        <LocateIcon />
-      </button>
-      <div className={styles.divider} />
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={handleZoomIn}
-        title="Zoom in"
-        aria-label="Zoom in"
-      >
-        <PlusIcon />
-      </button>
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={handleZoomOut}
-        title="Zoom out"
-        aria-label="Zoom out"
-      >
-        <MinusIcon />
-      </button>
-    </div>
+    </>
   );
 }
