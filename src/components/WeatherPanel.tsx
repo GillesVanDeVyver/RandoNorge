@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ProfileData } from '../elevation/profile';
 import type { WeatherHour } from '../weather/api';
+import { useWeather, weatherCandidates } from '../weather/useWeather';
 import { WeatherSymbol, WindArrowIcon } from './WeatherIcons';
 import styles from './WeatherPanel.module.css';
 
 interface Props {
-  hours: WeatherHour[] | null;
-  loading: boolean;
-  error: string | null;
+  profile: ProfileData;
 }
+
+type LocationKey = 'lowest' | 'highest';
+const LOC_KEYS: LocationKey[] = ['lowest', 'highest'];
+const LOC_LABELS: Record<LocationKey, string> = {
+  lowest: 'Lowest point',
+  highest: 'Highest point',
+};
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const toYMDLocal = (d: Date) =>
@@ -61,7 +68,12 @@ function fmtPrecip(h: WeatherHour): string | null {
   return null;
 }
 
-export function WeatherPanel({ hours, loading, error }: Props) {
+export function WeatherPanel({ profile }: Props) {
+  const candidates = useMemo(() => weatherCandidates(profile), [profile]);
+  const [locKey, setLocKey] = useState<LocationKey>('lowest');
+  const point = candidates ? candidates[locKey] : null;
+  const { hours, loading, error } = useWeather(point);
+
   const today = useMemo(() => toYMDLocal(new Date()), []);
   const grouped = useMemo(() => (hours ? groupByDay(hours) : null), [hours]);
   const days = useMemo(() => {
@@ -105,17 +117,63 @@ export function WeatherPanel({ hours, loading, error }: Props) {
     };
   }, [rows]);
 
+  if (!candidates) return null;
+
+  const locSwitch = (
+    <div className={styles.locGroup}>
+      <span className={styles.locPrefix}>Showing weather forecast for:</span>
+      <div
+        className={styles.locSwitch}
+        role="radiogroup"
+        aria-label="Forecast location"
+      >
+      {LOC_KEYS.map((k) => {
+        const c = candidates[k];
+        const active = k === locKey;
+        return (
+          <button
+            key={k}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            className={`${styles.locOption} ${active ? styles.locOptionActive : ''}`}
+            onClick={() => setLocKey(k)}
+          >
+            <span className={styles.locLabel}>{LOC_LABELS[k]}</span>
+            <span className={styles.locElev}>{Math.round(c.elevation)} m</span>
+          </button>
+        );
+      })}
+      </div>
+    </div>
+  );
+
+  const topRow = (children: React.ReactNode) => (
+    <div className={styles.topRow}>
+      {locSwitch}
+      <div className={styles.topRowRight}>{children}</div>
+    </div>
+  );
+
   if (error && !hours) {
-    return <div className={styles.status}>Weather unavailable</div>;
+    return (
+      <div className={styles.panel}>
+        {topRow(<div className={styles.status}>Weather unavailable</div>)}
+      </div>
+    );
   }
-  if (loading && !hours) {
-    return <div className={styles.status}>Loading forecast…</div>;
+  if ((loading && !hours) || !hours || days.length === 0) {
+    return (
+      <div className={styles.panel}>
+        {topRow(<div className={styles.status}>Loading forecast…</div>)}
+      </div>
+    );
   }
-  if (!hours || days.length === 0) return null;
 
   return (
     <div className={styles.panel}>
-      <div className={styles.dayBar} role="tablist" aria-label="Forecast day">
+      {topRow(
+        <div className={styles.dayBar} role="tablist" aria-label="Forecast day">
         {days.map((ymd) => {
           // ymd is a local-date string; parse it back as a local Date so the
           // day-of-week label doesn't drift across timezones.
@@ -136,7 +194,8 @@ export function WeatherPanel({ hours, loading, error }: Props) {
             </button>
           );
         })}
-      </div>
+        </div>,
+      )}
       <div className={styles.tableWrap}>
         <div className={styles.header}>
           <span>Time</span>

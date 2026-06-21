@@ -5,6 +5,90 @@
   width: 100%;
 }
 
+.topRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.topRowRight {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.locGroup {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.locPrefix {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+/* Two-state segmented switch (Lowest / Highest). The active half is filled
+   with the accent color; the inactive half stays on the panel background. */
+.locSwitch {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: stretch;
+  padding: 2px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+}
+
+.locOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  background: transparent;
+  color: var(--text-2);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.1;
+  min-width: 84px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.locOption:hover:not(.locOptionActive) {
+  color: var(--text-1);
+}
+
+.locOption:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.locOptionActive {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.locLabel {
+  font-weight: 600;
+}
+
+.locElev {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.locOptionActive .locElev {
+  color: var(--accent-contrast);
+  opacity: 0.85;
+}
+
 .dayBar {
   display: flex;
   align-items: stretch;
