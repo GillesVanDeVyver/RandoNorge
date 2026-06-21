@@ -1,11 +1,29 @@
+import { useEffect } from 'react';
 import type L from 'leaflet';
-import { MapContainer, TileLayer, WMSTileLayer } from 'react-leaflet';
+import { MapContainer, TileLayer, WMSTileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Mode, Overlay, Route } from '../types';
 import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
 import { MapControls } from './MapControls';
 import styles from './Map.module.css';
+
+// Leaflet caches the container size and only re-measures on its own resize
+// events. When the surrounding flex layout reshapes (e.g. entering summary
+// mode shrinks the map pane from 100% to 38.2%), Leaflet keeps drawing
+// tiles for the old size — leaving a grey gutter — until we explicitly
+// invalidate. Watching the container with a ResizeObserver covers every
+// layout change without needing an explicit "the layout just changed" prop.
+function InvalidateOnResize() {
+  const map = useMap();
+  useEffect(() => {
+    const el = map.getContainer();
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [map]);
+  return null;
+}
 
 const INITIAL_CENTER: [number, number] = [65, 13];
 const INITIAL_ZOOM = 5;
@@ -87,6 +105,7 @@ export function Map({
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
       <HoverMarker />
       <MapControls overlay={overlay} onOverlayChange={onOverlayChange} />
+      <InvalidateOnResize />
     </MapContainer>
   );
 }

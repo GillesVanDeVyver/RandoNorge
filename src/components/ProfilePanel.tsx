@@ -12,7 +12,6 @@ import {
 import type { ProfileData } from '../elevation/profile';
 import type { SnowData } from '../snow/useSnow';
 import { setHoverPoint } from '../hoverStore';
-import { WeatherPanel } from './WeatherPanel';
 import styles from './ProfilePanel.module.css';
 
 interface Props {
@@ -175,7 +174,6 @@ export function ProfilePanel({
   date,
   onDateChange,
 }: Props) {
-  const [collapsed, setCollapsed] = useState(false);
   // Track the last-emitted hover index so we don't fire setHoverPoint for
   // every sub-pixel mouse move when the cursor is still on the same data
   // point.
@@ -313,20 +311,8 @@ export function ProfilePanel({
   if (!profile && !loading && !error) return null;
 
   return (
-    <div
-      className={`${styles.panel} ${collapsed ? styles.collapsed : ''}`}
-    >
-      <button
-        type="button"
-        className={styles.collapseBtn}
-        onClick={() => setCollapsed((c) => !c)}
-        aria-label={collapsed ? 'Expand profile' : 'Collapse profile'}
-      >
-        {collapsed ? '▲' : '▼'}
-      </button>
-
-      {!collapsed && (
-        <div className={styles.body}>
+    <div className={styles.panel}>
+      <div className={styles.body}>
           <div className={styles.sectionHeader}>
             {profile ? (
               <div className={styles.stats}>
@@ -700,9 +686,7 @@ export function ProfilePanel({
               </ResponsiveContainer>
             )}
           </div>
-          {profile && <WeatherPanel profile={profile} />}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

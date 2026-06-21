@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Map } from './components/Map';
 import { ProfilePanel } from './components/ProfilePanel';
 import { SnowDateBar } from './components/SnowDateBar';
+import { SummaryCard, SummaryPanel } from './components/SummaryPanel';
 import { Toast } from './components/Toast';
 import { Toolbar } from './components/Toolbar';
+import { WeatherPanel } from './components/WeatherPanel';
 import { PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
@@ -70,54 +72,68 @@ function App() {
     if (route.length === 0 && mode === 'erase') setMode('idle');
   }, [route.length, mode]);
 
-  const showHint = route.length === 0 && !elevation.loading;
+  const hasRoute = route.length > 0;
+  const showHint = !hasRoute && !elevation.loading;
 
   return (
-    <>
-      <Map
-        mode={mode}
-        route={route}
-        onRouteChange={setRoute}
-        overlay={overlay}
-        onOverlayChange={setOverlay}
-        snowDate={snowDate}
-      />
-      <Toolbar
-        mode={mode}
-        onModeChange={setMode}
-        onClear={handleClear}
-        hasRoute={route.length > 0}
-      />
-      {overlay === 'snowdepth' && (
-        <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
-      )}
-      {showHint && (
-        <div className={styles.hint}>
-          <PencilIcon />
-          <span>
-            <strong>Draw a route</strong> to see its elevation &amp; snow profile
-          </span>
-        </div>
-      )}
-      <ProfilePanel
-        profile={elevation.profile}
-        loading={elevation.loading}
-        error={elevation.error}
-        snow={snow.snow}
-        snowLoading={snow.loading}
-        snowError={snow.error}
-        date={snowDate}
-        onDateChange={setSnowDate}
-      />
-      {clearedRoute && (
-        <Toast
-          message="Route cleared"
-          actionLabel="Undo"
-          onAction={handleUndo}
-          onDismiss={dismissToast}
+    <div className={`${styles.app} ${hasRoute ? styles.summary : ''}`}>
+      <div className={styles.mapPane}>
+        <Map
+          mode={mode}
+          route={route}
+          onRouteChange={setRoute}
+          overlay={overlay}
+          onOverlayChange={setOverlay}
+          snowDate={snowDate}
         />
+        <Toolbar
+          mode={mode}
+          onModeChange={setMode}
+          onClear={handleClear}
+          hasRoute={hasRoute}
+        />
+        {overlay === 'snowdepth' && (
+          <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
+        )}
+        {showHint && (
+          <div className={styles.hint}>
+            <PencilIcon />
+            <span>
+              <strong>Draw a route</strong> to see its elevation &amp; snow profile
+            </span>
+          </div>
+        )}
+        {clearedRoute && (
+          <Toast
+            message="Route cleared"
+            actionLabel="Undo"
+            onAction={handleUndo}
+            onDismiss={dismissToast}
+          />
+        )}
+      </div>
+      {hasRoute && (
+        <SummaryPanel>
+          <SummaryCard title="Elevation & snow">
+            <ProfilePanel
+              profile={elevation.profile}
+              loading={elevation.loading}
+              error={elevation.error}
+              snow={snow.snow}
+              snowLoading={snow.loading}
+              snowError={snow.error}
+              date={snowDate}
+              onDateChange={setSnowDate}
+            />
+          </SummaryCard>
+          {elevation.profile && (
+            <SummaryCard title="Weather forecast" padded={false}>
+              <WeatherPanel profile={elevation.profile} />
+            </SummaryCard>
+          )}
+        </SummaryPanel>
       )}
-    </>
+    </div>
   );
 }
 
