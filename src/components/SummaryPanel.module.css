@@ -32,6 +32,12 @@
     0 1px 2px rgba(15, 23, 42, 0.04),
     0 8px 20px -12px rgba(15, 23, 42, 0.12);
   overflow: hidden;
+  /* Don't let the flex column in .scroll shrink cards below their
+     natural content height. Without this, `overflow: hidden` above
+     resets `min-height: auto` to 0, so the parent flex would squash
+     a tall chart (e.g. the 1:1 elevation profile) down to a sliver
+     instead of overflowing the scroll container. */
+  flex-shrink: 0;
 }
 
 .cardHeader {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -140,33 +140,12 @@ function niceTicks(min: number, max: number, target = 5): number[] {
   return ticks;
 }
 
-// Vertical exaggeration of the elevation curve relative to true 1:1
-// metres-per-pixel. 1 = geometrically faithful (steep terrain looks
-// steep, flat terrain looks flat). Values >1 stretch the curve
-// vertically; <1 would compress it.
-const ELEV_EXAGGERATION = 2;
 // Approximate non-plot chrome inside the chart container, used to
 // derive the plot area's pixel size from the container's size.
 // Matches the YAxis width and margin props on the elevation AreaChart
 // below, plus a rough allowance for the bottom XAxis tick band.
 const PLOT_CHROME_W = 58 + 16 + 8; // yAxis + right margin + left margin
 const PLOT_CHROME_H = 8 + 4 + 22;  // top margin + bottom margin + xAxis band
-// Bounds for the elevation chart's actual plotted height. The chart is
-// resized to keep the plot area at true 1:1 m/px so the curve's visual
-// slope reflects real terrain steepness. Without bounds, very steep
-// routes would push the chart over the map and very flat routes would
-// collapse to a sliver.
-const ELEV_CHART_MIN_H = 240;
-const ELEV_CHART_MAX_H = 720;
-// Worst-case elevation range (m) used to reserve the outer container's
-// height. The chart inside grows to its true-1:1 size for the route's
-// actual range, with empty padding above/below filling the rest, so
-// the surrounding layout stays stable regardless of terrain.
-const ELEV_CHART_WORST_CASE_RANGE = 2500;
-// When true, reserve outer container space for the worst-case range
-// (stable layout, empty padding around small profiles). When false,
-// the outer container collapses to the actual chart height.
-const ELEV_CHART_RESERVE_WORST_CASE = false;
 
 // Shared hover handler factory. Both charts emit map-marker updates
 // from the same chartData, and Recharts' syncId="route" keeps their
@@ -196,92 +175,71 @@ function useChartHover(chartData: ChartPoint[]) {
 }
 
 export function ElevationPanel({ profile, loading, error }: ElevationProps) {
-  // Live pixel size of the elevation chart container, used to keep the
-  // y-axis at true 1:1 metres-per-pixel (modulo ELEV_EXAGGERATION) so
-  // the curve's visual slope reflects real terrain steepness.
-  const elevChartRef = useRef<HTMLDivElement | null>(null);
-  const [elevChartSize, setElevChartSize] = useState<{ w: number; h: number }>(
-    { w: 0, h: 0 },
-  );
-  useEffect(() => {
-    const el = elevChartRef.current;
+  // Live pixel size of the elevation chart container, used to size
+  // the chart's height at true 1:1 metres-per-pixel so the curve's
+  // visual slope reflects real terrain steepness.
+  const [containerWidth, setContainerWidth] = useState(0);
+  // Measure the chart container's actual pixel width via a callback
+  // ref (not a useEffect). This component returns null while there
+  // is no profile/loading/error, so the chart div isn't mounted on
+  // the very first render — a useEffect with empty deps would only
+  // fire on that first render (when the ref is null) and never re-
+  // attach when the div later appears. A callback ref reliably runs
+  // each time the element attaches/detaches.
+  //
+  // The callback also installs a ResizeObserver to catch later size
+  // changes (window resize, sidebar toggles) and ignores transient
+  // 0-width readings so an initial layout hiccup can't clobber a
+  // previously-valid measurement.
+  const roRef = useRef<ResizeObserver | null>(null);
+  const chartRefCallback = useCallback((el: HTMLDivElement | null) => {
+    if (roRef.current) {
+      roRef.current.disconnect();
+      roRef.current = null;
+    }
     if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const r = entries[0].contentRect;
-      setElevChartSize({ w: r.width, h: r.height });
-    });
+    const apply = () => {
+      const w = el.clientWidth;
+      if (w > 0) setContainerWidth((prev) => (prev === w ? prev : w));
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
     ro.observe(el);
-    return () => ro.disconnect();
+    roRef.current = ro;
   }, []);
   const chartData = useMemo(
     () => (profile ? flattenForChart(profile, null) : []),
     [profile],
   );
-  // Plot height (range, distance) -> container height needed to render
-  // that elevation range at true 1:1 m/px, with ~10% headroom and the
-  // chrome added on, clamped to ELEV_CHART_MIN_H..ELEV_CHART_MAX_H.
-  const heightForRange = (range: number, dist: number, plotW: number) => {
-    const idealPlotH = (plotW * range * ELEV_EXAGGERATION * 1.1) / dist;
-    return Math.max(
-      ELEV_CHART_MIN_H,
-      Math.min(ELEV_CHART_MAX_H, idealPlotH + PLOT_CHROME_H),
-    );
-  };
-  // Inner chart height — sized to the route's actual elevation range.
-  const elevChartHeight = useMemo(() => {
-    if (!profile || elevChartSize.w <= 0) return ELEV_CHART_MIN_H;
-    const plotW = Math.max(elevChartSize.w - PLOT_CHROME_W, 1);
-    const dist = Math.max(profile.stats.distance, 1);
-    const range = Math.max(
-      profile.stats.maxElevation - profile.stats.minElevation,
-      0,
-    );
-    return heightForRange(range, dist, plotW);
-  }, [profile, elevChartSize.w]);
-  // Outer reserved height — sized assuming a worst-case 2500 m range
-  // so the surrounding layout doesn't reflow when switching routes.
-  // When ELEV_CHART_RESERVE_WORST_CASE is false, the outer container
-  // simply collapses to the actual chart height (no padding).
-  const elevReservedHeight = useMemo(() => {
-    if (!ELEV_CHART_RESERVE_WORST_CASE) return elevChartHeight;
-    if (!profile || elevChartSize.w <= 0) return ELEV_CHART_MAX_H;
-    const plotW = Math.max(elevChartSize.w - PLOT_CHROME_W, 1);
-    const dist = Math.max(profile.stats.distance, 1);
-    return heightForRange(ELEV_CHART_WORST_CASE_RANGE, dist, plotW);
-  }, [profile, elevChartSize.w, elevChartHeight]);
+  // Y-axis ticks — rounded to nice intervals covering the actual
+  // elevation range. The plot area height is then derived from this
+  // exact domain so the round-to-nice doesn't break the 1:1 ratio.
   const yTicks = useMemo(() => {
     if (!profile) return [];
     const lo = profile.stats.minElevation;
     const hi = profile.stats.maxElevation;
-    const actualRange = Math.max(hi - lo, 0);
-    // Y span derived from the plot's pixel size so 1 m vertical equals
-    // 1 m horizontal on screen (modulo ELEV_EXAGGERATION). When the
-    // route's actual range is smaller, we expand the domain (centered
-    // on the midpoint) so flat terrain renders as a truly flat line.
-    // When the route's range is larger than the 1:1 span — i.e. the
-    // chart was bound by ELEV_CHART_MAX_H — we fall back to auto-fit so
-    // the whole profile remains visible; in that case visual slope
-    // becomes mildly compressed, but the curve still uses the full box.
-    const plotW = Math.max(elevChartSize.w - PLOT_CHROME_W, 1);
-    const plotH = Math.max(elevChartSize.h - PLOT_CHROME_H, 1);
-    const dist = Math.max(profile.stats.distance, 1);
-    const trueRange =
-      elevChartSize.w > 0
-        ? (plotH * dist) / (plotW * ELEV_EXAGGERATION)
-        : 0;
-    let domainLo: number;
-    let domainHi: number;
-    if (actualRange <= trueRange) {
-      const mid = (lo + hi) / 2;
-      domainLo = mid - trueRange / 2;
-      domainHi = mid + trueRange / 2;
-    } else {
-      const pad = Math.max(actualRange, 1) * 0.05;
-      domainLo = lo - pad;
-      domainHi = hi + pad;
+    const t = niceTicks(lo, hi);
+    if (t.length < 2) {
+      // Degenerate (perfectly flat) profile: pad by ±0.5 m so Recharts
+      // has a non-zero domain. The chart will still render as a sliver.
+      return [t[0] - 0.5, t[0] + 0.5];
     }
-    return niceTicks(domainLo, domainHi);
-  }, [profile, elevChartSize]);
+    return t;
+  }, [profile]);
+  // Chart container height — sized so 1 m vertical equals 1 m horizontal
+  // on screen. A 45° terrain slope therefore renders as a 45° line.
+  // No min/max clamp: flat terrain produces a sliver (correctly flat),
+  // steep terrain produces a tall chart (correctly steep).
+  const elevChartHeight = useMemo(() => {
+    if (!profile || containerWidth <= 0 || yTicks.length < 2) {
+      return PLOT_CHROME_H;
+    }
+    const plotW = Math.max(containerWidth - PLOT_CHROME_W, 1);
+    const dist = Math.max(profile.stats.distance, 1);
+    const domainSpan = yTicks[yTicks.length - 1] - yTicks[0];
+    const plotH = (plotW * domainSpan) / dist;
+    return plotH + PLOT_CHROME_H;
+  }, [profile, containerWidth, yTicks]);
   // Build a colored ReferenceLine per chart segment. ReferenceLine.segment
   // takes data-space coordinates so we don't depend on Recharts' internal
   // scale objects (which changed in v3 and are no longer exposed via
@@ -339,33 +297,26 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
           )}
         </div>
         <div
-          style={{
-            height: elevReservedHeight,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'stretch',
-          }}
+          className={styles.chart}
+          ref={chartRefCallback}
+          style={{ height: elevChartHeight, width: '100%' }}
         >
-          <div
-            className={styles.chart}
-            ref={elevChartRef}
-            style={{ height: elevChartHeight, flex: '0 0 auto', width: '100%' }}
-          >
             {loading && !profile && (
               <div className={styles.overlay}>Loading elevations…</div>
             )}
             {error && !profile && (
               <div className={styles.overlay}>Elevation unavailable</div>
             )}
-            {profile && (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={chartData}
-                  syncId="route"
-                  margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
-                  onMouseMove={hover.onMouseMove}
-                  onMouseLeave={hover.onMouseLeave}
-                >
+            {profile && containerWidth > 0 && (
+              <AreaChart
+                width={containerWidth}
+                height={elevChartHeight}
+                data={chartData}
+                syncId="route"
+                margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
+                onMouseMove={hover.onMouseMove}
+                onMouseLeave={hover.onMouseLeave}
+              >
                   <defs>
                     {/* Rock-like fill: weathered tan at the ridge, darker
                         granite/basalt tones at depth. Stops are tuned to
@@ -467,10 +418,8 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                       ifOverflow="extendDomain"
                     />
                   ))}
-                </AreaChart>
-              </ResponsiveContainer>
+              </AreaChart>
             )}
-          </div>
         </div>
       </div>
     </div>
