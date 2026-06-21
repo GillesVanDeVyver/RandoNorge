@@ -136,6 +136,34 @@ function niceTicks(min: number, max: number, target = 5): number[] {
   return ticks;
 }
 
+// Vertical exaggeration of the elevation curve relative to true 1:1
+// metres-per-pixel. 1 = geometrically faithful (steep terrain looks
+// steep, flat terrain looks flat). Values >1 stretch the curve
+// vertically; <1 would compress it.
+const ELEV_EXAGGERATION = 2;
+// Approximate non-plot chrome inside the chart container, used to
+// derive the plot area's pixel size from the container's size.
+// Matches the YAxis width and margin props on the elevation AreaChart
+// below, plus a rough allowance for the bottom XAxis tick band.
+const PLOT_CHROME_W = 58 + 16 + 8; // yAxis + right margin + left margin
+const PLOT_CHROME_H = 8 + 4 + 22;  // top margin + bottom margin + xAxis band
+// Bounds for the elevation chart's actual plotted height. The chart is
+// resized to keep the plot area at true 1:1 m/px so the curve's visual
+// slope reflects real terrain steepness. Without bounds, very steep
+// routes would push the chart over the map and very flat routes would
+// collapse to a sliver.
+const ELEV_CHART_MIN_H = 240;
+const ELEV_CHART_MAX_H = 720;
+// Worst-case elevation range (m) used to reserve the outer container's
+// height. The chart inside grows to its true-1:1 size for the route's
+// actual range, with empty padding above/below filling the rest, so
+// the surrounding layout stays stable regardless of terrain.
+const ELEV_CHART_WORST_CASE_RANGE = 2500;
+// When true, reserve outer container space for the worst-case range
+// (stable layout, empty padding around small profiles). When false,
+// the outer container collapses to the actual chart height.
+const ELEV_CHART_RESERVE_WORST_CASE = false;
+
 export function ProfilePanel({
   profile,
   loading,
@@ -151,17 +179,92 @@ export function ProfilePanel({
   // every sub-pixel mouse move when the cursor is still on the same data
   // point.
   const lastHoverIdx = useRef<number | null>(null);
+  // Live pixel size of the elevation chart container, used to keep the
+  // y-axis at true 1:1 metres-per-pixel (modulo ELEV_EXAGGERATION) so
+  // the curve's visual slope reflects real terrain steepness.
+  const elevChartRef = useRef<HTMLDivElement | null>(null);
+  const [elevChartSize, setElevChartSize] = useState<{ w: number; h: number }>(
+    { w: 0, h: 0 },
+  );
+  useEffect(() => {
+    const el = elevChartRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0].contentRect;
+      setElevChartSize({ w: r.width, h: r.height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const chartData = useMemo(
     () => (profile ? flattenForChart(profile, snow) : []),
     [profile, snow],
   );
-  const yTicks = useMemo(
-    () =>
-      profile
-        ? niceTicks(profile.stats.minElevation, profile.stats.maxElevation)
-        : [],
-    [profile],
-  );
+  // Plot height (range, distance) -> container height needed to render
+  // that elevation range at true 1:1 m/px, with ~10% headroom and the
+  // chrome added on, clamped to ELEV_CHART_MIN_H..ELEV_CHART_MAX_H.
+  const heightForRange = (range: number, dist: number, plotW: number) => {
+    const idealPlotH = (plotW * range * ELEV_EXAGGERATION * 1.1) / dist;
+    return Math.max(
+      ELEV_CHART_MIN_H,
+      Math.min(ELEV_CHART_MAX_H, idealPlotH + PLOT_CHROME_H),
+    );
+  };
+  // Inner chart height — sized to the route's actual elevation range.
+  const elevChartHeight = useMemo(() => {
+    if (!profile || elevChartSize.w <= 0) return ELEV_CHART_MIN_H;
+    const plotW = Math.max(elevChartSize.w - PLOT_CHROME_W, 1);
+    const dist = Math.max(profile.stats.distance, 1);
+    const range = Math.max(
+      profile.stats.maxElevation - profile.stats.minElevation,
+      0,
+    );
+    return heightForRange(range, dist, plotW);
+  }, [profile, elevChartSize.w]);
+  // Outer reserved height — sized assuming a worst-case 2500 m range
+  // so the surrounding layout doesn't reflow when switching routes.
+  // When ELEV_CHART_RESERVE_WORST_CASE is false, the outer container
+  // simply collapses to the actual chart height (no padding).
+  const elevReservedHeight = useMemo(() => {
+    if (!ELEV_CHART_RESERVE_WORST_CASE) return elevChartHeight;
+    if (!profile || elevChartSize.w <= 0) return ELEV_CHART_MAX_H;
+    const plotW = Math.max(elevChartSize.w - PLOT_CHROME_W, 1);
+    const dist = Math.max(profile.stats.distance, 1);
+    return heightForRange(ELEV_CHART_WORST_CASE_RANGE, dist, plotW);
+  }, [profile, elevChartSize.w, elevChartHeight]);
+  const yTicks = useMemo(() => {
+    if (!profile) return [];
+    const lo = profile.stats.minElevation;
+    const hi = profile.stats.maxElevation;
+    const actualRange = Math.max(hi - lo, 0);
+    // Y span derived from the plot's pixel size so 1 m vertical equals
+    // 1 m horizontal on screen (modulo ELEV_EXAGGERATION). When the
+    // route's actual range is smaller, we expand the domain (centered
+    // on the midpoint) so flat terrain renders as a truly flat line.
+    // When the route's range is larger than the 1:1 span — i.e. the
+    // chart was bound by ELEV_CHART_MAX_H — we fall back to auto-fit so
+    // the whole profile remains visible; in that case visual slope
+    // becomes mildly compressed, but the curve still uses the full box.
+    const plotW = Math.max(elevChartSize.w - PLOT_CHROME_W, 1);
+    const plotH = Math.max(elevChartSize.h - PLOT_CHROME_H, 1);
+    const dist = Math.max(profile.stats.distance, 1);
+    const trueRange =
+      elevChartSize.w > 0
+        ? (plotH * dist) / (plotW * ELEV_EXAGGERATION)
+        : 0;
+    let domainLo: number;
+    let domainHi: number;
+    if (actualRange <= trueRange) {
+      const mid = (lo + hi) / 2;
+      domainLo = mid - trueRange / 2;
+      domainHi = mid + trueRange / 2;
+    } else {
+      const pad = Math.max(actualRange, 1) * 0.05;
+      domainLo = lo - pad;
+      domainHi = hi + pad;
+    }
+    return niceTicks(domainLo, domainHi);
+  }, [profile, elevChartSize]);
   const snowMax = useMemo(() => {
     let m = 0;
     for (const p of chartData) {
@@ -253,7 +356,19 @@ export function ProfilePanel({
             </div>
           </div>
 
-          <div className={styles.chart}>
+          <div
+            style={{
+              height: elevReservedHeight,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'stretch',
+            }}
+          >
+          <div
+            className={styles.chart}
+            ref={elevChartRef}
+            style={{ height: elevChartHeight, flex: '0 0 auto', width: '100%' }}
+          >
             {loading && !profile && (
               <div className={styles.overlay}>Loading elevations…</div>
             )}
@@ -376,6 +491,7 @@ export function ProfilePanel({
                 </AreaChart>
               </ResponsiveContainer>
             )}
+          </div>
           </div>
 
           <div className={styles.chart}>
