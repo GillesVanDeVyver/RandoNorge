@@ -430,14 +430,16 @@ export function ProfilePanel({
                       <stop offset="100%" stopColor="#332821" stopOpacity={0.95} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
+                  <CartesianGrid stroke="#f1f2f4" strokeDasharray="2 4" vertical={false} />
                   <XAxis
                     dataKey="distance"
                     type="number"
                     domain={[0, 'dataMax']}
                     tickFormatter={fmtKm}
-                    stroke="#666"
-                    fontSize={11}
+                    stroke="transparent"
+                    tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
                   />
                   <YAxis
                     dataKey="elevation"
@@ -445,12 +447,15 @@ export function ProfilePanel({
                     ticks={yTicks}
                     interval={0}
                     tickFormatter={(v) => `${Math.round(v)}`}
-                    stroke="#666"
-                    fontSize={11}
+                    stroke="transparent"
+                    tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
                     width={58}
                     unit=" m"
                   />
                   <Tooltip
+                    cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
                     content={({ active, payload, label }) => {
                       if (!active || !payload || payload.length === 0) return null;
                       const p = payload[0].payload as ChartPoint;
@@ -461,18 +466,34 @@ export function ProfilePanel({
                       return (
                         <div
                           style={{
-                            background: 'rgba(255,255,255,0.95)',
-                            border: '1px solid #ccc',
-                            padding: '4px 8px',
+                            background: '#ffffff',
+                            border: '1px solid rgba(0,0,0,0.06)',
+                            borderRadius: 10,
+                            padding: '8px 12px',
                             fontSize: 12,
-                            lineHeight: 1.4,
+                            lineHeight: 1.5,
+                            color: '#1d1d1f',
+                            fontVariantNumeric: 'tabular-nums',
+                            boxShadow:
+                              '0 10px 24px -8px rgba(15,23,42,0.18), 0 4px 8px -4px rgba(15,23,42,0.08)',
                           }}
                         >
-                          <div style={{ color: '#666' }}>
+                          <div
+                            style={{
+                              color: '#9ca3af',
+                              fontSize: 10,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.08em',
+                              fontWeight: 600,
+                              marginBottom: 4,
+                            }}
+                          >
                             {fmtKm(label as number)}
                           </div>
-                          <div>Elevation: {Math.round(p.elevation)} m</div>
-                          <div>Steepness: {slope}</div>
+                          <div style={{ fontWeight: 600 }}>
+                            {Math.round(p.elevation)} m
+                          </div>
+                          <div style={{ color: '#6b7280' }}>Steepness {slope}</div>
                         </div>
                       );
                     }}
@@ -598,14 +619,16 @@ export function ProfilePanel({
                       </g>
                     </pattern>
                   </defs>
-                  <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
+                  <CartesianGrid stroke="#f1f2f4" strokeDasharray="2 4" vertical={false} />
                   <XAxis
                     dataKey="distance"
                     type="number"
                     domain={[0, 'dataMax']}
                     tickFormatter={fmtKm}
-                    stroke="#666"
-                    fontSize={11}
+                    stroke="transparent"
+                    tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
                   />
                   <YAxis
                     dataKey="snow"
@@ -613,12 +636,15 @@ export function ProfilePanel({
                     ticks={snowTicks}
                     interval={0}
                     tickFormatter={(v) => `${Math.round(v)}`}
-                    stroke="#666"
-                    fontSize={11}
+                    stroke="transparent"
+                    tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
                     width={58}
                     unit=" cm"
                   />
                   <Tooltip
+                    cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
                     content={({ active, payload, label }) => {
                       if (!active || !payload || payload.length === 0) return null;
                       const p = payload[0].payload as ChartPoint;
@@ -629,17 +655,31 @@ export function ProfilePanel({
                       return (
                         <div
                           style={{
-                            background: 'rgba(255,255,255,0.95)',
-                            border: '1px solid #ccc',
-                            padding: '4px 8px',
+                            background: '#ffffff',
+                            border: '1px solid rgba(0,0,0,0.06)',
+                            borderRadius: 10,
+                            padding: '8px 12px',
                             fontSize: 12,
-                            lineHeight: 1.4,
+                            lineHeight: 1.5,
+                            color: '#1d1d1f',
+                            fontVariantNumeric: 'tabular-nums',
+                            boxShadow:
+                              '0 10px 24px -8px rgba(15,23,42,0.18), 0 4px 8px -4px rgba(15,23,42,0.08)',
                           }}
                         >
-                          <div style={{ color: '#666' }}>
+                          <div
+                            style={{
+                              color: '#9ca3af',
+                              fontSize: 10,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.08em',
+                              fontWeight: 600,
+                              marginBottom: 4,
+                            }}
+                          >
                             {fmtKm(label as number)}
                           </div>
-                          <div>Snow depth: {snowStr}</div>
+                          <div style={{ fontWeight: 600 }}>Snow {snowStr}</div>
                         </div>
                       );
                     }}
