@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import type L from 'leaflet';
+import { useEffect, useRef } from 'react';
+import L from 'leaflet';
 import { MapContainer, TileLayer, WMSTileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Mode, Overlay, Route } from '../types';
@@ -22,6 +22,36 @@ function InvalidateOnResize() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [map]);
+  return null;
+}
+
+// Re-frames the map around the route every time it changes (typically once
+// per committed stroke, since DrawingHandler only emits onRouteChange on
+// mouseup). Padding is 25% of the current map pane on each side, so the
+// route lands inside the central half — visually centred with breathing
+// room for the surrounding terrain. invalidateSize() is called first so
+// the fit uses the post-layout dimensions when the pane has just shrunk
+// to make room for the summary panel.
+function FitToRoute({ route }: { route: Route }) {
+  const map = useMap();
+  // Skip the very first render when the route is already empty — we don't
+  // want to clobber the initial Norway-wide view.
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      if (route.length === 0) return;
+    }
+    const pts: L.LatLngTuple[] = [];
+    for (const seg of route) for (const p of seg) pts.push([p[0], p[1]]);
+    if (pts.length < 2) return;
+    const bounds = L.latLngBounds(pts);
+    map.invalidateSize();
+    const size = map.getSize();
+    const padX = Math.max(0, Math.round(size.x * 0.25));
+    const padY = Math.max(0, Math.round(size.y * 0.25));
+    map.fitBounds(bounds, { padding: [padX, padY], animate: true });
+  }, [route, map]);
   return null;
 }
 
@@ -106,6 +136,7 @@ export function Map({
       <HoverMarker />
       <MapControls overlay={overlay} onOverlayChange={onOverlayChange} />
       <InvalidateOnResize />
+      <FitToRoute route={route} />
     </MapContainer>
   );
 }
