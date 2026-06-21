@@ -17,14 +17,21 @@
   min-width: 0;
 }
 
+/* Prefix label + switch share a single pill so they read as one control. */
 .locGroup {
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
+  display: inline-flex;
+  align-items: stretch;
+  padding: 2px 2px 2px var(--space-3);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
   gap: var(--space-2);
 }
 
 .locPrefix {
+  display: inline-flex;
+  align-items: center;
   font-size: var(--text-sm);
   color: var(--text-2);
 }
@@ -35,10 +42,6 @@
   flex: 0 0 auto;
   display: inline-flex;
   align-items: stretch;
-  padding: 2px;
-  background: var(--surface-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-pill);
 }
 
 .locOption {
@@ -92,6 +95,7 @@
 .dayBar {
   display: flex;
   align-items: stretch;
+  justify-content: flex-end;
   gap: var(--space-1);
   overflow-x: auto;
   scrollbar-width: thin;
