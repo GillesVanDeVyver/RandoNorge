@@ -175,6 +175,13 @@ function App() {
             </span>
           </button>
         )}
+        {showHint && view === '3d' && (
+          <div className={styles.hintControls}>
+            Left-click + drag to move
+            <br />
+            Right-click + drag to rotate & tilt
+          </div>
+        )}
         {clearedRoute && (
           <Toast
             message="Route cleared"

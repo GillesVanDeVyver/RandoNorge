@@ -136,6 +136,29 @@
   font-weight: 600;
 }
 
+.hintControls {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  padding: var(--space-2) var(--space-4);
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: center;
+  white-space: nowrap;
+  animation: hint-in var(--dur-slow) var(--ease);
+}
+
 .hint svg {
   width: 24px;
   height: 24px;
