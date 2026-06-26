@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { Overlay, Route } from '../types';
-import { CloseIcon, MountainIcon, SnowflakeIcon } from './icons';
+import type { LatLng, Mode, Overlay, Route, Segment } from '../types';
+import { haversine, simplify } from '../geometry';
+import { MountainIcon, SnowflakeIcon } from './icons';
 import styles from './Map3DView.module.css';
 
 // Same Kartverket topo tiles as the 2D map — draped over the terrain mesh.
@@ -36,21 +37,43 @@ const STEEPNESS_TILES =
 // bump makes ridgelines and couloirs read more clearly without looking fake.
 const TERRAIN_EXAGGERATION = 1.4;
 
-// Build a GeoJSON FeatureCollection of LineStrings from the route. Route
-// coordinates are [lat, lng]; GeoJSON wants [lng, lat].
-function routeToGeoJSON(route: Route): GeoJSON.FeatureCollection {
+// Drawing/erasing constants — mirror the 2D DrawingHandler so freehand edits
+// behave identically in 3D.
+const RDP_EPSILON_M = 8;
+const ERASER_RADIUS_M = 120;
+const ROUTE_COLOR = '#ff3d81';
+// Minimum pixel distance between accepted points while drawing — caps point
+// count by stroke length rather than duration.
+const MIN_DRAW_PX = 3;
+const MIN_DRAW_PX2 = MIN_DRAW_PX * MIN_DRAW_PX;
+
+// Pink tilted eraser block matching the toolbar icon, used as the cursor
+// while in erase mode (identical to the 2D handler).
+const ERASER_CURSOR_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'>
+  <g transform='rotate(-30 22 22)' fill='#FFFFFF' stroke='#111' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'>
+    <rect x='5' y='18' width='34' height='10' rx='2.5'/>
+    <rect x='5' y='14' width='34' height='8' rx='2.5'/>
+    <line x1='19' y1='14' x2='19' y2='22'/>
+  </g>
+</svg>`;
+const ERASER_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(ERASER_CURSOR_SVG)}") 10 36, cell`;
+
+// Build a GeoJSON FeatureCollection of LineStrings from the route, optionally
+// appending an in-progress stroke. Route coordinates are [lat, lng]; GeoJSON
+// wants [lng, lat].
+function routeToGeoJSON(route: Route, extra?: Segment): GeoJSON.FeatureCollection {
+  const segs = route.filter((seg) => seg.length >= 2);
+  const all = extra && extra.length >= 2 ? [...segs, extra] : segs;
   return {
     type: 'FeatureCollection',
-    features: route
-      .filter((seg) => seg.length >= 2)
-      .map((seg) => ({
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: seg.map(([lat, lng]) => [lng, lat]),
-        },
-      })),
+    features: all.map((seg) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: seg.map(([lat, lng]) => [lng, lat]),
+      },
+    })),
   };
 }
 
@@ -59,23 +82,56 @@ interface Props {
   snowDate: string;
   overlay: Overlay;
   onOverlayChange: (overlay: Overlay) => void;
-  onClose: () => void;
+  mode: Mode;
+  onRouteChange: (route: Route) => void;
 }
 
-// Full-screen MapLibre GL view that drapes the Kartverket topo map over a
+// Embedded MapLibre GL view that drapes the Kartverket topo map over a
 // 3D terrain mesh (AWS Terrarium DEM) and draws the route on top. The line
 // is clamped to the terrain, so it follows the surface like CalTopo's 3D
 // view. Route elevation accuracy is independent of the mesh resolution.
+// Drawing and erasing work exactly like the 2D map — the same freehand
+// strokes, RDP simplification, and disk eraser, ported to MapLibre's
+// project/unproject so edits land on the terrain surface.
 export function Map3DView({
   route,
   snowDate,
   overlay,
   onOverlayChange,
-  onClose,
+  mode,
+  onRouteChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
 
+  // Latest-value refs so the once-bound MapLibre event handlers always see
+  // the current route/mode/callback without rebinding (and rebuilding) them.
+  // Synced in an effect (never during render) so handlers, which only fire
+  // after commit, always read fresh values.
+  const routeRef = useRef(route);
+  const modeRef = useRef(mode);
+  const onRouteChangeRef = useRef(onRouteChange);
+  useEffect(() => {
+    routeRef.current = route;
+    modeRef.current = mode;
+    onRouteChangeRef.current = onRouteChange;
+  });
+
+  // In-progress draw stroke, eraser accumulator, and live-preview plumbing —
+  // direct analogues of the refs in the 2D DrawingHandler.
+  const drawingRef = useRef<Segment | null>(null);
+  const lastDrawPxRef = useRef<{ x: number; y: number } | null>(null);
+  const liveRafRef = useRef<number | null>(null);
+  const erasingRef = useRef(false);
+  const eraseRouteRef = useRef<Route | null>(null);
+  // Set inside the build effect; lets other effects repaint the route source.
+  const renderRef = useRef<() => void>(() => {});
+  // Skip the fit effect on the initial mount — the load handler frames the
+  // route with the nicer tilted view.
+  const didMountRef = useRef(false);
+
+  // Build the map exactly once. Route/overlay/snow/mode changes are pushed in
+  // through dedicated effects below so the camera never resets mid-edit.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -118,7 +174,7 @@ export function Map3DView({
             attribution:
               'Bratthet med utløp &copy; <a href="https://www.nve.no/">NVE</a>',
           },
-          route: { type: 'geojson', data: routeToGeoJSON(route) },
+          route: { type: 'geojson', data: routeToGeoJSON(routeRef.current) },
         },
         layers: [
           { id: 'basemap', type: 'raster', source: 'basemap' },
@@ -142,7 +198,7 @@ export function Map3DView({
             source: 'route',
             layout: { 'line-cap': 'round', 'line-join': 'round' },
             paint: {
-              'line-color': '#ff3d81',
+              'line-color': ROUTE_COLOR,
               'line-width': 4,
             },
           },
@@ -166,15 +222,216 @@ export function Map3DView({
 
     mapRef.current = map;
 
+    // Bottom-right keeps zoom/compass/pitch clear of the draw toolbar
+    // (top-left) and the overlay toggle (top-right).
     map.addControl(
       new maplibregl.NavigationControl({ visualizePitch: true }),
-      'top-left',
+      'bottom-right',
     );
+
+    // --- Route rendering ---------------------------------------------------
+    // Repaint the route source: the committed route (or the eraser's pending
+    // result) plus any in-progress stroke as a translucent live segment.
+    const renderRoute = () => {
+      const src = map.getSource('route') as maplibregl.GeoJSONSource | undefined;
+      if (!src) return;
+      const base = eraseRouteRef.current ?? routeRef.current;
+      const live =
+        drawingRef.current && drawingRef.current.length >= 2
+          ? drawingRef.current
+          : undefined;
+      src.setData(routeToGeoJSON(base, live));
+    };
+    renderRef.current = renderRoute;
+
+    const scheduleLiveUpdate = () => {
+      if (liveRafRef.current !== null) return;
+      liveRafRef.current = requestAnimationFrame(() => {
+        liveRafRef.current = null;
+        renderRoute();
+      });
+    };
+    const cancelLiveUpdate = () => {
+      if (liveRafRef.current !== null) {
+        cancelAnimationFrame(liveRafRef.current);
+        liveRafRef.current = null;
+      }
+    };
+
+    // --- Eraser ------------------------------------------------------------
+    // Erase every part of the route inside a disk of ERASER_RADIUS_M around
+    // the cursor, working in screen-pixel space for fast planar geometry —
+    // the same algorithm as the 2D handler, using MapLibre project/unproject
+    // so the disk follows the terrain surface.
+    const eraseAt = (cursor: LatLng) => {
+      const source = eraseRouteRef.current ?? routeRef.current;
+      const cursorPx = map.project([cursor[1], cursor[0]]);
+      const refLL: LatLng = [cursor[0], cursor[1] + 0.001];
+      const refPx = map.project([refLL[1], refLL[0]]);
+      const refMeters = haversine(cursor, refLL);
+      const refPxDist = Math.hypot(refPx.x - cursorPx.x, refPx.y - cursorPx.y);
+      const pxPerMeter = refPxDist / refMeters;
+      const R = ERASER_RADIUS_M * pxPerMeter;
+      const R2 = R * R;
+
+      const toLL = (x: number, y: number): LatLng => {
+        const ll = map.unproject([x, y]);
+        return [ll.lat, ll.lng];
+      };
+
+      const next: Route = [];
+      let changed = false;
+
+      for (const seg of source) {
+        if (seg.length === 0) continue;
+        const pxs = seg.map((p) => map.project([p[1], p[0]]));
+        const inside = pxs.map((pt) => {
+          const dx = pt.x - cursorPx.x;
+          const dy = pt.y - cursorPx.y;
+          return dx * dx + dy * dy <= R2;
+        });
+
+        let current: Segment = [];
+        if (!inside[0]) current.push(seg[0]);
+        else changed = true;
+
+        for (let i = 1; i < seg.length; i++) {
+          const a = pxs[i - 1];
+          const b = pxs[i];
+          const aIn = inside[i - 1];
+          const bIn = inside[i];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const fx = a.x - cursorPx.x;
+          const fy = a.y - cursorPx.y;
+          const qa = dx * dx + dy * dy;
+          const qb = 2 * (fx * dx + fy * dy);
+          const qc = fx * fx + fy * fy - R2;
+
+          if (aIn && bIn) {
+            changed = true;
+          } else if (aIn && !bIn) {
+            if (qa > 0) {
+              const disc = qb * qb - 4 * qa * qc;
+              if (disc >= 0) {
+                const sq = Math.sqrt(disc);
+                const t = (-qb + sq) / (2 * qa);
+                if (t > 0 && t < 1) current.push(toLL(a.x + t * dx, a.y + t * dy));
+              }
+            }
+            current.push(seg[i]);
+            changed = true;
+          } else if (!aIn && bIn) {
+            if (qa > 0) {
+              const disc = qb * qb - 4 * qa * qc;
+              if (disc >= 0) {
+                const sq = Math.sqrt(disc);
+                const t = (-qb - sq) / (2 * qa);
+                if (t > 0 && t < 1) current.push(toLL(a.x + t * dx, a.y + t * dy));
+              }
+            }
+            if (current.length >= 2) next.push(current);
+            current = [];
+            changed = true;
+          } else {
+            let split = false;
+            if (qa > 0) {
+              const disc = qb * qb - 4 * qa * qc;
+              if (disc > 0) {
+                const sq = Math.sqrt(disc);
+                const t1 = (-qb - sq) / (2 * qa);
+                const t2 = (-qb + sq) / (2 * qa);
+                if (t1 > 0 && t2 < 1 && t1 < t2) {
+                  current.push(toLL(a.x + t1 * dx, a.y + t1 * dy));
+                  if (current.length >= 2) next.push(current);
+                  current = [toLL(a.x + t2 * dx, a.y + t2 * dy), seg[i]];
+                  changed = true;
+                  split = true;
+                }
+              }
+            }
+            if (!split) current.push(seg[i]);
+          }
+        }
+
+        if (current.length >= 2) next.push(current);
+        else if (current.length > 0) changed = true;
+      }
+
+      if (changed) {
+        eraseRouteRef.current = next;
+        renderRoute();
+      }
+    };
+
+    const commitErase = () => {
+      erasingRef.current = false;
+      const pending = eraseRouteRef.current;
+      eraseRouteRef.current = null;
+      if (pending) onRouteChangeRef.current(pending);
+    };
+
+    const commitDraw = () => {
+      if (!drawingRef.current) return;
+      cancelLiveUpdate();
+      const simplified = simplify(drawingRef.current, RDP_EPSILON_M);
+      drawingRef.current = null;
+      lastDrawPxRef.current = null;
+      if (simplified.length >= 2) {
+        onRouteChangeRef.current([...routeRef.current, simplified]);
+      } else {
+        renderRoute();
+      }
+    };
+
+    // --- Pointer handlers --------------------------------------------------
+    const onMouseDown = (e: maplibregl.MapMouseEvent) => {
+      if (e.originalEvent.button !== 0) return;
+      const m = modeRef.current;
+      if (m === 'draw') {
+        drawingRef.current = [[e.lngLat.lat, e.lngLat.lng]];
+        lastDrawPxRef.current = { x: e.point.x, y: e.point.y };
+        renderRoute();
+      } else if (m === 'erase') {
+        erasingRef.current = true;
+        eraseAt([e.lngLat.lat, e.lngLat.lng]);
+      }
+    };
+    const onMouseMove = (e: maplibregl.MapMouseEvent) => {
+      const m = modeRef.current;
+      if (m === 'draw' && drawingRef.current) {
+        const last = lastDrawPxRef.current;
+        if (last) {
+          const dx = e.point.x - last.x;
+          const dy = e.point.y - last.y;
+          if (dx * dx + dy * dy < MIN_DRAW_PX2) return;
+        }
+        lastDrawPxRef.current = { x: e.point.x, y: e.point.y };
+        drawingRef.current.push([e.lngLat.lat, e.lngLat.lng]);
+        scheduleLiveUpdate();
+      } else if (m === 'erase' && erasingRef.current) {
+        eraseAt([e.lngLat.lat, e.lngLat.lng]);
+      }
+    };
+    const onMouseUp = () => {
+      commitDraw();
+      commitErase();
+    };
+    const onMouseOut = () => {
+      commitDraw();
+      commitErase();
+    };
+
+    map.on('mousedown', onMouseDown);
+    map.on('mousemove', onMouseMove);
+    map.on('mouseup', onMouseUp);
+    map.on('mouseout', onMouseOut);
 
     map.on('load', () => {
       // Frame the camera on the route with a tilted, slightly rotated view.
       const pts: [number, number][] = [];
-      for (const seg of route) for (const [lat, lng] of seg) pts.push([lng, lat]);
+      for (const seg of routeRef.current)
+        for (const [lat, lng] of seg) pts.push([lng, lat]);
       if (pts.length >= 2) {
         const bounds = pts.reduce(
           (b, p) => b.extend(p),
@@ -190,13 +447,87 @@ export function Map3DView({
     });
 
     return () => {
+      cancelLiveUpdate();
       mapRef.current = null;
       map.remove();
     };
-    // overlay is intentionally omitted: switching it must not rebuild the map
-    // (which would reset the camera). A separate effect syncs layer visibility.
+    // Built once on mount: route/snow/overlay/mode are synced by the effects
+    // below so the camera is never reset by a rebuild.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, snowDate]);
+  }, []);
+
+  // Push committed route changes into the route source without rebuilding the
+  // map. Skipped implicitly while drawing (route prop only changes on commit).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource('route') as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(routeToGeoJSON(route));
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('load', apply);
+  }, [route]);
+
+  // Re-frame the camera on the route when it changes (after the initial
+  // mount), preserving the current pitch/bearing so edits don't reset the
+  // tilt. Mirrors the 2D FitToRoute behavior.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    const pts: [number, number][] = [];
+    for (const seg of route) for (const [lat, lng] of seg) pts.push([lng, lat]);
+    if (pts.length < 2) return;
+    const fit = () => {
+      const bounds = pts.reduce(
+        (b, p) => b.extend(p),
+        new maplibregl.LngLatBounds(pts[0], pts[0]),
+      );
+      map.fitBounds(bounds, {
+        padding: 80,
+        pitch: map.getPitch(),
+        bearing: map.getBearing(),
+        duration: 600,
+      });
+    };
+    if (map.isStyleLoaded()) fit();
+    else map.once('load', fit);
+  }, [route]);
+
+  // Refresh the snow grid tiles when the date changes (no rebuild).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource('snow') as
+        | maplibregl.RasterTileSource
+        | undefined;
+      src?.setTiles([snowTilesUrl(snowDate)]);
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('load', apply);
+  }, [snowDate]);
+
+  // Toggle map interactions and cursor based on draw/erase/idle mode, mirroring
+  // the 2D handler so panning is locked out while editing.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const canvas = map.getCanvas();
+    if (mode === 'idle') {
+      map.dragPan.enable();
+      map.doubleClickZoom.enable();
+      canvas.style.cursor = '';
+    } else {
+      map.dragPan.disable();
+      map.doubleClickZoom.disable();
+      canvas.style.cursor = mode === 'draw' ? 'crosshair' : ERASER_CURSOR;
+    }
+  }, [mode]);
 
   // Switch the draped overlay (snow ⇄ steepness) without rebuilding the map.
   // Guarded against the brief window before the style (and its layers) load.
@@ -223,26 +554,12 @@ export function Map3DView({
     else map.once('load', apply);
   }, [overlay]);
 
-  // Esc closes the overlay.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
-    <div
-      className={styles.overlay}
-      role="dialog"
-      aria-modal="true"
-      aria-label="3D route view"
-    >
+    <div className={styles.root}>
       <div ref={containerRef} className={styles.map} />
       <button
         type="button"
-        className={`${styles.close} ${styles.overlayToggle}`}
+        className={styles.overlayToggle}
         onClick={() =>
           onOverlayChange(overlay === 'steepness' ? 'snowdepth' : 'steepness')
         }
@@ -252,15 +569,6 @@ export function Map3DView({
       >
         {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
         <span>{overlay === 'steepness' ? 'Show snow' : 'Show steepness'}</span>
-      </button>
-      <button
-        type="button"
-        className={styles.close}
-        onClick={onClose}
-        aria-label="Close 3D view"
-      >
-        <CloseIcon />
-        <span>Close 3D</span>
       </button>
     </div>
   );
