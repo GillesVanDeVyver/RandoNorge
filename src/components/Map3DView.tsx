@@ -218,6 +218,11 @@ export function Map3DView({
       pitch: 62,
       maxPitch: 85,
       attributionControl: { compact: true },
+      // Linear rotation model: horizontal drag always maps to the same bearing
+      // direction. The default "orbital" model (aroundCenter: true) flips the
+      // rotation direction depending on whether the cursor is above or below
+      // the map center, which makes a single drag suddenly reverse mid-gesture.
+      aroundCenter: false,
     });
 
     mapRef.current = map;
