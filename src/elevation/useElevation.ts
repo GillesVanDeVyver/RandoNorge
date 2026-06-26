@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import type { Route } from '../types';
 import type { ProfileData } from './profile';
 
@@ -37,11 +37,19 @@ export function useElevation(route: Route): ElevationState {
       const msg = e.data;
       if (msg.id !== latestIdRef.current) return; // superseded
       if ('aborted' in msg) return; // newer request will produce the answer
-      if (msg.ok) {
-        setState({ profile: msg.profile, loading: false, error: null });
-      } else {
-        setState({ profile: null, loading: false, error: msg.error });
-      }
+      // Apply the result as a transition: mounting the elevation/snow/weather
+      // charts (hundreds of Recharts SVG elements) is a heavy synchronous
+      // render that would otherwise block the main thread — and with it both
+      // map render/input loops — until it finishes. A transition renders
+      // concurrently and yields to the browser, so the map stays pannable and
+      // rotatable while the panels fill in.
+      startTransition(() => {
+        if (msg.ok) {
+          setState({ profile: msg.profile, loading: false, error: null });
+        } else {
+          setState({ profile: null, loading: false, error: msg.error });
+        }
+      });
     };
     workerRef.current = worker;
     return () => {
