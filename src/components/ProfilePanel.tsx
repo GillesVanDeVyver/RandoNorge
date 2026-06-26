@@ -18,7 +18,6 @@ interface ElevationProps {
   profile: ProfileData | null;
   loading: boolean;
   error: string | null;
-  snow?: SnowData | null;
 }
 
 interface SnowProps {
@@ -42,8 +41,6 @@ function flattenForChart(profile: ProfileData, snow: SnowData | null) {
     lng: number | null;
     runoutLevel: number;
     snow: number | null;
-    // Snow depth converted to metres for stacking on the elevation area.
-    snowThicknessM: number;
   }[] = [];
   for (let s = 0; s < profile.segments.length; s++) {
     const seg = profile.segments[s];
@@ -57,13 +54,11 @@ function flattenForChart(profile: ProfileData, snow: SnowData | null) {
         lng: null,
         runoutLevel: 0,
         snow: null,
-        snowThicknessM: 0,
       });
     }
     for (let i = 0; i < seg.length; i++) {
       const p = seg[i];
       const sd = snowSeg?.[i];
-      const snowCm = typeof sd === 'number' && Number.isFinite(sd) && sd > 0 ? sd : 0;
       out.push({
         distance: p.distance,
         elevation: Number.isFinite(p.elevation) ? p.elevation : null,
@@ -72,7 +67,6 @@ function flattenForChart(profile: ProfileData, snow: SnowData | null) {
         lng: p.lng,
         runoutLevel: p.runoutLevel,
         snow: typeof sd === 'number' && Number.isFinite(sd) ? sd : null,
-        snowThicknessM: snowCm / 100,
       });
     }
   }
@@ -114,7 +108,6 @@ type ChartPoint = {
   lng: number | null;
   runoutLevel: number;
   snow: number | null;
-  snowThicknessM: number;
 };
 
 // Mean terrain slope of the segment between two chart points (used to pick
@@ -181,7 +174,7 @@ function useChartHover(chartData: ChartPoint[]) {
   return { onMouseMove, onMouseLeave };
 }
 
-export function ElevationPanel({ profile, loading, error, snow }: ElevationProps) {
+export function ElevationPanel({ profile, loading, error }: ElevationProps) {
   // Live pixel size of the elevation chart container, used to size
   // the chart's height at true 1:1 metres-per-pixel so the curve's
   // visual slope reflects real terrain steepness.
@@ -215,20 +208,16 @@ export function ElevationPanel({ profile, loading, error, snow }: ElevationProps
     roRef.current = ro;
   }, []);
   const chartData = useMemo(
-    () => (profile ? flattenForChart(profile, snow ?? null) : []),
-    [profile, snow],
+    () => (profile ? flattenForChart(profile, null) : []),
+    [profile],
   );
   // Y-axis ticks — rounded to nice intervals covering the actual
-  // elevation range, extended to the top of the snow layer when present.
-  // The plot area height is then derived from this exact domain so the
-  // round-to-nice doesn't break the 1:1 metres-per-pixel ratio.
+  // elevation range. The plot area height is then derived from this
+  // exact domain so the round-to-nice doesn't break the 1:1 ratio.
   const yTicks = useMemo(() => {
     if (!profile) return [];
     const lo = profile.stats.minElevation;
-    const hi = chartData.reduce(
-      (m, p) => (p.elevation != null ? Math.max(m, p.elevation + p.snowThicknessM) : m),
-      profile.stats.maxElevation,
-    );
+    const hi = profile.stats.maxElevation;
     const t = niceTicks(lo, hi);
     if (t.length < 2) {
       // Degenerate (perfectly flat) profile: pad by ±0.5 m so Recharts
@@ -236,7 +225,7 @@ export function ElevationPanel({ profile, loading, error, snow }: ElevationProps
       return [t[0] - 0.5, t[0] + 0.5];
     }
     return t;
-  }, [profile, chartData]);
+  }, [profile]);
   // Chart container height — sized so 1 m vertical equals 1 m horizontal
   // on screen. A 45° terrain slope therefore renders as a 45° line.
   // No min/max clamp: flat terrain produces a sliver (correctly flat),
@@ -339,13 +328,6 @@ export function ElevationPanel({ profile, loading, error, snow }: ElevationProps
                       <stop offset="70%" stopColor="#544334" stopOpacity={0.85} />
                       <stop offset="100%" stopColor="#332821" stopOpacity={0.95} />
                     </linearGradient>
-                    {/* Snow fill: bright sun-lit surface at the top,
-                        soft blue shadow deeper in the snowpack. */}
-                    <linearGradient id="elevSnowFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f5faff" stopOpacity={0.95} />
-                      <stop offset="60%" stopColor="#d8ecf8" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#b8d5eb" stopOpacity={0.88} />
-                    </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#f1f2f4" strokeDasharray="2 4" vertical={false} />
                   <XAxis
@@ -411,11 +393,6 @@ export function ElevationPanel({ profile, loading, error, snow }: ElevationProps
                             {Math.round(p.elevation)} m
                           </div>
                           <div style={{ color: '#6b7280' }}>Steepness {slope}</div>
-                          {typeof p.snow === 'number' && p.snow > 0 && (
-                            <div style={{ color: '#5b8bc5' }}>
-                              Snow {Math.round(p.snow)} cm
-                            </div>
-                          )}
                         </div>
                       );
                     }}
@@ -423,30 +400,12 @@ export function ElevationPanel({ profile, loading, error, snow }: ElevationProps
                   <Area
                     type="linear"
                     dataKey="elevation"
-                    stackId="terrain"
                     stroke="transparent"
                     fill="url(#elevFill)"
                     connectNulls={false}
                     isAnimationActive={false}
                     activeDot={false}
                   />
-                  {/* Snow layer stacked on top of terrain. Height is snow
-                      depth in metres (depth_cm / 100) so the visual scale
-                      matches the elevation axis. Only rendered when snow
-                      data has been loaded for at least one point. */}
-                  {chartData.some((p) => p.snowThicknessM > 0) && (
-                    <Area
-                      type="linear"
-                      dataKey="snowThicknessM"
-                      stackId="terrain"
-                      stroke="#7aafc8"
-                      strokeWidth={1.25}
-                      fill="url(#elevSnowFill)"
-                      connectNulls={false}
-                      isAnimationActive={false}
-                      activeDot={false}
-                    />
-                  )}
                   {segmentLines.map((s) => (
                     <ReferenceLine
                       key={s.key}
