@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { Map } from './components/Map';
 import { ElevationPanel, SnowPanel } from './components/ProfilePanel';
 import { SnowDateBar } from './components/SnowDateBar';
@@ -6,11 +6,17 @@ import { SummaryCard, SummaryPanel } from './components/SummaryPanel';
 import { Toast } from './components/Toast';
 import { Toolbar } from './components/Toolbar';
 import { WeatherPanel } from './components/WeatherPanel';
-import { PencilIcon } from './components/icons';
+import { CubeIcon, PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
+
+// MapLibre GL is a large dependency only needed once the user opens the 3D
+// view, so load it (and its chunk) on demand rather than in the main bundle.
+const Map3DView = lazy(() =>
+  import('./components/Map3DView').then((m) => ({ default: m.Map3DView })),
+);
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -19,6 +25,7 @@ function App() {
   const [route, setRoute] = useState<Route>([]);
   const [snowDate, setSnowDate] = useState<string>(todayIso);
   const [overlay, setOverlay] = useState<Overlay>('steepness');
+  const [show3D, setShow3D] = useState(false);
   // Holds the route just cleared, so the undo toast can restore it. Null
   // hides the toast.
   const [clearedRoute, setClearedRoute] = useState<Route | null>(null);
@@ -169,7 +176,20 @@ function App() {
               <WeatherPanel profile={elevation.profile} />
             </SummaryCard>
           )}
+          <button
+            type="button"
+            className={styles.viz3d}
+            onClick={() => setShow3D(true)}
+          >
+            <CubeIcon />
+            <span>Visualize in 3D</span>
+          </button>
         </SummaryPanel>
+      )}
+      {show3D && hasRoute && (
+        <Suspense fallback={null}>
+          <Map3DView route={route} onClose={() => setShow3D(false)} />
+        </Suspense>
       )}
     </div>
   );

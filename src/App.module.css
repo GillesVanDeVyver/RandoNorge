@@ -21,6 +21,49 @@
   width: 38.2%;
 }
 
+/* Prominent CTA in the summary rail (under the weather card) that opens the
+   3D terrain view of the drawn route. */
+.viz3d {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.viz3d:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.viz3d:active {
+  transform: translateY(0);
+}
+
+.viz3d:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.viz3d svg {
+  width: 20px;
+  height: 20px;
+}
+
 /* Quiet onboarding hint shown over the map when no route exists yet.
    Non-interactive so it never blocks drawing. */
 .hint {
