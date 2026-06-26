@@ -187,7 +187,13 @@ function App() {
       )}
       {show3D && hasRoute && (
         <Suspense fallback={null}>
-          <Map3DView route={route} onClose={() => setShow3D(false)} />
+          <Map3DView
+            route={route}
+            snowDate={snowDate}
+            overlay={overlay}
+            onOverlayChange={setOverlay}
+            onClose={() => setShow3D(false)}
+          />
         </Suspense>
       )}
     </div>

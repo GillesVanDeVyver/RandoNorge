@@ -55,6 +55,12 @@
   height: 18px;
 }
 
+/* Overlay switcher sits just left of the Close button, sharing its pill
+   styling. Width is allowed to grow with the longest label. */
+.overlayToggle {
+  right: calc(var(--space-4) + 110px);
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

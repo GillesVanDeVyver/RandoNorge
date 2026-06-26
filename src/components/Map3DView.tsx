@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { Route } from '../types';
-import { CloseIcon } from './icons';
+import type { Overlay, Route } from '../types';
+import { CloseIcon, MountainIcon, SnowflakeIcon } from './icons';
 import styles from './Map3DView.module.css';
 
 // Same Kartverket topo tiles as the 2D map — draped over the terrain mesh.
@@ -13,6 +13,24 @@ const KARTVERKET_TILES =
 // terrain well. Tiles top out at z15; MapLibre overzooms beyond that.
 const TERRARIUM_TILES =
   'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+
+// NVE seNorge snow-depth grid (the same `sd` layer the 2D map drapes for the
+// "snow depth" overlay), requested as a WebMercator WMS image so MapLibre can
+// drape it over the terrain mesh. The grid is colored by depth, so the result
+// is snow rendered directly from snow depth data: bare ground where the grid
+// is empty, deepening blue where the snowpack is thickest. `{bbox-epsg-3857}`
+// is substituted by MapLibre per tile; `time` selects the date.
+const snowTilesUrl = (date: string) =>
+  'https://kart.nve.no/enterprise/services/seNorgeGrid_png/ImageServer/WMSServer' +
+  '?service=WMS&request=GetMap&version=1.1.1&layers=sd&styles=' +
+  '&format=image/png&transparent=true&width=256&height=256' +
+  `&srs=EPSG:3857&bbox={bbox-epsg-3857}&time=${date}`;
+
+// NVE Bratthet_med_utlop_2024 — the same avalanche-terrain steepness layer the
+// 2D map uses: slope angle banded by color with modeled runout zones. Served
+// as WebMercator WMTS tiles, draped over the terrain mesh.
+const STEEPNESS_TILES =
+  'https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}';
 
 // Vertical exaggeration of the terrain mesh. 1.0 is true-to-life; a small
 // bump makes ridgelines and couloirs read more clearly without looking fake.
@@ -38,6 +56,9 @@ function routeToGeoJSON(route: Route): GeoJSON.FeatureCollection {
 
 interface Props {
   route: Route;
+  snowDate: string;
+  overlay: Overlay;
+  onOverlayChange: (overlay: Overlay) => void;
   onClose: () => void;
 }
 
@@ -45,8 +66,15 @@ interface Props {
 // 3D terrain mesh (AWS Terrarium DEM) and draws the route on top. The line
 // is clamped to the terrain, so it follows the surface like CalTopo's 3D
 // view. Route elevation accuracy is independent of the mesh resolution.
-export function Map3DView({ route, onClose }: Props) {
+export function Map3DView({
+  route,
+  snowDate,
+  overlay,
+  onOverlayChange,
+  onClose,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -74,10 +102,40 @@ export function Map3DView({ route, onClose }: Props) {
             attribution:
               'Terrain &copy; <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen / AWS Open Data</a>',
           },
+          snow: {
+            type: 'raster',
+            tiles: [snowTilesUrl(snowDate)],
+            tileSize: 256,
+            maxzoom: 9,
+            attribution:
+              'Snødybde &copy; <a href="https://www.nve.no/">NVE</a> / seNorge',
+          },
+          steepness: {
+            type: 'raster',
+            tiles: [STEEPNESS_TILES],
+            tileSize: 256,
+            maxzoom: 16,
+            attribution:
+              'Bratthet med utløp &copy; <a href="https://www.nve.no/">NVE</a>',
+          },
           route: { type: 'geojson', data: routeToGeoJSON(route) },
         },
         layers: [
           { id: 'basemap', type: 'raster', source: 'basemap' },
+          {
+            id: 'steepness',
+            type: 'raster',
+            source: 'steepness',
+            layout: { visibility: overlay === 'steepness' ? 'visible' : 'none' },
+            paint: { 'raster-opacity': 0.6 },
+          },
+          {
+            id: 'snow',
+            type: 'raster',
+            source: 'snow',
+            layout: { visibility: overlay === 'snowdepth' ? 'visible' : 'none' },
+            paint: { 'raster-opacity': 0.8 },
+          },
           {
             id: 'route',
             type: 'line',
@@ -106,6 +164,8 @@ export function Map3DView({ route, onClose }: Props) {
       attributionControl: { compact: true },
     });
 
+    mapRef.current = map;
+
     map.addControl(
       new maplibregl.NavigationControl({ visualizePitch: true }),
       'top-left',
@@ -129,8 +189,39 @@ export function Map3DView({ route, onClose }: Props) {
       }
     });
 
-    return () => map.remove();
-  }, [route]);
+    return () => {
+      mapRef.current = null;
+      map.remove();
+    };
+    // overlay is intentionally omitted: switching it must not rebuild the map
+    // (which would reset the camera). A separate effect syncs layer visibility.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, snowDate]);
+
+  // Switch the draped overlay (snow ⇄ steepness) without rebuilding the map.
+  // Guarded against the brief window before the style (and its layers) load.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      if (map.getLayer('snow')) {
+        map.setLayoutProperty(
+          'snow',
+          'visibility',
+          overlay === 'snowdepth' ? 'visible' : 'none',
+        );
+      }
+      if (map.getLayer('steepness')) {
+        map.setLayoutProperty(
+          'steepness',
+          'visibility',
+          overlay === 'steepness' ? 'visible' : 'none',
+        );
+      }
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('load', apply);
+  }, [overlay]);
 
   // Esc closes the overlay.
   useEffect(() => {
@@ -149,6 +240,19 @@ export function Map3DView({ route, onClose }: Props) {
       aria-label="3D route view"
     >
       <div ref={containerRef} className={styles.map} />
+      <button
+        type="button"
+        className={`${styles.close} ${styles.overlayToggle}`}
+        onClick={() =>
+          onOverlayChange(overlay === 'steepness' ? 'snowdepth' : 'steepness')
+        }
+        aria-label={
+          overlay === 'steepness' ? 'Show snow depth' : 'Show steepness'
+        }
+      >
+        {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
+        <span>{overlay === 'steepness' ? 'Show snow' : 'Show steepness'}</span>
+      </button>
       <button
         type="button"
         className={styles.close}
