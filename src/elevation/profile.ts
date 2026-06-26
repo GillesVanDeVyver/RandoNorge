@@ -4,6 +4,12 @@ import { fetchElevations } from './api';
 import { fetchRunoutLevels, type RunoutLevel } from './runout';
 
 const RESAMPLE_INTERVAL_M = 20;
+// Cap the total number of resampled points across the whole route. Long routes
+// would otherwise produce thousands of points (each driving several elevation
+// fetches), making them very slow to load. When a route is long enough that a
+// 20 m interval would exceed this budget, the interval is coarsened so the
+// total stays near TARGET_POINTS — longer routes simply get lower resolution.
+const TARGET_POINTS = 500;
 const MIN_SEGMENT_LENGTH_M = 50;
 const ASCENT_THRESHOLD_M = 3;
 // Half-distance (m) between paired neighbor samples used to estimate the
@@ -42,9 +48,15 @@ export async function computeProfile(
   route: Route,
   signal?: AbortSignal,
 ): Promise<ProfileData> {
+  // Choose a resample interval so the whole route yields at most ~TARGET_POINTS
+  // points. Short routes keep the fine 20 m resolution; long routes get a
+  // proportionally coarser interval to stay within budget.
+  const routeLength = route.reduce((sum, seg) => sum + totalLength(seg), 0);
+  const intervalM = Math.max(RESAMPLE_INTERVAL_M, routeLength / TARGET_POINTS);
+
   // Resample each segment.
   const resampled = route
-    .map((seg) => resample(seg, RESAMPLE_INTERVAL_M))
+    .map((seg) => resample(seg, intervalM))
     .filter((seg) => seg.length >= 2 && totalLength(seg) >= MIN_SEGMENT_LENGTH_M);
 
   // Flatten for a single batched elevation fetch.
