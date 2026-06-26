@@ -151,6 +151,7 @@ function App() {
               profile={elevation.profile}
               loading={elevation.loading}
               error={elevation.error}
+              snow={snow.snow}
             />
           </SummaryCard>
           <SummaryCard title="Snow">
