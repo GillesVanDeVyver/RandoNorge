@@ -70,8 +70,11 @@
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-.viewActive,
-.viewActive:hover {
+/* Selector includes `.viewToggle button` so it outranks the base button
+   rule above; otherwise the transparent background would win. The turquoise
+   itself is the app-wide accent defined in index.css (--accent). */
+.viewToggle button.viewActive,
+.viewToggle button.viewActive:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-contrast);
