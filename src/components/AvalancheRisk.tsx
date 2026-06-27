@@ -9,8 +9,9 @@ interface Props {
 }
 
 // Quick-select window around the day chosen in the date tool: two days
-// before through three days after, matching the weather forecast chips.
-const WINDOW_OFFSETS = [-2, -1, 0, 1, 2, 3];
+// before through two days after. Varsom forecasts only reach two days ahead
+// (a nowcast plus the next two days), so a third day would never be assessed.
+const WINDOW_OFFSETS = [-2, -1, 0, 1, 2];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const toYMD = (d: Date) =>
@@ -81,7 +82,7 @@ function Legend() {
               {symbol}
             </span>
             <span className={styles.legendLabel}>
-              {info ? info.label : 'Not rated'}
+              {info ? info.label : 'Not assessed'}
             </span>
           </div>
         );
@@ -146,7 +147,7 @@ export function AvalancheRisk({ profile }: Props) {
     current = (
       <div className={styles.row}>
         <div className={`${styles.badge} ${styles.badgeUnrated}`} aria-hidden>
-          –
+          ?
         </div>
         <div className={styles.info}>
           <span className={styles.label}>Not assessed</span>
