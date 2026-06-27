@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
 import { DatePopover } from './DatePopover';
+import { AvalancheProblems } from './AvalancheProblems';
 import styles from './AvalancheRisk.module.css';
 
 interface Props {
@@ -185,6 +186,12 @@ export function AvalancheRisk({ profile }: Props) {
     <div className={styles.panel}>
       {dateControls}
       {current}
+      {level > 0 && regions[0] && regions[0].problems.length > 0 && (
+        <AvalancheProblems
+          problems={regions[0].problems}
+          regionName={regions.length > 1 ? regions[0].regionName : undefined}
+        />
+      )}
       <Legend />
     </div>
   );
