@@ -82,7 +82,7 @@ body,
 
 body {
   font-family: var(--font-sans);
-  background: #eceff3; /* neutral behind the map */
+  background: #f4f2ec; /* warm cream canvas behind the content rail */
   color: var(--text-1);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -107,7 +107,7 @@ body {
    Leaflet overrides — make the map's own chrome speak the glass language.
    ========================================================================= */
 .leaflet-container {
-  background: #eceff3;
+  background: #f4f2ec;
   font-family: var(--font-sans);
 }
 
@@ -126,17 +126,6 @@ body {
 
 .leaflet-control-attribution a {
   color: var(--text-2) !important;
-}
-
-/* Soft vignette so floating chrome reads cleanly over any tile colour,
-   without tinting the live centre of the map. */
-#root::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 500;
-  box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.12);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -7,6 +7,17 @@
   height: 100%;
   display: flex;
   align-items: stretch;
+  box-sizing: border-box;
+}
+
+/* Plain flex container holding the content rail + map. Carries no chrome of
+   its own; idle keeps the map edge-to-edge, summary lays the rail beside it. */
+.frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
 }
 
 .mapPane {
@@ -16,9 +27,40 @@
   height: 100%;
 }
 
+/* Summary mode (komoot-inspired): content rail on the left, map on the right
+   as a rounded card inset from the window edges with a soft float shadow.
+   Honour safe-area insets so the margin never collides with notches. */
 .summary .mapPane {
-  flex: 0 0 38.2%;
-  width: 38.2%;
+  order: 1;
+  flex: 1 1 auto;
+  height: auto;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-float);
+  margin: max(var(--space-6), env(safe-area-inset-top))
+    max(var(--space-6), env(safe-area-inset-right))
+    max(var(--space-6), env(safe-area-inset-bottom)) 0;
+}
+
+/* Soft vignette so floating chrome reads cleanly over any tile colour. Lives
+   on the map pane and inherits its rounded corners in summary mode. */
+.mapPane::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 500;
+  border-radius: inherit;
+  box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.12);
+}
+
+@media (max-width: 760px) {
+  .summary .mapPane {
+    border-radius: var(--radius-md);
+    margin: max(var(--space-3), env(safe-area-inset-top))
+      max(var(--space-3), env(safe-area-inset-right))
+      max(var(--space-3), env(safe-area-inset-bottom)) 0;
+  }
 }
 
 /* Segmented 2D/3D switch, bottom-left of the map pane. Toggles the map pane

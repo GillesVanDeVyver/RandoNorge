@@ -113,6 +113,7 @@ function App() {
 
   return (
     <div className={`${styles.app} ${hasRoute ? styles.summary : ''}`}>
+      <div className={styles.frame}>
       <div className={styles.mapPane}>
         {view === '2d' ? (
           <Map
@@ -223,6 +224,7 @@ function App() {
           )}
         </SummaryPanel>
       )}
+      </div>
     </div>
   );
 }

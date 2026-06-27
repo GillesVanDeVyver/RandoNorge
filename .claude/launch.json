@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-lc",
+        "export PATH=\"$HOME/.nvm/versions/node/v22.7.0/bin:$PATH\" && npm run dev -- --port \"$PORT\" --strictPort"
+      ],
+      "port": 5173,
+      "autoPort": true
+    }
+  ]
+}

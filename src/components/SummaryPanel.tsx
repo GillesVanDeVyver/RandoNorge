@@ -1,19 +1,60 @@
-import type { ReactNode } from 'react';
+import {
+  Children,
+  isValidElement,
+  useState,
+  type FC,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import styles from './SummaryPanel.module.css';
 
 interface Props {
   children: ReactNode;
 }
 
-// Right-hand "summary mode" rail. A single full-height column that holds a
-// vertical stack of cards (charts, stats, future actions/ads/…) and scrolls
-// independently of the map. Designed to absorb arbitrary content without
-// the page layout itself needing to grow — add more <SummaryCard>s and
-// they appear below the existing ones.
+// Left-hand "summary mode" rail (komoot-inspired). A full-height column with a
+// tab bar across the top that switches between sections, a large heading for
+// the active section, and the section's content in a clean card. Scrolls
+// independently of the map. Add more <SummaryCard>s and they each become a tab.
 export function SummaryPanel({ children }: Props) {
+  const cards = Children.toArray(children).filter(
+    (child): child is ReactElement<CardProps> => isValidElement(child),
+  );
+  const [active, setActive] = useState(0);
+  const current = cards[Math.min(active, cards.length - 1)];
+
+  if (!current) return null;
+
   return (
     <aside className={styles.panel}>
-      <div className={styles.scroll}>{children}</div>
+      <nav className={styles.tabs} aria-label="Route summary sections">
+        {cards.map((card, i) => (
+          <button
+            key={i}
+            type="button"
+            className={i === active ? styles.tabActive : styles.tab}
+            onClick={() => setActive(i)}
+            aria-current={i === active}
+          >
+            {card.props.title}
+          </button>
+        ))}
+      </nav>
+      <div className={styles.scroll}>
+        <h1 className={styles.heading}>{current.props.title}</h1>
+        {current.props.action && (
+          <div className={styles.headingAction}>{current.props.action}</div>
+        )}
+        <section className={styles.card}>
+          <div
+            className={
+              current.props.padded === false ? styles.cardBodyFlush : styles.cardBody
+            }
+          >
+            {current.props.children}
+          </div>
+        </section>
+      </div>
     </aside>
   );
 }
@@ -25,21 +66,7 @@ interface CardProps {
   padded?: boolean;
 }
 
-// Visual container for a single piece of summary content. Title/action are
-// optional so a card can be just a chart, just a stat block, or a free-form
-// promo/CTA without forced chrome.
-export function SummaryCard({ title, action, children, padded = true }: CardProps) {
-  return (
-    <section className={styles.card}>
-      {(title || action) && (
-        <header className={styles.cardHeader}>
-          {title && <h2 className={styles.cardTitle}>{title}</h2>}
-          {action && <div className={styles.cardAction}>{action}</div>}
-        </header>
-      )}
-      <div className={padded ? styles.cardBody : styles.cardBodyFlush}>
-        {children}
-      </div>
-    </section>
-  );
-}
+// Declarative description of a single summary section. Rendered by SummaryPanel
+// as a tab (title) plus its content card. Title/action/padded are read by the
+// panel; the component itself renders nothing on its own.
+export const SummaryCard: FC<CardProps> = () => null;
