@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
+import type { AvalancheWarning } from '../avalanche/api';
 import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
 import { DatePopover } from './DatePopover';
 import { AvalancheProblems } from './AvalancheProblems';
@@ -159,25 +160,13 @@ export function AvalancheRisk({ profile }: Props) {
       </div>
     );
   } else {
-    const info = LEVELS[level];
-    const names = regions.map((r) => r.regionName);
-    const regionText =
-      names.length > 1
-        ? `Highest of ${names.length} regions: ${names.join(', ')}`
-        : names[0];
+    // One report per assessed region the route crosses, highest danger first.
+    // A single region renders as one report; several stack under each other.
     current = (
-      <div className={styles.row}>
-        <div
-          className={styles.badge}
-          style={{ background: info.color, color: info.onColor }}
-          aria-label={`Avalanche danger level ${level} of 5`}
-        >
-          {level}
-        </div>
-        <div className={styles.info}>
-          <span className={styles.label}>{info.label}</span>
-          {regionText && <span className={styles.regions}>{regionText}</span>}
-        </div>
+      <div className={styles.reports}>
+        {regions.map((r) => (
+          <RegionReport key={r.regionId} region={r} />
+        ))}
       </div>
     );
   }
@@ -186,13 +175,33 @@ export function AvalancheRisk({ profile }: Props) {
     <div className={styles.panel}>
       {dateControls}
       {current}
-      {level > 0 && regions[0] && regions[0].problems.length > 0 && (
-        <AvalancheProblems
-          problems={regions[0].problems}
-          regionName={regions.length > 1 ? regions[0].regionName : undefined}
-        />
-      )}
       <Legend />
+    </div>
+  );
+}
+
+// A single region's avalanche report: its danger level, region name, and the
+// avalanche problems Varsom identified for it.
+function RegionReport({ region }: { region: AvalancheWarning }) {
+  const info = LEVELS[region.dangerLevel];
+  return (
+    <div className={styles.report}>
+      <div className={styles.row}>
+        <div
+          className={styles.badge}
+          style={{ background: info.color, color: info.onColor }}
+          aria-label={`Avalanche danger level ${region.dangerLevel} of 5`}
+        >
+          {region.dangerLevel}
+        </div>
+        <div className={styles.info}>
+          <span className={styles.label}>{info.label}</span>
+          <span className={styles.regions}>{region.regionName}</span>
+        </div>
+      </div>
+      {region.problems.length > 0 && (
+        <AvalancheProblems problems={region.problems} />
+      )}
     </div>
   );
 }

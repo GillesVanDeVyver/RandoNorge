@@ -114,9 +114,7 @@ export function AvalancheProblems({ problems, regionName }: Props) {
 
   if (problems.length === 0) return null;
 
-  const heading = `Avalanche problem${problems.length > 1 ? 's' : ''}${
-    regionName ? ` for ${regionName}` : ''
-  }`;
+  const heading = `Avalanche problems${regionName ? ` for ${regionName}` : ''}`;
 
   return (
     <div className={styles.section}>

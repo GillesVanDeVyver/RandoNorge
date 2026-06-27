@@ -217,7 +217,7 @@ function App() {
             </SummaryCard>
           )}
           {elevation.profile && (
-            <SummaryCard title="Avalanche risk">
+            <SummaryCard title="Avalanche warnings">
               <AvalancheRisk profile={elevation.profile} />
             </SummaryCard>
           )}

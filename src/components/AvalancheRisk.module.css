@@ -91,6 +91,26 @@
   opacity: 0.8;
 }
 
+/* One block per region the route crosses, stacked vertically. */
+.reports {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* A single region's report: danger readout plus its avalanche problems.
+   Reports after the first are separated by a hairline. */
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.report + .report {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline);
+}
+
 .row {
   display: flex;
   align-items: center;
