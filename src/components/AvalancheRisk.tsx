@@ -21,20 +21,55 @@ const LEVELS: Record<number, LevelInfo> = {
   5: { label: 'Very high avalanche danger', color: '#3a464e', onColor: '#ffffff' },
 };
 
+// Full danger scale, including the "not rated" state, for the reference
+// legend shown beneath the route's current risk.
+const SCALE: { level: number; symbol: string }[] = [
+  { level: 0, symbol: '?' },
+  { level: 1, symbol: '1' },
+  { level: 2, symbol: '2' },
+  { level: 3, symbol: '3' },
+  { level: 4, symbol: '4' },
+  { level: 5, symbol: '5' },
+];
+
+function Legend() {
+  return (
+    <div className={styles.legend}>
+      {SCALE.map(({ level, symbol }) => {
+        const info = LEVELS[level];
+        const style = info
+          ? { background: info.color, color: info.onColor }
+          : undefined;
+        return (
+          <div key={level} className={styles.legendItem}>
+            <span
+              className={`${styles.legendBadge} ${info ? '' : styles.badgeUnrated}`}
+              style={style}
+            >
+              {symbol}
+            </span>
+            <span className={styles.legendLabel}>
+              {info ? info.label : 'Not rated'}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function AvalancheRisk({ profile }: Props) {
   const { level, regions, loading, error } = useAvalanche(profile);
 
+  let current: React.ReactNode;
   if (error && level === 0 && regions.length === 0) {
-    return <div className={styles.status}>Avalanche risk unavailable</div>;
-  }
-  if (loading && level === 0) {
-    return <div className={styles.status}>Loading avalanche risk…</div>;
-  }
-
-  // No assessed region along the route — typically outside the winter
-  // forecasting season. Mirrors senorge's "Ikke vurdert" state.
-  if (level === 0) {
-    return (
+    current = <div className={styles.status}>Avalanche risk unavailable</div>;
+  } else if (loading && level === 0) {
+    current = <div className={styles.status}>Loading avalanche risk…</div>;
+  } else if (level === 0) {
+    // No assessed region along the route — typically outside the winter
+    // forecasting season. Mirrors senorge's "Ikke vurdert" state.
+    current = (
       <div className={styles.row}>
         <div className={`${styles.badge} ${styles.badgeUnrated}`} aria-hidden>
           –
@@ -47,28 +82,34 @@ export function AvalancheRisk({ profile }: Props) {
         </div>
       </div>
     );
+  } else {
+    const info = LEVELS[level];
+    const names = regions.map((r) => r.regionName);
+    const regionText =
+      names.length > 1
+        ? `Highest of ${names.length} regions: ${names.join(', ')}`
+        : names[0];
+    current = (
+      <div className={styles.row}>
+        <div
+          className={styles.badge}
+          style={{ background: info.color, color: info.onColor }}
+          aria-label={`Avalanche danger level ${level} of 5`}
+        >
+          {level}
+        </div>
+        <div className={styles.info}>
+          <span className={styles.label}>{info.label}</span>
+          {regionText && <span className={styles.regions}>{regionText}</span>}
+        </div>
+      </div>
+    );
   }
 
-  const info = LEVELS[level];
-  const names = regions.map((r) => r.regionName);
-  const regionText =
-    names.length > 1
-      ? `Highest of ${names.length} regions: ${names.join(', ')}`
-      : names[0];
-
   return (
-    <div className={styles.row}>
-      <div
-        className={styles.badge}
-        style={{ background: info.color, color: info.onColor }}
-        aria-label={`Avalanche danger level ${level} of 5`}
-      >
-        {level}
-      </div>
-      <div className={styles.info}>
-        <span className={styles.label}>{info.label}</span>
-        {regionText && <span className={styles.regions}>{regionText}</span>}
-      </div>
+    <div className={styles.panel}>
+      {current}
+      <Legend />
     </div>
   );
 }
