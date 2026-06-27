@@ -213,13 +213,13 @@ function App() {
             />
           </SummaryCard>
           {elevation.profile && (
-            <SummaryCard title="Weather forecast" padded={false}>
-              <WeatherPanel profile={elevation.profile} />
+            <SummaryCard title="Avalanche warnings">
+              <AvalancheRisk profile={elevation.profile} />
             </SummaryCard>
           )}
           {elevation.profile && (
-            <SummaryCard title="Avalanche warnings">
-              <AvalancheRisk profile={elevation.profile} />
+            <SummaryCard title="Weather forecast" padded={false}>
+              <WeatherPanel profile={elevation.profile} />
             </SummaryCard>
           )}
         </SummaryPanel>

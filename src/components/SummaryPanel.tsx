@@ -32,24 +32,45 @@ export function SummaryPanel({ children }: Props) {
     sectionRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // Scroll-spy: mark the top-most section in view as active.
+  // Scroll-spy: mark the active section by geometry on every scroll frame rather
+  // than reacting to intersection-boundary events (an IntersectionObserver can
+  // coalesce a short section's enter+exit into one callback and skip its tab).
+  //
+  // The active section is simply the last one whose top has passed an activation
+  // line — but the line is not fixed. It sweeps from the top of the viewport
+  // (at scroll start) down to the bottom (at scroll end), tracking the fraction
+  // scrolled. A fixed line breaks for the trailing sections: once the remaining
+  // content is shorter than the viewport you can no longer push their tops up to
+  // a fixed line, so a short section like "Avalanche warnings" wedged above the
+  // last one never activates and the tab jumps straight to the last section.
+  // Because the sweeping line crosses every section's real position exactly once
+  // over the scroll range, each section — however short or wherever pinned —
+  // gets its own activation range.
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible.length) {
-          const idx = sectionRefs.current.indexOf(visible[0].target as HTMLElement);
-          if (idx >= 0) setActive(idx);
-        }
-      },
-      { root, rootMargin: '0px 0px -60% 0px', threshold: 0 },
-    );
-    sectionRefs.current.forEach((el) => el && observer.observe(el));
-    return () => observer.disconnect();
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const rootTop = root.getBoundingClientRect().top;
+      const max = root.scrollHeight - root.clientHeight;
+      const line = max > 0 ? root.clientHeight * (root.scrollTop / max) : 0;
+      let current = 0;
+      sectionRefs.current.forEach((el, i) => {
+        if (el && el.getBoundingClientRect().top - rootTop <= line) current = i;
+      });
+      setActive(current);
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(update);
+    };
+    root.addEventListener('scroll', onScroll, { passive: true });
+    update();
+    return () => {
+      root.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [cards.length]);
 
   if (cards.length === 0) return null;
