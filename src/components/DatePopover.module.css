@@ -1,0 +1,117 @@
+.dateInput {
+  font-size: 15px;
+  font-weight: 500;
+  padding: 10px 14px;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d1d1f;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  width: 100%;
+}
+
+.dateInput:hover {
+  border-color: #b8b8b8;
+}
+
+.dateInput:focus-visible {
+  outline: none;
+  border-color: #3478f6;
+  box-shadow: 0 0 0 3px rgba(52, 120, 246, 0.18);
+}
+
+.dateWrap {
+  position: relative;
+}
+
+.datePopover {
+  position: fixed;
+  z-index: 1100;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 32px -8px rgba(15, 23, 42, 0.18),
+    0 4px 10px -4px rgba(15, 23, 42, 0.08);
+  padding: 12px;
+  width: 248px;
+  font-size: 12px;
+  color: #1d1d1f;
+}
+
+.popHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.popNav {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: #555;
+  border-radius: 4px;
+}
+
+.popNav:hover {
+  background: #eee;
+}
+
+.popTitle {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.popDows,
+.popGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.popDow {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  padding: 2px 0;
+}
+
+.popEmpty {
+  height: 26px;
+}
+
+.popDay {
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #333;
+  font-family: inherit;
+  padding: 0;
+}
+
+.popDay:hover:not(:disabled) {
+  background: #eef3f9;
+}
+
+.popDay:disabled {
+  color: #ccc;
+  cursor: default;
+}
+
+.popDaySelected,
+.popDaySelected:hover {
+  background: #3478f6;
+  color: #fff;
+}
