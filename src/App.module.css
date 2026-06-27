@@ -1,7 +1,7 @@
 /* Root layout. In "idle" mode the map pane fills the viewport; once the
    user has drawn a route we switch to "summary" mode, where the map
-   collapses to the golden-ratio minor (38.2%) on the left and the right
-   side becomes a scrollable column of summary cards. */
+   stays on the left and the right side becomes a scrollable column of
+   summary cards. */
 .app {
   width: 100%;
   height: 100%;
@@ -27,19 +27,18 @@
   height: 100%;
 }
 
-/* Summary mode (komoot-inspired): content rail on the left, map on the right
-   as a rounded card inset from the window edges with a soft float shadow.
+/* Summary mode (komoot-inspired): map on the left as a rounded card inset from
+   the window edges with a soft float shadow, content rail on the right.
    Honour safe-area insets so the margin never collides with notches. */
 .summary .mapPane {
-  order: 1;
   flex: 1 1 auto;
   height: auto;
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-float);
-  margin: max(var(--space-6), env(safe-area-inset-top))
-    max(var(--space-6), env(safe-area-inset-right))
-    max(var(--space-6), env(safe-area-inset-bottom)) 0;
+  margin: max(var(--space-6), env(safe-area-inset-top)) 0
+    max(var(--space-6), env(safe-area-inset-bottom))
+    max(var(--space-6), env(safe-area-inset-left));
 }
 
 /* Soft vignette so floating chrome reads cleanly over any tile colour. Lives
@@ -57,9 +56,9 @@
 @media (max-width: 760px) {
   .summary .mapPane {
     border-radius: var(--radius-md);
-    margin: max(var(--space-3), env(safe-area-inset-top))
-      max(var(--space-3), env(safe-area-inset-right))
-      max(var(--space-3), env(safe-area-inset-bottom)) 0;
+    margin: max(var(--space-3), env(safe-area-inset-top)) 0
+      max(var(--space-3), env(safe-area-inset-bottom))
+      max(var(--space-3), env(safe-area-inset-left));
   }
 }
 
