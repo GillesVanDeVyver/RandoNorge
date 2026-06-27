@@ -143,7 +143,11 @@ export function Map({
       )}
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
       <HoverMarker />
-      <MapControls overlay={overlay} onOverlayChange={onOverlayChange} />
+      <MapControls
+        overlay={overlay}
+        onOverlayChange={onOverlayChange}
+        route={route}
+      />
       <InvalidateOnResize />
       <FitToRoute route={route} />
     </MapContainer>

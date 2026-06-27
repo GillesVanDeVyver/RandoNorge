@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
 import { useMap } from 'react-leaflet';
-import type { Overlay } from '../types';
+import type { Overlay, Route } from '../types';
 import {
   FullscreenIcon,
   LocateIcon,
   MinusIcon,
   MountainIcon,
   PlusIcon,
+  RouteIcon,
   SearchIcon,
   SnowflakeIcon,
 } from './icons';
@@ -15,9 +17,10 @@ import styles from './MapControls.module.css';
 interface Props {
   overlay: Overlay;
   onOverlayChange: (overlay: Overlay) => void;
+  route: Route;
 }
 
-export function MapControls({ overlay, onOverlayChange }: Props) {
+export function MapControls({ overlay, onOverlayChange, route }: Props) {
   const map = useMap();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -29,6 +32,23 @@ export function MapControls({ overlay, onOverlayChange }: Props) {
 
   const handleZoomIn = useCallback(() => map.zoomIn(), [map]);
   const handleZoomOut = useCallback(() => map.zoomOut(), [map]);
+
+  const hasRoute = route.length > 0;
+
+  // Re-frame the map around the drawn route, mirroring the automatic
+  // FitToRoute behaviour (25% padding on each side) so the manual button
+  // lands the route in the same central position.
+  const handleZoomToRoute = useCallback(() => {
+    const pts: L.LatLngTuple[] = [];
+    for (const seg of route) for (const p of seg) pts.push([p[0], p[1]]);
+    if (pts.length < 2) return;
+    const bounds = L.latLngBounds(pts);
+    map.invalidateSize();
+    const size = map.getSize();
+    const padX = Math.max(0, Math.round(size.x * 0.25));
+    const padY = Math.max(0, Math.round(size.y * 0.25));
+    map.fitBounds(bounds, { padding: [padX, padY], animate: true });
+  }, [map, route]);
 
   const handleLocate = useCallback(() => {
     map.locate({ setView: true, maxZoom: 14, enableHighAccuracy: true });
@@ -156,6 +176,20 @@ export function MapControls({ overlay, onOverlayChange }: Props) {
         >
           <MinusIcon />
         </button>
+        {hasRoute && (
+          <>
+            <div className={styles.divider} />
+            <button
+              type="button"
+              className={styles.btn}
+              onClick={handleZoomToRoute}
+              title="Zoom to route"
+              aria-label="Zoom to route"
+            >
+              <RouteIcon />
+            </button>
+          </>
+        )}
       </div>
     </>
   );
