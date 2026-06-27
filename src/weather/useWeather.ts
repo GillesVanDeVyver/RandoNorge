@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import { fetchForecast, type WeatherHour } from './api';
 
@@ -67,12 +67,19 @@ export function useWeather(point: WeatherPoint | null): WeatherState {
     fetchForecast(lat, lng, controller.signal)
       .then((hours) => {
         if (controller.signal.aborted) return;
-        setState({ hours, loading: false, error: null });
+        // Transition: the weather chart mounts alongside the elevation/snow
+        // panels when a route's data lands; rendering it concurrently keeps
+        // the map interactive. See useElevation.
+        startTransition(() => {
+          setState({ hours, loading: false, error: null });
+        });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : 'Failed to fetch';
-        setState({ hours: null, loading: false, error: msg });
+        startTransition(() => {
+          setState({ hours: null, loading: false, error: msg });
+        });
       });
 
     return () => controller.abort();

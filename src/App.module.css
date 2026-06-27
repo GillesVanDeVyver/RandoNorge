@@ -21,47 +21,70 @@
   width: 38.2%;
 }
 
-/* Prominent CTA in the summary rail (under the weather card) that opens the
-   3D terrain view of the drawn route. */
-.viz3d {
+/* Segmented 2D/3D switch, bottom-left of the map pane. Toggles the map pane
+   between the flat Leaflet map and the MapLibre terrain view; both support
+   the same drawing/editing and feed the same analytics rail. */
+.viewToggle {
+  position: absolute;
+  bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  left: max(var(--space-3), env(safe-area-inset-left));
+  z-index: 1000;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  font-family: inherit;
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--accent-contrast);
-  background: var(--accent);
-  border: 1px solid transparent;
+  gap: var(--space-1);
+  padding: var(--space-1);
   border-radius: var(--radius-md);
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
   box-shadow: var(--shadow-2);
+}
+
+.viewToggle button {
+  min-width: 40px;
+  height: 32px;
+  padding: 0 var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  flex-shrink: 0;
   transition:
     background var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease);
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
-.viz3d:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
+.viewToggle button:hover {
+  background: var(--surface-hover);
+  border-color: var(--hairline);
 }
 
-.viz3d:active {
-  transform: translateY(0);
+.viewToggle button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-.viz3d:focus-visible {
-  outline: 2px solid var(--accent-ring);
-  outline-offset: 2px;
+/* Selector includes `.viewToggle button` so it outranks the base button
+   rule above; otherwise the transparent background would win. The turquoise
+   itself is the app-wide accent defined in index.css (--accent). */
+.viewToggle button.viewActive,
+.viewToggle button.viewActive:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
-.viz3d svg {
-  width: 20px;
-  height: 20px;
+@media (pointer: coarse) {
+  .viewToggle button {
+    height: 40px;
+    min-width: 44px;
+  }
 }
 
 /* Quiet onboarding hint shown over the map when no route exists yet.
@@ -111,6 +134,29 @@
 .hint strong {
   color: var(--text-1);
   font-weight: 600;
+}
+
+.hintControls {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  padding: var(--space-2) var(--space-4);
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: center;
+  white-space: nowrap;
+  animation: hint-in var(--dur-slow) var(--ease);
 }
 
 .hint svg {

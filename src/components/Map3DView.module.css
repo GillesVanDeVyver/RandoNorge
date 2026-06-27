@@ -1,7 +1,8 @@
-.overlay {
-  position: fixed;
+/* Embedded 3D map — fills the map pane, sitting behind the App-level
+   toolbar / controls that share the pane. */
+.root {
+  position: absolute;
   inset: 0;
-  z-index: 2000;
   background: #0b1220;
   animation: fade-in var(--dur) var(--ease);
 }
@@ -11,11 +12,12 @@
   inset: 0;
 }
 
-.close {
+/* Snow ⇄ steepness switcher, top-right to match the 2D map's overlay panel. */
+.overlayToggle {
   position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  z-index: 10;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  right: max(var(--space-3), env(safe-area-inset-right));
+  z-index: 1001;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -36,21 +38,21 @@
     transform var(--dur-fast) var(--ease);
 }
 
-.close:hover {
+.overlayToggle:hover {
   background: var(--surface-2);
   transform: translateY(-1px);
 }
 
-.close:active {
+.overlayToggle:active {
   transform: translateY(0);
 }
 
-.close:focus-visible {
+.overlayToggle:focus-visible {
   outline: 2px solid var(--accent-ring);
   outline-offset: 2px;
 }
 
-.close svg {
+.overlayToggle svg {
   width: 18px;
   height: 18px;
 }

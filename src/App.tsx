@@ -6,17 +6,19 @@ import { SummaryCard, SummaryPanel } from './components/SummaryPanel';
 import { Toast } from './components/Toast';
 import { Toolbar } from './components/Toolbar';
 import { WeatherPanel } from './components/WeatherPanel';
-import { CubeIcon, PencilIcon } from './components/icons';
+import { PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
-// MapLibre GL is a large dependency only needed once the user opens the 3D
-// view, so load it (and its chunk) on demand rather than in the main bundle.
+// MapLibre GL is a large dependency only needed once the user switches to the
+// 3D view, so load it (and its chunk) on demand rather than in the main bundle.
 const Map3DView = lazy(() =>
   import('./components/Map3DView').then((m) => ({ default: m.Map3DView })),
 );
+
+type ViewMode = '2d' | '3d';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -25,7 +27,7 @@ function App() {
   const [route, setRoute] = useState<Route>([]);
   const [snowDate, setSnowDate] = useState<string>(todayIso);
   const [overlay, setOverlay] = useState<Overlay>('steepness');
-  const [show3D, setShow3D] = useState(false);
+  const [view, setView] = useState<ViewMode>('2d');
   // Holds the route just cleared, so the undo toast can restore it. Null
   // hides the toast.
   const [clearedRoute, setClearedRoute] = useState<Route | null>(null);
@@ -111,14 +113,45 @@ function App() {
   return (
     <div className={`${styles.app} ${hasRoute ? styles.summary : ''}`}>
       <div className={styles.mapPane}>
-        <Map
-          mode={mode}
-          route={route}
-          onRouteChange={handleRouteChange}
-          overlay={overlay}
-          onOverlayChange={setOverlay}
-          snowDate={snowDate}
-        />
+        {view === '2d' ? (
+          <Map
+            mode={mode}
+            route={route}
+            onRouteChange={handleRouteChange}
+            overlay={overlay}
+            onOverlayChange={setOverlay}
+            snowDate={snowDate}
+          />
+        ) : (
+          <Suspense fallback={null}>
+            <Map3DView
+              mode={mode}
+              route={route}
+              onRouteChange={handleRouteChange}
+              overlay={overlay}
+              onOverlayChange={setOverlay}
+              snowDate={snowDate}
+            />
+          </Suspense>
+        )}
+        <div className={styles.viewToggle} role="group" aria-label="Map view">
+          <button
+            type="button"
+            className={view === '2d' ? styles.viewActive : ''}
+            onClick={() => setView('2d')}
+            aria-pressed={view === '2d'}
+          >
+            2D
+          </button>
+          <button
+            type="button"
+            className={view === '3d' ? styles.viewActive : ''}
+            onClick={() => setView('3d')}
+            aria-pressed={view === '3d'}
+          >
+            3D
+          </button>
+        </div>
         <Toolbar
           mode={mode}
           onModeChange={handleModeChange}
@@ -141,6 +174,13 @@ function App() {
               <strong>Draw a route</strong> to start
             </span>
           </button>
+        )}
+        {showHint && view === '3d' && (
+          <div className={styles.hintControls}>
+            Left-click + drag to move
+            <br />
+            Right-click + drag to rotate & tilt
+          </div>
         )}
         {clearedRoute && (
           <Toast
@@ -175,20 +215,7 @@ function App() {
               <WeatherPanel profile={elevation.profile} />
             </SummaryCard>
           )}
-          <button
-            type="button"
-            className={styles.viz3d}
-            onClick={() => setShow3D(true)}
-          >
-            <CubeIcon />
-            <span>Visualize in 3D</span>
-          </button>
         </SummaryPanel>
-      )}
-      {show3D && hasRoute && (
-        <Suspense fallback={null}>
-          <Map3DView route={route} onClose={() => setShow3D(false)} />
-        </Suspense>
       )}
     </div>
   );

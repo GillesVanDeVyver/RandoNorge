@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import { fetchSnowDepths } from './api';
 
@@ -49,12 +49,18 @@ export function useSnow(profile: ProfileData | null, date: string): SnowState {
           depths.push(all.slice(off, off + n));
           off += n;
         }
-        setState({ snow: { depths, date }, loading: false, error: null });
+        // Transition: the snow chart re-render is heavy enough to stall the
+        // map's render/input loop if committed synchronously. See useElevation.
+        startTransition(() => {
+          setState({ snow: { depths, date }, loading: false, error: null });
+        });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : 'Failed to fetch';
-        setState({ snow: null, loading: false, error: msg });
+        startTransition(() => {
+          setState({ snow: null, loading: false, error: msg });
+        });
       });
     return () => controller.abort();
   }, [profile, date]);
