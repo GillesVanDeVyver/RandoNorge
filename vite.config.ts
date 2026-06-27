@@ -15,6 +15,15 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace(/^\/gts-api/, '/api'),
       },
+      // NVE's Varsom avalanche warning service (the snøskredvarsel shown on
+      // senorge.no) also lacks CORS headers, so dev requests are forwarded
+      // through Vite: /varsom-api/... → https://api01.nve.no/...
+      '/varsom-api': {
+        target: 'https://api01.nve.no',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/varsom-api/, ''),
+      },
       // MET Norway's locationforecast (yr.no weather) requires an identifying
       // User-Agent header. Browsers don't allow fetch() to set User-Agent, so
       // we proxy through the dev server and stamp the header here.

@@ -1,0 +1,48 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.badge {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow-1);
+}
+
+.badgeUnrated {
+  background: var(--surface-3);
+  color: var(--text-3);
+  border: 1px solid var(--hairline);
+  box-shadow: none;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.regions {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.status {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}

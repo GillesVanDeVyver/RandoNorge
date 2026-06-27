@@ -6,6 +6,7 @@ import { SummaryCard, SummaryPanel } from './components/SummaryPanel';
 import { Toast } from './components/Toast';
 import { Toolbar } from './components/Toolbar';
 import { WeatherPanel } from './components/WeatherPanel';
+import { AvalancheRisk } from './components/AvalancheRisk';
 import { PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
@@ -213,6 +214,11 @@ function App() {
           {elevation.profile && (
             <SummaryCard title="Weather forecast" padded={false}>
               <WeatherPanel profile={elevation.profile} />
+            </SummaryCard>
+          )}
+          {elevation.profile && (
+            <SummaryCard title="Avalanche risk">
+              <AvalancheRisk profile={elevation.profile} />
             </SummaryCard>
           )}
         </SummaryPanel>
