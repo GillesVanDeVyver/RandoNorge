@@ -2,6 +2,12 @@ import { startTransition, useEffect, useMemo, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import { fetchAvalancheWarning, type AvalancheWarning } from './api';
 
+const pad2 = (n: number) => String(n).padStart(2, '0');
+export function todayLocalYMD(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
 export interface AvalancheState {
   // Highest danger level among the regions the route passes through. 0 means
   // every region the route touches is unassessed (e.g. out of season).
@@ -16,12 +22,6 @@ export interface AvalancheState {
 // (thousands of km²), so a handful of evenly spaced samples reliably covers
 // every region a single route crosses without hammering the service.
 const MAX_SAMPLES = 8;
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-function todayLocalYMD(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
 
 // Evenly spaced sample points across the whole route (all segments flattened),
 // quantized to ~100 m so adjacent samples in the same area collapse to one
@@ -46,10 +46,12 @@ function samplePoints(profile: ProfileData): { lat: number; lng: number }[] {
   return picked;
 }
 
-// Resolve the current avalanche danger for every forecast region the route
-// passes through and surface the worst (highest) level.
-export function useAvalanche(profile: ProfileData | null): AvalancheState {
-  const date = useMemo(() => todayLocalYMD(), []);
+// Resolve the avalanche danger on `date` (YYYY-MM-DD) for every forecast
+// region the route passes through and surface the worst (highest) level.
+export function useAvalanche(
+  profile: ProfileData | null,
+  date: string,
+): AvalancheState {
   // useMemo keyed on the profile gives a stable `points` identity for the
   // effect below; the profile object itself is stable per route computation.
   const points = useMemo(

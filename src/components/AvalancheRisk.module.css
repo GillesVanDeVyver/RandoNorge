@@ -4,6 +4,93 @@
   gap: var(--space-3);
 }
 
+/* Date tool + quick-select day chips. The calendar picks the anchor day;
+   the chips offer two days before through three days after it. */
+.controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.dateField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  width: 150px;
+  flex: 0 0 auto;
+}
+
+.dateLabel {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.dayBar {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dayBtn {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.1;
+  min-width: 72px;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.dayBtn:hover {
+  background: var(--surface-3);
+}
+
+.dayBtn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.dayBtnActive,
+.dayBtnActive:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.dayLabel {
+  font-weight: 600;
+}
+
+.dayDate {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.dayBtnActive .dayDate {
+  color: var(--accent-contrast);
+  opacity: 0.8;
+}
+
 .row {
   display: flex;
   align-items: center;

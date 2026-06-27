@@ -1,9 +1,41 @@
+import { useMemo, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
-import { useAvalanche } from '../avalanche/useAvalanche';
+import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
+import { DatePopover } from './DatePopover';
 import styles from './AvalancheRisk.module.css';
 
 interface Props {
   profile: ProfileData;
+}
+
+// Quick-select window around the day chosen in the date tool: two days
+// before through three days after, matching the weather forecast chips.
+const WINDOW_OFFSETS = [-2, -1, 0, 1, 2, 3];
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const toYMD = (d: Date) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+function shiftYMD(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const date = new Date(y, m - 1, d + days);
+  return toYMD(date);
+}
+
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// "Yesterday" / "Today" / "Tomorrow" for the immediate neighbours of the
+// real calendar day, otherwise the short weekday name.
+function dayLabel(ymd: string, todayYMD: string): string {
+  if (ymd === todayYMD) return 'Today';
+  if (ymd === shiftYMD(todayYMD, 1)) return 'Tomorrow';
+  if (ymd === shiftYMD(todayYMD, -1)) return 'Yesterday';
+  const [y, m, d] = ymd.split('-').map(Number);
+  return DOW_SHORT[new Date(y, m - 1, d).getDay()];
+}
+function dayDate(ymd: string): string {
+  const [, m, d] = ymd.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${d}`;
 }
 
 // EAWS / Varsom danger levels, translated from the Norwegian "snøskredfare"
@@ -59,7 +91,49 @@ function Legend() {
 }
 
 export function AvalancheRisk({ profile }: Props) {
-  const { level, regions, loading, error } = useAvalanche(profile);
+  const today = useMemo(() => todayLocalYMD(), []);
+  // `anchor` is the day chosen in the date tool and centres the quick-select
+  // window; `selected` is the day actually shown (one of the window chips).
+  const [anchor, setAnchor] = useState(today);
+  const [selected, setSelected] = useState(today);
+  const { level, regions, loading, error } = useAvalanche(profile, selected);
+
+  const windowDays = useMemo(
+    () => WINDOW_OFFSETS.map((off) => shiftYMD(anchor, off)),
+    [anchor],
+  );
+
+  const pickAnchor = (v: string) => {
+    setAnchor(v);
+    setSelected(v);
+  };
+
+  const dateControls = (
+    <div className={styles.controls}>
+      <div className={styles.dateField}>
+        <span className={styles.dateLabel}>Forecast day</span>
+        <DatePopover value={anchor} onChange={pickAnchor} />
+      </div>
+      <div className={styles.dayBar} role="tablist" aria-label="Forecast day">
+        {windowDays.map((ymd) => {
+          const active = ymd === selected;
+          return (
+            <button
+              key={ymd}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={`${styles.dayBtn} ${active ? styles.dayBtnActive : ''}`}
+              onClick={() => setSelected(ymd)}
+            >
+              <span className={styles.dayLabel}>{dayLabel(ymd, today)}</span>
+              <span className={styles.dayDate}>{dayDate(ymd)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   let current: React.ReactNode;
   if (error && level === 0 && regions.length === 0) {
@@ -108,6 +182,7 @@ export function AvalancheRisk({ profile }: Props) {
 
   return (
     <div className={styles.panel}>
+      {dateControls}
       {current}
       <Legend />
     </div>
