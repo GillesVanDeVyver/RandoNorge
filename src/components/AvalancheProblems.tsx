@@ -1,6 +1,17 @@
 import { useState } from 'react';
 import type { AvalancheProblem } from '../avalanche/api';
 import styles from './AvalancheProblems.module.css';
+// Official EAWS avalanche-problem pictograms (the same five icons Varsom and
+// other European warning services use). Bundled locally so they render
+// offline and without depending on an external host.
+import newSnowIcon from '../avalanche/problem-icons/new_snow.jpg';
+import windSlabIcon from '../avalanche/problem-icons/wind_slab.jpg';
+import persistentIcon from '../avalanche/problem-icons/persistent_weak_layer.jpg';
+import wetSnowIcon from '../avalanche/problem-icons/wet_snow.jpg';
+import glidingIcon from '../avalanche/problem-icons/gliding_snow.jpg';
+
+const VARSOM_PROBLEMS_URL =
+  'https://www.varsom.no/en/avalanches/about-avalanches/avalanche-problems/';
 
 interface Props {
   problems: AvalancheProblem[];
@@ -35,80 +46,23 @@ function elevationText(p: AvalancheProblem): string | null {
   }
 }
 
-// Group the seven Varsom problem types into icon families.
-type Family = 'loose' | 'slab' | 'persistent' | 'wet' | 'glide';
-function family(typeId: number): Family {
-  switch (typeId) {
-    case 3: // New snow (loose)
-    case 5: // Wet snow (loose)
-      return typeId === 5 ? 'wet' : 'loose';
-    case 30: // Persistent weak layer
-      return 'persistent';
-    case 45: // Wet snow (slab)
-      return 'wet';
-    case 50: // Gliding avalanche
-      return 'glide';
-    case 7: // New snow (slab)
-    case 10: // Wind slab
-    default:
-      return 'slab';
-  }
-}
+// Map each Varsom problem type to its EAWS pictogram. EAWS defines five
+// "typical problems"; Varsom's loose/slab split for new and wet snow collapses
+// onto the same two icons (new-snow and wet-snow).
+const PICTOGRAMS: Record<number, { src: string; alt: string }> = {
+  3: { src: newSnowIcon, alt: 'New snow' }, // New snow (loose)
+  7: { src: newSnowIcon, alt: 'New snow' }, // New snow (slab)
+  10: { src: windSlabIcon, alt: 'Wind-drifted snow' }, // Wind slab
+  30: { src: persistentIcon, alt: 'Persistent weak layer' },
+  5: { src: wetSnowIcon, alt: 'Wet snow' }, // Wet snow (loose)
+  45: { src: wetSnowIcon, alt: 'Wet snow' }, // Wet snow (slab)
+  50: { src: glidingIcon, alt: 'Gliding snow' }, // Gliding avalanche
+};
 
-// Compact pictogram per problem family. A point-release fan for loose-snow
-// problems, a fracturing slab on a slope for slab problems (with a buried
-// dashed layer for persistent ones), a droplet for wet problems, and a basal
-// glide crack for glide avalanches.
+// Decorative pictogram — the problem's type name is shown alongside as text.
 function ProblemIcon({ typeId }: { typeId: number }) {
-  const fam = family(typeId);
-  const common = {
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.6,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    width: 24,
-    height: 24,
-    'aria-hidden': true,
-  };
-  if (fam === 'loose') {
-    return (
-      <svg {...common}>
-        <circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none" />
-        <path d="M12 7 L7 19 M12 7 L12 19 M12 7 L17 19" />
-        <path d="M7 19 H17" />
-      </svg>
-    );
-  }
-  if (fam === 'wet') {
-    return (
-      <svg {...common}>
-        <path d="M4 16 L20 9" />
-        <path d="M8 13.4 L9.6 17 L17 14.2 L15.4 10.6 Z" />
-        <path d="M12 18.5 c1.4 0 2.4 -1 2.4 -2.2 c0 -1.1 -1.4 -2.6 -2.4 -3.6 c-1 1 -2.4 2.5 -2.4 3.6 c0 1.2 1 2.2 2.4 2.2 Z" />
-      </svg>
-    );
-  }
-  if (fam === 'glide') {
-    return (
-      <svg {...common}>
-        <path d="M4 17 C 9 15, 15 12, 20 8" />
-        <path d="M10 14.6 q2.5 2.4 5 0.2" />
-        <path d="M4 17 C 8 18.5, 14 18, 20 8" />
-      </svg>
-    );
-  }
-  // slab + persistent
-  return (
-    <svg {...common}>
-      <path d="M3 17 L21 8" />
-      <path d="M8 14.2 L9.8 18 L18 14 L16.2 10.2 Z" />
-      {family(typeId) === 'persistent' && (
-        <path d="M9 18 L17.2 14" strokeDasharray="2 1.6" />
-      )}
-    </svg>
-  );
+  const picto = PICTOGRAMS[typeId] ?? PICTOGRAMS[3];
+  return <img className={styles.picto} src={picto.src} alt="" aria-hidden />;
 }
 
 // Octagonal aspect rose: sectors that face an at-risk aspect are filled.
@@ -211,6 +165,12 @@ export function AvalancheProblems({ problems, regionName }: Props) {
           );
         })}
       </ul>
+      <p className={styles.moreInfo}>
+        More info at{' '}
+        <a href={VARSOM_PROBLEMS_URL} target="_blank" rel="noopener noreferrer">
+          varsom.no
+        </a>
+      </p>
     </div>
   );
 }
