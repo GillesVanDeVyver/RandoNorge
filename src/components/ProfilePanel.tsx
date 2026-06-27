@@ -3,7 +3,6 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -140,12 +139,19 @@ function niceTicks(min: number, max: number, target = 5): number[] {
   return ticks;
 }
 
-// Approximate non-plot chrome inside the chart container, used to
-// derive the plot area's pixel size from the container's size.
-// Matches the YAxis width and margin props on the elevation AreaChart
-// below, plus a rough allowance for the bottom XAxis tick band.
-const PLOT_CHROME_W = 58 + 16 + 8; // yAxis + right margin + left margin
-const PLOT_CHROME_H = 8 + 4 + 22;  // top margin + bottom margin + xAxis band
+// Non-plot chrome inside the chart container. These drive the AreaChart
+// margin / axis-size props AND the canvas-overlay geometry below, so the
+// steepness line drawn on the canvas registers exactly with Recharts'
+// plot rectangle. The axis sizes are pinned (YAxis width / XAxis height)
+// to make that rectangle deterministic.
+const M_LEFT = 8;
+const M_RIGHT = 16;
+const M_TOP = 8;
+const M_BOTTOM = 4;
+const Y_AXIS_W = 58;
+const X_AXIS_H = 22;
+const PLOT_CHROME_W = Y_AXIS_W + M_RIGHT + M_LEFT; // yAxis + right margin + left margin
+const PLOT_CHROME_H = M_TOP + M_BOTTOM + X_AXIS_H;  // top margin + bottom margin + xAxis band
 
 // Shared hover handler factory. Both charts emit map-marker updates
 // from the same chartData, and Recharts' syncId="route" keeps their
@@ -240,16 +246,32 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
     const plotH = (plotW * domainSpan) / dist;
     return plotH + PLOT_CHROME_H;
   }, [profile, containerWidth, yTicks]);
-  // Build a colored ReferenceLine per chart segment. ReferenceLine.segment
-  // takes data-space coordinates so we don't depend on Recharts' internal
-  // scale objects (which changed in v3 and are no longer exposed via
-  // Customized).
-  const segmentLines = useMemo(() => {
-    const lines: { key: number; x1: number; y1: number; x2: number; y2: number; color: string }[] = [];
+  // X-domain max (route distance). Set explicitly on the XAxis below so
+  // Recharts doesn't recompute "dataMax" each render, and reused by the
+  // canvas overlay to map data → pixels.
+  const xMax = useMemo(() => {
+    let m = 0;
+    for (const p of chartData) if (p.distance > m) m = p.distance;
+    return m;
+  }, [chartData]);
+
+  // Colored steepness line, decimated into runs of consecutive segments
+  // that share a color. Each run is a flat [d0,e0,d1,e1,…] polyline.
+  // Merging same-color segments collapses the typical ~500 segments to a
+  // handful of runs, drawn in a single canvas pass (effect below) instead
+  // of as hundreds of SVG <ReferenceLine> components. The old approach
+  // blocked the main thread — and froze the Leaflet map — while Recharts
+  // committed and the browser laid out/painted the large SVG subtree.
+  const steepnessRuns = useMemo(() => {
+    const runs: { color: string; points: number[] }[] = [];
+    let cur: { color: string; points: number[] } | null = null;
     for (let i = 0; i < chartData.length - 1; i++) {
       const a = chartData[i];
       const b = chartData[i + 1];
-      if (a.elevation == null || b.elevation == null) continue;
+      if (a.elevation == null || b.elevation == null) {
+        cur = null;
+        continue;
+      }
       let color = steepnessColor(segmentSlope(a, b));
       // Override the "flat terrain" gray with NVE's runout-zone blue when
       // both endpoints fall inside a modeled snow-avalanche runout polygon.
@@ -260,17 +282,60 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
         const lvl = Math.min(a.runoutLevel, b.runoutLevel);
         if (lvl > 0) color = RUNOUT_COLORS[lvl];
       }
-      lines.push({
-        key: i,
-        x1: a.distance,
-        y1: a.elevation,
-        x2: b.distance,
-        y2: b.elevation,
-        color,
-      });
+      if (cur && cur.color === color) {
+        cur.points.push(b.distance, b.elevation);
+      } else {
+        cur = {
+          color,
+          points: [a.distance, a.elevation, b.distance, b.elevation],
+        };
+        runs.push(cur);
+      }
     }
-    return lines;
+    return runs;
   }, [chartData]);
+
+  // Draw the decimated runs onto a canvas overlay aligned with Recharts'
+  // plot rectangle (geometry is deterministic thanks to the pinned axis
+  // sizes / margins above). One canvas pass replaces hundreds of SVG
+  // nodes, keeping the commit + paint cheap so the map stays responsive.
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(containerWidth * dpr);
+    canvas.height = Math.round(elevChartHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, containerWidth, elevChartHeight);
+    if (yTicks.length < 2 || xMax <= 0) return;
+    const yMin = yTicks[0];
+    const yMax = yTicks[yTicks.length - 1];
+    const plotLeft = M_LEFT + Y_AXIS_W;
+    const plotRight = containerWidth - M_RIGHT;
+    const plotTop = M_TOP;
+    const plotBottom = elevChartHeight - M_BOTTOM - X_AXIS_H;
+    const plotW = plotRight - plotLeft;
+    const plotH = plotBottom - plotTop;
+    if (plotW <= 0 || plotH <= 0 || yMax <= yMin) return;
+    const px = (d: number) => plotLeft + (d / xMax) * plotW;
+    const py = (e: number) => plotBottom - ((e - yMin) / (yMax - yMin)) * plotH;
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    for (const run of steepnessRuns) {
+      const pts = run.points;
+      ctx.beginPath();
+      ctx.moveTo(px(pts[0]), py(pts[1]));
+      for (let i = 2; i < pts.length; i += 2) {
+        ctx.lineTo(px(pts[i]), py(pts[i + 1]));
+      }
+      ctx.strokeStyle = run.color;
+      ctx.stroke();
+    }
+  }, [steepnessRuns, containerWidth, elevChartHeight, xMax, yTicks]);
 
   const hover = useChartHover(chartData);
 
@@ -308,12 +373,13 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
               <div className={styles.overlay}>Elevation unavailable</div>
             )}
             {profile && containerWidth > 0 && (
+              <>
               <AreaChart
                 width={containerWidth}
                 height={elevChartHeight}
                 data={chartData}
                 syncId="route"
-                margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
+                margin={{ top: M_TOP, right: M_RIGHT, left: M_LEFT, bottom: M_BOTTOM }}
                 onMouseMove={hover.onMouseMove}
                 onMouseLeave={hover.onMouseLeave}
               >
@@ -333,7 +399,8 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                   <XAxis
                     dataKey="distance"
                     type="number"
-                    domain={[0, 'dataMax']}
+                    domain={[0, xMax]}
+                    height={X_AXIS_H}
                     tickFormatter={fmtKm}
                     stroke="transparent"
                     tick={{ fill: '#9ca3af', fontSize: 11 }}
@@ -350,7 +417,7 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                     tick={{ fill: '#9ca3af', fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
-                    width={58}
+                    width={Y_AXIS_W}
                     unit=" m"
                   />
                   <Tooltip
@@ -406,19 +473,22 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                     isAnimationActive={false}
                     activeDot={false}
                   />
-                  {segmentLines.map((s) => (
-                    <ReferenceLine
-                      key={s.key}
-                      segment={[
-                        { x: s.x1, y: s.y1 },
-                        { x: s.x2, y: s.y2 },
-                      ]}
-                      stroke={s.color}
-                      strokeWidth={4}
-                      ifOverflow="extendDomain"
-                    />
-                  ))}
               </AreaChart>
+              {/* Colored steepness line, drawn in one canvas pass on top
+                  of the SVG area fill. pointer-events:none lets the chart
+                  underneath keep handling hover/tooltip. */}
+              <canvas
+                ref={canvasRef}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: containerWidth,
+                  height: elevChartHeight,
+                  pointerEvents: 'none',
+                }}
+              />
+              </>
             )}
         </div>
       </div>
