@@ -422,6 +422,8 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                     unit=" m"
                   />
                   <Tooltip
+                    wrapperStyle={{ zIndex: 10 }}
+                    allowEscapeViewBox={{ x: false, y: true }}
                     cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
                     content={({ active, payload, label }) => {
                       if (!active || !payload || payload.length === 0) return null;
