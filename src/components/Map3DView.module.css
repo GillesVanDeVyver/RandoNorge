@@ -12,6 +12,80 @@
   inset: 0;
 }
 
+/* Zoom / compass cluster — glass panel matching the 2D map's controls,
+   stacked top-left below the draw toolbar (3 × 40px buttons + gaps/padding). */
+.controls {
+  position: absolute;
+  top: calc(
+    max(var(--space-3), env(safe-area-inset-top)) + 40px * 3 +
+      var(--space-1) * 4 + 2px + var(--space-2)
+  );
+  left: max(var(--space-3), env(safe-area-inset-left));
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-2);
+}
+
+/* A faint divider separates zoom from the compass, mirroring the 2D map. */
+.divider {
+  height: 1px;
+  margin: 2px var(--space-1);
+  background: var(--hairline);
+}
+
+.btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--hairline);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  background: var(--surface-active);
+}
+
+.btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Compass needle counter-rotates with the map bearing (with a -45° offset so
+   the Lucide diamond's NE tip points straight up at bearing 0) so it always
+   points at true north, restoring MapLibre's NavigationControl behaviour. */
+.compass {
+  display: flex;
+  transition: transform var(--dur-fast) var(--ease);
+}
+
 /* Snow ⇄ steepness switcher, top-right to match the 2D map's overlay panel. */
 .overlayToggle {
   position: absolute;
@@ -55,6 +129,21 @@
 .overlayToggle svg {
   width: 18px;
   height: 18px;
+}
+
+/* Touch: 44px hit targets, and re-offset below the taller draw toolbar. */
+@media (pointer: coarse) {
+  .btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .controls {
+    top: calc(
+      max(var(--space-3), env(safe-area-inset-top)) + 44px * 3 +
+        var(--space-1) * 4 + 2px + var(--space-2)
+    );
+  }
 }
 
 @keyframes fade-in {

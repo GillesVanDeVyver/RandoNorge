@@ -1,9 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { LatLng, Mode, Overlay, Route, Segment } from '../types';
 import { haversine, simplify } from '../geometry';
-import { MountainIcon, SnowflakeIcon } from './icons';
+import {
+  CompassIcon,
+  MinusIcon,
+  MountainIcon,
+  PlusIcon,
+  SnowflakeIcon,
+} from './icons';
 import styles from './Map3DView.module.css';
 
 // Same Kartverket topo tiles as the 2D map — draped over the terrain mesh.
@@ -103,6 +109,9 @@ export function Map3DView({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // Current map bearing, mirrored into state so the compass needle can
+  // counter-rotate and keep pointing at true north as the view turns.
+  const [bearing, setBearing] = useState(0);
 
   // Latest-value refs so the once-bound MapLibre event handlers always see
   // the current route/mode/callback without rebinding (and rebuilding) them.
@@ -227,12 +236,9 @@ export function Map3DView({
 
     mapRef.current = map;
 
-    // Bottom-right keeps zoom/compass/pitch clear of the draw toolbar
-    // (top-left) and the overlay toggle (top-right).
-    map.addControl(
-      new maplibregl.NavigationControl({ visualizePitch: true }),
-      'bottom-right',
-    );
+    // Zoom/compass live in a custom glass panel (top-left, below the draw
+    // toolbar) rendered in JSX so they match the 2D map's controls exactly,
+    // rather than MapLibre's default NavigationControl widget.
 
     // --- Route rendering ---------------------------------------------------
     // Repaint the route source: the committed route (or the eraser's pending
@@ -431,6 +437,7 @@ export function Map3DView({
     map.on('mousemove', onMouseMove);
     map.on('mouseup', onMouseUp);
     map.on('mouseout', onMouseOut);
+    map.on('rotate', () => setBearing(map.getBearing()));
 
     map.on('load', () => {
       // Frame the camera on the route with a tilted, slightly rotated view.
@@ -449,6 +456,7 @@ export function Map3DView({
           duration: 0,
         });
       }
+      setBearing(map.getBearing());
     });
 
     return () => {
@@ -562,6 +570,41 @@ export function Map3DView({
   return (
     <div className={styles.root}>
       <div ref={containerRef} className={styles.map} />
+      <div className={styles.controls}>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => mapRef.current?.zoomIn()}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <PlusIcon />
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => mapRef.current?.zoomOut()}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <MinusIcon />
+        </button>
+        <div className={styles.divider} />
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => mapRef.current?.resetNorth()}
+          title="Reset bearing to north"
+          aria-label="Reset bearing to north"
+        >
+          <span
+            className={styles.compass}
+            style={{ transform: `rotate(${-bearing - 45}deg)` }}
+          >
+            <CompassIcon />
+          </span>
+        </button>
+      </div>
       <button
         type="button"
         className={styles.overlayToggle}
