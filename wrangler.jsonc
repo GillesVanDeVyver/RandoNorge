@@ -5,16 +5,40 @@
 // deploy`) use this instead of auto-generating an assets-only config that
 // would skip the proxies.
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "fjellrute",
-  "main": "worker/index.js",
-  "compatibility_date": "2026-07-12",
-  "observability": {
-    "enabled": true
-  },
-  "assets": {
-    "directory": "dist",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "fjellrute",
+	"main": "worker/index.js",
+	"compatibility_date": "2026-07-12",
+	// Better Auth touches a few node: built-ins; workerd provides them
+	// natively with this flag (no bundle size cost).
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// D1 (SQLite at the edge) stores user accounts, sessions, email
+	// verification tokens and — next step — saved routes. Schema changes
+	// live in migrations/ and are applied with
+	// `npx wrangler d1 migrations apply fjellrute-db --remote`.
+	// See docs/AUTH_SETUP.md for the full checklist (incl. secrets).
+	//
+	// "remote": true makes `wrangler dev` talk to the real production
+	// database (chosen during `d1 create`). Remove that line to develop
+	// against an isolated local copy instead (then also apply migrations
+	// with --local).
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "fjellrute-db",
+			"database_id": "fc24cf1f-35c7-4c9d-8a5a-4de38a3865fb",
+			"migrations_dir": "migrations",
+			"remote": true
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"assets": {
+		"directory": "dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application"
+	}
 }

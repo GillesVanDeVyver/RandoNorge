@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "better-auth": "^1.6.23",
+    "kysely": "^0.29.3",
+    "kysely-d1": "^0.4.0",
     "leaflet": "^1.9.4",
     "maplibre-gl": "^5.24.0",
     "react": "^19.2.6",
@@ -30,6 +33,7 @@
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "wrangler": "^4.110.0"
   }
 }

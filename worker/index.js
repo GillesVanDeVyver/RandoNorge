@@ -1,8 +1,8 @@
 // Cloudflare Worker entry point. Static assets (the Vite build in dist/)
 // are served automatically by the assets binding before this code runs;
-// the Worker itself only handles the three API proxy routes that the app
-// needs in production — the same paths the Vite dev server proxies locally
-// (see vite.config.ts).
+// the Worker handles the auth API (/api/auth/*, see worker/auth.js) plus
+// the three API proxy routes that the app needs in production — the same
+// paths the Vite dev server proxies locally (see vite.config.ts).
 //
 //   /metno-api/*  → https://api.met.no/*      (User-Agent required by ToS)
 //   /gts-api/*    → https://gts.nve.no/api/*  (no CORS upstream)
@@ -13,6 +13,7 @@
 // product (6 h), Varsom warnings are daily with occasional intraday
 // updates (1 h).
 import { proxyGet } from './proxy.js';
+import { getAuth } from './auth.js';
 
 const ROUTES = [
   { prefix: '/metno-api', upstream: 'https://api.met.no', ttl: 1800 },
@@ -22,7 +23,14 @@ const ROUTES = [
 
 export default {
   async fetch(request, env, ctx) {
-    const { pathname } = new URL(request.url);
+    const url = new URL(request.url);
+    const { pathname } = url;
+
+    // Authentication (Better Auth): sign-up, sign-in, sign-out, session,
+    // email verification and password reset all live under /api/auth/*.
+    if (pathname === '/api/auth' || pathname.startsWith('/api/auth/')) {
+      return getAuth(env, url.origin).handler(request);
+    }
 
     for (const { prefix, upstream, ttl } of ROUTES) {
       if (pathname === prefix || pathname.startsWith(prefix + '/')) {

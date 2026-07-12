@@ -6,6 +6,15 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      // Auth (Better Auth) runs in the Cloudflare Worker, not in Vite. To
+      // exercise login flows during development, run the Worker alongside
+      // the dev server (`npm run build && npx wrangler dev`, listens on
+      // 8787) and Vite forwards /api requests to it. Everything else in
+      // the app works without wrangler running.
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: false,
+      },
       // NVE's GridTimeSeries (seNorge snow data) does not return CORS headers,
       // so we forward dev requests through the Vite dev server. The browser
       // hits /gts-api/... and Vite rewrites it to https://gts.nve.no/api/...
