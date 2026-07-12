@@ -176,6 +176,26 @@ export function AvalancheRisk({ profile }: Props) {
       {dateControls}
       {current}
       <Legend />
+      <p className={styles.attribution}>
+        Avalanche forecast ©{' '}
+        <a
+          href="https://www.varsom.no/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          NVE / Varsom.no
+        </a>
+        , licensed under{' '}
+        <a
+          href="https://data.norge.no/nlod/en/2.0"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          NLOD
+        </a>
+        . Data provided “as is” — always check the full warning on Varsom
+        before heading out.
+      </p>
     </div>
   );
 }
