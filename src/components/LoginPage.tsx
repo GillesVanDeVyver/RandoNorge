@@ -39,9 +39,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
             is waiting<span className={styles.headlineDot}>.</span>
           </h1>
           <p className={styles.tagline}>
-            Draw a line on the map - Fjellrute reads the terrain, the snow
-            and the avalanche forecast so you can plan the up and dream
-            the down.
+            From trailhead to summit and back - Fjellrute reads the
+            terrain, the snow and the avalanche forecast for every metre
+            of your tour.
           </p>
           <ul className={styles.chips}>
             <li className={styles.chip}>
