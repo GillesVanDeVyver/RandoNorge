@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { LatLng, Mode, Overlay, Route, Segment } from '../types';
 import { haversine, simplify } from '../geometry';
 import {
   CompassIcon,
+  FullscreenIcon,
+  LocateIcon,
   MinusIcon,
   MountainIcon,
   PlusIcon,
+  RouteIcon,
+  SearchIcon,
   SnowflakeIcon,
 } from './icons';
 import styles from './Map3DView.module.css';
@@ -108,10 +112,19 @@ export function Map3DView({
   onRouteChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   // Current map bearing, mirrored into state so the compass needle can
   // counter-rotate and keep pointing at true north as the view turns.
   const [bearing, setBearing] = useState(0);
+  // Search UI state — mirrors the 2D MapControls search box.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (searchOpen) inputRef.current?.focus();
+  }, [searchOpen]);
 
   // Latest-value refs so the once-bound MapLibre event handlers always see
   // the current route/mode/callback without rebinding (and rebuilding) them.
@@ -236,8 +249,8 @@ export function Map3DView({
 
     mapRef.current = map;
 
-    // Zoom/compass live in a custom glass panel (top-left, below the draw
-    // toolbar) rendered in JSX so they match the 2D map's controls exactly,
+    // Map tools live in a custom glass panel (top-right, below the overlay
+    // toggle) rendered in JSX so they match the 2D map's controls exactly,
     // rather than MapLibre's default NavigationControl widget.
 
     // --- Route rendering ---------------------------------------------------
@@ -567,10 +580,138 @@ export function Map3DView({
     else map.once('load', apply);
   }, [overlay]);
 
+  const hasRoute = route.length > 0;
+
+  // Re-frame the camera around the drawn route with the same 25% padding as
+  // the 2D map's "zoom to route" button, preserving the current pitch/bearing
+  // so the tilted view is kept.
+  const handleZoomToRoute = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const pts: [number, number][] = [];
+    for (const seg of route) for (const [lat, lng] of seg) pts.push([lng, lat]);
+    if (pts.length < 2) return;
+    const bounds = pts.reduce(
+      (b, p) => b.extend(p),
+      new maplibregl.LngLatBounds(pts[0], pts[0]),
+    );
+    const container = map.getContainer();
+    const padX = Math.max(0, Math.round(container.clientWidth * 0.25));
+    const padY = Math.max(0, Math.round(container.clientHeight * 0.25));
+    map.fitBounds(bounds, {
+      padding: { top: padY, bottom: padY, left: padX, right: padX },
+      pitch: map.getPitch(),
+      bearing: map.getBearing(),
+    });
+  }, [route]);
+
+  // Center the map on the user's location, matching the 2D locate button
+  // (maxZoom 14, high accuracy).
+  const handleLocate = useCallback(() => {
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => {
+        const map = mapRef.current;
+        if (!map) return;
+        map.flyTo({
+          center: [pos.coords.longitude, pos.coords.latitude],
+          zoom: 14,
+        });
+      },
+      () => {
+        // ignore geolocation errors, like the 2D map does
+      },
+      { enableHighAccuracy: true },
+    );
+  }, []);
+
+  const handleFullscreen = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      el.requestFullscreen?.();
+    }
+  }, []);
+
+  // Same Nominatim place search as the 2D map controls.
+  const handleSearch = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const q = query.trim();
+      if (!q) return;
+      try {
+        const url =
+          'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=no&q=' +
+          encodeURIComponent(q);
+        const res = await fetch(url, {
+          headers: { Accept: 'application/json' },
+        });
+        const data: Array<{ lat: string; lon: string }> = await res.json();
+        if (data.length > 0) {
+          const lat = parseFloat(data[0].lat);
+          const lon = parseFloat(data[0].lon);
+          mapRef.current?.flyTo({ center: [lon, lat], zoom: 12 });
+          setSearchOpen(false);
+          setQuery('');
+        }
+      } catch {
+        // ignore network errors
+      }
+    },
+    [query],
+  );
+
   return (
-    <div className={styles.root}>
+    <div ref={rootRef} className={styles.root}>
       <div ref={containerRef} className={styles.map} />
       <div className={styles.controls}>
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => setSearchOpen((v) => !v)}
+            title="Search"
+            aria-label="Search"
+          >
+            <SearchIcon />
+          </button>
+          {searchOpen && (
+            <form className={styles.searchBox} onSubmit={handleSearch}>
+              <input
+                ref={inputRef}
+                type="text"
+                className={styles.searchInput}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setSearchOpen(false);
+                }}
+                placeholder="Search place..."
+              />
+            </form>
+          )}
+        </div>
+        <div className={styles.divider} />
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={handleFullscreen}
+          title="Fullscreen"
+          aria-label="Fullscreen"
+        >
+          <FullscreenIcon />
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={handleLocate}
+          title="My location"
+          aria-label="My location"
+        >
+          <LocateIcon />
+        </button>
+        <div className={styles.divider} />
         <button
           type="button"
           className={styles.btn}
@@ -589,6 +730,20 @@ export function Map3DView({
         >
           <MinusIcon />
         </button>
+        {hasRoute && (
+          <>
+            <div className={styles.divider} />
+            <button
+              type="button"
+              className={styles.btn}
+              onClick={handleZoomToRoute}
+              title="Zoom to route"
+              aria-label="Zoom to route"
+            >
+              <RouteIcon />
+            </button>
+          </>
+        )}
         <div className={styles.divider} />
         <button
           type="button"
@@ -616,7 +771,9 @@ export function Map3DView({
         }
       >
         {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
-        <span>{overlay === 'steepness' ? 'Show snow' : 'Show steepness'}</span>
+        <span>
+          {overlay === 'steepness' ? 'Show snow depth' : 'Show steepness'}
+        </span>
       </button>
     </div>
   );

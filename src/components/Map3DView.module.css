@@ -12,15 +12,13 @@
   inset: 0;
 }
 
-/* Zoom / compass cluster — glass panel matching the 2D map's controls,
-   stacked top-left below the draw toolbar (3 × 40px buttons + gaps/padding). */
+/* Map tools cluster — glass panel matching the 2D map's controls exactly
+   (search / fullscreen / locate / zoom / route), stacked top-right below the
+   overlay toggle, with the compass as the one extra 3D tool. */
 .controls {
   position: absolute;
-  top: calc(
-    max(var(--space-3), env(safe-area-inset-top)) + 40px * 3 +
-      var(--space-1) * 4 + 2px + var(--space-2)
-  );
-  left: max(var(--space-3), env(safe-area-inset-left));
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 40px + var(--space-1) * 2 + 2px + var(--space-2));
+  right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1001;
   display: flex;
   flex-direction: column;
@@ -35,11 +33,46 @@
   box-shadow: var(--shadow-2);
 }
 
-/* A faint divider separates zoom from the compass, mirroring the 2D map. */
+/* A faint divider groups the tools, mirroring the 2D map. */
 .divider {
   height: 1px;
   margin: 2px var(--space-1);
   background: var(--hairline);
+}
+
+/* Search box — identical to the 2D MapControls search, opening to the left
+   of the panel. */
+.searchBox {
+  position: absolute;
+  top: 0;
+  right: calc(100% + var(--space-2));
+  display: flex;
+  align-items: center;
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+
+.searchInput {
+  width: 240px;
+  max-width: 60vw;
+  height: 40px;
+  border: none;
+  outline: none;
+  padding: 0 var(--space-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  background: transparent;
+  caret-color: var(--accent);
+}
+
+.searchInput::placeholder {
+  color: var(--text-3);
 }
 
 .btn {
@@ -131,18 +164,11 @@
   height: 18px;
 }
 
-/* Touch: 44px hit targets, and re-offset below the taller draw toolbar. */
+/* Touch: 44px hit targets, matching the 2D controls. */
 @media (pointer: coarse) {
   .btn {
     width: 44px;
     height: 44px;
-  }
-
-  .controls {
-    top: calc(
-      max(var(--space-3), env(safe-area-inset-top)) + 44px * 3 +
-        var(--space-1) * 4 + 2px + var(--space-2)
-    );
   }
 }
 
