@@ -340,6 +340,21 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
 
   const hover = useChartHover(chartData);
 
+  // Approximate rendered height of the hover tooltip (3 lines + padding
+  // + border). Used to decide whether it fits inside the chart box.
+  const TOOLTIP_EST_H = 72;
+  // On flat routes the 1:1 chart is only a sliver tall — far shorter than
+  // the tooltip. A cursor-following tooltip would then hang below the
+  // chart and get clipped by the summary card's rounded-corner clipping.
+  // Instead, pin it vertically centered on the chart so it overlaps the
+  // panel background above/below the sliver and stays fully visible
+  // (allowEscapeViewBox lets it leave the plot box; the chart container
+  // itself no longer clips). Tall charts keep the default cursor-follow.
+  const tooltipFits = elevChartHeight >= TOOLTIP_EST_H + M_TOP + M_BOTTOM;
+  const tooltipPosition = tooltipFits
+    ? undefined
+    : { y: (elevChartHeight - TOOLTIP_EST_H) / 2 };
+
   if (!profile && !loading && !error) return null;
 
   return (
@@ -424,6 +439,7 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                   <Tooltip
                     wrapperStyle={{ zIndex: 10 }}
                     allowEscapeViewBox={{ x: false, y: true }}
+                    position={tooltipPosition}
                     cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' }}
                     content={({ active, payload, label }) => {
                       if (!active || !payload || payload.length === 0) return null;

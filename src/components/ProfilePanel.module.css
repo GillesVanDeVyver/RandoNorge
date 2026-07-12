@@ -81,7 +81,10 @@
     #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-  overflow: hidden;
+  /* No overflow:hidden — the hover tooltip must be able to escape the
+     chart box vertically on flat (sliver-height) routes. The chart svg
+     and canvas are sized exactly to the container, so nothing else
+     bleeds out. */
 }
 
 .chartHeader {
