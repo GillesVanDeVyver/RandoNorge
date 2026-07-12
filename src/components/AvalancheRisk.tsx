@@ -193,8 +193,7 @@ export function AvalancheRisk({ profile }: Props) {
         >
           NLOD
         </a>
-        . Data provided “as is” — always check the full warning on Varsom
-        before heading out.
+        . Data provided “as is”.
       </p>
     </div>
   );

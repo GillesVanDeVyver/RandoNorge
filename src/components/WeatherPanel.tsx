@@ -3,6 +3,7 @@ import type { ProfileData } from '../elevation/profile';
 import type { WeatherHour } from '../weather/api';
 import { useWeather, weatherCandidates } from '../weather/useWeather';
 import { WeatherSymbol, WindArrowIcon } from './WeatherIcons';
+import { SourceAttribution, NLOD } from './SourceAttribution';
 import styles from './WeatherPanel.module.css';
 
 interface Props {
@@ -252,6 +253,11 @@ export function WeatherPanel({ profile }: Props) {
           ▼
         </div>
       </div>
+      <SourceAttribution
+        what="Weather forecast"
+        source={{ label: 'MET Norway', href: 'https://www.met.no/en' }}
+        license={NLOD}
+      />
     </div>
   );
 }

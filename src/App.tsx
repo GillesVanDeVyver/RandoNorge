@@ -7,6 +7,7 @@ import { Toast } from './components/Toast';
 import { Toolbar } from './components/Toolbar';
 import { WeatherPanel } from './components/WeatherPanel';
 import { AvalancheRisk } from './components/AvalancheRisk';
+import { TermsDialog } from './components/TermsDialog';
 import { PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
@@ -29,6 +30,7 @@ function App() {
   const [snowDate, setSnowDate] = useState<string>(todayIso);
   const [overlay, setOverlay] = useState<Overlay>('steepness');
   const [view, setView] = useState<ViewMode>('2d');
+  const [termsOpen, setTermsOpen] = useState(false);
   // Holds the route just cleared, so the undo toast can restore it. Null
   // hides the toast.
   const [clearedRoute, setClearedRoute] = useState<Route | null>(null);
@@ -153,6 +155,14 @@ function App() {
           >
             3D
           </button>
+          <button
+            type="button"
+            onClick={() => setTermsOpen(true)}
+            aria-label="About and terms of service"
+            title="About and terms of service"
+          >
+            ⓘ
+          </button>
         </div>
         <Toolbar
           mode={mode}
@@ -225,6 +235,7 @@ function App() {
         </SummaryPanel>
       )}
       </div>
+      {termsOpen && <TermsDialog onClose={() => setTermsOpen(false)} />}
     </div>
   );
 }

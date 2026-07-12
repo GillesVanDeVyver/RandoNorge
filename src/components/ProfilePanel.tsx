@@ -12,6 +12,7 @@ import type { ProfileData } from '../elevation/profile';
 import type { SnowData } from '../snow/useSnow';
 import { setHoverPoint } from '../hoverStore';
 import { DatePopover } from './DatePopover';
+import { SourceAttribution, NLOD, CC_BY_4 } from './SourceAttribution';
 import styles from './ProfilePanel.module.css';
 
 interface ElevationProps {
@@ -560,6 +561,11 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
               </>
             )}
         </div>
+        <SourceAttribution
+          what="Elevation data"
+          source={{ label: 'Kartverket', href: 'https://www.kartverket.no/' }}
+          license={CC_BY_4}
+        />
       </div>
     </div>
   );
@@ -767,6 +773,11 @@ export function SnowPanel({
             </ResponsiveContainer>
           )}
         </div>
+        <SourceAttribution
+          what="Snow depth"
+          source={{ label: 'NVE / seNorge.no', href: 'https://www.senorge.no/' }}
+          license={NLOD}
+        />
       </div>
     </div>
   );
