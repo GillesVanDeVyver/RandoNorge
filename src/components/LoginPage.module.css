@@ -1,7 +1,8 @@
 /* =========================================================================
-   LoginPage — full-bleed backcountry photo with a glass login card
-   anchored on the left. Speaks the same "Alpine Glass" language as the
-   rest of the chrome (tokens from index.css).
+   LoginPage — full-bleed backcountry photo. The headline and product
+   chips live directly on the photo (hero), with a compact glass login
+   card beside them. Speaks the same "Alpine Glass" language as the rest
+   of the chrome (tokens from index.css).
    ========================================================================= */
 
 /* Background photo: ski tourer skinning uphill, by Alois Lackner.
@@ -12,61 +13,49 @@
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding: var(--space-8);
+  flex-direction: column;
+  padding: clamp(20px, 3.5vw, 48px);
   background:
     url('/login-backcountry.jpg') center / cover no-repeat,
     #dfe7ee; /* fallback while the photo loads */
+  overflow: auto;
 }
 
-/* Left-weighted gradient scrim so the card and its text always sit on a
+/* Left-weighted gradient scrim so the headline and card always sit on a
    calm, readable area regardless of what the photo does underneath. */
 .scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    rgba(10, 20, 30, 0.42) 0%,
-    rgba(10, 20, 30, 0.22) 34%,
-    rgba(10, 20, 30, 0) 62%
-  );
+  background:
+    linear-gradient(
+      100deg,
+      rgba(8, 18, 28, 0.62) 0%,
+      rgba(8, 18, 28, 0.38) 38%,
+      rgba(8, 18, 28, 0.05) 68%
+    ),
+    linear-gradient(to top, rgba(8, 18, 28, 0.35) 0%, rgba(8, 18, 28, 0) 22%);
 }
 
-.card {
-  position: relative;
-  width: min(400px, 100%);
-  margin-left: clamp(0px, 4vw, 72px);
-  padding: var(--space-8);
-  border-radius: var(--radius-lg);
-
-  background: var(--surface-2);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--hairline);
-  box-shadow: var(--shadow-float);
-}
-
-/* --- Branding ---------------------------------------------------------- */
+/* --- Brand (top-left, on the photo) ------------------------------------ */
 
 .brand {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-6);
 }
 
 .brandIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-sm);
   background: var(--accent);
   color: var(--accent-contrast);
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-2);
 }
 
 .brandIcon svg {
@@ -78,21 +67,103 @@
   font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--text-1);
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(8, 18, 28, 0.45);
 }
 
-.title {
-  margin: 0 0 var(--space-1);
-  font-size: var(--text-xl);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-1);
+/* --- Content: hero + card ----------------------------------------------- */
+
+.content {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: clamp(32px, 5vw, 96px);
+  padding-block: var(--space-6);
 }
 
-.subtitle {
-  margin: 0 0 var(--space-6);
+.hero {
+  max-width: 560px;
+}
+
+.headline {
+  margin: 0;
+  font-size: clamp(44px, 5.2vw, 76px);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  color: #fff;
+  text-shadow: 0 2px 24px rgba(8, 18, 28, 0.45);
+  text-wrap: balance;
+}
+
+.headlineDot {
+  color: var(--accent);
+}
+
+.tagline {
+  margin: var(--space-4) 0 0;
+  max-width: 46ch;
+  font-size: clamp(15px, 1.15vw, 17px);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.86);
+  text-shadow: 0 1px 12px rgba(8, 18, 28, 0.5);
+}
+
+/* Small product-feature chips: frosted dark pills on the photo. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
   font-size: var(--text-sm);
-  color: var(--text-2);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(10, 22, 32, 0.38);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  backdrop-filter: blur(10px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-pill);
+}
+
+.chip svg {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* --- Login card ---------------------------------------------------------- */
+
+.card {
+  position: relative;
+  flex-shrink: 0;
+  width: min(380px, 100%);
+  padding: var(--space-8);
+  border-radius: var(--radius-lg);
+
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-float);
+}
+
+.cardTitle {
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
 }
 
 /* --- Form -------------------------------------------------------------- */
@@ -263,19 +334,45 @@
   bottom: var(--space-2);
   font-size: 10px;
   color: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
-/* --- Small screens ------------------------------------------------------- */
+.credit:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* --- Smaller screens ------------------------------------------------------ */
+
+@media (max-width: 1000px) {
+  .content {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--space-8);
+  }
+
+  .headline {
+    font-size: clamp(38px, 7vw, 56px);
+  }
+}
 
 @media (max-width: 640px) {
-  .page {
+  .content {
+    align-items: center;
+    text-align: center;
+  }
+
+  .tagline {
+    margin-inline: auto;
+  }
+
+  .chips {
     justify-content: center;
-    padding: var(--space-4);
   }
 
   .card {
-    margin-left: 0;
     padding: var(--space-6);
   }
 }

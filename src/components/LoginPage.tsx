@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MountainIcon } from './icons';
+import { MountainIcon, RouteIcon, SnowflakeIcon } from './icons';
 import styles from './LoginPage.module.css';
 
 type Props = {
@@ -8,8 +8,9 @@ type Props = {
 };
 
 /**
- * Full-screen landing/login view shown before the app. Backed by a
- * full-bleed backcountry photo with a glass login card on the left.
+ * Full-screen landing/login view shown before the app. A full-bleed
+ * backcountry photo carries a large display headline and product chips,
+ * with a compact glass login card beside them.
  *
  * Auth is not wired up yet: the form and the sign-up button are inert
  * placeholders. Only "Continue as guest" proceeds into the app.
@@ -23,75 +24,101 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       {/* Decorative background is on .page via CSS; scrim improves contrast. */}
       <div className={styles.scrim} aria-hidden="true" />
 
-      <div className={styles.card}>
-        <div className={styles.brand}>
-          <span className={styles.brandIcon}>
-            <MountainIcon />
-          </span>
-          <span className={styles.brandName}>Fjellrute</span>
-        </div>
+      <header className={styles.brand}>
+        <span className={styles.brandIcon}>
+          <MountainIcon />
+        </span>
+        <span className={styles.brandName}>Fjellrute</span>
+      </header>
 
-        <h1 className={styles.title}>The mountain is waiting</h1>
-        <p className={styles.subtitle}>
-          Plan safer backcountry ski routes across Norway.
-        </p>
+      <div className={styles.content}>
+        <section className={styles.hero}>
+          <h1 className={styles.headline}>
+            The mountain
+            <br />
+            is waiting<span className={styles.headlineDot}>.</span>
+          </h1>
+          <p className={styles.tagline}>
+            Draw a line on the map - Fjellrute reads the terrain, the snow
+            and the avalanche forecast so you can plan the up and dream
+            the down.
+          </p>
+          <ul className={styles.chips}>
+            <li className={styles.chip}>
+              <RouteIcon />
+              Route drawing
+            </li>
+            <li className={styles.chip}>
+              <SnowflakeIcon />
+              Snow depth
+            </li>
+            <li className={styles.chip}>
+              <MountainIcon />
+              Steepness &amp; avalanche risk
+            </li>
+          </ul>
+        </section>
 
-        <form
-          className={styles.form}
-          onSubmit={(e) => {
-            // Authentication is not implemented yet.
-            e.preventDefault();
-          }}
-        >
-          <label className={styles.field}>
-            <span className={styles.label}>Username or email</span>
-            <input
-              className={styles.input}
-              type="text"
-              name="identifier"
-              autoComplete="username"
-              placeholder="you@example.com"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-            />
-          </label>
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>Log in</h2>
 
-          <label className={styles.field}>
-            <span className={styles.label}>Password</span>
-            <input
-              className={styles.input}
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
+          <form
+            className={styles.form}
+            onSubmit={(e) => {
+              // Authentication is not implemented yet.
+              e.preventDefault();
+            }}
+          >
+            <label className={styles.field}>
+              <span className={styles.label}>Username or email</span>
+              <input
+                className={styles.input}
+                type="text"
+                name="identifier"
+                autoComplete="username"
+                placeholder="you@example.com"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+              />
+            </label>
 
-          <button type="submit" className={styles.primaryBtn}>
-            Log in
+            <label className={styles.field}>
+              <span className={styles.label}>Password</span>
+              <input
+                className={styles.input}
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+
+            <button type="submit" className={styles.primaryBtn}>
+              Log in
+            </button>
+          </form>
+
+          <div className={styles.signupRow}>
+            <span>No account yet?</span>
+            <button type="button" className={styles.signupBtn}>
+              Sign up
+            </button>
+          </div>
+
+          <div className={styles.divider}>
+            <span>or</span>
+          </div>
+
+          <button
+            type="button"
+            className={styles.guestBtn}
+            onClick={onContinueAsGuest}
+          >
+            Continue as guest
           </button>
-        </form>
-
-        <div className={styles.signupRow}>
-          <span>No account yet?</span>
-          <button type="button" className={styles.signupBtn}>
-            Sign up
-          </button>
         </div>
-
-        <div className={styles.divider}>
-          <span>or</span>
-        </div>
-
-        <button
-          type="button"
-          className={styles.guestBtn}
-          onClick={onContinueAsGuest}
-        >
-          Continue as guest
-        </button>
       </div>
 
       {/* Photo licensed under the Pexels license (free for commercial
