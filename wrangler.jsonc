@@ -1,0 +1,20 @@
+// Cloudflare Workers configuration. The Worker (worker/index.js) proxies
+// the three public APIs the app depends on (stamping MET's required
+// User-Agent and edge-caching responses) and serves the Vite build in
+// dist/ for every other request. Committed so CI deploys (`npx wrangler
+// deploy`) use this instead of auto-generating an assets-only config that
+// would skip the proxies.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fjellrute",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-07-12",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  }
+}
