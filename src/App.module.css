@@ -128,6 +128,55 @@
   }
 }
 
+/* Quiet "about & terms" entry point — its own small glass chip in the
+   bottom-right corner, sitting above the map attribution line. */
+.infoBtn {
+  position: absolute;
+  bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + 24px);
+  right: max(var(--space-3), env(safe-area-inset-right));
+  z-index: 1000;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1;
+  color: var(--text-2);
+  cursor: pointer;
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-2);
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.infoBtn:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.infoBtn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+@media (pointer: coarse) {
+  .infoBtn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
 /* Quiet onboarding hint shown over the map when no route exists yet.
    Non-interactive so it never blocks drawing. */
 .hint {

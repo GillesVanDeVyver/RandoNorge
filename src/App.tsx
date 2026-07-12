@@ -155,15 +155,16 @@ function App() {
           >
             3D
           </button>
-          <button
-            type="button"
-            onClick={() => setTermsOpen(true)}
-            aria-label="About and terms of service"
-            title="About and terms of service"
-          >
-            ⓘ
-          </button>
         </div>
+        <button
+          type="button"
+          className={styles.infoBtn}
+          onClick={() => setTermsOpen(true)}
+          aria-label="About and terms of service"
+          title="About and terms of service"
+        >
+          ⓘ
+        </button>
         <Toolbar
           mode={mode}
           onModeChange={handleModeChange}
