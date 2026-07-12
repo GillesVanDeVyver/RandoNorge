@@ -36,7 +36,7 @@ export default defineConfig({
           proxy.on('proxyReq', (proxyReq) => {
             proxyReq.setHeader(
               'User-Agent',
-              'RandoNorge/0.1 https://github.com/randonorge',
+              'Fjellrute/0.1 https://github.com/fjellrute',
             );
           });
         },

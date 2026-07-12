@@ -1,4 +1,4 @@
-# RandoNorge — Premium UI Design Plan
+# Fjellrute — Premium UI Design Plan
 
 *A design audit and phased roadmap for elevating the look and feel to a premium, high-end backcountry tool — while keeping it easy to use. No code changes are included here; this is a plan.*
 
@@ -8,7 +8,7 @@
 
 ## 1. What the app is, and why that matters for design
 
-RandoNorge is a backcountry ski-touring and route planner for Norway. The map is the product: a Kartverket topographic base, an NVE steepness/runout overlay, a seNorge snow-depth overlay, a freehand-drawn route, and a synced elevation + snow-depth profile along the bottom. The closest design north stars are FATMAP, Gaia GPS, Strava's route builder, and Apple Maps' newer "floating glass" UI.
+Fjellrute is a backcountry route planner for Norway — ski touring, hiking, and snowshoeing. The map is the product: a Kartverket topographic base, an NVE steepness/runout overlay, a seNorge snow-depth overlay, a freehand-drawn route, and a synced elevation + snow-depth profile along the bottom. The closest design north stars are FATMAP, Gaia GPS, Strava's route builder, and Apple Maps' newer "floating glass" UI.
 
 The single most important design principle for this category: **the map is the hero, and the chrome should float above it without competing.** Premium feel here comes less from decoration and more from restraint, consistency, and confident handling of data (steepness colors, elevation, snow). The current build already does the hard part well — accurate steepness bands, runout coloring, true-scale elevation exaggeration, a custom date picker. The gap is purely visual cohesion: right now there are several different "mini design languages" stacked on one screen.
 

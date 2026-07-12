@@ -247,6 +247,58 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
     const plotH = (plotW * domainSpan) / dist;
     return plotH + PLOT_CHROME_H;
   }, [profile, containerWidth, yTicks]);
+  // Displayed y-axis ticks — adaptive to the rendered plot height. yTicks
+  // (above) always defines the domain (and the canvas-overlay geometry),
+  // but on flat routes the 1:1 plot is only a sliver tall, so five 11px
+  // labels would overlap into an unreadable smudge. Only show as many
+  // labels as physically fit (~one per 16px), thinning to evenly-indexed
+  // ticks and, at minimum, the domain endpoints.
+  const displayYTicks = useMemo(() => {
+    if (yTicks.length < 2) return yTicks;
+    const plotH = elevChartHeight - PLOT_CHROME_H;
+    const maxLabels = Math.max(2, Math.floor(plotH / 16) + 1);
+    if (maxLabels >= yTicks.length) return yTicks;
+    const n = yTicks.length;
+    const out: number[] = [];
+    for (let i = 0; i < maxLabels; i++) {
+      const v = yTicks[Math.round((i * (n - 1)) / (maxLabels - 1))];
+      if (out[out.length - 1] !== v) out.push(v);
+    }
+    return out;
+  }, [yTicks, elevChartHeight]);
+  // When even two labels can't fit inside the plot (ultra-flat routes),
+  // nudge the min label down and the max label up so they never collide.
+  // Capped so the labels stay within the chart's top margin / axis band.
+  const yTickNudge = useMemo(() => {
+    if (displayYTicks.length !== 2) return 0;
+    const plotH = elevChartHeight - PLOT_CHROME_H;
+    return Math.min(7, Math.max(0, (14 - plotH) / 2));
+  }, [displayYTicks, elevChartHeight]);
+  const renderYTick = useCallback(
+    (props: {
+      x?: number | string;
+      y?: number | string;
+      payload?: { value?: number | string };
+    }) => {
+      const { x, y, payload } = props;
+      const value = Number(payload?.value);
+      const isTop = value >= displayYTicks[displayYTicks.length - 1];
+      const nudge = yTickNudge ? (isTop ? -yTickNudge : yTickNudge) : 0;
+      return (
+        <text
+          x={x}
+          y={Number(y) + nudge}
+          dy={4}
+          textAnchor="end"
+          fill="#9ca3af"
+          fontSize={11}
+        >
+          {`${Math.round(value)} m`}
+        </text>
+      );
+    },
+    [displayYTicks, yTickNudge],
+  );
   // X-domain max (route distance). Set explicitly on the XAxis below so
   // Recharts doesn't recompute "dataMax" each render, and reused by the
   // canvas overlay to map data → pixels.
@@ -426,15 +478,13 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                   <YAxis
                     dataKey="elevation"
                     domain={[yTicks[0], yTicks[yTicks.length - 1]]}
-                    ticks={yTicks}
+                    ticks={displayYTicks}
                     interval={0}
-                    tickFormatter={(v) => `${Math.round(v)}`}
                     stroke="transparent"
-                    tick={{ fill: '#9ca3af', fontSize: 11 }}
+                    tick={renderYTick}
                     tickLine={false}
                     axisLine={false}
                     width={Y_AXIS_W}
-                    unit=" m"
                   />
                   <Tooltip
                     wrapperStyle={{ zIndex: 10 }}
