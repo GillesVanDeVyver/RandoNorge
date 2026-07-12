@@ -14,6 +14,7 @@ import {
   SearchIcon,
   SnowflakeIcon,
 } from './icons';
+import { searchPlace } from '../search/geocode';
 import styles from './Map3DView.module.css';
 
 // Same Kartverket topo tiles as the 2D map — draped over the terrain mesh.
@@ -634,24 +635,16 @@ export function Map3DView({
     }
   }, []);
 
-  // Same Nominatim place search as the 2D map controls.
+  // Same Kartverket stedsnavn place search as the 2D map controls.
   const handleSearch = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       const q = query.trim();
       if (!q) return;
       try {
-        const url =
-          'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=no&q=' +
-          encodeURIComponent(q);
-        const res = await fetch(url, {
-          headers: { Accept: 'application/json' },
-        });
-        const data: Array<{ lat: string; lon: string }> = await res.json();
-        if (data.length > 0) {
-          const lat = parseFloat(data[0].lat);
-          const lon = parseFloat(data[0].lon);
-          mapRef.current?.flyTo({ center: [lon, lat], zoom: 12 });
+        const place = await searchPlace(q);
+        if (place) {
+          mapRef.current?.flyTo({ center: [place.lon, place.lat], zoom: 12 });
           setSearchOpen(false);
           setQuery('');
         }

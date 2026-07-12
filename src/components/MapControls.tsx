@@ -12,6 +12,7 @@ import {
   SearchIcon,
   SnowflakeIcon,
 } from './icons';
+import { searchPlace } from '../search/geocode';
 import styles from './MapControls.module.css';
 
 interface Props {
@@ -69,17 +70,9 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
       const q = query.trim();
       if (!q) return;
       try {
-        const url =
-          'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=no&q=' +
-          encodeURIComponent(q);
-        const res = await fetch(url, {
-          headers: { Accept: 'application/json' },
-        });
-        const data: Array<{ lat: string; lon: string }> = await res.json();
-        if (data.length > 0) {
-          const lat = parseFloat(data[0].lat);
-          const lon = parseFloat(data[0].lon);
-          map.setView([lat, lon], 12);
+        const place = await searchPlace(q);
+        if (place) {
+          map.setView([place.lat, place.lon], 12);
           setSearchOpen(false);
           setQuery('');
         }
