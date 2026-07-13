@@ -6,7 +6,8 @@ verification emails sent through [Resend](https://resend.com). Everything fits
 in Cloudflare's and Resend's free tiers.
 
 What users get: email + password sign-up with mandatory email confirmation,
-log in / log out, password reset by email, and "Continue as guest" exactly as
+log in / log out, password reset by email, "Continue with Google" (one-click
+OAuth, no email confirmation step), and "Continue as guest" exactly as
 before. Password policy follows NIST 800-63B: minimum 8 characters, no forced
 symbol rules, very common passwords rejected, with a strength hint in the form.
 
@@ -54,7 +55,47 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
      only delivers to the Resend account owner's own address (fine for
      testing).
 
-5. **Deploy** as usual: `npm run build && npx wrangler deploy`.
+5. **Set up "Continue with Google"** (optional — the button shows an error
+   until this is done, everything else keeps working):
+
+   1. In the [Google Cloud console](https://console.cloud.google.com/),
+      create (or pick) a project, then go to **APIs & Services → OAuth
+      consent screen** and configure it as an *External* app (app name,
+      support email; no scopes beyond the default email/profile needed).
+   2. Under **APIs & Services → Credentials**, create an **OAuth client ID**
+      of type *Web application* and add the authorized redirect URI:
+
+      ```
+      https://YOUR_PRODUCTION_DOMAIN/api/auth/callback/google
+      ```
+
+      For local development also add:
+
+      ```
+      http://localhost:5173/api/auth/callback/google
+      ```
+
+   3. Store the credentials — the client ID as a Worker variable in
+      `wrangler.jsonc`:
+
+      ```jsonc
+      "vars": { "GOOGLE_CLIENT_ID": "1234...apps.googleusercontent.com" }
+      ```
+
+      and the client secret as a secret:
+
+      ```sh
+      npx wrangler secret put GOOGLE_CLIENT_SECRET
+      ```
+
+   Google sign-ins arrive with a verified email address, so these users skip
+   the confirmation-email step. If an email/password account with the same
+   address already exists, the Google login is linked to it (account linking
+   is enabled in `worker/auth.js`), so nobody ends up with duplicate
+   accounts. While the consent screen is in Google's "Testing" mode, only
+   test users you list there can sign in — publish it for real users.
+
+6. **Deploy** as usual: `npm run build && npx wrangler deploy`.
 
 ## Local development
 
@@ -68,6 +109,17 @@ The Vite dev server proxies `/api/*` to the Worker on port 8787, so the login
 flows work at the Vite URL. Without `RESEND_API_KEY` set locally, the
 verification/reset links are printed in the wrangler console — open them in
 the browser to complete the flow.
+
+To test Google sign-in locally, put the credentials in a `.dev.vars` file
+(git-ignored) next to `wrangler.jsonc`:
+
+```
+GOOGLE_CLIENT_ID=1234...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=...
+```
+
+Without them the Google button simply reports that the provider isn't
+configured; everything else works.
 
 ## Implementation notes
 

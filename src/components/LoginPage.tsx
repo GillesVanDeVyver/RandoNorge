@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { authClient } from '../auth/client';
 import { checkPassword, MIN_PASSWORD_LENGTH } from '../auth/passwordPolicy';
-import { MountainIcon, RouteIcon, SnowflakeIcon } from './icons';
+import {
+  GoogleIcon,
+  MountainIcon,
+  RouteIcon,
+  SnowflakeIcon,
+} from './icons';
 import styles from './LoginPage.module.css';
 
 type Props = {
@@ -49,6 +54,43 @@ export const PENDING_VERIFICATION_KEY = 'fjellrute:pending-verification-email';
 const SIGNUP_SUCCESS_NOTICE =
   'Account created! An activation link is on its way to your inbox.';
 
+/** How long (seconds) the "Resend email" button stays locked after a send. */
+const RESEND_COOLDOWN_SECONDS = 60;
+
+/**
+ * When the resend button unlocks again, stored as an epoch-ms timestamp so
+ * the cooldown survives page reloads (and new tabs) instead of resetting.
+ */
+const RESEND_DEADLINE_KEY = 'fjellrute:resend-available-at';
+
+/**
+ * Seconds left on the persisted resend cooldown, or `null` when storage is
+ * unavailable (private browsing, disabled storage) so callers can fall back
+ * to an in-memory countdown.
+ */
+function readResendCooldown(): number | null {
+  try {
+    const raw = localStorage.getItem(RESEND_DEADLINE_KEY);
+    if (!raw) return 0;
+    const remaining = Math.ceil((Number(raw) - Date.now()) / 1000);
+    // Clamp so a corrupted/far-future value can't lock the button forever.
+    return Math.min(Math.max(remaining, 0), RESEND_COOLDOWN_SECONDS);
+  } catch {
+    return null;
+  }
+}
+
+function persistResendDeadline() {
+  try {
+    localStorage.setItem(
+      RESEND_DEADLINE_KEY,
+      String(Date.now() + RESEND_COOLDOWN_SECONDS * 1000),
+    );
+  } catch {
+    // Storage unavailable — the in-memory countdown still applies.
+  }
+}
+
 function readPendingVerificationEmail(): string | null {
   try {
     return sessionStorage.getItem(PENDING_VERIFICATION_KEY);
@@ -91,6 +133,24 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   // True after a failed login where the account exists but the password
   // didn't match — shows the inline "reset password" button.
   const [wrongPassword, setWrongPassword] = useState(false);
+  // Seconds left before the verification email may be re-sent again.
+  // Seeded from the persisted deadline so reloading doesn't skip the wait.
+  const [resendCooldown, setResendCooldown] = useState(
+    () => readResendCooldown() ?? 0,
+  );
+
+  // Ticks the resend cooldown down once per second while it is active.
+  // Recomputes from the persisted deadline (rather than decrementing) so the
+  // countdown stays wall-clock accurate even if the tab is throttled; falls
+  // back to a plain decrement when storage is unavailable.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setTimeout(
+      () => setResendCooldown((s) => readResendCooldown() ?? s - 1),
+      1000,
+    );
+    return () => clearTimeout(id);
+  }, [resendCooldown]);
 
   const strength =
     mode === 'signup' || mode === 'reset'
@@ -163,6 +223,24 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setError(err.message ?? 'Could not log in. Please try again.');
   };
 
+  // OAuth with Google. On success the browser is redirected to Google and
+  // back to callbackURL, so `busy` only ever needs to be cleared on error.
+  // Google accounts arrive with a verified email, so there is no
+  // "check your inbox" step on this path.
+  const handleGoogle = async () => {
+    setError(null);
+    setWrongPassword(false);
+    setBusy(true);
+    const { error: err } = await authClient.signIn.social({
+      provider: 'google',
+      callbackURL: '/',
+    });
+    if (err) {
+      setBusy(false);
+      setError(err.message ?? 'Could not sign in with Google. Please try again.');
+    }
+  };
+
   const handleSignup = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -211,11 +289,15 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       callbackURL: '/',
     });
     setBusy(false);
-    if (err) setError(err.message ?? 'Could not resend the email.');
-    else
+    if (err) {
+      setError(err.message ?? 'Could not resend the email.');
+    } else {
       setNotice(
         'Verification email sent again. Check your inbox (and your spam folder).',
       );
+      persistResendDeadline();
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    }
   };
 
   // One-click reset from the "Wrong password." error state: sends the
@@ -306,7 +388,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
             the mountain<span className={styles.headlineDot}>.</span>
           </h1>
           <p className={styles.tagline}>
-            From trailhead to summit and back - Fjellrute reads the
+            From trailhead to summit and back. Fjellrute reads the
             terrain, the snow and the avalanche forecast for every metre
             of your tour.
           </p>
@@ -342,9 +424,21 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 type="button"
                 className={styles.primaryBtn}
                 onClick={handleResend}
-                disabled={busy || !email}
+                disabled={busy || !email || resendCooldown > 0}
               >
-                {busy ? 'Sending…' : 'Resend email'}
+                {busy ? (
+                  'Sending…'
+                ) : resendCooldown > 0 ? (
+                  <>
+                    Resend available in{' '}
+                    <span className={styles.cooldownDigits}>
+                      {resendCooldown}
+                    </span>
+                    s
+                  </>
+                ) : (
+                  'Resend email'
+                )}
               </button>
               <button
                 type="button"
@@ -439,6 +533,22 @@ export function LoginPage({ onContinueAsGuest }: Props) {
               <h2 className={styles.cardTitle}>
                 {mode === 'signup' ? 'Create account' : 'Log in'}
               </h2>
+
+              <button
+                type="button"
+                className={styles.googleBtn}
+                onClick={handleGoogle}
+                disabled={busy}
+              >
+                <GoogleIcon className={styles.googleIcon} />
+                {mode === 'signup'
+                  ? 'Sign up with Google'
+                  : 'Continue with Google'}
+              </button>
+
+              <div className={styles.divider}>
+                <span>or</span>
+              </div>
 
               <form
                 className={styles.form}

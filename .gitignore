@@ -15,6 +15,9 @@ dist-ssr
 # Wrangler local state (the config itself, wrangler.jsonc, IS committed)
 .wrangler
 
+# Local secrets for `wrangler dev` (e.g. GOOGLE_CLIENT_SECRET) — never commit
+.dev.vars
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,281 @@
+/* =========================================================================
+   AccountOverview — signed-in landing hub. Same full-bleed backcountry
+   photo and "Alpine Glass" language as the login page (tokens from
+   index.css): a short greeting and three large glass action cards.
+   ========================================================================= */
+
+.page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(20px, 3.5vw, 48px);
+  background:
+    url('/login-backcountry.jpg') center / cover no-repeat,
+    #dfe7ee; /* fallback while the photo loads */
+  overflow: auto;
+}
+
+/* Centre-weighted scrim: the content sits mid-page, so darken evenly and
+   a touch more at the bottom where the cards live. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(8, 18, 28, 0.45) 0%,
+      rgba(8, 18, 28, 0.32) 40%,
+      rgba(8, 18, 28, 0.5) 100%
+    );
+}
+
+/* --- Brand (top-left, matches the login page) --------------------------- */
+
+.brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.brandIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: var(--shadow-2);
+}
+
+.brandIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.brandName {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(8, 18, 28, 0.45);
+}
+
+/* --- Content ------------------------------------------------------------- */
+
+.content {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding-block: var(--space-8);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  text-shadow: 0 1px 8px rgba(8, 18, 28, 0.6);
+}
+
+.greeting {
+  margin: var(--space-3) 0 0;
+  font-size: clamp(34px, 4.2vw, 56px);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: 0 2px 24px rgba(8, 18, 28, 0.45);
+  text-wrap: balance;
+}
+
+.greetingDot {
+  color: var(--accent);
+}
+
+.subtitle {
+  margin: var(--space-4) 0 0;
+  font-size: clamp(15px, 1.15vw, 17px);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.86);
+  text-shadow: 0 1px 12px rgba(8, 18, 28, 0.5);
+}
+
+/* --- Action cards ---------------------------------------------------------
+   Three equal glass cards. The primary "plan new route" card carries the
+   accent so the main action is unmistakable. */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: min(980px, 100%);
+  margin-top: clamp(32px, 4.5vh, 56px);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: 220px;
+  padding: var(--space-6);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+
+  transition:
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.24),
+    0 0 0 1px var(--accent);
+}
+
+.card:active {
+  transform: translateY(-1px);
+}
+
+.card:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 3px var(--accent-ring);
+}
+
+/* Primary card: soft teal wash so it reads as *the* action without
+   shouting over the photo. */
+.cardPrimary {
+  background:
+    linear-gradient(
+      160deg,
+      rgba(45, 212, 191, 0.2) 0%,
+      rgba(45, 212, 191, 0.05) 55%
+    ),
+    var(--surface-2);
+  border-color: rgba(45, 212, 191, 0.55);
+}
+
+.cardIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  color: var(--text-1);
+  background: rgba(20, 28, 38, 0.06);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+}
+
+.cardIcon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.cardIconPrimary {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: transparent;
+  box-shadow: var(--shadow-1);
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+}
+
+/* Count + label on the same baseline, e.g. "12  Saved routes". */
+.cardStat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.cardCount {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+}
+
+.cardTitle {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+}
+
+.cardText {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+/* Bottom-right affordance arrow; nudges on hover. */
+.cardArrow {
+  align-self: flex-end;
+  display: inline-flex;
+  color: var(--text-3);
+  transition:
+    color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.cardArrow svg {
+  width: 18px;
+  height: 18px;
+}
+
+.card:hover .cardArrow {
+  color: var(--accent);
+  transform: translateX(3px);
+}
+
+.cardPrimary .cardArrow {
+  color: var(--text-2);
+}
+
+/* --- Smaller screens ------------------------------------------------------ */
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+    width: min(460px, 100%);
+  }
+
+  .card {
+    min-height: 0;
+  }
+
+  /* On the stacked layout the primary action reads best first. */
+  .cardPrimary {
+    order: -1;
+  }
+}

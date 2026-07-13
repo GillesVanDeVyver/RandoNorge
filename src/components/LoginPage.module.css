@@ -307,12 +307,26 @@
     transform var(--dur-fast) var(--ease);
 }
 
-.primaryBtn:hover {
+.cooldownDigits {
+  display: inline-block;
+  min-width: 2ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.primaryBtn:hover:not(:disabled) {
   background: var(--accent-hover);
 }
 
-.primaryBtn:active {
+.primaryBtn:active:not(:disabled) {
   transform: translateY(1px);
+}
+
+.primaryBtn:disabled {
+  background: #6aa9a1; /* muted, desaturated teal */
+  color: rgba(4, 36, 31, 0.65);
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .primaryBtn:focus-visible {
@@ -402,6 +416,22 @@
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* "Continue with Google" — same footprint as .guestBtn, with the
+   official multi-colour G logo alongside the label. */
+.googleBtn {
+  composes: guestBtn;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.googleIcon {
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 
 /* --- Photo credit -------------------------------------------------------- */

@@ -5,14 +5,20 @@ import styles from './AccountChip.module.css';
 type Props = {
   name: string;
   email: string;
+  /**
+   * When provided, the popover shows an "Account overview" item that
+   * calls this (omitted while already on the overview itself).
+   */
+  onOverview?: () => void;
 };
 
 /**
  * Small signed-in indicator floating over the map (top-right, clear of the
  * toolbar on the left and the info button bottom-right). Click to open a
- * popover with the account details and a log-out action.
+ * popover with the account details, a link back to the account overview,
+ * and a log-out action.
  */
-export function AccountChip({ name, email }: Props) {
+export function AccountChip({ name, email, onOverview }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -54,6 +60,19 @@ export function AccountChip({ name, email }: Props) {
             <span className={styles.identityName}>{name}</span>
             <span className={styles.identityEmail}>{email}</span>
           </div>
+          {onOverview && (
+            <button
+              type="button"
+              className={styles.menuBtn}
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onOverview();
+              }}
+            >
+              Account overview
+            </button>
+          )}
           <button
             type="button"
             className={styles.signOutBtn}

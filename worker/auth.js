@@ -6,9 +6,11 @@
 // better-auth's React client.
 //
 // Required settings (docs/AUTH_SETUP.md):
-//   BETTER_AUTH_SECRET  secret — signs session cookies
-//   RESEND_API_KEY      secret — outbound email (stubbed to logs if absent)
-//   EMAIL_FROM          var    — verified sender, optional during testing
+//   BETTER_AUTH_SECRET    secret — signs session cookies
+//   RESEND_API_KEY        secret — outbound email (stubbed to logs if absent)
+//   EMAIL_FROM            var    — verified sender, optional during testing
+//   GOOGLE_CLIENT_ID      var    — Google OAuth client (Sign in with Google)
+//   GOOGLE_CLIENT_SECRET  secret — Google OAuth client secret
 
 import { betterAuth } from 'better-auth';
 import { D1Dialect } from 'kysely-d1';
@@ -32,6 +34,33 @@ export function getAuth(env, origin) {
     database: {
       dialect: new D1Dialect({ database: env.DB }),
       type: 'sqlite',
+    },
+
+    // Social sign-in. Google is only enabled when its credentials are
+    // configured, so local dev without the secrets keeps working (the
+    // button then returns a "provider not found" error instead of
+    // crashing the whole auth handler).
+    socialProviders: {
+      ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+        ? {
+            google: {
+              clientId: env.GOOGLE_CLIENT_ID,
+              clientSecret: env.GOOGLE_CLIENT_SECRET,
+              // Google addresses arrive pre-verified, so Google users skip
+              // the confirmation-email step entirely.
+            },
+          }
+        : {}),
+    },
+
+    // If someone signed up with email+password and later uses Google with
+    // the same (verified) address, link it to the existing account instead
+    // of failing with "account already exists".
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ['google'],
+      },
     },
 
     emailAndPassword: {

@@ -94,6 +94,32 @@
   overflow-wrap: anywhere;
 }
 
+/* Navigation item in the popover (e.g. "Account overview"). */
+.menuBtn {
+  width: 100%;
+  padding: 8px 0;
+  margin-bottom: var(--space-2);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.menuBtn:hover {
+  background: var(--accent-hover);
+}
+
+.menuBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
 .signOutBtn {
   width: 100%;
   padding: 8px 0;
