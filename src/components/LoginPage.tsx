@@ -133,6 +133,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   // True after a failed login where the account exists but the password
   // didn't match — shows the inline "reset password" button.
   const [wrongPassword, setWrongPassword] = useState(false);
+  // True after a sign-up attempt with an already-registered email —
+  // shows the inline "Go to login" button.
+  const [emailTaken, setEmailTaken] = useState(false);
   // Seconds left before the verification email may be re-sent again.
   // Seeded from the persisted deadline so reloading doesn't skip the wait.
   const [resendCooldown, setResendCooldown] = useState(
@@ -173,6 +176,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setPassword('');
     setConfirm('');
     setWrongPassword(false);
+    setEmailTaken(false);
   };
 
   const handleLogin = async (e: FormEvent) => {
@@ -244,6 +248,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   const handleSignup = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setEmailTaken(false);
     const check = checkPassword(password);
     if (!check.ok) {
       setError(check.error);
@@ -254,8 +259,30 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       return;
     }
     setBusy(true);
+    // Better Auth deliberately answers duplicate sign-ups with a fake
+    // success (anti-enumeration when email verification is required), so
+    // no error would ever come back for a taken address. Ask the worker's
+    // existing /api/account-exists endpoint first — the same one the
+    // login form uses — and point the user at the login instead.
+    try {
+      const res = await fetch('/api/account-exists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok && Boolean((await res.json()).exists)) {
+        setBusy(false);
+        setError('An account for this email already exists.');
+        setEmailTaken(true);
+        return;
+      }
+    } catch {
+      // Lookup failed — fall through to the normal sign-up attempt.
+    }
     const { error: err } = await authClient.signUp.email({
-      name: name.trim() || email.split('@')[0],
+      // The form asks for a first name only; keep just the first word in
+      // case someone types more, and fall back to the email's local part.
+      name: name.trim().split(/\s+/)[0] || email.split('@')[0],
       email,
       password,
       callbackURL: '/',
@@ -556,13 +583,13 @@ export function LoginPage({ onContinueAsGuest }: Props) {
               >
                 {mode === 'signup' && (
                   <label className={styles.field}>
-                    <span className={styles.label}>Name</span>
+                    <span className={styles.label}>First name</span>
                     <input
                       className={styles.input}
                       type="text"
-                      name="name"
-                      autoComplete="name"
-                      placeholder="Your name"
+                      name="first-name"
+                      autoComplete="given-name"
+                      placeholder="Your first name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
@@ -626,7 +653,23 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 )}
 
                 {notice && <p className={styles.notice}>{notice}</p>}
-                {error && <p className={styles.error}>{error}</p>}
+                {error && (
+                  <p className={styles.error}>
+                    {error}
+                    {mode === 'signup' && emailTaken && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className={styles.errorLink}
+                          onClick={() => switchMode('login')}
+                        >
+                          Go to login
+                        </button>
+                      </>
+                    )}
+                  </p>
+                )}
 
                 {mode === 'login' && wrongPassword && (
                   <button
