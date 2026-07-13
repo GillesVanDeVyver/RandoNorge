@@ -281,6 +281,17 @@
   color: var(--text-3);
 }
 
+/* Notes entered when the route was saved; clamped to two lines so long
+   comments don't blow up the row height. */
+.rowNotes {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* --- Delete (two-step inline confirm) --------------------------------------- */
 
 .deleteBtn {

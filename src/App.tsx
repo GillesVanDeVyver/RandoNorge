@@ -9,7 +9,7 @@ import { WeatherPanel } from './components/WeatherPanel';
 import { AvalancheRisk } from './components/AvalancheRisk';
 import { TermsDialog } from './components/TermsDialog';
 import { SaveRouteDialog } from './components/SaveRouteDialog';
-import { PencilIcon } from './components/icons';
+import { BookmarkPlusIcon, PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
 import { createRoute, updateRoute, type SavedRoute } from './routes/api';
@@ -38,6 +38,8 @@ interface Props {
   saving?: {
     initial: SavedRoute | null;
     onChanged: (saved: SavedRoute) => void;
+    /** Navigate to the saved-routes library (the toast's "Go to library"). */
+    onGoToLibrary: () => void;
   };
 }
 
@@ -244,7 +246,6 @@ function App({ saving }: Props) {
           onClear={handleClear}
           hasRoute={hasRoute}
           loading={loading}
-          onSave={saving ? () => setSaveOpen(true) : undefined}
         />
         {overlay === 'snowdepth' && (
           <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
@@ -280,6 +281,16 @@ function App({ saving }: Props) {
         {savedToast && !clearedRoute && (
           <Toast
             message="Route saved to your library"
+            actionLabel="Go to library"
+            actionIcon={null}
+            onAction={() => {
+              if (savedToastTimer.current !== null) {
+                window.clearTimeout(savedToastTimer.current);
+                savedToastTimer.current = null;
+              }
+              setSavedToast(false);
+              saving?.onGoToLibrary();
+            }}
             onDismiss={() => {
               if (savedToastTimer.current !== null) {
                 window.clearTimeout(savedToastTimer.current);
@@ -291,7 +302,34 @@ function App({ saving }: Props) {
         )}
       </div>
       {hasRoute && (
-        <SummaryPanel>
+        <SummaryPanel
+          action={
+            saving && (
+              <button
+                type="button"
+                className={styles.saveBtn}
+                onClick={() => setSaveOpen(true)}
+                disabled={loading}
+                title={
+                  loading
+                    ? 'Loading route data…'
+                    : savedMeta
+                      ? 'Save your changes to this route'
+                      : 'Save this route to your library'
+                }
+              >
+                <BookmarkPlusIcon />
+                <span>
+                  {loading
+                    ? 'Loading…'
+                    : savedMeta
+                      ? 'Save changes'
+                      : 'Save route'}
+                </span>
+              </button>
+            )
+          }
+        >
           <SummaryCard title="Elevation">
             <ElevationPanel
               profile={elevation.profile}

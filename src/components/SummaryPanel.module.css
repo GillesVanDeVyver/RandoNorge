@@ -113,6 +113,13 @@
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
+/* Right-aligned slot in the tab bar for the panel's primary action. */
+.tabsAction {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
 /* Independent vertical scroll. The outer page never grows; content stacks
    here and overflow is absorbed in this region. */
 .scroll {

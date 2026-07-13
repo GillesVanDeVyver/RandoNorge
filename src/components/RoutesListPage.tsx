@@ -19,6 +19,8 @@ export type RouteListItem = {
   ascent: string;
   /** e.g. "12 Mar 2026". */
   date: string;
+  /** Optional notes entered when saving the route. */
+  description?: string;
 };
 
 type Props = {
@@ -178,6 +180,11 @@ export function RoutesListPage({
                           </span>
                           <span>{route.date}</span>
                         </span>
+                        {route.description && (
+                          <span className={styles.rowNotes}>
+                            {route.description}
+                          </span>
+                        )}
                       </span>
                     </button>
                     {onDeleteRoute &&

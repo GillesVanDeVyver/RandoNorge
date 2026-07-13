@@ -13,6 +13,9 @@ import styles from './SummaryPanel.module.css';
 
 interface Props {
   children: ReactNode;
+  /** Optional primary action (e.g. a Save button) rendered at the right end
+   *  of the tab bar, in the otherwise empty space after the tabs. */
+  action?: ReactNode;
 }
 
 // Left-hand "summary mode" rail (komoot-inspired). A full-height column with a
@@ -20,7 +23,7 @@ interface Props {
 // scroll area. Clicking a tab smooth-scrolls to that section; a scroll-spy
 // keeps the active tab in sync as the user scrolls. Add more <SummaryCard>s
 // and they each become a tab + section.
-export function SummaryPanel({ children }: Props) {
+export function SummaryPanel({ children, action }: Props) {
   const cards = Children.toArray(children).filter(
     (child): child is ReactElement<CardProps> => isValidElement(child),
   );
@@ -99,6 +102,7 @@ export function SummaryPanel({ children }: Props) {
             {card.props.title}
           </button>
         ))}
+        {action && <div className={styles.tabsAction}>{action}</div>}
       </nav>
       <div className={styles.scroll} ref={scrollRef}>
         {cards.map((card, i) => (

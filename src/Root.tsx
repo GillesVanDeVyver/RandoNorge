@@ -39,6 +39,7 @@ function toListItem(route: SavedRoute): RouteListItem {
     distance: formatDistance(route.distanceM),
     ascent: formatAscent(route.ascentM),
     date: formatDate(route.updatedAt),
+    description: route.description ?? undefined,
   };
 }
 
@@ -165,7 +166,11 @@ export function Root() {
         {view === 'planner' && (
           <App
             key={openRoute?.id ?? 'new'}
-            saving={{ initial: openRoute, onChanged: handleRouteSaved }}
+            saving={{
+              initial: openRoute,
+              onChanged: handleRouteSaved,
+              onGoToLibrary: () => setView('saved'),
+            }}
           />
         )}
         {(view === 'saved' || view === 'completed') && (
