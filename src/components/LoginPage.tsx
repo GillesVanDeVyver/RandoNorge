@@ -199,9 +199,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       <div className={styles.content}>
         <section className={styles.hero}>
           <h1 className={styles.headline}>
-            The mountain
+            Read
             <br />
-            is waiting<span className={styles.headlineDot}>.</span>
+            the mountain<span className={styles.headlineDot}>.</span>
           </h1>
           <p className={styles.tagline}>
             From trailhead to summit and back - Fjellrute reads the
