@@ -1,3 +1,13 @@
-cd /home/gillesv/PrivateProjects/RandoNorge
+# Launch instructions
+
+cd /home/gilles/Projects/PrivateProjects/RandoNorge/RandoNorge
 npm install
 npm run dev
+
+# `npm run dev` starts both servers via concurrently:
+#   - vite    -> frontend on http://localhost:5173
+#   - wrangler -> worker/API on http://localhost:8787 (auth + D1)
+#
+# Run only one if needed:
+#   npm run dev:frontend   (vite only)
+#   npm run dev:worker     (wrangler only)
