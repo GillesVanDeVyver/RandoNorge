@@ -14,10 +14,30 @@ Why this works: FATMAP is gone (shut down by Strava), and nothing free fills the
 
 ## Guiding principles
 
-1. **Free until proven.** No paywall at launch. The viability gate (see Metrics) decides whether premium ever gets built.
-2. **The season is the marketing calendar.** Interest in steepness maps spikes when the first bulletins drop (~late November). Everything before then is preparation; the loud push happens in the Oct 26 – Nov 22 window.
-3. **Ship the honest version.** Solo dev, free tool, built because FATMAP died. That framing is your biggest asset in every community post — lead with it, never sound like a startup.
-4. **One hour a day is enough.** The plan below assumes evenings/weekends effort, not full-time.
+1. **Free forever means free forever.** Everything that is free at launch stays free permanently. Premium is only ever built from *new* features (sync, offline, bulk export) — never by moving existing free features behind a paywall. This single rule is what prevents backlash.
+2. **Transparent about money from day one.** Every launch post and the site itself state the plan plainly: core is free forever; an optional premium tier comes later so the project can fund itself. Announced, not built — no public billing before the viability gate.
+3. **Founding users get premium first, free.** A hand-picked cohort of guides, course instructors, and topptur group admins tests premium features through the season (see Founding Users Program below). They are the QA team, safety review, and marketing channel in one.
+4. **The season is the marketing calendar.** Interest in steepness maps spikes when the first bulletins drop (~late November). Everything before then is preparation; the loud push happens in the Oct 26 – Nov 22 window.
+5. **Ship the honest version.** Solo dev, free tool, built because FATMAP died. That framing is your biggest asset in every community post — lead with it, never sound like a startup.
+6. **One hour a day is enough.** The plan below assumes evenings/weekends effort, not full-time.
+
+## The free-forever promise (exact wording, on the site and in every launch post)
+
+> «Kjernefunksjonene i Fjellrute — rutetegning, bratthet, utløpssoner, snødybde og høydeprofil — er og forblir gratis. Hvis nok folk bruker verktøyet, kommer det senere en valgfri premium-versjon med nye tillegg som synkronisering og offline-kart, slik at prosjektet kan finansiere seg selv.»
+
+Pair it with a zero-code demand test at launch: a «Premium kommer — sett deg på lista» e-mail signup and/or a small donation link («spander en kaffe»). Waitlist signups and donations in month one are the honest willingness-to-pay signal, gathered before writing a line of billing code.
+
+## Founding Users Program
+
+**Who:** 10–20 named, personally invited people — mountain guides, avalanche course instructors (NF-kursholdere), admins of the big topptur Facebook groups, DNT tour leaders. Selective and personal, never a promo code in the wild; scarcity keeps it an honor rather than a discount.
+
+**The offer (terms stated explicitly in the invitation, so nothing silently expires):** «Gratis premium ut sesongen (til 1. mai 2027) mot ærlige tilbakemeldinger.» The ask is concrete and reciprocal: plan your real tours in it, tell me where the app lies, give a professional read on the steepness/runout presentation.
+
+**When it ends: grandfather them, permanently.** 20–40 lifetime free premium accounts cost nothing in real money; turning your most visible advocates into ex-users the same month public pricing starts would be the worst possible trade. Announce the grandfathering when public premium launches — it doubles as a goodwill story.
+
+**Why it works:** premium features get stress-tested by the heaviest users before anyone pays; professionals with reputations tied to avalanche safety effectively perform the liability review; and a guide planning client tours in Fjellrute all winter is continuous, credible promotion to exactly the right audience («verktøyet guidene bruker»). It also lifts outreach response rates — «vil du teste premium-versjonen gratis i vinter?» is a far better opener than «vil du se på appen min?».
+
+**Sequencing consequence:** at least one premium feature must exist by October (not after the January gate) so founding users have something to test. Saved-route sync is the natural first — the D1 schema is already pointed at it.
 
 ---
 
@@ -39,15 +59,17 @@ Goal: close the gap your own UI plan identified — "capable hobby project" → 
 
 **Weeks 5–7 (Aug 10–30) — Alpine Glass UI.** Execute the phased roadmap in `UI-Premium-Plan.md`: one accent color, one button system, unified glass surfaces, tabular numerals, replace `window.confirm()`, focus rings. Do the token system first; the rest follows cheaply.
 
-**Week 8 (Aug 31 – Sep 6) — Shareability features.** These two features *are* marketing: (1) **shareable route links** — a route URL someone can post in a Facebook group is your viral loop; (2) **GPX export/import** — the community's lingua franca, and the #1 thing FATMAP refugees will test first. Saved routes for logged-in users if time allows (the D1 schema comment says this is already the next step).
+**Week 8 (Aug 31 – Sep 6) — Shareability features.** These two features *are* marketing and stay free forever: (1) **shareable route links** — a route URL someone can post in a Facebook group is your viral loop; (2) **GPX export/import** — the community's lingua franca, and the #1 thing FATMAP refugees will test first.
 
 **Week 9 (Sep 7–13) — Onboarding + mobile.** Empty state ("Tegn en rute for å begynne"), a 30-second first-route experience, and a full pass on phone-width layout — community traffic will be 70%+ mobile from Facebook.
+
+**Weeks 9–10 (parallel track) — First premium feature: saved-route sync.** Build saved routes + cross-device sync behind a feature flag on founding accounts (the D1 schema comment says this is already the next step). No billing code — just an `is_founder` flag on the account. This is what the Founding Users Program tests all winter, and it must exist before the invitations go out in week 10.
 
 ## Phase 3 — Soft launch and seeding (Mon 14 Sep → Sun 25 Oct, weeks 10–15)
 
 Goal: 20–50 real users quietly, brutal feedback, zero fanfare. Bugs found now don't happen during the November spike.
 
-**Week 10 (Sep 14–20) — Private beta.** Personally invite 10–20 people: friends who tour, your local DNT chapter, one or two avalanche course instructors (NF-kursholdere), anyone from skredkurs communities you can reach. Ask each for one thing: "plan the tour you actually did last winter and tell me where the app lied to you."
+**Week 10 (Sep 14–20) — Founding Users invitations.** This is the Founding Users Program kickoff: personally invite the 10–20 people (guides, NF-kursholdere, group admins, DNT tour leaders, friends who tour) with the explicit offer — free premium through the season (to 1 May 2027) in exchange for honest feedback. Ask each for one thing: "plan the tour you actually did last winter and tell me where the app lied to you."
 
 **Weeks 11–12 (Sep 21 – Oct 4) — Iterate on beta feedback.** Fix what they hit. Watch analytics for drop-off points. If beta users don't return for a second session, find out why before going loud — that answer is worth more than any feature.
 
@@ -65,7 +87,7 @@ Goal: become the tool the topptur community recommends to each other this season
 
 **Week 17 (Nov 2–8) — Facebook, the main event.** Post in the big groups, spaced out, personalized per group: *Toppturer i Norge*, *Topptur og randonee*, regional topptur groups (Tromsø, Romsdal, Lyngen, Sunnmøre), *Fjellforum*. Use the launch-post template below; always include the video/screenshots and end with a question ("hva mangler for at du ville brukt dette?"). Never post the same text twice — groups notice.
 
-**Week 18 (Nov 9–15) — Instructors and guides outreach.** E-mail/DM 10–15 avalanche course instructors and guide companies: free tool, would love their expert criticism, happy to add what courses need. One instructor demoing Fjellrute in a skredkurs is worth a thousand impressions, and their feedback de-risks the safety framing.
+**Week 18 (Nov 9–15) — Instructors and guides outreach, round two.** E-mail/DM 10–15 *more* avalanche course instructors and guide companies (beyond the September founding cohort), offering founding premium access to the best fits: free tool, would love their expert criticism, happy to add what courses need. One instructor demoing Fjellrute in a skredkurs is worth a thousand impressions, and their feedback de-risks the safety framing.
 
 **Week 19 (Nov 16–22) — Press and communities.** Tip Friflyt.no and UTE Magasinet ("norsk utvikler lager gratis erstatning for FATMAP"), post in Friflyt forum, and answer any "what do people use since FATMAP died?" thread you can find (Reddit, FB, forums) — helpfully, with the link.
 
@@ -82,7 +104,7 @@ Goal: become the tool the topptur community recommends to each other this season
 | Routes drawn/week | ≥ 500 | < 100 |
 | Unsolicited recommendations spotted | yes, recurring | none |
 
-**If the gate passes — freemium in Jan–Feb 2027 (still peak season):** core planning stays free forever (trust + word of mouth is the moat). Premium at **59 kr/mnd or 490 kr/år** via Stripe (no fixed cost, ~2–3 % + fee per transaction): saved-route sync across devices, offline/print map packs, bulk GPX, custom overlays, maybe 3D later. Target: 1–2 % of actives convert. 100 subscribers ≈ 49 000 kr/yr — right at the MVA threshold, which is when the enkeltpersonforetak paperwork must be fully in order.
+**If the gate passes — public freemium in Jan–Feb 2027 (still peak season):** core planning stays free forever (trust + word of mouth is the moat), exactly as promised since day one — the paywall only touches features that were never free. Premium at **59 kr/mnd or 490 kr/år** via Stripe (no fixed cost, ~2–3 % + fee per transaction): saved-route sync (already battle-tested by founding users), offline/print map packs, bulk GPX, custom overlays, maybe 3D later. Use the premium waitlist as the first sales channel, and announce the founding users' lifetime grandfathering in the same post — it frames the launch as keeping promises rather than starting to charge. Target: 1–2 % of actives convert. 100 subscribers ≈ 49 000 kr/yr — right at the MVA threshold, which is when the enkeltpersonforetak paperwork must be fully in order.
 
 **If the gate fails:** costs are ~150 kr/yr, so nothing forces a shutdown. Leave it running, keep the SEO pages, retry next season with what you learned — or open-source it for goodwill.
 
@@ -96,7 +118,7 @@ Goal: become the tool the topptur community recommends to each other this season
 >
 > Du tegner ruta rett på Kartverket-kartet og ser bratthet og utløpssoner fra NVE, snødybde fra seNorge langs hele ruta, og høydeprofil — alt i ett. Eksport til GPX funker.
 >
-> Helt gratis, ingen app å installere, funker i nettleseren på mobil. Jeg lager dette alene og vil gjerne ha ærlige tilbakemeldinger: hva mangler for at du ville brukt det til neste topptur?
+> Helt gratis, ingen app å installere, funker i nettleseren på mobil. Kjernefunksjonene forblir gratis — hvis nok folk bruker det, kommer det senere en valgfri premium-versjon med nye tillegg (synk, offline-kart) slik at prosjektet kan finansiere seg selv. Jeg lager dette alene og vil gjerne ha ærlige tilbakemeldinger: hva mangler for at du ville brukt det til neste topptur?
 >
 > (Og selvsagt: dette er et planleggingsverktøy — sjekk alltid varsom.no og bruk egen vurdering i terrenget.)
 
@@ -106,9 +128,9 @@ Goal: become the tool the topptur community recommends to each other this season
 >
 > When Strava shut down FATMAP, ski tourers in Norway lost the only good tool for planning routes against slope angle. I built a free replacement on open government data: Kartverket topo maps, NVE steepness/runout overlays, seNorge snow depth sampled along your drawn route, with a synced elevation profile. React + MapLibre on Cloudflare Workers/D1, running entirely on free tiers. Would love feedback on the route-drawing UX.
 
-**Instructor/guide outreach (Norwegian, short):**
+**Founding user invitation — guides/instructors/group admins (Norwegian, short):**
 
-> Hei [navn], jeg har laget et gratis planleggingsverktøy for topptur (fjellrute.no) med NVE-bratthet og snødybde langs ruta. Siden du holder skredkurs lurte jeg på om du ville tatt en kikk — jeg vil heller høre hva som er galt fra en fagperson nå enn fra en bruker i vinter. Alt av innspill mottas med takk, og verktøyet forblir gratis for kursbruk.
+> Hei [navn], jeg har laget et gratis planleggingsverktøy for topptur (fjellrute.no) med NVE-bratthet og snødybde langs ruta. Siden du [holder skredkurs / guider / driver gruppa X] vil jeg gjerne invitere deg som «founding user»: gratis tilgang til premium-funksjonene (bl.a. lagrede ruter med synk) ut sesongen, til 1. mai — mot ærlige tilbakemeldinger. Jeg vil heller høre hva som er galt fra en fagperson nå enn fra en bruker i vinter. Det er bare [15–20] slike plasser, og kjerneverktøyet forblir uansett gratis for alle.
 
 ## Risk checklist
 
