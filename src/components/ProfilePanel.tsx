@@ -445,12 +445,12 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
               <Stat
                 label="Ascent ↗"
                 value={fmtElev(profile.stats.ascent)}
-                color="var(--ascent-strong, var(--ascent))"
+                color="#000000"
               />
               <Stat
                 label="Descent ↘"
                 value={fmtElev(profile.stats.descent)}
-                color="var(--descent-strong, var(--descent))"
+                color="#000000"
               />
               <Stat
                 label="Min / Max"

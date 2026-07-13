@@ -123,7 +123,6 @@ export function WeatherPanel({ profile }: Props) {
 
   const locSwitch = (
     <div className={styles.locGroup}>
-      <span className={styles.locPrefix}>Showing weather forecast for:</span>
       <div
         className={styles.locSwitch}
         role="radiogroup"

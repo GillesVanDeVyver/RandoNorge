@@ -7,8 +7,8 @@
 
 .topRow {
   display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-4);
   min-width: 0;
 }
 
@@ -17,31 +17,23 @@
   min-width: 0;
 }
 
-/* Prefix label + switch share a single pill so they read as one control. */
 .locGroup {
   flex: 0 0 auto;
-  display: inline-flex;
-  align-items: stretch;
-  padding: 2px 2px 2px var(--space-3);
-  background: var(--surface-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-pill);
-  gap: var(--space-2);
-}
-
-.locPrefix {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  font-size: var(--text-sm);
-  color: var(--text-2);
 }
 
-/* Two-state segmented switch (Lowest / Highest). The active half is filled
-   with the accent color; the inactive half stays on the panel background. */
+/* Two-state segmented switch (Lowest / Highest). Recessed track with a
+   raised white chip on the active segment — quiet, iOS-style. */
 .locSwitch {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
 }
 
 .locOption {
@@ -53,14 +45,15 @@
   background: transparent;
   color: var(--text-2);
   border: none;
-  border-radius: var(--radius-pill);
+  border-radius: calc(var(--radius-md) - 3px);
   padding: var(--space-1) var(--space-3);
   cursor: pointer;
   font-family: inherit;
   font-size: var(--text-sm);
   line-height: 1.1;
   min-width: 84px;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .locOption:hover:not(.locOptionActive) {
@@ -73,8 +66,9 @@
 }
 
 .locOptionActive {
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: #fff;
+  color: var(--text-1);
+  box-shadow: var(--shadow-1);
 }
 
 .locLabel {
@@ -83,13 +77,12 @@
 
 .locElev {
   font-size: var(--text-xs);
-  color: var(--text-2);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
 .locOptionActive .locElev {
-  color: var(--accent-contrast);
-  opacity: 0.85;
+  color: var(--text-2);
 }
 
 .dayBar {
@@ -102,6 +95,8 @@
   padding-bottom: 2px;
 }
 
+/* Day chips — quiet ghost buttons; the selected day is filled with the
+   app's teal accent, matching selected states across the application. */
 .dayBtn {
   flex: 0 0 auto;
   display: flex;
@@ -109,26 +104,27 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
-  background: var(--surface-2);
-  color: var(--text-1);
-  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-2);
+  border: none;
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-3);
   cursor: pointer;
   font-family: inherit;
   font-size: var(--text-sm);
   line-height: 1.1;
-  min-width: 88px;
-  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  min-width: 72px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .dayBtn:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover);
+  color: var(--text-1);
 }
 
 .dayBtn:focus-visible {
   outline: none;
-  border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
@@ -136,7 +132,7 @@
 .dayBtnActive:hover {
   background: var(--accent);
   color: var(--accent-contrast);
-  border-color: var(--accent);
+  box-shadow: var(--shadow-1);
 }
 
 .dayLabel {
@@ -145,13 +141,13 @@
 
 .dayDate {
   font-size: var(--text-xs);
-  color: var(--text-2);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
 .dayBtnActive .dayDate {
   color: var(--accent-contrast);
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 .tableWrap {
