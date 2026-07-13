@@ -40,9 +40,16 @@
 		"directory": "dist",
 		"binding": "ASSETS",
 		"not_found_handling": "single-page-application",
-		// Without this, browser *navigations* (e.g. clicking the email
-		// verification link) to /api/... are answered by the SPA fallback
-		// above before the Worker ever runs — the auth endpoint must win.
-		"run_worker_first": ["/api/*"]
+		// Without this, requests to /api/... and the three API proxy routes
+		// are answered by the SPA fallback above (index.html) before the
+		// Worker ever runs — the Worker must win for these paths, otherwise
+		// the frontend receives HTML where it expected JSON (empty snow
+		// data, "weather unavailable").
+		"run_worker_first": [
+			"/api/*",
+			"/metno-api/*",
+			"/gts-api/*",
+			"/varsom-api/*"
+		]
 	}
 }
