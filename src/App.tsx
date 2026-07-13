@@ -8,9 +8,12 @@ import { Toolbar } from './components/Toolbar';
 import { WeatherPanel } from './components/WeatherPanel';
 import { AvalancheRisk } from './components/AvalancheRisk';
 import { TermsDialog } from './components/TermsDialog';
+import { SaveRouteDialog } from './components/SaveRouteDialog';
 import { PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
+import { createRoute, updateRoute, type SavedRoute } from './routes/api';
+import { formatAscent, formatDistance } from './routes/format';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
@@ -24,9 +27,42 @@ type ViewMode = '2d' | '3d';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-function App() {
+interface Props {
+  /**
+   * Present when the planner runs inside a signed-in session: enables the
+   * save button. `initial` is the library route being reopened (Save then
+   * updates it in place) or null when planning from scratch; `onChanged`
+   * fires after every successful create/update so the library refreshes.
+   * Absent in guest mode — the save button doesn't render at all.
+   */
+  saving?: {
+    initial: SavedRoute | null;
+    onChanged: (saved: SavedRoute) => void;
+  };
+}
+
+function App({ saving }: Props) {
   const [mode, setMode] = useState<Mode>('idle');
-  const [route, setRoute] = useState<Route>([]);
+  const [route, setRoute] = useState<Route>(saving?.initial?.route ?? []);
+  // Identity of the library route currently being edited; Save updates it
+  // instead of creating a duplicate, and its name/notes prefill the dialog.
+  const [savedMeta, setSavedMeta] = useState<{
+    id: string;
+    name: string;
+    description: string | null;
+  } | null>(
+    saving?.initial
+      ? {
+          id: saving.initial.id,
+          name: saving.initial.name,
+          description: saving.initial.description,
+        }
+      : null,
+  );
+  const [saveOpen, setSaveOpen] = useState(false);
+  // Transient "Route saved" confirmation, mirroring the clear-undo toast.
+  const [savedToast, setSavedToast] = useState(false);
+  const savedToastTimer = useRef<number | null>(null);
   const [snowDate, setSnowDate] = useState<string>(todayIso);
   const [overlay, setOverlay] = useState<Overlay>('steepness');
   const [view, setView] = useState<ViewMode>('2d');
@@ -102,7 +138,44 @@ function App() {
 
   useEffect(() => () => {
     if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    if (savedToastTimer.current !== null) {
+      window.clearTimeout(savedToastTimer.current);
+    }
   }, []);
+
+  // Save (create or update) the current route to the user's library. Runs
+  // inside the dialog, which shows any thrown error inline and only closes
+  // on success.
+  const handleSaveRoute = useCallback(
+    async (name: string, description: string) => {
+      if (!saving) return;
+      const stats = elevation.profile
+        ? {
+            distanceM: elevation.profile.stats.distance,
+            ascentM: elevation.profile.stats.ascent,
+          }
+        : null;
+      const saved = savedMeta
+        ? await updateRoute(savedMeta.id, { name, description, route, stats })
+        : await createRoute({ name, description, route, stats });
+      setSavedMeta({
+        id: saved.id,
+        name: saved.name,
+        description: saved.description,
+      });
+      saving.onChanged(saved);
+      setSaveOpen(false);
+      setSavedToast(true);
+      if (savedToastTimer.current !== null) {
+        window.clearTimeout(savedToastTimer.current);
+      }
+      savedToastTimer.current = window.setTimeout(() => {
+        setSavedToast(false);
+        savedToastTimer.current = null;
+      }, 4000);
+    },
+    [saving, savedMeta, route, elevation.profile],
+  );
 
   // Auto-disable erase mode when the route becomes empty (e.g. after a clear
   // or after erasing the last segment).
@@ -171,6 +244,7 @@ function App() {
           onClear={handleClear}
           hasRoute={hasRoute}
           loading={loading}
+          onSave={saving ? () => setSaveOpen(true) : undefined}
         />
         {overlay === 'snowdepth' && (
           <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
@@ -201,6 +275,18 @@ function App() {
             actionLabel="Undo"
             onAction={handleUndo}
             onDismiss={dismissToast}
+          />
+        )}
+        {savedToast && !clearedRoute && (
+          <Toast
+            message="Route saved to your library"
+            onDismiss={() => {
+              if (savedToastTimer.current !== null) {
+                window.clearTimeout(savedToastTimer.current);
+                savedToastTimer.current = null;
+              }
+              setSavedToast(false);
+            }}
           />
         )}
       </div>
@@ -237,6 +323,21 @@ function App() {
       )}
       </div>
       {termsOpen && <TermsDialog onClose={() => setTermsOpen(false)} />}
+      {saveOpen && (
+        <SaveRouteDialog
+          initialName={savedMeta?.name}
+          initialDescription={savedMeta?.description ?? ''}
+          isUpdate={savedMeta !== null}
+          statsLabel={
+            elevation.profile
+              ? `${formatDistance(elevation.profile.stats.distance)} · ` +
+                `${formatAscent(elevation.profile.stats.ascent)} ascent`
+              : null
+          }
+          onSave={handleSaveRoute}
+          onClose={() => setSaveOpen(false)}
+        />
+      )}
     </div>
   );
 }

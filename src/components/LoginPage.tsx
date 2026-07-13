@@ -703,7 +703,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         target="_blank"
         rel="noreferrer"
       >
-        Photo: Alois Lackner / Pexels
+        Photo: Alois Lackner
       </a>
     </div>
   );

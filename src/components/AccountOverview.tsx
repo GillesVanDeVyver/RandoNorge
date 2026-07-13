@@ -56,7 +56,7 @@ export function AccountOverview({
           <span className={styles.greetingDot}>.</span>
         </h1>
         <p className={styles.subtitle}>
-          Pick up where you left off, or head straight for the mountain.
+          Where to next?
         </p>
 
         <div className={styles.grid}>
@@ -126,7 +126,7 @@ export function AccountOverview({
                 </span>
               </span>
               <span className={styles.cardText}>
-                Tours you have skied — your personal summit log.
+                Tours you have completed — your personal summit log.
               </span>
             </span>
             <span className={styles.cardArrow} aria-hidden="true">
@@ -144,7 +144,7 @@ export function AccountOverview({
         target="_blank"
         rel="noreferrer"
       >
-        Photo: eberhard grossgasteiger / Pexels
+        Photo: eberhard grossgasteiger
       </a>
     </div>
   );

@@ -14,6 +14,7 @@
 // updates (1 h).
 import { proxyGet } from './proxy.js';
 import { getAuth } from './auth.js';
+import { handleRoutesApi } from './routes.js';
 
 const ROUTES = [
   { prefix: '/metno-api', upstream: 'https://api.met.no', ttl: 1800 },
@@ -38,6 +39,12 @@ export default {
     // both). Note: this makes account enumeration possible by design.
     if (pathname === '/api/account-exists' && request.method === 'POST') {
       return accountExists(request, env);
+    }
+
+    // Saved routes: authenticated CRUD against the "route" table
+    // (worker/routes.js).
+    if (pathname === '/api/routes' || pathname.startsWith('/api/routes/')) {
+      return handleRoutesApi(request, env, url);
     }
 
     for (const { prefix, upstream, ttl } of ROUTES) {

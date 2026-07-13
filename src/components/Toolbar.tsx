@@ -1,5 +1,5 @@
 import type { Mode } from '../types';
-import { EraserIcon, PencilIcon, TrashIcon } from './icons';
+import { BookmarkPlusIcon, EraserIcon, PencilIcon, TrashIcon } from './icons';
 import styles from './Toolbar.module.css';
 
 interface Props {
@@ -11,9 +11,19 @@ interface Props {
   // out so the user can't queue another stroke on top of an in-flight
   // route computation.
   loading: boolean;
+  // Opens the save-route dialog. Absent for guests (no account to save
+  // to), so the button doesn't render at all in guest mode.
+  onSave?: () => void;
 }
 
-export function Toolbar({ mode, onModeChange, onClear, hasRoute, loading }: Props) {
+export function Toolbar({
+  mode,
+  onModeChange,
+  onClear,
+  hasRoute,
+  loading,
+  onSave,
+}: Props) {
   const toggle = (target: Mode) =>
     onModeChange(mode === target ? 'idle' : target);
 
@@ -49,6 +59,22 @@ export function Toolbar({ mode, onModeChange, onClear, hasRoute, loading }: Prop
       >
         <TrashIcon />
       </button>
+      {onSave && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={onSave}
+          title={
+            loading
+              ? 'Loading route data…'
+              : 'Save route to your library'
+          }
+          aria-label="Save route"
+          disabled={!hasRoute || loading}
+        >
+          <BookmarkPlusIcon />
+        </button>
+      )}
     </div>
   );
 }

@@ -169,8 +169,11 @@ export function Map3DView({
             tiles: [KARTVERKET_TILES],
             tileSize: 256,
             maxzoom: 18,
+            // Always-mounted source, so this carries the app-wide credits for
+            // panel-rendered data (MET weather, Varsom forecasts) too — their
+            // licenses require visible attribution even without a map layer.
             attribution:
-              '&copy; <a href="https://www.kartverket.no/">Kartverket</a>',
+              '&copy; <a href="https://www.kartverket.no/">Kartverket</a> (CC BY 4.0) | Vær: <a href="https://www.met.no/">MET Norway</a> (CC BY 4.0) | Snøskredvarsel: <a href="https://varsom.no/">NVE / Varsom</a> (NLOD)',
           },
           terrain: {
             type: 'raster-dem',
@@ -187,7 +190,7 @@ export function Map3DView({
             tileSize: 256,
             maxzoom: 9,
             attribution:
-              'Snødybde &copy; <a href="https://www.nve.no/">NVE</a> / seNorge',
+              'Snødybde &copy; <a href="https://www.nve.no/">NVE</a> / <a href="https://www.met.no/">MET</a> (seNorge, NLOD)',
           },
           steepness: {
             type: 'raster',
@@ -240,7 +243,10 @@ export function Map3DView({
       zoom: 5,
       pitch: 62,
       maxPitch: 85,
-      attributionControl: { compact: true },
+      // compact:false keeps the attribution line permanently expanded rather
+      // than collapsed behind an ⓘ icon — CC BY 4.0 / NLOD require the credit
+      // to be visible, and a collapsed control is a weak claim to that.
+      attributionControl: { compact: false },
       // Linear rotation model: horizontal drag always maps to the same bearing
       // direction. The default "orbital" model (aroundCenter: true) flips the
       // rotation direction depending on whether the cursor is above or below

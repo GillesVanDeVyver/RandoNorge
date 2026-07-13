@@ -246,6 +246,17 @@ export function CloseIcon() {
   );
 }
 
+export function BookmarkPlusIcon() {
+  // Lucide "bookmark-plus": save the current route to the library.
+  return (
+    <svg {...baseProps}>
+      <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+      <line x1="12" x2="12" y1="7" y2="13" />
+      <line x1="9" x2="15" y1="10" y2="10" />
+    </svg>
+  );
+}
+
 export function BookmarkIcon() {
   return (
     <svg {...baseProps}>

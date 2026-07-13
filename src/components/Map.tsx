@@ -95,7 +95,11 @@ export function Map({
     >
       <TileLayer
         url="https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png"
-        attribution='&copy; <a href="https://www.kartverket.no/">Kartverket</a>'
+        // The basemap is always mounted, so this line doubles as the app-wide
+        // data attribution: weather (MET, CC BY 4.0) and avalanche forecasts
+        // (NVE/Varsom, NLOD) are rendered in panels rather than map layers,
+        // yet their licenses still require visible credit.
+        attribution='&copy; <a href="https://www.kartverket.no/">Kartverket</a> (CC BY 4.0) | Vær: <a href="https://www.met.no/">MET Norway</a> (CC BY 4.0) | Snøskredvarsel: <a href="https://varsom.no/">NVE / Varsom</a> (NLOD)'
         className={overlay === 'snowdepth' ? styles.grayscaleBase : undefined}
       />
       {overlay === 'steepness' && (
@@ -138,7 +142,7 @@ export function Map({
           // ArcGIS endpoint; cast because Leaflet's WMSParams type only
           // models the standard set.
           params={{ layers: 'sd', time: snowDate } as L.WMSParams}
-          attribution='Snødybde &copy; <a href="https://www.nve.no/">NVE</a> / seNorge'
+          attribution='Snødybde &copy; <a href="https://www.nve.no/">NVE</a> / <a href="https://www.met.no/">MET</a> (seNorge, NLOD)'
         />
       )}
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />

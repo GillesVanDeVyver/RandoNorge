@@ -1,25 +1,23 @@
+import { useState } from 'react';
 import {
   ArrowLeftIcon,
   BookmarkIcon,
   CircleCheckIcon,
   MountainIcon,
   RouteIcon,
+  TrashIcon,
 } from './icons';
 import styles from './RoutesListPage.module.css';
 
-/**
- * One row in the route library. Placeholder shape until routes are
- * persisted server-side — matches what the list renders today so the
- * backend can be wired in without touching the UI.
- */
+/** One row in the route library (preformatted display strings). */
 export type RouteListItem = {
   id: string;
   name: string;
-  /** e.g. "12.4 km" — preformatted for now. */
+  /** e.g. "12.4 km". */
   distance: string;
-  /** e.g. "1 240 m" total ascent — preformatted for now. */
+  /** e.g. "1 240 m". */
   ascent: string;
-  /** e.g. "12 Mar 2026" — preformatted for now. */
+  /** e.g. "12 Mar 2026". */
   date: string;
 };
 
@@ -31,6 +29,10 @@ type Props = {
   onBack: () => void;
   /** Jump into the planner (empty-state call to action). */
   onPlanNewRoute: () => void;
+  /** Open a route in the planner. Rows are inert when absent. */
+  onOpenRoute?: (id: string) => void;
+  /** Delete a route (rejects on failure). Hides the trash button when absent. */
+  onDeleteRoute?: (id: string) => Promise<void>;
 };
 
 const COPY = {
@@ -56,8 +58,37 @@ const COPY = {
  * login and overview pages. Rows are buttons so opening a route can be
  * wired up later without markup changes.
  */
-export function RoutesListPage({ kind, routes, onBack, onPlanNewRoute }: Props) {
+export function RoutesListPage({
+  kind,
+  routes,
+  onBack,
+  onPlanNewRoute,
+  onOpenRoute,
+  onDeleteRoute,
+}: Props) {
   const copy = COPY[kind];
+  // Two-step delete: the trash button arms a per-row inline confirmation
+  // instead of a blocking confirm() dialog (same philosophy as the
+  // planner's undo toast). Any error is shown above the list.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    if (!onDeleteRoute) return;
+    setDeletingId(id);
+    setError(null);
+    try {
+      await onDeleteRoute(id);
+      setConfirmId(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not delete the route',
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className={styles.page}>
@@ -109,31 +140,81 @@ export function RoutesListPage({ kind, routes, onBack, onPlanNewRoute }: Props) 
               </button>
             </div>
           ) : (
-            <ul className={styles.list}>
-              {routes.map((route) => (
-                <li key={route.id}>
-                  <button type="button" className={styles.row}>
-                    <span className={styles.rowIcon}>
-                      <RouteIcon />
-                    </span>
-                    <span className={styles.rowBody}>
-                      <span className={styles.rowName}>{route.name}</span>
-                      <span className={styles.rowMeta}>
-                        <span className="tnum">{route.distance}</span>
-                        <span className={styles.rowDivider} aria-hidden="true">
-                          ·
-                        </span>
-                        <span className="tnum">{route.ascent} ascent</span>
-                        <span className={styles.rowDivider} aria-hidden="true">
-                          ·
-                        </span>
-                        <span>{route.date}</span>
+            <>
+              {error && (
+                <p className={styles.listError} role="alert">
+                  {error}
+                </p>
+              )}
+              <ul className={styles.list}>
+                {routes.map((route) => (
+                  <li key={route.id} className={styles.item}>
+                    <button
+                      type="button"
+                      className={styles.row}
+                      onClick={
+                        onOpenRoute ? () => onOpenRoute(route.id) : undefined
+                      }
+                    >
+                      <span className={styles.rowIcon}>
+                        <RouteIcon />
                       </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      <span className={styles.rowBody}>
+                        <span className={styles.rowName}>{route.name}</span>
+                        <span className={styles.rowMeta}>
+                          <span className="tnum">{route.distance}</span>
+                          <span
+                            className={styles.rowDivider}
+                            aria-hidden="true"
+                          >
+                            ·
+                          </span>
+                          <span className="tnum">{route.ascent} ascent</span>
+                          <span
+                            className={styles.rowDivider}
+                            aria-hidden="true"
+                          >
+                            ·
+                          </span>
+                          <span>{route.date}</span>
+                        </span>
+                      </span>
+                    </button>
+                    {onDeleteRoute &&
+                      (confirmId === route.id ? (
+                        <span className={styles.confirm}>
+                          <button
+                            type="button"
+                            className={styles.confirmDelete}
+                            onClick={() => handleDelete(route.id)}
+                            disabled={deletingId === route.id}
+                          >
+                            {deletingId === route.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.confirmCancel}
+                            onClick={() => setConfirmId(null)}
+                            disabled={deletingId === route.id}
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.deleteBtn}
+                          onClick={() => setConfirmId(route.id)}
+                          title="Delete route"
+                          aria-label={`Delete ${route.name}`}
+                        >
+                          <TrashIcon />
+                        </button>
+                      ))}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       </main>
