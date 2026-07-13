@@ -123,6 +123,14 @@ export function MountainIcon() {
 // --- Date-bar navigation chevrons ---------------------------------------
 // Single = day, double = week, double-with-bar (skip) = year.
 
+export function ChevronDownIcon() {
+  return (
+    <svg {...baseProps}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export function ChevronLeftIcon() {
   return (
     <svg {...baseProps}>

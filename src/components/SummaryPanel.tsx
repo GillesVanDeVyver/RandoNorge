@@ -8,6 +8,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
+import { MountainIcon } from './icons';
 import styles from './SummaryPanel.module.css';
 
 interface Props {
@@ -77,6 +78,15 @@ export function SummaryPanel({ children }: Props) {
 
   return (
     <aside className={styles.panel}>
+      <header className={styles.rail}>
+        <div className={styles.brand}>
+          <span className={styles.brandIcon} aria-hidden>
+            <MountainIcon />
+          </span>
+          <span className={styles.brandName}>Fjellrute</span>
+        </div>
+        <span className={styles.railTitle}>Route overview</span>
+      </header>
       <nav className={styles.tabs} aria-label="Route summary sections">
         {cards.map((card, i) => (
           <button

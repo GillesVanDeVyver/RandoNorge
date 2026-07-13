@@ -266,10 +266,14 @@
     var(--surface-2) 90%
   );
   color: var(--text-2);
-  font-size: 14px;
   padding-bottom: 2px;
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease);
+}
+
+.overflow svg {
+  width: 14px;
+  height: 14px;
 }
 
 .overflowVisible {

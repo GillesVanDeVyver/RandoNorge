@@ -26,7 +26,9 @@
   --accent-ring: rgba(45, 212, 191, 0.55); /* focus ring */
 
   --ascent: #34c759;
+  --ascent-strong: #1f9e48; /* deeper green for text on white cards */
   --descent: #ff6b5e;
+  --descent-strong: #dd4a3c; /* deeper red for text on white cards */
   --snow: #7fb4e6;
   --route: #ff3d81; /* drawn route line (kept high-visibility) */
 

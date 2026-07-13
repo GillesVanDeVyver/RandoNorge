@@ -78,6 +78,31 @@ const fmtKm = (m: number) =>
   m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
 const fmtElev = (m: number) => `${Math.round(m)} m`;
 
+// Shared hover tooltip for both charts. One styled component (tokens live
+// in ProfilePanel.module.css) instead of two duplicated inline-style blocks,
+// so the charts always speak with one voice.
+function ChartTooltip({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: { text: string; muted?: boolean }[];
+}) {
+  return (
+    <div className={styles.tooltip}>
+      <div className={styles.tooltipLabel}>{label}</div>
+      {rows.map((r, i) => (
+        <div
+          key={i}
+          className={r.muted ? styles.tooltipMuted : styles.tooltipValue}
+        >
+          {r.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // NVE Bratthet 2024 color bands — same as the map overlay.
 // Class 1 (< 27°) is transparent on the map; we use a neutral gray on the
 // chart so the line stays visible against a white background.
@@ -417,8 +442,16 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
           {profile ? (
             <div className={styles.stats}>
               <Stat label="Distance" value={fmtKm(profile.stats.distance)} />
-              <Stat label="Ascent ↗" value={fmtElev(profile.stats.ascent)} />
-              <Stat label="Descent ↘" value={fmtElev(profile.stats.descent)} />
+              <Stat
+                label="Ascent ↗"
+                value={fmtElev(profile.stats.ascent)}
+                color="var(--ascent-strong, var(--ascent))"
+              />
+              <Stat
+                label="Descent ↘"
+                value={fmtElev(profile.stats.descent)}
+                color="var(--descent-strong, var(--descent))"
+              />
               <Stat
                 label="Min / Max"
                 value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
@@ -500,37 +533,13 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                         ? `${p.slopeDeg.toFixed(1)}°`
                         : '–';
                       return (
-                        <div
-                          style={{
-                            background: '#ffffff',
-                            border: '1px solid rgba(0,0,0,0.06)',
-                            borderRadius: 10,
-                            padding: '8px 12px',
-                            fontSize: 12,
-                            lineHeight: 1.5,
-                            color: '#1d1d1f',
-                            fontVariantNumeric: 'tabular-nums',
-                            boxShadow:
-                              '0 10px 24px -8px rgba(15,23,42,0.18), 0 4px 8px -4px rgba(15,23,42,0.08)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              color: '#9ca3af',
-                              fontSize: 10,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.08em',
-                              fontWeight: 600,
-                              marginBottom: 4,
-                            }}
-                          >
-                            {fmtKm(label as number)}
-                          </div>
-                          <div style={{ fontWeight: 600 }}>
-                            {Math.round(p.elevation)} m
-                          </div>
-                          <div style={{ color: '#6b7280' }}>Steepness {slope}</div>
-                        </div>
+                        <ChartTooltip
+                          label={fmtKm(label as number)}
+                          rows={[
+                            { text: `${Math.round(p.elevation)} m` },
+                            { text: `Steepness ${slope}`, muted: true },
+                          ]}
+                        />
                       );
                     }}
                   />
@@ -716,34 +725,10 @@ export function SnowPanel({
                         ? `${Math.round(p.snow)} cm`
                         : '–';
                     return (
-                      <div
-                        style={{
-                          background: '#ffffff',
-                          border: '1px solid rgba(0,0,0,0.06)',
-                          borderRadius: 10,
-                          padding: '8px 12px',
-                          fontSize: 12,
-                          lineHeight: 1.5,
-                          color: '#1d1d1f',
-                          fontVariantNumeric: 'tabular-nums',
-                          boxShadow:
-                            '0 10px 24px -8px rgba(15,23,42,0.18), 0 4px 8px -4px rgba(15,23,42,0.08)',
-                        }}
-                      >
-                        <div
-                          style={{
-                            color: '#9ca3af',
-                            fontSize: 10,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
-                            fontWeight: 600,
-                            marginBottom: 4,
-                          }}
-                        >
-                          {fmtKm(label as number)}
-                        </div>
-                        <div style={{ fontWeight: 600 }}>Snow {snowStr}</div>
-                      </div>
+                      <ChartTooltip
+                        label={fmtKm(label as number)}
+                        rows={[{ text: `Snow ${snowStr}` }]}
+                      />
                     );
                   }}
                 />

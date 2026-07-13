@@ -3,6 +3,7 @@ import type { ProfileData } from '../elevation/profile';
 import type { WeatherHour } from '../weather/api';
 import { useWeather, weatherCandidates } from '../weather/useWeather';
 import { WeatherSymbol, WindArrowIcon } from './WeatherIcons';
+import { ChevronDownIcon } from './icons';
 import { SourceAttribution, NLOD } from './SourceAttribution';
 import styles from './WeatherPanel.module.css';
 
@@ -250,7 +251,7 @@ export function WeatherPanel({ profile }: Props) {
           className={`${styles.overflow} ${overflow ? styles.overflowVisible : ''}`}
           aria-hidden
         >
-          ▼
+          <ChevronDownIcon />
         </div>
       </div>
       <SourceAttribution
