@@ -135,6 +135,17 @@ export function AccountOverview({
           </button>
         </div>
       </main>
+
+      {/* Photo licensed under the Pexels license (free for commercial
+          use, no attribution required): https://www.pexels.com/license/ */}
+      <a
+        className={styles.credit}
+        href="https://www.pexels.com/photo/landscape-photography-of-mountains-covered-in-snow-691668/"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Photo: eberhard grossgasteiger / Pexels
+      </a>
     </div>
   );
 }

@@ -10,14 +10,17 @@
   display: flex;
   flex-direction: column;
   padding: clamp(20px, 3.5vw, 48px);
+  /* Snowy peaks rising out of fog — deliberately a different photo from
+     the login page so the signed-in hub reads as its own place. */
   background:
-    url('/login-backcountry.jpg') center / cover no-repeat,
+    url('/overview-peaks.jpg') center / cover no-repeat,
     #dfe7ee; /* fallback while the photo loads */
   overflow: auto;
 }
 
-/* Centre-weighted scrim: the content sits mid-page, so darken evenly and
-   a touch more at the bottom where the cards live. */
+/* Centre-weighted scrim: this photo's fog is bright, so darken a little
+   more than the login page — evenly, plus extra at the bottom where the
+   cards live — to keep the white headline legible. */
 .scrim {
   position: absolute;
   inset: 0;
@@ -25,9 +28,9 @@
   background:
     linear-gradient(
       180deg,
-      rgba(8, 18, 28, 0.45) 0%,
-      rgba(8, 18, 28, 0.32) 40%,
-      rgba(8, 18, 28, 0.5) 100%
+      rgba(8, 18, 28, 0.52) 0%,
+      rgba(8, 18, 28, 0.4) 40%,
+      rgba(8, 18, 28, 0.58) 100%
     );
 }
 
@@ -260,6 +263,23 @@
 
 .cardPrimary .cardArrow {
   color: var(--text-2);
+}
+
+/* --- Photo credit (bottom-left, matches the login page) ------------------- */
+
+.credit {
+  position: relative;
+  align-self: flex-start;
+  margin-top: var(--space-4);
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  text-shadow: 0 1px 6px rgba(8, 18, 28, 0.6);
+}
+
+.credit:hover {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: underline;
 }
 
 /* --- Smaller screens ------------------------------------------------------ */
