@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import App from './App.tsx';
 import { authClient } from './auth/client.ts';
 import { AccountChip } from './components/AccountChip.tsx';
-import { LoginPage } from './components/LoginPage.tsx';
+import {
+  LoginPage,
+  PENDING_VERIFICATION_KEY,
+} from './components/LoginPage.tsx';
 
 /**
  * Entry gate. Better Auth's session cookie is checked on load:
@@ -17,6 +20,18 @@ import { LoginPage } from './components/LoginPage.tsx';
 export function Root() {
   const { data: session, isPending } = authClient.useSession();
   const [guest, setGuest] = useState(false);
+
+  // Once signed in, the "sign-up succeeded — check your inbox" reminder
+  // has done its job; drop it so a later logout shows the login form.
+  useEffect(() => {
+    if (session) {
+      try {
+        sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
+      } catch {
+        // Storage unavailable — nothing to clear.
+      }
+    }
+  }, [session]);
 
   if (isPending) return null;
 

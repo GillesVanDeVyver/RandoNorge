@@ -34,10 +34,10 @@ const SECTIONS: Section[] = [
     },
     paragraphs: {
       en: [
-        'fjellrute is a planning tool for ski touring and other backcountry trips in Norway. It combines open public data — topographic maps, slope steepness and runout models, snow depth, avalanche forecasts and weather forecasts — into one view to help you prepare a trip. It is a planning aid and nothing more.',
+        'fjellrute is a planning tool for ski touring and other backcountry trips in Norway. It combines open public data (topographic maps, slope steepness and runout models, snow depth, avalanche forecasts and weather forecasts) into one view to help you prepare a trip. It is a planning aid and nothing more.',
       ],
       no: [
-        'fjellrute er et planleggingsverktøy for toppturer og andre turer i norsk fjellterreng. Tjenesten samler åpne offentlige data — topografiske kart, bratthets- og utløpsmodeller, snødybde, snøskredvarsler og værvarsler — i én visning for å hjelpe deg å planlegge turen. Tjenesten er et hjelpemiddel for planlegging, ikke noe mer.',
+        'fjellrute er et planleggingsverktøy for toppturer og andre turer i norsk fjellterreng. Tjenesten samler åpne offentlige data (topografiske kart, bratthets- og utløpsmodeller, snødybde, snøskredvarsler og værvarsler) i én visning for å hjelpe deg å planlegge turen. Tjenesten er et hjelpemiddel for planlegging, ikke noe mer.',
       ],
     },
   },
@@ -49,12 +49,12 @@ const SECTIONS: Section[] = [
     paragraphs: {
       en: [
         'Travel in avalanche terrain is inherently dangerous. fjellrute is not a substitute for avalanche training, experience, proper equipment, local knowledge or your own judgment in the field. Conditions in the mountains change quickly and can differ substantially from anything shown in this app.',
-        'Steepness and runout layers are derived from terrain models with limited resolution; real slopes can be steeper, and avalanches can run further, than the map suggests. Snow depth is model data, and weather and avalanche bulletins are forecasts — none of them are measurements of the conditions you will actually meet.',
+        'Steepness and runout layers are derived from terrain models with limited resolution; real slopes can be steeper, and avalanches can run further, than the map suggests. Snow depth is model data, and weather and avalanche bulletins are forecasts. None of them are measurements of the conditions you will actually meet.',
         'Always read the full regional avalanche warning on varsom.no before a trip, and make your own decisions based on what you observe on the ground. If what you see in the terrain disagrees with the app, trust the terrain.',
       ],
       no: [
         'Ferdsel i skredterreng er forbundet med reell fare. fjellrute erstatter ikke skredopplæring, erfaring, riktig utstyr, lokalkunnskap eller dine egne vurderinger i terrenget. Forholdene i fjellet endrer seg raskt og kan avvike vesentlig fra det som vises i denne tjenesten.',
-        'Bratthets- og utløpskartene er avledet fra terrengmodeller med begrenset oppløsning; virkelige heng kan være brattere, og skred kan gå lenger, enn kartet antyder. Snødybde er modelldata, og vær- og skredvarsler er prognoser — ingen av dem er målinger av forholdene du faktisk møter.',
+        'Bratthets- og utløpskartene er avledet fra terrengmodeller med begrenset oppløsning; virkelige heng kan være brattere, og skred kan gå lenger, enn kartet antyder. Snødybde er modelldata, og vær- og skredvarsler er prognoser. Ingen av dem er målinger av forholdene du faktisk møter.',
         'Les alltid det fullstendige regionale skredvarselet på varsom.no før turen, og ta egne beslutninger basert på det du observerer i terrenget. Stemmer ikke terrenget med appen, stol på terrenget.',
       ],
     },
@@ -67,11 +67,11 @@ const SECTIONS: Section[] = [
     paragraphs: {
       en: [
         'All map and condition data in fjellrute comes from third parties, including Kartverket, NVE (Varsom and seNorge) and MET Norway. These providers supply their data “as is”: it can contain errors and omissions, be outdated or incomplete, and give a wrong or misleading picture of actual conditions. They accept no responsibility for how the data is used.',
-        'fjellrute passes this data on under the same terms. We give no warranty of any kind — express or implied — for the accuracy, completeness, timeliness or availability of the service or of any data shown in it. The service may be changed, interrupted or discontinued at any time without notice.',
+        'fjellrute passes this data on under the same terms. We give no warranty of any kind, express or implied, for the accuracy, completeness, timeliness or availability of the service or of any data shown in it. The service may be changed, interrupted or discontinued at any time without notice.',
       ],
       no: [
         'Alle kart- og føredata i fjellrute kommer fra tredjeparter, blant andre Kartverket, NVE (Varsom og seNorge) og Meteorologisk institutt. Disse leverer sine data «som de er»: de kan inneholde feil og mangler, være utdaterte eller ufullstendige, og gi et feilaktig eller misvisende bilde av de faktiske forholdene. Leverandørene tar ikke ansvar for hvordan dataene brukes.',
-        'fjellrute videreformidler dataene på samme vilkår. Vi gir ingen garantier av noe slag — verken uttrykkelige eller underforståtte — for at tjenesten eller dataene i den er korrekte, fullstendige, oppdaterte eller tilgjengelige. Tjenesten kan endres, avbrytes eller legges ned når som helst uten varsel.',
+        'fjellrute videreformidler dataene på samme vilkår. Vi gir ingen garantier av noe slag, verken uttrykkelige eller underforståtte, for at tjenesten eller dataene i den er korrekte, fullstendige, oppdaterte eller tilgjengelige. Tjenesten kan endres, avbrytes eller legges ned når som helst uten varsel.',
       ],
     },
   },
@@ -82,11 +82,11 @@ const SECTIONS: Section[] = [
     },
     paragraphs: {
       en: [
-        'To the maximum extent permitted by Norwegian law, fjellrute and its developer accept no liability for any loss or damage — including personal injury or death — arising from use of the service, from inability to use it, or from reliance on any data shown in it.',
+        'To the maximum extent permitted by Norwegian law, fjellrute and its developer accept no liability for any loss or damage, including personal injury or death, arising from use of the service, from inability to use it, or from reliance on any data shown in it.',
         'Nothing in these terms limits or excludes liability that cannot lawfully be limited or excluded, including your mandatory rights under Norwegian consumer law.',
       ],
       no: [
-        'Så langt norsk rett tillater det, fraskriver fjellrute og utvikleren seg ethvert ansvar for tap eller skade — herunder personskade eller dødsfall — som følge av bruk av tjenesten, manglende tilgang til den, eller tillit til data som vises i den.',
+        'Så langt norsk rett tillater det, fraskriver fjellrute og utvikleren seg ethvert ansvar for tap eller skade, herunder personskade eller dødsfall, som følge av bruk av tjenesten, manglende tilgang til den, eller tillit til data som vises i den.',
         'Ingenting i disse vilkårene begrenser eller utelukker ansvar som ikke lovlig kan begrenses eller utelukkes, herunder dine ufravikelige rettigheter etter norsk forbrukerlovgivning.',
       ],
     },

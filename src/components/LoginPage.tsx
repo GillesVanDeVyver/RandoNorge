@@ -37,17 +37,45 @@ function consumeAuthParams() {
 // verification link — seed the initial state below.
 const authLink = consumeAuthParams();
 
+/**
+ * Remembers a just-completed sign-up across remounts of this component.
+ * Root unmounts the login page while `useSession` refetches after sign-up,
+ * so without this the "check your inbox" confirmation would be lost and
+ * the user would silently land back on the login form.
+ * Cleared by Root once a session exists, and when leaving the verify view.
+ */
+export const PENDING_VERIFICATION_KEY = 'fjellrute:pending-verification-email';
+
+const SIGNUP_SUCCESS_NOTICE =
+  'Account created! An activation link is on its way to your inbox.';
+
+function readPendingVerificationEmail(): string | null {
+  try {
+    return sessionStorage.getItem(PENDING_VERIFICATION_KEY);
+  } catch {
+    return null;
+  }
+}
+
 const linkErrorMessage = (code: string) =>
   code === 'invalid_token' || code === 'token_expired'
     ? 'That link has expired or was already used. Log in to receive a new one.'
     : 'Something went wrong with that link. Please try again.';
 
 export function LoginPage({ onContinueAsGuest }: Props) {
-  const [mode, setMode] = useState<CardMode>(
-    authLink.token ? 'reset' : 'login',
+  // Read inside initializers (not at module load) so a remount right after
+  // sign-up restores the "check your inbox" confirmation.
+  const [mode, setMode] = useState<CardMode>(() =>
+    authLink.token
+      ? 'reset'
+      : readPendingVerificationEmail()
+        ? 'verify'
+        : 'login',
   );
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(
+    () => readPendingVerificationEmail() ?? '',
+  );
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [resetToken] = useState<string | null>(authLink.token);
@@ -55,7 +83,11 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   const [error, setError] = useState<string | null>(
     authLink.error ? linkErrorMessage(authLink.error) : null,
   );
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(() =>
+    !authLink.token && readPendingVerificationEmail()
+      ? SIGNUP_SUCCESS_NOTICE
+      : null,
+  );
   // True after a failed login where the account exists but the password
   // didn't match — shows the inline "reset password" button.
   const [wrongPassword, setWrongPassword] = useState(false);
@@ -68,6 +100,13 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       : null;
 
   const switchMode = (next: CardMode) => {
+    // Leaving (or re-entering) any view by hand means the one-shot
+    // sign-up confirmation has served its purpose.
+    try {
+      sessionStorage.removeItem(PENDING_VERIFICATION_KEY);
+    } catch {
+      // Storage unavailable — nothing to clear.
+    }
     setMode(next);
     setError(null);
     setNotice(null);
@@ -151,6 +190,15 @@ export function LoginPage({ onContinueAsGuest }: Props) {
           : (err.message ?? 'Could not create the account. Please try again.'),
       );
     } else {
+      // Survive the remount Root triggers while the session refetches:
+      // the fresh instance reads this key and shows the confirmation.
+      try {
+        sessionStorage.setItem(PENDING_VERIFICATION_KEY, email);
+      } catch {
+        // Storage unavailable — the in-memory state below still covers
+        // the case where the component stays mounted.
+      }
+      setNotice(SIGNUP_SUCCESS_NOTICE);
       setMode('verify');
     }
   };
@@ -166,7 +214,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     if (err) setError(err.message ?? 'Could not resend the email.');
     else
       setNotice(
-        'Verification email sent again — check your inbox (and your spam folder).',
+        'Verification email sent again. Check your inbox (and your spam folder).',
       );
   };
 
@@ -185,7 +233,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       setError(err.message ?? 'Could not send the reset email.');
     } else {
       setNotice(
-        'Password reset link sent — check your inbox (and your spam folder).',
+        'Password reset link sent. Check your inbox (and your spam folder).',
       );
     }
   };
@@ -203,7 +251,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       setError(err.message ?? 'Could not send the reset email.');
     } else {
       setNotice(
-        'If an account exists for that address, a reset link is on its way — check your inbox and your spam folder.',
+        'If an account exists for that address, a reset link is on its way. Check your inbox and your spam folder.',
       );
     }
   };
@@ -230,7 +278,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     if (err) {
       setError(
         err.message ??
-          'Could not reset the password — the link may have expired.',
+          'Could not reset the password. The link may have expired.',
       );
     } else {
       switchMode('login');

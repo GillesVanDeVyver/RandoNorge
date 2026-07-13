@@ -44,7 +44,7 @@ export function checkPassword(password: string): PasswordCheck {
   if (COMMON_PASSWORDS.has(password.toLowerCase())) {
     return {
       ok: false,
-      error: 'That password is too common — pick something less guessable.',
+      error: 'That password is too common. Pick something less guessable.',
     };
   }
   // Rough strength hint: reward length and character variety. Purely
