@@ -56,6 +56,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     authLink.error ? linkErrorMessage(authLink.error) : null,
   );
   const [notice, setNotice] = useState<string | null>(null);
+  // True after a failed login where the account exists but the password
+  // didn't match — shows the inline "reset password" button.
+  const [wrongPassword, setWrongPassword] = useState(false);
 
   const strength =
     mode === 'signup' || mode === 'reset'
@@ -70,27 +73,55 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setNotice(null);
     setPassword('');
     setConfirm('');
+    setWrongPassword(false);
   };
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setWrongPassword(false);
     setBusy(true);
     const { error: err } = await authClient.signIn.email({ email, password });
-    setBusy(false);
-    if (!err) return; // useSession in Root picks up the new session.
+    if (!err) {
+      setBusy(false);
+      return; // useSession in Root picks up the new session.
+    }
     if (err.status === 403) {
       // Unverified address: the server has just re-sent the verification
       // email as part of rejecting this sign-in.
+      setBusy(false);
       setNotice(null);
       setMode('verify');
-    } else {
-      setError(
-        err.status === 401
-          ? 'Wrong email or password.'
-          : (err.message ?? 'Could not log in. Please try again.'),
-      );
+      return;
     }
+    if (err.status === 401) {
+      // Better Auth returns the same 401 whether the account is missing or
+      // the password is wrong; ask the worker which one it was.
+      let exists = true;
+      try {
+        const res = await fetch('/api/account-exists', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        if (res.ok) {
+          exists = Boolean((await res.json()).exists);
+        }
+      } catch {
+        // Lookup failed — fall back to assuming the account exists so the
+        // user still gets an actionable message and the reset button.
+      }
+      setBusy(false);
+      if (exists) {
+        setError('Wrong password.');
+        setWrongPassword(true);
+      } else {
+        setError('No account found for this email address.');
+      }
+      return;
+    }
+    setBusy(false);
+    setError(err.message ?? 'Could not log in. Please try again.');
   };
 
   const handleSignup = async (e: FormEvent) => {
@@ -133,7 +164,30 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     });
     setBusy(false);
     if (err) setError(err.message ?? 'Could not resend the email.');
-    else setNotice('Verification email sent again — check your inbox.');
+    else
+      setNotice(
+        'Verification email sent again — check your inbox (and your spam folder).',
+      );
+  };
+
+  // One-click reset from the "Wrong password." error state: sends the
+  // reset email straight to the address already typed into the form.
+  const handleQuickReset = async () => {
+    setBusy(true);
+    setError(null);
+    const { error: err } = await authClient.requestPasswordReset({
+      email,
+      redirectTo: '/',
+    });
+    setBusy(false);
+    setWrongPassword(false);
+    if (err) {
+      setError(err.message ?? 'Could not send the reset email.');
+    } else {
+      setNotice(
+        'Password reset link sent — check your inbox (and your spam folder).',
+      );
+    }
   };
 
   const handleForgot = async (e: FormEvent) => {
@@ -149,7 +203,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       setError(err.message ?? 'Could not send the reset email.');
     } else {
       setNotice(
-        'If an account exists for that address, a reset link is on its way.',
+        'If an account exists for that address, a reset link is on its way — check your inbox and your spam folder.',
       );
     }
   };
@@ -231,8 +285,8 @@ export function LoginPage({ onContinueAsGuest }: Props) {
               <p className={styles.cardText}>
                 We sent a confirmation link to{' '}
                 <strong>{email || 'your email address'}</strong>. Click it
-                to activate your account — you&apos;ll be signed in
-                automatically.
+                to activate your account. If you can&apos;t find it, check
+                your spam folder.
               </p>
               {notice && <p className={styles.notice}>{notice}</p>}
               {error && <p className={styles.error}>{error}</p>}
@@ -415,6 +469,17 @@ export function LoginPage({ onContinueAsGuest }: Props) {
 
                 {notice && <p className={styles.notice}>{notice}</p>}
                 {error && <p className={styles.error}>{error}</p>}
+
+                {mode === 'login' && wrongPassword && (
+                  <button
+                    type="button"
+                    className={styles.guestBtn}
+                    onClick={handleQuickReset}
+                    disabled={busy}
+                  >
+                    {busy ? 'Sending…' : 'Reset password'}
+                  </button>
+                )}
 
                 <button
                   type="submit"

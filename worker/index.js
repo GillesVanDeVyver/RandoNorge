@@ -32,6 +32,14 @@ export default {
       return getAuth(env, url.origin).handler(request);
     }
 
+    // Tells the login form whether an account exists for an email address,
+    // so it can show "user not found" vs "wrong password" after a failed
+    // sign-in (Better Auth itself deliberately returns the same 401 for
+    // both). Note: this makes account enumeration possible by design.
+    if (pathname === '/api/account-exists' && request.method === 'POST') {
+      return accountExists(request, env);
+    }
+
     for (const { prefix, upstream, ttl } of ROUTES) {
       if (pathname === prefix || pathname.startsWith(prefix + '/')) {
         return proxyGet(request, ctx, prefix, upstream, ttl);
@@ -43,3 +51,23 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+/** POST { email } → { exists: boolean }. Backs the login form's
+ *  "user not found" / "wrong password" distinction. */
+async function accountExists(request, env) {
+  let email;
+  try {
+    ({ email } = await request.json());
+  } catch {
+    // Malformed/missing JSON body; handled by the type check below.
+  }
+  if (typeof email !== 'string' || !email.trim()) {
+    return Response.json({ error: 'email required' }, { status: 400 });
+  }
+  const row = await env.DB.prepare(
+    'select 1 from "user" where lower(email) = lower(?) limit 1',
+  )
+    .bind(email.trim())
+    .first();
+  return Response.json({ exists: row !== null });
+}
