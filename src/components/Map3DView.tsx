@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { LatLng, Mode, Overlay, Route, Segment } from '../types';
-import { haversine, simplify } from '../geometry';
+import { simplify } from '../geometry';
 import {
   CompassIcon,
   FullscreenIcon,
@@ -51,7 +51,10 @@ const TERRAIN_EXAGGERATION = 1.4;
 // Drawing/erasing constants — mirror the 2D DrawingHandler so freehand edits
 // behave identically in 3D.
 const RDP_EPSILON_M = 8;
-const ERASER_RADIUS_M = 120;
+// Eraser "effect radius" in screen pixels — constant on-screen size, so
+// the ground-distance reach scales proportionally as the user zooms out.
+// Keep in sync with DrawingHandler.tsx.
+const ERASER_RADIUS_PX = 32;
 const ROUTE_COLOR = '#ff3d81';
 // Minimum pixel distance between accepted points while drawing — caps point
 // count by stroke length rather than duration.
@@ -290,19 +293,14 @@ export function Map3DView({
     };
 
     // --- Eraser ------------------------------------------------------------
-    // Erase every part of the route inside a disk of ERASER_RADIUS_M around
+    // Erase every part of the route inside a disk of ERASER_RADIUS_PX around
     // the cursor, working in screen-pixel space for fast planar geometry —
     // the same algorithm as the 2D handler, using MapLibre project/unproject
     // so the disk follows the terrain surface.
     const eraseAt = (cursor: LatLng) => {
       const source = eraseRouteRef.current ?? routeRef.current;
       const cursorPx = map.project([cursor[1], cursor[0]]);
-      const refLL: LatLng = [cursor[0], cursor[1] + 0.001];
-      const refPx = map.project([refLL[1], refLL[0]]);
-      const refMeters = haversine(cursor, refLL);
-      const refPxDist = Math.hypot(refPx.x - cursorPx.x, refPx.y - cursorPx.y);
-      const pxPerMeter = refPxDist / refMeters;
-      const R = ERASER_RADIUS_M * pxPerMeter;
+      const R = ERASER_RADIUS_PX;
       const R2 = R * R;
 
       const toLL = (x: number, y: number): LatLng => {

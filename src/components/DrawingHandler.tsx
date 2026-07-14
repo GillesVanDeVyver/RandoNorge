@@ -10,7 +10,11 @@ interface Props {
 }
 
 const RDP_EPSILON_M = 8;
-const ERASER_RADIUS_M = 120;
+// Eraser "effect radius" in screen pixels. Defining it in pixel space
+// (rather than metres) keeps the eraser a constant, comfortable size on
+// screen — so the ground-distance radius automatically scales up
+// proportionally as the user zooms out.
+const ERASER_RADIUS_PX = 32;
 const ROUTE_COLOR = '#FF3D81';
 const ROUTE_WEIGHT = 4;
 // Minimum pixel distance between consecutive accepted points while drawing.
@@ -86,7 +90,7 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
   }, [mode, map]);
 
   // Erase every part of the route that lies inside a disk of radius
-  // ERASER_RADIUS_M around the cursor. Works edge-by-edge so the user
+  // ERASER_RADIUS_PX around the cursor. Works edge-by-edge so the user
   // can cut through the middle of a long edge between vertices (RDP
   // simplification can leave vertices tens of metres apart, well beyond
   // the eraser radius). Where an edge crosses the disk boundary we
@@ -96,17 +100,12 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
   // mouseup.
   const eraseAt = (cursor: LatLng) => {
     const source = eraseRouteRef.current ?? route;
-    // Work in container-pixel space for fast planar geometry. Convert
-    // the eraser radius (metres) to pixels using a small reference
-    // displacement at the cursor's latitude, so the disk stays a true
-    // ground-distance circle regardless of zoom or Mercator scaling.
+    // Work in container-pixel space for fast planar geometry. The radius
+    // is defined directly in pixels so the eraser covers the same
+    // on-screen area at any zoom level — i.e. its ground-distance reach
+    // scales proportionally as the user zooms out.
     const cursorPx = map.latLngToContainerPoint([cursor[0], cursor[1]]);
-    const refLL: LatLng = [cursor[0], cursor[1] + 0.001];
-    const refPx = map.latLngToContainerPoint([refLL[0], refLL[1]]);
-    const refMeters = map.distance(cursor, refLL);
-    const refPxDist = Math.hypot(refPx.x - cursorPx.x, refPx.y - cursorPx.y);
-    const pxPerMeter = refPxDist / refMeters;
-    const R = ERASER_RADIUS_M * pxPerMeter;
+    const R = ERASER_RADIUS_PX;
     const R2 = R * R;
 
     const toLL = (x: number, y: number): LatLng => {
@@ -215,9 +214,9 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
     }
   };
 
-  // Commit any pending eraser changes to the parent state. Called on
-  // mouseup or mouseout — the single point where the heavy recompute is
-  // allowed to run.
+  // Commit any pending eraser changes to the parent state. Called when
+  // the mouse button is released — the single point where the heavy
+  // recompute is allowed to run.
   const commitErase = () => {
     erasingRef.current = false;
     const pending = eraseRouteRef.current;
@@ -226,15 +225,61 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
     if (pending) onRouteChange(pending);
   };
 
+  // Finalize the in-progress draw stroke: simplify and commit it to the
+  // parent state if it has at least two points.
+  const finishDraw = () => {
+    if (!drawingRef.current) return;
+    cancelLiveUpdate();
+    const simplified = simplify(drawingRef.current, RDP_EPSILON_M);
+    if (simplified.length >= 2) {
+      onRouteChange([...route, simplified]);
+    }
+    drawingRef.current = null;
+    lastDrawPxRef.current = null;
+    setLivePoints([]);
+  };
+
+  // A stroke must only be committed when the user actually releases the
+  // mouse button — never merely because the cursor left the map container
+  // (e.g. brushing over the toolbar or the window edge mid-stroke). The
+  // map's own mouseup doesn't fire when the button is released off-map,
+  // so we arm a one-shot document-level mouseup listener at stroke start.
+  // If the cursor wanders off the map and comes back with the button
+  // still held, drawing/erasing simply resumes.
+  const docMouseUpRef = useRef<(() => void) | null>(null);
+  const armDocMouseUp = () => {
+    if (docMouseUpRef.current) return; // already armed for this stroke
+    const handler = () => {
+      docMouseUpRef.current = null;
+      finishDraw();
+      commitErase();
+    };
+    docMouseUpRef.current = handler;
+    document.addEventListener('mouseup', handler, { once: true });
+  };
+
+  // If the component unmounts (or the mode changes) mid-stroke, drop the
+  // pending listener so it can't fire against stale state.
+  useEffect(() => {
+    return () => {
+      if (docMouseUpRef.current) {
+        document.removeEventListener('mouseup', docMouseUpRef.current);
+        docMouseUpRef.current = null;
+      }
+    };
+  }, [mode]);
+
   useMapEvents({
     mousedown(e) {
       if (mode === 'draw') {
         drawingRef.current = [[e.latlng.lat, e.latlng.lng]];
         lastDrawPxRef.current = map.latLngToContainerPoint(e.latlng);
         setLivePoints(drawingRef.current.slice());
+        armDocMouseUp();
       } else if (mode === 'erase') {
         erasingRef.current = true;
         eraseAt([e.latlng.lat, e.latlng.lng]);
+        armDocMouseUp();
       }
     },
     mousemove(e) {
@@ -253,33 +298,10 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
         eraseAt([e.latlng.lat, e.latlng.lng]);
       }
     },
-    mouseup() {
-      if (mode === 'draw' && drawingRef.current) {
-        cancelLiveUpdate();
-        const simplified = simplify(drawingRef.current, RDP_EPSILON_M);
-        if (simplified.length >= 2) {
-          onRouteChange([...route, simplified]);
-        }
-        drawingRef.current = null;
-        lastDrawPxRef.current = null;
-        setLivePoints([]);
-      }
-      commitErase();
-    },
-    mouseout() {
-      // If the user drags off the map, commit or discard cleanly.
-      if (mode === 'draw' && drawingRef.current) {
-        cancelLiveUpdate();
-        const simplified = simplify(drawingRef.current, RDP_EPSILON_M);
-        if (simplified.length >= 2) {
-          onRouteChange([...route, simplified]);
-        }
-        drawingRef.current = null;
-        lastDrawPxRef.current = null;
-        setLivePoints([]);
-      }
-      commitErase();
-    },
+    // Note: no mouseup/mouseout handlers here. Committing the stroke is
+    // handled exclusively by the document-level mouseup listener armed in
+    // mousedown, so leaving the map container mid-stroke does NOT
+    // interrupt or save the route — only releasing the button does.
   });
 
   const displayRoute = eraseRoute ?? route;
