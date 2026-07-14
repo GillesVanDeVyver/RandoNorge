@@ -1,0 +1,12 @@
+# Local secrets for `wrangler dev`. Copy to `.dev.vars` (git-ignored) and
+# fill in real values. Production uses `npx wrangler secret put <NAME>`
+# instead — see docs/AUTH_SETUP.md.
+
+# Google OAuth client (Google Cloud console → APIs & Services → Credentials).
+# Authorized redirect URI for local dev: http://localhost:5173/api/auth/callback/google
+GOOGLE_CLIENT_ID=1234567890-xxxxxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxx
+
+# Optional locally: without it, verification/reset links print to the
+# wrangler console instead of being emailed.
+# RESEND_API_KEY=re_xxxxxxxx
