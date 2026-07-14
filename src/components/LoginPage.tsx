@@ -102,7 +102,12 @@ function readPendingVerificationEmail(): string | null {
 const linkErrorMessage = (code: string) =>
   code === 'invalid_token' || code === 'token_expired'
     ? 'That link has expired or was already used. Log in to receive a new one.'
-    : 'Something went wrong with that link. Please try again.';
+    : code === 'account_not_linked'
+      ? 'An account with this email already exists but its address was ' +
+        'never confirmed, so it can\u2019t be linked to Google yet. Log in ' +
+        'with your password to receive a new confirmation email, then try ' +
+        'Google again.'
+      : 'Something went wrong with that link. Please try again.';
 
 export function LoginPage({ onContinueAsGuest }: Props) {
   // Read inside initializers (not at module load) so a remount right after
@@ -238,6 +243,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     const { error: err } = await authClient.signIn.social({
       provider: 'google',
       callbackURL: '/',
+      // On OAuth failure, return to this page with ?error=<code> (handled
+      // by consumeAuthParams above) instead of Better Auth's raw error page.
+      errorCallbackURL: '/',
     });
     if (err) {
       setBusy(false);

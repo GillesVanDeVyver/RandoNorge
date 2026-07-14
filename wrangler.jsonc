@@ -38,7 +38,11 @@
 	// verified, so this must be changed to an address on a verified
 	// domain before delivery will work.
 	"vars": {
-		"EMAIL_FROM": "Fjellrute <fjellrute@gmail.com>"
+		"EMAIL_FROM": "Fjellrute <fjellrute@gmail.com>",
+		// Google OAuth client (project "fjellrute" in Google Cloud console).
+		// The matching GOOGLE_CLIENT_SECRET is a Worker secret; the provider
+		// stays disabled in worker/auth.js until both are present.
+		"GOOGLE_CLIENT_ID": "14850983815-qtutomkpjvf92rribcm9d7e9rv0foflt.apps.googleusercontent.com"
 	},
 	"observability": {
 		"enabled": true
