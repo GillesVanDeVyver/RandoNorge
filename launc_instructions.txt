@@ -11,3 +11,9 @@ npm run dev
 # Run only one if needed:
 #   npm run dev:frontend   (vite only)
 #   npm run dev:worker     (wrangler only)
+
+
+
+#server side
+pnpm install --lockfile-only
+npx wrangler deploy
