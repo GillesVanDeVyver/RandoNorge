@@ -10,6 +10,9 @@ import styles from './AccountOverview.module.css';
 type Props = {
   /** Display name of the signed-in user (falls back to email in Root). */
   name: string;
+  /** True on the user's first visit after registering ("Welcome" instead
+   *  of "Welcome back"). */
+  firstVisit: boolean;
   /** Number of routes in the user's library. Placeholder until wired up. */
   savedCount: number;
   /** Number of finished tours. Placeholder until wired up. */
@@ -30,6 +33,7 @@ type Props = {
  */
 export function AccountOverview({
   name,
+  firstVisit,
   savedCount,
   completedCount,
   onOpenSavedRoutes,
@@ -52,7 +56,7 @@ export function AccountOverview({
       <main className={styles.content}>
         <p className={styles.eyebrow}>Account overview</p>
         <h1 className={styles.greeting}>
-          Welcome back, {firstName}
+          {firstVisit ? 'Welcome' : 'Welcome back'}, {firstName}
           <span className={styles.greetingDot}>.</span>
         </h1>
         <p className={styles.subtitle}>

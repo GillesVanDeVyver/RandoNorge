@@ -66,6 +66,11 @@ export function Root() {
   // Library route currently opened in the planner (null = fresh plan).
   // Also used as the planner's key so reopening resets its state.
   const [openRoute, setOpenRoute] = useState<SavedRoute | null>(null);
+  // True when this session is the user's first ever (fresh registration):
+  // the overview then greets with "Welcome" instead of "Welcome back".
+  // Defaults to false so a failed lookup shows the safe returning-user
+  // greeting rather than misgreeting an existing account.
+  const [firstVisit, setFirstVisit] = useState(false);
 
   // Once signed in, the "sign-up succeeded — check your inbox" reminder
   // has done its job; drop it so a later logout shows the login form.
@@ -94,6 +99,24 @@ export function Root() {
         // rather than blocking the account pages. Saving still works and
         // repopulates the list through handleRouteSaved.
         if (!cancelled) setSavedRoutes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // Ask the worker whether this is the user's first-ever session (i.e.
+  // they just registered), once per session, for the overview greeting.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    fetch('/api/first-visit')
+      .then((res) => (res.ok ? res.json() : { first: false }))
+      .then((data: { first?: boolean }) => {
+        if (!cancelled) setFirstVisit(Boolean(data.first));
+      })
+      .catch(() => {
+        // Lookup failed — keep the default "Welcome back".
       });
     return () => {
       cancelled = true;
@@ -143,6 +166,7 @@ export function Root() {
       setView('overview');
       setOpenRoute(null);
       setSavedRoutes(null);
+      setFirstVisit(false);
     }
   }
 
@@ -156,6 +180,7 @@ export function Root() {
         {view === 'overview' && (
           <AccountOverview
             name={name}
+            firstVisit={firstVisit}
             savedCount={savedItems.length}
             completedCount={COMPLETED_ROUTES.length}
             onOpenSavedRoutes={() => setView('saved')}

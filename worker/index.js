@@ -41,6 +41,14 @@ export default {
       return accountExists(request, env);
     }
 
+    // Tells the account overview whether the signed-in user is visiting
+    // for the first time since registering (their current session is the
+    // earliest one on record), so it can greet with "Welcome" instead of
+    // "Welcome back".
+    if (pathname === '/api/first-visit' && request.method === 'GET') {
+      return firstVisit(request, env, url.origin);
+    }
+
     // Saved routes: authenticated CRUD against the "route" table
     // (worker/routes.js).
     if (pathname === '/api/routes' || pathname.startsWith('/api/routes/')) {
@@ -58,6 +66,28 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+/** GET → { first: boolean }. True when the caller's session is the
+ *  user's earliest on record, i.e. their first visit after registering.
+ *  Works for both sign-up paths: Google OAuth (session created right at
+ *  sign-up) and email+password (session created when the verification
+ *  link is clicked, however much later that is). Backs the account
+ *  overview's "Welcome" vs "Welcome back" greeting. */
+async function firstVisit(request, env, origin) {
+  const session = await getAuth(env, origin).api.getSession({
+    headers: request.headers,
+  });
+  if (!session?.user?.id || !session?.session?.id) {
+    return Response.json({ error: 'authentication required' }, { status: 401 });
+  }
+  const earlier = await env.DB.prepare(
+    'select 1 from "session" where "userId" = ?1 and "createdAt" < ' +
+      '(select "createdAt" from "session" where "id" = ?2) limit 1',
+  )
+    .bind(session.user.id, session.session.id)
+    .first();
+  return Response.json({ first: earlier === null });
+}
 
 /** POST { email } → { exists: boolean }. Backs the login form's
  *  "user not found" / "wrong password" distinction. */
