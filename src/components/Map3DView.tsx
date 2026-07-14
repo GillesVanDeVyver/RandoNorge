@@ -7,6 +7,7 @@ import {
   CompassIcon,
   FullscreenIcon,
   LocateIcon,
+  MapIcon,
   MinusIcon,
   MountainIcon,
   PlusIcon,
@@ -659,6 +660,20 @@ export function Map3DView({
     [query],
   );
 
+  // Top button flips to the other thematic layer (and shows steepness when the
+  // overlay is hidden). Bottom button hides the overlay while a layer is shown,
+  // and becomes a "Show snow depth" shortcut when hidden — so in the hidden
+  // state the two buttons offer both layers directly.
+  const nextOverlay: Overlay = overlay === 'steepness' ? 'snowdepth' : 'steepness';
+  const overlayLabel =
+    overlay === 'steepness' ? 'Show snow depth' : 'Show steepness';
+  const overlayIcon =
+    overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />;
+  const visibilityTarget: Overlay = overlay === 'none' ? 'snowdepth' : 'none';
+  const visibilityLabel =
+    overlay === 'none' ? 'Show snow depth' : 'Hide overlay';
+  const visibilityIcon = overlay === 'none' ? <SnowflakeIcon /> : <MapIcon />;
+
   return (
     <div ref={rootRef} className={styles.root}>
       <div ref={containerRef} className={styles.map} />
@@ -757,21 +772,26 @@ export function Map3DView({
           </span>
         </button>
       </div>
-      <button
-        type="button"
-        className={styles.overlayToggle}
-        onClick={() =>
-          onOverlayChange(overlay === 'steepness' ? 'snowdepth' : 'steepness')
-        }
-        aria-label={
-          overlay === 'steepness' ? 'Show snow depth' : 'Show steepness'
-        }
-      >
-        {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
-        <span>
-          {overlay === 'steepness' ? 'Show snow depth' : 'Show steepness'}
-        </span>
-      </button>
+      <div className={styles.overlayPanel}>
+        <button
+          type="button"
+          className={styles.overlayToggle}
+          onClick={() => onOverlayChange(nextOverlay)}
+          aria-label={overlayLabel}
+        >
+          {overlayIcon}
+          <span>{overlayLabel}</span>
+        </button>
+        <button
+          type="button"
+          className={styles.overlayToggle}
+          onClick={() => onOverlayChange(visibilityTarget)}
+          aria-label={visibilityLabel}
+        >
+          {visibilityIcon}
+          <span>{visibilityLabel}</span>
+        </button>
+      </div>
     </div>
   );
 }

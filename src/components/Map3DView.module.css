@@ -17,7 +17,8 @@
    overlay toggle, with the compass as the one extra 3D tool. */
 .controls {
   position: absolute;
-  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 40px + var(--space-1) * 2 + 2px + var(--space-2));
+  /* Clear the two stacked overlay pills (each ~40px) plus the gap between them. */
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 40px * 2 + var(--space-1) + var(--space-2) * 2 + 2px);
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1001;
   display: flex;
@@ -119,12 +120,20 @@
   transition: transform var(--dur-fast) var(--ease);
 }
 
-/* Snow ⇄ steepness switcher, top-right to match the 2D map's overlay panel. */
-.overlayToggle {
+/* Overlay controls, top-right to match the 2D map: a snow ⇄ steepness
+   switcher stacked above a show/hide-overlay button. */
+.overlayPanel {
   position: absolute;
   top: max(var(--space-3), env(safe-area-inset-top));
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.overlayToggle {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);

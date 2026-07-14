@@ -5,6 +5,7 @@ import type { Overlay, Route } from '../types';
 import {
   FullscreenIcon,
   LocateIcon,
+  MapIcon,
   MinusIcon,
   MountainIcon,
   PlusIcon,
@@ -83,12 +84,23 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
     [map, query],
   );
 
+  // Top button flips to the other thematic layer (and shows steepness when the
+  // overlay is currently hidden). Bottom button hides the overlay entirely
+  // while a layer is shown, and becomes a "Show snow depth" shortcut when
+  // hidden — so in the hidden state the two buttons offer both layers directly.
   const handleToggleOverlay = useCallback(() => {
     onOverlayChange(overlay === 'steepness' ? 'snowdepth' : 'steepness');
   }, [overlay, onOverlayChange]);
 
+  const handleToggleVisibility = useCallback(() => {
+    onOverlayChange(overlay === 'none' ? 'snowdepth' : 'none');
+  }, [overlay, onOverlayChange]);
+
   const overlayLabel =
     overlay === 'steepness' ? 'Show snow depth' : 'Show steepness';
+
+  const visibilityLabel =
+    overlay === 'none' ? 'Show snow depth' : 'Hide overlay';
 
   return (
     <>
@@ -102,6 +114,16 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
         >
           {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
           <span className={styles.overlayLabel}>{overlayLabel}</span>
+        </button>
+        <button
+          type="button"
+          className={`${styles.btn} ${styles.overlayToggle}`}
+          onClick={handleToggleVisibility}
+          title={visibilityLabel}
+          aria-label={visibilityLabel}
+        >
+          {overlay === 'none' ? <SnowflakeIcon /> : <MapIcon />}
+          <span className={styles.overlayLabel}>{visibilityLabel}</span>
         </button>
       </div>
       <div className={styles.controls}>

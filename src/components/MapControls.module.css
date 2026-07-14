@@ -2,7 +2,9 @@
    overlay toggle and the map-nav stack are offset downward to clear it. */
 .controls {
   position: absolute;
-  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 38px + var(--space-2) + 40px + var(--space-1) * 2 + 2px + var(--space-2));
+  /* Clear the account chip (38px) + the two-row overlay panel below it
+     (two 40px buttons + the gap between them + panel padding + border). */
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 38px + var(--space-2) + 40px * 2 + var(--space-1) * 3 + 2px + var(--space-2));
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1000;
   display: flex;
@@ -113,6 +115,8 @@
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1001;
   display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   padding: var(--space-1);
   border-radius: var(--radius-md);
   background: var(--surface-1);

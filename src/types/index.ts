@@ -10,4 +10,5 @@ export type Route = Segment[];
 export type Mode = 'idle' | 'draw' | 'erase';
 
 // Which thematic overlay is shown on top of the base map.
-export type Overlay = 'steepness' | 'snowdepth';
+// 'none' shows the plain base map with no thematic layer draped on top.
+export type Overlay = 'steepness' | 'snowdepth' | 'none';
