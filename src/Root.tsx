@@ -24,8 +24,42 @@ import { formatAscent, formatDate, formatDistance } from './routes/format.ts';
  *  - planner   → the map / route-planning app
  *  - saved     → list of saved routes
  *  - completed → list of completed routes
+ *
+ * Each view is mirrored to a URL path via the History API so the browser's
+ * back/forward buttons work and views can be deep-linked/refreshed:
+ *  - /           → overview (or login/guest gate when signed out)
+ *  - /planner    → fresh plan
+ *  - /planner/:id→ a saved route opened in the planner
+ *  - /saved      → saved routes list
+ *  - /completed  → completed routes list
  */
 type SignedInView = 'overview' | 'planner' | 'saved' | 'completed';
+
+type Nav = { view: SignedInView; routeId: string | null };
+
+function navToPath({ view, routeId }: Nav): string {
+  switch (view) {
+    case 'planner':
+      return routeId ? `/planner/${encodeURIComponent(routeId)}` : '/planner';
+    case 'saved':
+      return '/saved';
+    case 'completed':
+      return '/completed';
+    default:
+      return '/';
+  }
+}
+
+function pathToNav(pathname: string): Nav {
+  if (pathname === '/planner') return { view: 'planner', routeId: null };
+  const opened = pathname.match(/^\/planner\/([^/]+)\/?$/);
+  if (opened) {
+    return { view: 'planner', routeId: decodeURIComponent(opened[1]) };
+  }
+  if (pathname === '/saved') return { view: 'saved', routeId: null };
+  if (pathname === '/completed') return { view: 'completed', routeId: null };
+  return { view: 'overview', routeId: null };
+}
 
 // Completed routes are not persisted yet (saved routes now are); the
 // overview count and the list page still derive from this single spot.
@@ -57,15 +91,59 @@ function toListItem(route: SavedRoute): RouteListItem {
  */
 export function Root() {
   const { data: session, isPending } = authClient.useSession();
-  const [guest, setGuest] = useState(false);
-  const [view, setView] = useState<SignedInView>('overview');
+  const [guest, setGuest] = useState(
+    // A guest who refreshes (or deep-links) the planner stays in it rather
+    // than being bounced to the login page; harmless if a session exists,
+    // since the signed-in branch renders first.
+    () => pathToNav(window.location.pathname).view === 'planner',
+  );
+  // Current view + opened-route id, initialised from the URL so refreshes
+  // and deep links land on the right page. All in-app navigation goes
+  // through navigate() below, which keeps the URL in sync.
+  const [nav, setNav] = useState<Nav>(() =>
+    pathToNav(window.location.pathname),
+  );
+  const { view, routeId: openRouteId } = nav;
   // The signed-in user's route library, loaded once per session and kept
   // in sync by the save/delete flows. Null while the first fetch is
   // pending so counts don't flash "0" for users who do have routes.
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[] | null>(null);
   // Library route currently opened in the planner (null = fresh plan).
-  // Also used as the planner's key so reopening resets its state.
-  const [openRoute, setOpenRoute] = useState<SavedRoute | null>(null);
+  // Derived from the URL's route id; also used as the planner's key so
+  // reopening resets its state. While the library is still loading a
+  // deep-linked id resolves to null and the key change below remounts
+  // the planner once the route arrives.
+  const openRoute =
+    (openRouteId && savedRoutes?.find((r) => r.id === openRouteId)) || null;
+
+  // Navigate to a view: update state and push a matching history entry
+  // (unless we're already there) so the browser's back button retraces
+  // the user's steps.
+  const navigate = useCallback(
+    (view: SignedInView, routeId: string | null = null) => {
+      const next: Nav = { view, routeId };
+      const path = navToPath(next);
+      if (window.location.pathname !== path) {
+        window.history.pushState(null, '', path);
+      }
+      setNav(next);
+    },
+    [],
+  );
+
+  // Back/forward: re-derive the view from the URL the browser restored.
+  // Whether the planner shows for a signed-out visitor is tied to the
+  // same gesture, so backing out of a guest session lands on the login
+  // page and "forward" re-enters it.
+  useEffect(() => {
+    const onPopState = () => {
+      const restored = pathToNav(window.location.pathname);
+      setNav(restored);
+      setGuest(restored.view === 'planner');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   // Once signed in, the "sign-up succeeded — check your inbox" reminder
   // has done its job; drop it so a later logout shows the login form.
@@ -101,35 +179,32 @@ export function Root() {
   }, [userId]);
 
   // A saved route came back from the planner: merge it into the library
-  // (replace on update, prepend on create — list is newest-first).
+  // (replace on update, prepend on create — list is newest-first). The
+  // planner's openRoute is derived from the library, so it updates too.
   const handleRouteSaved = useCallback((saved: SavedRoute) => {
     setSavedRoutes((prev) => {
       const rest = (prev ?? []).filter((r) => r.id !== saved.id);
       return [saved, ...rest];
     });
-    setOpenRoute((prev) => (prev && prev.id === saved.id ? saved : prev));
   }, []);
 
   const handleDeleteRoute = useCallback(async (id: string) => {
     await deleteRoute(id);
     setSavedRoutes((prev) => (prev ?? []).filter((r) => r.id !== id));
-    setOpenRoute((prev) => (prev && prev.id === id ? null : prev));
   }, []);
 
   const handleOpenRoute = useCallback(
     (id: string) => {
       const route = savedRoutes?.find((r) => r.id === id);
       if (!route) return;
-      setOpenRoute(route);
-      setView('planner');
+      navigate('planner', id);
     },
-    [savedRoutes],
+    [savedRoutes, navigate],
   );
 
   const handlePlanNewRoute = useCallback(() => {
-    setOpenRoute(null);
-    setView('planner');
-  }, []);
+    navigate('planner');
+  }, [navigate]);
 
   // A fresh session always lands on the overview (not wherever the
   // previous account left off). Reset during render on the sign-out
@@ -140,9 +215,12 @@ export function Root() {
   if (signedIn !== wasSignedIn) {
     setWasSignedIn(signedIn);
     if (!signedIn) {
-      setView('overview');
-      setOpenRoute(null);
+      setNav({ view: 'overview', routeId: null });
+      setGuest(false);
       setSavedRoutes(null);
+      // Replace (don't push) so back after logout doesn't step through
+      // the previous account's pages.
+      window.history.replaceState(null, '', '/');
     }
   }
 
@@ -158,8 +236,8 @@ export function Root() {
             name={name}
             savedCount={savedItems.length}
             completedCount={COMPLETED_ROUTES.length}
-            onOpenSavedRoutes={() => setView('saved')}
-            onOpenCompletedRoutes={() => setView('completed')}
+            onOpenSavedRoutes={() => navigate('saved')}
+            onOpenCompletedRoutes={() => navigate('completed')}
             onPlanNewRoute={handlePlanNewRoute}
           />
         )}
@@ -169,7 +247,7 @@ export function Root() {
             saving={{
               initial: openRoute,
               onChanged: handleRouteSaved,
-              onGoToLibrary: () => setView('saved'),
+              onGoToLibrary: () => navigate('saved'),
             }}
           />
         )}
@@ -177,7 +255,7 @@ export function Root() {
           <RoutesListPage
             kind={view}
             routes={view === 'saved' ? savedItems : COMPLETED_ROUTES}
-            onBack={() => setView('overview')}
+            onBack={() => navigate('overview')}
             onPlanNewRoute={handlePlanNewRoute}
             onOpenRoute={view === 'saved' ? handleOpenRoute : undefined}
             onDeleteRoute={view === 'saved' ? handleDeleteRoute : undefined}
@@ -187,16 +265,23 @@ export function Root() {
           name={session.user.name}
           email={session.user.email}
           onOverview={
-            view === 'overview' ? undefined : () => setView('overview')
+            view === 'overview' ? undefined : () => navigate('overview')
           }
         />
       </>
     );
   }
 
+  // Guests get the planner behind its own history entry, so the back
+  // button returns to the login page (and forward re-enters the planner).
   return guest ? (
     <App />
   ) : (
-    <LoginPage onContinueAsGuest={() => setGuest(true)} />
+    <LoginPage
+      onContinueAsGuest={() => {
+        navigate('planner');
+        setGuest(true);
+      }}
+    />
   );
 }
