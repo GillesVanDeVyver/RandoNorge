@@ -21,7 +21,9 @@
 .rail {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* Cluster the wordmark + title on the left so the top-right corner stays
+     clear of the account chip, which floats fixed over the viewport corner. */
+  justify-content: flex-start;
   gap: var(--space-3);
   padding: var(--space-6) var(--space-8) 0;
   animation: rail-in var(--dur-slow) var(--ease) both;

@@ -1,6 +1,8 @@
+/* The account chip (~38px tall) floats in the top-right corner, so both the
+   overlay toggle and the map-nav stack are offset downward to clear it. */
 .controls {
   position: absolute;
-  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 40px + var(--space-1) * 2 + 2px + var(--space-2));
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 38px + var(--space-2) + 40px + var(--space-1) * 2 + 2px + var(--space-2));
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1000;
   display: flex;
@@ -106,7 +108,8 @@
 
 .overlayPanel {
   position: absolute;
-  top: max(var(--space-3), env(safe-area-inset-top));
+  /* Sit below the account chip (~38px) instead of behind it. */
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 38px + var(--space-2));
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1001;
   display: flex;
