@@ -9,7 +9,7 @@ import { WeatherPanel } from './components/WeatherPanel';
 import { AvalancheRisk } from './components/AvalancheRisk';
 import { TermsDialog } from './components/TermsDialog';
 import { SaveRouteDialog } from './components/SaveRouteDialog';
-import { BookmarkPlusIcon, PencilIcon } from './components/icons';
+import { BookmarkPlusIcon, PencilIcon, UploadIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
 import { createRoute, updateRoute, type SavedRoute } from './routes/api';
@@ -79,6 +79,8 @@ function App({ saving }: Props) {
   // Transient error toast for a failed GPX import.
   const [importError, setImportError] = useState<string | null>(null);
   const importErrorTimer = useRef<number | null>(null);
+  // Hidden file picker behind the onboarding "import a GPS file" balloon.
+  const hintImportInputRef = useRef<HTMLInputElement>(null);
   const elevation = useElevation(route);
   const snow = useSnow(elevation.profile, snowDate);
   // While the elevation worker (and the follow-up snow lookup) is still
@@ -316,17 +318,42 @@ function App({ saving }: Props) {
           <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
         )}
         {showHint && (
-          <button
-            type="button"
-            className={styles.hint}
-            onClick={() => handleModeChange('draw')}
-            aria-label="Start drawing a route"
-          >
-            <PencilIcon />
-            <span>
-              <strong>Draw a route</strong> to start
-            </span>
-          </button>
+          <div className={styles.hintStack}>
+            <button
+              type="button"
+              className={styles.hint}
+              onClick={() => handleModeChange('draw')}
+              aria-label="Start drawing a route"
+            >
+              <PencilIcon />
+              <span>
+                <strong>Draw a route</strong> to start
+              </span>
+            </button>
+            <button
+              type="button"
+              className={styles.hintImport}
+              onClick={() => hintImportInputRef.current?.click()}
+              aria-label="Import a GPS file"
+            >
+              <UploadIcon />
+              <span>
+                You can also <strong>import a GPS file</strong>
+              </span>
+            </button>
+            <input
+              ref={hintImportInputRef}
+              type="file"
+              accept=".gpx,application/gpx+xml,application/xml,text/xml"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                // Reset so choosing the same file again still fires onChange.
+                e.target.value = '';
+                if (file) handleImportFile(file);
+              }}
+              hidden
+            />
+          </div>
         )}
         {showHint && view === '3d' && (
           <div className={styles.hintControls}>

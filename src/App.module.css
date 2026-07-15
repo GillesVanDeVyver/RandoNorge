@@ -246,13 +246,20 @@
 }
 
 /* Quiet onboarding hint shown over the map when no route exists yet.
-   Non-interactive so it never blocks drawing. */
-.hint {
+   The stack centres both balloons and keeps them vertically aligned. */
+.hintStack {
   position: absolute;
   top: calc(var(--space-8) * 2 + var(--space-2));
   left: 50%;
   transform: translateX(-50%);
   z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hint {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -268,7 +275,7 @@
   font-size: var(--text-lg);
   font-family: inherit;
   cursor: pointer;
-  animation: hint-in var(--dur-slow) var(--ease);
+  animation: hint-rise var(--dur-slow) var(--ease);
   transition: transform var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
@@ -277,11 +284,11 @@
 .hint:hover {
   background: var(--surface-2, var(--surface-1));
   box-shadow: var(--shadow-3, var(--shadow-2));
-  transform: translateX(-50%) translateY(-1px);
+  transform: translateY(-1px);
 }
 
 .hint:active {
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
 }
 
 .hint:focus-visible {
@@ -290,6 +297,50 @@
 }
 
 .hint strong {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+/* Secondary, smaller balloon offering GPX import as an alternative. */
+.hintImport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-1, var(--shadow-2));
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  cursor: pointer;
+  animation: hint-rise var(--dur-slow) var(--ease);
+  transition: transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.hintImport:hover {
+  background: var(--surface-2, var(--surface-1));
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+}
+
+.hintImport:active {
+  transform: translateY(0);
+}
+
+.hintImport:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hintImport strong {
   color: var(--text-1);
   font-weight: 600;
 }
@@ -323,6 +374,13 @@
   color: var(--accent);
 }
 
+.hintImport svg {
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 @keyframes hint-in {
   from {
     opacity: 0;
@@ -331,5 +389,18 @@
   to {
     opacity: 1;
     transform: translate(-50%, 0);
+  }
+}
+
+/* Balloons inside .hintStack — the stack handles horizontal centering,
+   so these only need to rise into place. */
+@keyframes hint-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
