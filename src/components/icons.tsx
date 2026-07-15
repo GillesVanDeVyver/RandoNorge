@@ -170,6 +170,17 @@ export function MountainIcon() {
   );
 }
 
+// Stacked layers — opens the mobile map-layers menu (overlay picker).
+export function LayersIcon() {
+  return (
+    <svg {...baseProps}>
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  );
+}
+
 // Plain folded map — used for the "no overlay" state (base map only).
 export function MapIcon() {
   return (

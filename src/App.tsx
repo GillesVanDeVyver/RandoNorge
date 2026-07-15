@@ -36,6 +36,7 @@ import {
   IMPORT_ACCEPT,
 } from './routes/import';
 import { formatAscent, formatDate, formatDistance } from './routes/format';
+import { useIsMobile } from './useIsMobile';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
@@ -98,6 +99,9 @@ interface Props {
     onChanged: (saved: SavedRoute) => void;
     /** Navigate to the saved-routes library (the toast's "Go to library"). */
     onGoToLibrary: () => void;
+    /** Navigate to the completed-routes list (the activity-saved toast's
+     *  "View completed routes"). */
+    onGoToCompleted?: () => void;
     /** A navigation recording was saved — lets the activity log refresh. */
     onActivitySaved?: (track: SavedTrack) => void;
   };
@@ -159,16 +163,22 @@ function App({ saving }: Props) {
   const [statsView, setStatsView] = useState<'planned' | 'actual'>('planned');
   const [trackSaving, setTrackSaving] = useState(false);
   // Transient confirmation/error line for saving an activity.
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    message: string;
+    action?: { label: string; onAction: () => void };
+  } | null>(null);
   const noticeTimer = useRef<number | null>(null);
-  const showNotice = useCallback((message: string) => {
-    setNotice(message);
-    if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
-    noticeTimer.current = window.setTimeout(() => {
-      setNotice(null);
-      noticeTimer.current = null;
-    }, 5000);
-  }, []);
+  const showNotice = useCallback(
+    (message: string, action?: { label: string; onAction: () => void }) => {
+      setNotice({ message, action });
+      if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
+      noticeTimer.current = window.setTimeout(() => {
+        setNotice(null);
+        noticeTimer.current = null;
+      }, 5000);
+    },
+    [],
+  );
 
   // The actual route runs through the same elevation/snow pipeline as the
   // plan, so both stats views are directly comparable — but throttled while
@@ -225,7 +235,15 @@ function App({ saving }: Props) {
       saving.onActivitySaved?.(saved);
       tracking.reset();
       setStatsView('planned');
-      showNotice('Activity saved to your completed routes');
+      showNotice(
+        'Activity saved to your completed routes',
+        saving.onGoToCompleted
+          ? {
+              label: 'View completed routes',
+              onAction: saving.onGoToCompleted,
+            }
+          : undefined,
+      );
     } catch (err) {
       showNotice(
         err instanceof Error ? err.message : 'Saving the activity failed.',
@@ -421,6 +439,21 @@ function App({ saving }: Props) {
   const activeElevation = showActualStats ? actualElevation : elevation;
   const activeSnow = showActualStats ? actualSnow : snow;
 
+  // Mobile redesign: full-screen map with the summary rail as a bottom sheet,
+  // a collapsible edit toolbar, and consolidated map controls.
+  const isMobile = useIsMobile();
+
+  // One-line summary for the sheet's collapsed grabber strip.
+  const sheetPeek =
+    showActualStats && !trackHasLine
+      ? 'Waiting for GPS…'
+      : activeElevation.profile
+        ? `${formatDistance(activeElevation.profile.stats.distance)} · ` +
+          `${formatAscent(activeElevation.profile.stats.ascent)} ascent`
+        : activeElevation.loading
+          ? 'Calculating route stats…'
+          : 'Route details';
+
   return (
     <div
       className={`${styles.app} ${hasRoute || navSession ? styles.summary : ''}`}
@@ -489,6 +522,7 @@ function App({ saving }: Props) {
             hasRoute={hasRoute}
             loading={loading}
             onImport={handleImportFile}
+            collapsible={isMobile}
           />
         )}
         {hasRoute && tracking.status === 'idle' && view === '2d' && (
@@ -588,7 +622,22 @@ function App({ saving }: Props) {
         )}
         {notice && !clearedRoute && !importError && (
           <Toast
-            message={notice}
+            message={notice.message}
+            actionLabel={notice.action?.label}
+            actionIcon={null}
+            onAction={
+              notice.action
+                ? () => {
+                    if (noticeTimer.current !== null) {
+                      window.clearTimeout(noticeTimer.current);
+                      noticeTimer.current = null;
+                    }
+                    const run = notice.action?.onAction;
+                    setNotice(null);
+                    run?.();
+                  }
+                : undefined
+            }
             onDismiss={() => {
               if (noticeTimer.current !== null) {
                 window.clearTimeout(noticeTimer.current);
@@ -623,6 +672,8 @@ function App({ saving }: Props) {
       </div>
       {(hasRoute || navSession) && (
         <SummaryPanel
+          sheet={isMobile}
+          peek={sheetPeek}
           action={
             <>
               {navSession && (

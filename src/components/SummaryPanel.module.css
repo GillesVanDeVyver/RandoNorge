@@ -10,16 +10,104 @@
   flex-direction: column;
 }
 
-/* Small screens: the panel becomes the bottom strip of a vertical stack
-   (App.module.css flips the frame to a column). The map above keeps most of
-   the height; this rail gets a fixed share at the bottom. */
-@media (max-width: 760px) {
-  .panel {
-    flex: 0 0 38%;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-  }
+/* Mobile bottom sheet (the `sheet` prop, driven by the same 760px breakpoint
+   via useIsMobile). The panel detaches from the flex row and floats over the
+   full-screen map: collapsed it's just the grabber strip with a one-line
+   route summary; expanded it rises to ~60% of the viewport and reveals the
+   tabs + horizontal card slider. --sheet-peek is set by App.module.css so the
+   map chrome (2D/3D pill, attribution, info) can sit just above the strip. */
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1100;
+  width: auto;
+  height: calc(var(--sheet-peek, 64px) + env(safe-area-inset-bottom));
+  min-height: 0;
+  background: var(--surface-3);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--hairline);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+  transition: height var(--dur-slow) var(--ease);
+}
+
+.sheet.sheetOpen {
+  height: min(62vh, 560px);
+  height: min(62dvh, 560px);
+}
+
+/* Full-width tap/swipe target across the top of the sheet. */
+.grabber {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  width: 100%;
+  height: var(--sheet-peek, 64px);
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.grabber:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--accent-ring);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--hairline-strong);
+}
+
+.peekRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.peekText {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Collapsed: chevron points up ("more above"); expanded: back down. */
+.peekChevron {
+  display: inline-flex;
+  color: var(--text-2);
+  transform: rotate(180deg);
+  transition: transform var(--dur-slow) var(--ease);
+}
+
+.peekChevron svg {
+  width: 18px;
+  height: 18px;
+}
+
+.peekChevronOpen {
+  transform: none;
 }
 
 /* Brand row above the tab bar. A quiet wordmark that mirrors the login

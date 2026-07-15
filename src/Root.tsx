@@ -298,6 +298,7 @@ export function Root() {
               initial: openRoute,
               onChanged: handleRouteSaved,
               onGoToLibrary: () => navigate('saved'),
+              onGoToCompleted: () => navigate('completed'),
               onActivitySaved: handleActivitySaved,
             }}
           />

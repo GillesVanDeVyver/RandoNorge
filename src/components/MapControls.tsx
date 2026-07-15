@@ -4,6 +4,7 @@ import { useMap } from 'react-leaflet';
 import type { Overlay, Route } from '../types';
 import {
   FullscreenIcon,
+  LayersIcon,
   LocateIcon,
   MapIcon,
   MinusIcon,
@@ -14,6 +15,7 @@ import {
   SnowflakeIcon,
 } from './icons';
 import { searchPlace } from '../search/geocode';
+import { useIsMobile } from '../useIsMobile';
 import styles from './MapControls.module.css';
 
 interface Props {
@@ -27,6 +29,19 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  // Mobile: the two labelled overlay buttons collapse into one "layers"
+  // button with a small menu; zoom (pinch) and fullscreen (map is already
+  // full screen) buttons disappear.
+  const isMobile = useIsMobile();
+  const [layersOpen, setLayersOpen] = useState(false);
+
+  const pickOverlay = useCallback(
+    (next: Overlay) => {
+      onOverlayChange(next);
+      setLayersOpen(false);
+    },
+    [onOverlayChange],
+  );
 
   useEffect(() => {
     if (searchOpen) inputRef.current?.focus();
@@ -104,29 +119,81 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
 
   return (
     <>
-      <div className={styles.overlayPanel}>
-        <button
-          type="button"
-          className={`${styles.btn} ${styles.overlayToggle}`}
-          onClick={handleToggleOverlay}
-          title={overlayLabel}
-          aria-label={overlayLabel}
-        >
-          {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
-          <span className={styles.overlayLabel}>{overlayLabel}</span>
-        </button>
-        <button
-          type="button"
-          className={`${styles.btn} ${styles.overlayToggle}`}
-          onClick={handleToggleVisibility}
-          title={visibilityLabel}
-          aria-label={visibilityLabel}
-        >
-          {overlay === 'none' ? <SnowflakeIcon /> : <MapIcon />}
-          <span className={styles.overlayLabel}>{visibilityLabel}</span>
-        </button>
-      </div>
-      <div className={styles.controls}>
+      {!isMobile && (
+        <div className={styles.overlayPanel}>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.overlayToggle}`}
+            onClick={handleToggleOverlay}
+            title={overlayLabel}
+            aria-label={overlayLabel}
+          >
+            {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
+            <span className={styles.overlayLabel}>{overlayLabel}</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.overlayToggle}`}
+            onClick={handleToggleVisibility}
+            title={visibilityLabel}
+            aria-label={visibilityLabel}
+          >
+            {overlay === 'none' ? <SnowflakeIcon /> : <MapIcon />}
+            <span className={styles.overlayLabel}>{visibilityLabel}</span>
+          </button>
+        </div>
+      )}
+      <div
+        className={`${styles.controls} ${isMobile ? styles.controlsMobile : ''}`}
+      >
+        {isMobile && (
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className={`${styles.btn} ${overlay !== 'none' ? styles.active : ''}`}
+              onClick={() => setLayersOpen((v) => !v)}
+              title="Map layers"
+              aria-label="Map layers"
+              aria-expanded={layersOpen}
+            >
+              <LayersIcon />
+            </button>
+            {layersOpen && (
+              <div className={styles.layersMenu} role="menu">
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={overlay === 'steepness'}
+                  className={`${styles.layersItem} ${overlay === 'steepness' ? styles.layersItemActive : ''}`}
+                  onClick={() => pickOverlay('steepness')}
+                >
+                  <MountainIcon />
+                  <span>Steepness</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={overlay === 'snowdepth'}
+                  className={`${styles.layersItem} ${overlay === 'snowdepth' ? styles.layersItemActive : ''}`}
+                  onClick={() => pickOverlay('snowdepth')}
+                >
+                  <SnowflakeIcon />
+                  <span>Snow depth</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={overlay === 'none'}
+                  className={`${styles.layersItem} ${overlay === 'none' ? styles.layersItemActive : ''}`}
+                  onClick={() => pickOverlay('none')}
+                >
+                  <MapIcon />
+                  <span>Map only</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div style={{ position: 'relative' }}>
           <button
             type="button"
@@ -154,15 +221,17 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
           )}
         </div>
         <div className={styles.divider} />
-        <button
-          type="button"
-          className={styles.btn}
-          onClick={handleFullscreen}
-          title="Fullscreen"
-          aria-label="Fullscreen"
-        >
-          <FullscreenIcon />
-        </button>
+        {!isMobile && (
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={handleFullscreen}
+            title="Fullscreen"
+            aria-label="Fullscreen"
+          >
+            <FullscreenIcon />
+          </button>
+        )}
         <button
           type="button"
           className={styles.btn}
@@ -172,25 +241,29 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
         >
           <LocateIcon />
         </button>
-        <div className={styles.divider} />
-        <button
-          type="button"
-          className={styles.btn}
-          onClick={handleZoomIn}
-          title="Zoom in"
-          aria-label="Zoom in"
-        >
-          <PlusIcon />
-        </button>
-        <button
-          type="button"
-          className={styles.btn}
-          onClick={handleZoomOut}
-          title="Zoom out"
-          aria-label="Zoom out"
-        >
-          <MinusIcon />
-        </button>
+        {!isMobile && (
+          <>
+            <div className={styles.divider} />
+            <button
+              type="button"
+              className={styles.btn}
+              onClick={handleZoomIn}
+              title="Zoom in"
+              aria-label="Zoom in"
+            >
+              <PlusIcon />
+            </button>
+            <button
+              type="button"
+              className={styles.btn}
+              onClick={handleZoomOut}
+              title="Zoom out"
+              aria-label="Zoom out"
+            >
+              <MinusIcon />
+            </button>
+          </>
+        )}
         {hasRoute && (
           <>
             <div className={styles.divider} />

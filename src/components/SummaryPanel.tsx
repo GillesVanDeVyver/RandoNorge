@@ -8,7 +8,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { MountainIcon } from './icons';
+import { ChevronDownIcon, MountainIcon } from './icons';
 import styles from './SummaryPanel.module.css';
 
 interface Props {
@@ -16,6 +16,13 @@ interface Props {
   /** Optional primary action (e.g. a Save button) rendered at the right end
    *  of the tab bar, in the otherwise empty space after the tabs. */
   action?: ReactNode;
+  /** Mobile bottom-sheet mode: the panel floats over the map, collapsed to a
+   *  compact grabber strip by default; tap or swipe the grabber to expand it
+   *  into the tabbed card slider. */
+  sheet?: boolean;
+  /** One-line route summary (e.g. "12.4 km · 850 m ascent") shown in the
+   *  sheet's grabber strip so the collapsed state still says something. */
+  peek?: ReactNode;
 }
 
 // On small screens the scroll area flips into a horizontal snap slider (see
@@ -29,13 +36,44 @@ const isHorizontal = (root: HTMLElement) =>
 // scroll area. Clicking a tab smooth-scrolls to that section; a scroll-spy
 // keeps the active tab in sync as the user scrolls. Add more <SummaryCard>s
 // and they each become a tab + section.
-export function SummaryPanel({ children, action }: Props) {
+export function SummaryPanel({ children, action, sheet = false, peek }: Props) {
   const cards = Children.toArray(children).filter(
     (child): child is ReactElement<CardProps> => isValidElement(child),
   );
   const [active, setActive] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
+
+  // Bottom-sheet state (mobile only). Starts collapsed so the map dominates.
+  const [expanded, setExpanded] = useState(false);
+  // A completed swipe on the grabber also fires a synthetic click; this flag
+  // swallows that click so the swipe's decision isn't immediately toggled back.
+  const touchStartY = useRef<number | null>(null);
+  const swallowClick = useRef(false);
+
+  const handleGrabberTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0]?.clientY ?? null;
+  };
+
+  const handleGrabberTouchEnd = (e: React.TouchEvent) => {
+    const start = touchStartY.current;
+    touchStartY.current = null;
+    if (start === null) return;
+    const end = e.changedTouches[0]?.clientY;
+    if (end === undefined) return;
+    const delta = end - start;
+    if (Math.abs(delta) < 24) return; // treat as a tap → the click toggles
+    swallowClick.current = true;
+    setExpanded(delta < 0); // swipe up expands, swipe down collapses
+  };
+
+  const handleGrabberClick = () => {
+    if (swallowClick.current) {
+      swallowClick.current = false;
+      return;
+    }
+    setExpanded((v) => !v);
+  };
 
   const goTo = (i: number) => {
     setActive(i);
@@ -105,8 +143,36 @@ export function SummaryPanel({ children, action }: Props) {
 
   if (cards.length === 0) return null;
 
+  const panelClass = sheet
+    ? `${styles.panel} ${styles.sheet} ${expanded ? styles.sheetOpen : ''}`
+    : styles.panel;
+
   return (
-    <aside className={styles.panel}>
+    <aside className={panelClass}>
+      {sheet && (
+        <button
+          type="button"
+          className={styles.grabber}
+          onClick={handleGrabberClick}
+          onTouchStart={handleGrabberTouchStart}
+          onTouchEnd={handleGrabberTouchEnd}
+          aria-expanded={expanded}
+          aria-label={
+            expanded ? 'Collapse route details' : 'Expand route details'
+          }
+        >
+          <span className={styles.handle} aria-hidden />
+          <span className={styles.peekRow}>
+            <span className={styles.peekText}>{peek}</span>
+            <span
+              className={`${styles.peekChevron} ${expanded ? styles.peekChevronOpen : ''}`}
+              aria-hidden
+            >
+              <ChevronDownIcon />
+            </span>
+          </span>
+        </button>
+      )}
       <header className={styles.rail}>
         <div className={styles.brand}>
           <span className={styles.brandIcon} aria-hidden>

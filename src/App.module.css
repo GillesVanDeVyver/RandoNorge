@@ -53,21 +53,44 @@
   box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.12);
 }
 
-/* Small screens: stack instead of sitting side by side. The map moves to the
-   top and keeps most of the height; the summary rail becomes a bottom sheet
-   whose cards are swiped through horizontally (see SummaryPanel.module.css). */
+/* Small screens: the map goes full-bleed (no card inset) and the summary
+   rail becomes a floating bottom sheet over it (SummaryPanel.module.css).
+   --sheet-peek is the collapsed sheet height; the bottom-anchored map chrome
+   (2D/3D pill, info chip, attribution) is lifted by it so nothing hides
+   behind the sheet's grabber strip. */
 @media (max-width: 760px) {
-  .summary .frame {
-    flex-direction: column;
+  .summary {
+    --sheet-peek: 64px;
   }
 
   .summary .mapPane {
-    border-radius: var(--radius-md);
-    flex: 1 1 auto;
-    min-height: 0;
-    margin: max(var(--space-3), env(safe-area-inset-top))
-      max(var(--space-3), env(safe-area-inset-right)) 0
-      max(var(--space-3), env(safe-area-inset-left));
+    border-radius: 0;
+    box-shadow: none;
+    margin: 0;
+    height: 100%;
+  }
+
+  .summary .mapPane :global(.leaflet-bottom) {
+    bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom));
+  }
+
+  .viewToggle {
+    bottom: calc(
+      max(var(--space-3), env(safe-area-inset-bottom)) + var(--sheet-peek, 0px)
+    );
+  }
+
+  .infoBtn {
+    bottom: calc(
+      max(var(--space-3), env(safe-area-inset-bottom)) + 24px +
+        var(--sheet-peek, 0px)
+    );
+  }
+
+  /* The recording bar and Start button already float top-center; give them
+     a little extra clearance from the toolbar FAB on narrow screens. */
+  .startNavBtn {
+    max-width: calc(100vw - 140px);
   }
 }
 
