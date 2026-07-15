@@ -30,7 +30,7 @@
   --descent: #ff6b5e;
   --descent-strong: #dd4a3c; /* deeper red for text on white cards */
   --snow: #7fb4e6;
-  --route: #ff3d81; /* drawn route line (kept high-visibility) */
+  --route: #2dd4bf; /* drawn route line (same teal as --accent) */
 
   /* --- Text (on light) ------------------------------------------------- */
   --text-1: rgba(20, 28, 38, 0.92);

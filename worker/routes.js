@@ -9,7 +9,7 @@
 // "geometry" is stored exactly as the client sends it: a stringified GeoJSON
 // Feature whose geometry is a MultiLineString (one line per drawn segment,
 // so eraser gaps survive a round-trip) and whose properties carry the
-// precomputed stats the route lists display (distanceM, ascentM). The
+// precomputed stats the route lists display (distanceM, ascentM, descentM). The
 // Worker validates shape and size but treats the coordinates as opaque.
 //
 // Every endpoint requires a Better Auth session cookie; ownership is
@@ -276,6 +276,7 @@ function validateGeometry(geometry) {
     properties: {
       distanceM: Number.isFinite(props.distanceM) ? props.distanceM : null,
       ascentM: Number.isFinite(props.ascentM) ? props.ascentM : null,
+      descentM: Number.isFinite(props.descentM) ? props.descentM : null,
     },
     geometry: { type: 'MultiLineString', coordinates: geom.coordinates },
   });

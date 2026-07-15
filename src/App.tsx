@@ -155,6 +155,7 @@ function App({ saving }: Props) {
         ? {
             distanceM: elevation.profile.stats.distance,
             ascentM: elevation.profile.stats.ascent,
+            descentM: elevation.profile.stats.descent,
           }
         : null;
       const saved = savedMeta

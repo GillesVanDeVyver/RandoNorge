@@ -15,7 +15,7 @@ const RDP_EPSILON_M = 8;
 // screen — so the ground-distance radius automatically scales up
 // proportionally as the user zooms out.
 const ERASER_RADIUS_PX = 32;
-const ROUTE_COLOR = '#FF3D81';
+const ROUTE_COLOR = '#2dd4bf'; // matches --accent (alpine/glacier teal)
 const ROUTE_WEIGHT = 4;
 // Minimum pixel distance between consecutive accepted points while drawing.
 // Caps the number of accumulated points to be proportional to stroke length

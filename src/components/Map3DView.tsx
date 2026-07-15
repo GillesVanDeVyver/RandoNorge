@@ -56,7 +56,7 @@ const RDP_EPSILON_M = 8;
 // the ground-distance reach scales proportionally as the user zooms out.
 // Keep in sync with DrawingHandler.tsx.
 const ERASER_RADIUS_PX = 32;
-const ROUTE_COLOR = '#ff3d81';
+const ROUTE_COLOR = '#2dd4bf'; // matches --accent (alpine/glacier teal)
 // Minimum pixel distance between accepted points while drawing — caps point
 // count by stroke length rather than duration.
 const MIN_DRAW_PX = 3;

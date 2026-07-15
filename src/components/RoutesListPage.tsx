@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { Route } from '../types';
 import {
   ArrowLeftIcon,
   BookmarkIcon,
@@ -7,6 +8,7 @@ import {
   RouteIcon,
   TrashIcon,
 } from './icons';
+import { RouteThumbnail } from './RouteThumbnail';
 import styles from './RoutesListPage.module.css';
 
 /** One row in the route library (preformatted display strings). */
@@ -17,10 +19,17 @@ export type RouteListItem = {
   distance: string;
   /** e.g. "1 240 m". */
   ascent: string;
+  /** e.g. "980 m". Absent for routes saved before descent was recorded. */
+  descent?: string;
   /** e.g. "12 Mar 2026". */
   date: string;
   /** Optional notes entered when saving the route. */
   description?: string;
+  /**
+   * Drawn geometry, used to render the row's mini-map preview (route on
+   * the steepness map, north-up). Absent → generic route icon.
+   */
+  route?: Route;
 };
 
 type Props = {
@@ -158,9 +167,7 @@ export function RoutesListPage({
                         onOpenRoute ? () => onOpenRoute(route.id) : undefined
                       }
                     >
-                      <span className={styles.rowIcon}>
-                        <RouteIcon />
-                      </span>
+                      <RouteThumbnail route={route.route} />
                       <span className={styles.rowBody}>
                         <span className={styles.rowName}>{route.name}</span>
                         <span className={styles.rowMeta}>
@@ -172,6 +179,19 @@ export function RoutesListPage({
                             ·
                           </span>
                           <span className="tnum">{route.ascent} ascent</span>
+                          {route.descent && (
+                            <>
+                              <span
+                                className={styles.rowDivider}
+                                aria-hidden="true"
+                              >
+                                ·
+                              </span>
+                              <span className="tnum">
+                                {route.descent} descent
+                              </span>
+                            </>
+                          )}
                           <span
                             className={styles.rowDivider}
                             aria-hidden="true"

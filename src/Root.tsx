@@ -72,8 +72,13 @@ function toListItem(route: SavedRoute): RouteListItem {
     name: route.name,
     distance: formatDistance(route.distanceM),
     ascent: formatAscent(route.ascentM),
+    // Same meters formatting as ascent; routes saved before descent was
+    // recorded have null here and simply omit it from the row.
+    descent: route.descentM !== null ? formatAscent(route.descentM) : undefined,
     date: formatDate(route.updatedAt),
     description: route.description ?? undefined,
+    // Geometry for the row's mini-map preview (steepness map, north-up).
+    route: route.route,
   };
 }
 

@@ -5,7 +5,7 @@
 // Storage format: the in-memory `Route` (segments of [lat, lng]) is
 // serialized as a GeoJSON Feature with a MultiLineString geometry — one
 // line per drawn segment, so eraser gaps survive the round-trip — plus the
-// display stats (`distanceM`, `ascentM`) in `properties`, so route lists
+// display stats (`distanceM`, `ascentM`, `descentM`) in `properties`, so route lists
 // can render without re-running the elevation pipeline.
 
 import type { LatLng, Route } from '../types';
@@ -16,6 +16,8 @@ interface RouteFeature {
   properties: {
     distanceM: number | null;
     ascentM: number | null;
+    /** Optional: absent in routes saved before descent was recorded. */
+    descentM?: number | null;
   };
   geometry: {
     type: 'MultiLineString';
@@ -34,6 +36,8 @@ export interface SavedRoute {
   distanceM: number | null;
   /** Total ascent in meters, as computed when it was saved. */
   ascentM: number | null;
+  /** Total descent in meters (null for routes saved before it was recorded). */
+  descentM: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -41,6 +45,7 @@ export interface SavedRoute {
 export interface RouteStats {
   distanceM: number;
   ascentM: number;
+  descentM: number;
 }
 
 export function routeToFeature(route: Route, stats: RouteStats | null): RouteFeature {
@@ -49,6 +54,7 @@ export function routeToFeature(route: Route, stats: RouteStats | null): RouteFea
     properties: {
       distanceM: stats ? Math.round(stats.distanceM) : null,
       ascentM: stats ? Math.round(stats.ascentM) : null,
+      descentM: stats ? Math.round(stats.descentM) : null,
     },
     geometry: {
       type: 'MultiLineString',
@@ -76,11 +82,13 @@ function parseRow(row: ApiRouteRow): SavedRoute {
   let route: Route = [];
   let distanceM: number | null = null;
   let ascentM: number | null = null;
+  let descentM: number | null = null;
   try {
     const feature = JSON.parse(row.geometry) as RouteFeature;
     route = featureToRoute(feature);
     distanceM = feature.properties?.distanceM ?? null;
     ascentM = feature.properties?.ascentM ?? null;
+    descentM = feature.properties?.descentM ?? null;
   } catch {
     // A row with unreadable geometry still lists (name/date), it just
     // can't be opened as a drawn route.
@@ -92,6 +100,7 @@ function parseRow(row: ApiRouteRow): SavedRoute {
     route,
     distanceM,
     ascentM,
+    descentM,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

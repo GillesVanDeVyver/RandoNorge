@@ -1,0 +1,33 @@
+/* =========================================================================
+   RouteThumbnail — north-up mini-map of a route on the steepness overlay,
+   shown as the leading visual of each row in the route library lists.
+   ========================================================================= */
+
+.thumb {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline);
+  /* Placeholder while tiles load (matches the canvas' own clear color). */
+  background: #e8edf2;
+}
+
+/* Generic route icon, shown when the row has no drawable geometry. Same
+   footprint as the thumbnail so rows stay aligned. */
+.fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  color: var(--text-2);
+  background: rgba(20, 28, 38, 0.06);
+  border-radius: var(--radius-sm);
+}
+
+.fallback svg {
+  width: 20px;
+  height: 20px;
+}
