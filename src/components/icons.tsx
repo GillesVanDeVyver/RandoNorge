@@ -112,23 +112,21 @@ export function SnowflakeIcon() {
 }
 
 export function MountainIcon() {
-  // Custom Fjellrute mark: a three-peak skyline (low left peak, main
-  // summit, tall right peak) drawn as a single path, with a route
-  // sweeping up the main face and a floating summit-marker dot.
+  // Custom Fjellrute mark: a three-peak skyline (tall left peak, main
+  // summit, low right peak) drawn as a single path, with a route
+  // sweeping up the main face.
   // Everything follows currentColor so the mark renders identically
   // in every context (brand tile, toolbar, favicon).
   // Keep in sync with public/favicon.svg.
   return (
     <svg {...baseProps}>
-      {/* skyline: low left peak, main summit, tall right peak */}
-      <path d="M1.5 20 L4.5 14.5 L6.5 17 L11 5.5 L14.5 12.5 L17.5 8.5 L22.5 20 Z" />
+      {/* skyline: tall left peak, main summit, low right peak */}
+      <path d="M1.5 20 L6.5 8.5 L9.5 12.5 L13 5.5 L17.5 17 L19.5 14.5 L22.5 20 Z" />
       {/* route up the main face */}
       <path
-        d="M5.5 19.9 C 11 19 13.5 16.5 12 13.8 C 11 11.9 11.1 9.6 11.05 7.8"
+        d="M18.5 19.9 C 13 19 10.5 16.5 12 13.8 C 13 11.9 12.9 9.6 12.95 7.8"
         strokeWidth={1.8}
       />
-      {/* floating summit marker */}
-      <circle cx="11" cy="3.4" r="1.2" fill="currentColor" stroke="none" />
     </svg>
   );
 }
