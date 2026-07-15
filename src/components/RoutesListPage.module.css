@@ -10,16 +10,29 @@
   display: flex;
   flex-direction: column;
   padding: clamp(20px, 3.5vw, 48px);
-  /* Same photo as the account overview (not the login page) so the whole
-     signed-in account section reads as one place. */
-  background:
-    url('/overview-peaks.jpg') center / cover no-repeat,
-    #dfe7ee;
   overflow: auto;
 }
 
+/* Fixed backdrop layer — pinned to the viewport so it always fills the
+   screen no matter how far the route list scrolls. (The photo used to be
+   a background on .page itself, but backgrounds on a scroll container only
+   paint one viewport tall, so long lists scrolled past it into black.)
+   Same photo as the account overview (not the login page) so the whole
+   signed-in account section reads as one place. */
+.page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    url('/overview-peaks.jpg') center / cover no-repeat,
+    #dfe7ee;
+}
+
 .scrim {
-  position: absolute;
+  /* Fixed (not absolute) so the darkening gradient covers the whole
+     viewport even when the list scrolls beyond the first screenful. */
+  position: fixed;
   inset: 0;
   pointer-events: none;
   background: linear-gradient(
