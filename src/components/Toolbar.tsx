@@ -1,5 +1,6 @@
+import { useRef } from 'react';
 import type { Mode } from '../types';
-import { EraserIcon, PencilIcon, TrashIcon } from './icons';
+import { EraserIcon, PencilIcon, TrashIcon, UploadIcon } from './icons';
 import styles from './Toolbar.module.css';
 
 interface Props {
@@ -11,11 +12,29 @@ interface Props {
   // out so the user can't queue another stroke on top of an in-flight
   // route computation.
   loading: boolean;
+  // Called with the chosen GPX file when the user picks one to import.
+  // Omit to hide the import control entirely.
+  onImport?: (file: File) => void;
 }
 
-export function Toolbar({ mode, onModeChange, onClear, hasRoute, loading }: Props) {
+export function Toolbar({
+  mode,
+  onModeChange,
+  onClear,
+  hasRoute,
+  loading,
+  onImport,
+}: Props) {
   const toggle = (target: Mode) =>
     onModeChange(mode === target ? 'idle' : target);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset so choosing the same file again still fires onChange.
+    e.target.value = '';
+    if (file && onImport) onImport(file);
+  };
 
   return (
     <div className={styles.toolbar}>
@@ -49,6 +68,26 @@ export function Toolbar({ mode, onModeChange, onClear, hasRoute, loading }: Prop
       >
         <TrashIcon />
       </button>
+      {onImport && (
+        <>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => fileInputRef.current?.click()}
+            title="Import a GPX file"
+            aria-label="Import GPX"
+          >
+            <UploadIcon />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".gpx,application/gpx+xml,application/xml,text/xml"
+            onChange={handleFileChange}
+            hidden
+          />
+        </>
+      )}
     </div>
   );
 }

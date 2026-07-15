@@ -13,6 +13,7 @@ import { BookmarkPlusIcon, PencilIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
 import { createRoute, updateRoute, type SavedRoute } from './routes/api';
+import { importGpxFile, GpxParseError } from './routes/gpx';
 import { formatAscent, formatDistance } from './routes/format';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
@@ -69,10 +70,15 @@ function App({ saving }: Props) {
   const [overlay, setOverlay] = useState<Overlay>('steepness');
   const [view, setView] = useState<ViewMode>('2d');
   const [termsOpen, setTermsOpen] = useState(false);
-  // Holds the route just cleared, so the undo toast can restore it. Null
-  // hides the toast.
+  // Holds the route just cleared (or replaced by an import), so the undo
+  // toast can restore it. Null hides the toast. `clearMessage` lets the same
+  // toast read "Route cleared" or "Previous route replaced".
   const [clearedRoute, setClearedRoute] = useState<Route | null>(null);
+  const [clearMessage, setClearMessage] = useState('Route cleared');
   const toastTimer = useRef<number | null>(null);
+  // Transient error toast for a failed GPX import.
+  const [importError, setImportError] = useState<string | null>(null);
+  const importErrorTimer = useRef<number | null>(null);
   const elevation = useElevation(route);
   const snow = useSnow(elevation.profile, snowDate);
   // While the elevation worker (and the follow-up snow lookup) is still
@@ -123,6 +129,7 @@ function App({ saving }: Props) {
   // toast for a few seconds instead of a blocking confirm() dialog.
   const handleClear = useCallback(() => {
     if (route.length === 0) return;
+    setClearMessage('Route cleared');
     setClearedRoute(route);
     setRoute([]);
     setMode('idle');
@@ -138,10 +145,66 @@ function App({ saving }: Props) {
     dismissToast();
   }, [clearedRoute, dismissToast]);
 
+  const dismissImportError = useCallback(() => {
+    if (importErrorTimer.current !== null) {
+      window.clearTimeout(importErrorTimer.current);
+      importErrorTimer.current = null;
+    }
+    setImportError(null);
+  }, []);
+
+  // Import a GPX file: parse it to a route and load it onto the map. If a
+  // route is already present it's replaced, but stashed into the undo toast
+  // so the swap is reversible (mirrors clear). Parse failures surface as a
+  // transient error toast. `initial` (a reopened library route) is left as
+  // its own separate identity — an import always starts a new, unsaved route.
+  const handleImportFile = useCallback(
+    async (file: File) => {
+      try {
+        const imported = await importGpxFile(file);
+        dismissImportError();
+        if (route.length > 0) {
+          setClearMessage('Previous route replaced');
+          setClearedRoute(route);
+          if (toastTimer.current !== null) {
+            window.clearTimeout(toastTimer.current);
+          }
+          toastTimer.current = window.setTimeout(() => {
+            setClearedRoute(null);
+            toastTimer.current = null;
+          }, 6000);
+        }
+        // An imported route is a fresh, unsaved one: forget any library
+        // identity so Save creates a new route rather than overwriting the
+        // one that was open.
+        setSavedMeta(null);
+        setMode('idle');
+        setRoute(imported);
+      } catch (err) {
+        const message =
+          err instanceof GpxParseError
+            ? err.message
+            : "This file couldn't be imported.";
+        setImportError(message);
+        if (importErrorTimer.current !== null) {
+          window.clearTimeout(importErrorTimer.current);
+        }
+        importErrorTimer.current = window.setTimeout(() => {
+          setImportError(null);
+          importErrorTimer.current = null;
+        }, 6000);
+      }
+    },
+    [route, dismissImportError],
+  );
+
   useEffect(() => () => {
     if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
     if (savedToastTimer.current !== null) {
       window.clearTimeout(savedToastTimer.current);
+    }
+    if (importErrorTimer.current !== null) {
+      window.clearTimeout(importErrorTimer.current);
     }
   }, []);
 
@@ -247,6 +310,7 @@ function App({ saving }: Props) {
           onClear={handleClear}
           hasRoute={hasRoute}
           loading={loading}
+          onImport={handleImportFile}
         />
         {overlay === 'snowdepth' && (
           <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
@@ -273,10 +337,16 @@ function App({ saving }: Props) {
         )}
         {clearedRoute && (
           <Toast
-            message="Route cleared"
+            message={clearMessage}
             actionLabel="Undo"
             onAction={handleUndo}
             onDismiss={dismissToast}
+          />
+        )}
+        {importError && !clearedRoute && (
+          <Toast
+            message={importError}
+            onDismiss={dismissImportError}
           />
         )}
         {savedToast && !clearedRoute && (
