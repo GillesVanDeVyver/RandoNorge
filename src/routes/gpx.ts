@@ -20,14 +20,7 @@
 
 import { simplify } from '../geometry';
 import type { LatLng, Route, Segment } from '../types';
-
-/** Thrown for anything wrong with the file so the UI can show a message. */
-export class GpxParseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'GpxParseError';
-  }
-}
+import { RouteImportError } from './errors';
 
 // Match the drawn-route simplification tolerance (see geometry/index.ts).
 const SIMPLIFY_EPSILON_M = 8;
@@ -66,7 +59,7 @@ function toSegment(points: Element[]): Segment | null {
  * Parse GPX text into a Route. Tracks (<trk>/<trkseg>) are preferred; if the
  * file has none, planned routes (<rte>) are used instead.
  *
- * @throws {GpxParseError} if the text is not valid GPX or holds no usable
+ * @throws {RouteImportError} if the text is not valid GPX or holds no usable
  *   track/route with at least two points.
  */
 export function parseGpx(text: string): Route {
@@ -74,16 +67,16 @@ export function parseGpx(text: string): Route {
   try {
     doc = new DOMParser().parseFromString(text, 'application/xml');
   } catch {
-    throw new GpxParseError("This file couldn't be read as GPX.");
+    throw new RouteImportError("This file couldn't be read as GPX.");
   }
 
   // DOMParser reports malformed XML as a <parsererror> node rather than
   // throwing, so check for it explicitly.
   if (doc.querySelector('parsererror')) {
-    throw new GpxParseError("This file isn't valid XML — it may be corrupted.");
+    throw new RouteImportError("This file isn't valid XML — it may be corrupted.");
   }
   if (doc.documentElement?.nodeName.toLowerCase() !== 'gpx') {
-    throw new GpxParseError("This doesn't look like a GPX file.");
+    throw new RouteImportError("This doesn't look like a GPX file.");
   }
 
   const route: Route = [];
@@ -103,7 +96,7 @@ export function parseGpx(text: string): Route {
   }
 
   if (route.length === 0) {
-    throw new GpxParseError(
+    throw new RouteImportError(
       'No track or route with at least two points was found in this file.',
     );
   }

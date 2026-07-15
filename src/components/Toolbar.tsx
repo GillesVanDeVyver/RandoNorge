@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import type { Mode } from '../types';
+import { IMPORT_ACCEPT } from '../routes/import';
 import { EraserIcon, PencilIcon, TrashIcon, UploadIcon } from './icons';
 import styles from './Toolbar.module.css';
 
@@ -12,8 +13,8 @@ interface Props {
   // out so the user can't queue another stroke on top of an in-flight
   // route computation.
   loading: boolean;
-  // Called with the chosen GPX file when the user picks one to import.
-  // Omit to hide the import control entirely.
+  // Called with the chosen route file (GPX, TCX, or FIT) when the user picks
+  // one to import. Omit to hide the import control entirely.
   onImport?: (file: File) => void;
 }
 
@@ -74,15 +75,15 @@ export function Toolbar({
             type="button"
             className={styles.btn}
             onClick={() => fileInputRef.current?.click()}
-            title="Import a GPX file"
-            aria-label="Import GPX"
+            title="Import a GPX, TCX, or FIT file"
+            aria-label="Import route file"
           >
             <UploadIcon />
           </button>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".gpx,application/gpx+xml,application/xml,text/xml"
+            accept={IMPORT_ACCEPT}
             onChange={handleFileChange}
             hidden
           />

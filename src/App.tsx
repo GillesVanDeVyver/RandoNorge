@@ -13,7 +13,11 @@ import { BookmarkPlusIcon, PencilIcon, UploadIcon } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
 import { createRoute, updateRoute, type SavedRoute } from './routes/api';
-import { importGpxFile, GpxParseError } from './routes/gpx';
+import {
+  importRouteFile,
+  RouteImportError,
+  IMPORT_ACCEPT,
+} from './routes/import';
 import { formatAscent, formatDistance } from './routes/format';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
@@ -163,7 +167,7 @@ function App({ saving }: Props) {
   const handleImportFile = useCallback(
     async (file: File) => {
       try {
-        const imported = await importGpxFile(file);
+        const imported = await importRouteFile(file);
         dismissImportError();
         if (route.length > 0) {
           setClearMessage('Previous route replaced');
@@ -184,7 +188,7 @@ function App({ saving }: Props) {
         setRoute(imported);
       } catch (err) {
         const message =
-          err instanceof GpxParseError
+          err instanceof RouteImportError
             ? err.message
             : "This file couldn't be imported.";
         setImportError(message);
@@ -344,7 +348,7 @@ function App({ saving }: Props) {
             <input
               ref={hintImportInputRef}
               type="file"
-              accept=".gpx,application/gpx+xml,application/xml,text/xml"
+              accept={IMPORT_ACCEPT}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 // Reset so choosing the same file again still fires onChange.
