@@ -18,6 +18,12 @@ interface Props {
   action?: ReactNode;
 }
 
+// On small screens the scroll area flips into a horizontal snap slider (see
+// the module CSS); which axis is live is read straight off the element so the
+// JS never needs its own copy of the breakpoint.
+const isHorizontal = (root: HTMLElement) =>
+  root.scrollWidth - root.clientWidth > root.scrollHeight - root.clientHeight;
+
 // Left-hand "summary mode" rail (komoot-inspired). A full-height column with a
 // tab bar across the top and every section stacked beneath it in a single
 // scroll area. Clicking a tab smooth-scrolls to that section; a scroll-spy
@@ -33,7 +39,12 @@ export function SummaryPanel({ children, action }: Props) {
 
   const goTo = (i: number) => {
     setActive(i);
-    sectionRefs.current[i]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const root = scrollRef.current;
+    sectionRefs.current[i]?.scrollIntoView(
+      root && isHorizontal(root)
+        ? { behavior: 'smooth', inline: 'start', block: 'nearest' }
+        : { behavior: 'smooth', block: 'start' },
+    );
   };
 
   // Scroll-spy: mark the active section by geometry on every scroll frame rather
@@ -54,14 +65,25 @@ export function SummaryPanel({ children, action }: Props) {
     const root = scrollRef.current;
     if (!root) return;
     let frame = 0;
+    // The same sweep works on either axis; horizontal mode (the small-screen
+    // slider) just swaps top/height/scrollTop for left/width/scrollLeft.
     const update = () => {
       frame = 0;
-      const rootTop = root.getBoundingClientRect().top;
-      const max = root.scrollHeight - root.clientHeight;
-      const line = max > 0 ? root.clientHeight * (root.scrollTop / max) : 0;
+      const horizontal = isHorizontal(root);
+      const rootRect = root.getBoundingClientRect();
+      const rootStart = horizontal ? rootRect.left : rootRect.top;
+      const viewport = horizontal ? root.clientWidth : root.clientHeight;
+      const scrolled = horizontal ? root.scrollLeft : root.scrollTop;
+      const max = horizontal
+        ? root.scrollWidth - root.clientWidth
+        : root.scrollHeight - root.clientHeight;
+      const line = max > 0 ? viewport * (scrolled / max) : 0;
       let current = 0;
       sectionRefs.current.forEach((el, i) => {
-        if (el && el.getBoundingClientRect().top - rootTop <= line) current = i;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const start = (horizontal ? rect.left : rect.top) - rootStart;
+        if (start <= line) current = i;
       });
       setActive(current);
     };
@@ -70,9 +92,13 @@ export function SummaryPanel({ children, action }: Props) {
       frame = requestAnimationFrame(update);
     };
     root.addEventListener('scroll', onScroll, { passive: true });
+    // Re-sync when the layout flips between the vertical rail and the
+    // horizontal slider (or the strip merely changes size).
+    window.addEventListener('resize', onScroll);
     update();
     return () => {
       root.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
       if (frame) cancelAnimationFrame(frame);
     };
   }, [cards.length]);

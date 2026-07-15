@@ -10,9 +10,15 @@
   flex-direction: column;
 }
 
+/* Small screens: the panel becomes the bottom strip of a vertical stack
+   (App.module.css flips the frame to a column). The map above keeps most of
+   the height; this rail gets a fixed share at the bottom. */
 @media (max-width: 760px) {
   .panel {
-    flex-basis: 50%;
+    flex: 0 0 38%;
+    width: 100%;
+    height: auto;
+    min-height: 0;
   }
 }
 
@@ -221,20 +227,44 @@
   padding: 0;
 }
 
+/* Small screens: compact chrome, and the scroll area flips into a horizontal
+   snap slider — one full-width slide per card, swiped through (or driven by
+   the tabs, which double as the pager). Each slide scrolls vertically on its
+   own if its card is taller than the strip. */
 @media (max-width: 760px) {
   .rail {
-    padding: var(--space-4) var(--space-4) 0;
-  }
-
-  .railTitle {
     display: none;
   }
 
   .tabs {
-    padding: var(--space-3) var(--space-4) var(--space-3);
+    padding: var(--space-2) var(--space-4);
   }
 
   .scroll {
-    padding: var(--space-4);
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-4);
+  }
+
+  .section {
+    flex: 0 0 100%;
+    min-width: 0;
+    scroll-snap-align: start;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .section::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .heading {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-base);
   }
 }

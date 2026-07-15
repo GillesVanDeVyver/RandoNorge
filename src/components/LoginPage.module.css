@@ -504,4 +504,9 @@
   .card {
     padding: var(--space-6);
   }
+
+  /* Hide the photo credit on smaller screens to save space. */
+  .credit {
+    display: none;
+  }
 }
