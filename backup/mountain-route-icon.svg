@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <!-- snow cap fill (faint tint so it reads on light backgrounds) -->
+  <path d="M14.7 23.9
+           C 16 22.7 17.2 22.9 18.2 23.7
+           C 19.2 24.4 20.2 22.6 21.2 23.4
+           C 22.2 24.2 23.2 22.8 24.4 23.6
+           C 25.4 24.3 26.6 22.7 27.6 23.4
+           C 28.6 24.0 29.8 23.2 30.8 23.7
+           L 22 12 Z"
+        fill="#f1f5f9" stroke="none"/>
+  <!-- mountain outline -->
+  <path d="M3 42 L22 12 L45 42" stroke="#1f2937" stroke-width="2"/>
+  <!-- soft wavy snow line -->
+  <path d="M14.7 23.9
+           C 16 22.7 17.2 22.9 18.2 23.7
+           C 19.2 24.4 20.2 22.6 21.2 23.4
+           C 22.2 24.2 23.2 22.8 24.4 23.6
+           C 25.4 24.3 26.6 22.7 27.6 23.4
+           C 28.6 24.0 29.8 23.2 30.8 23.7"
+        stroke="#1f2937" stroke-width="1.6"/>
+  <!-- teal route to the summit -->
+  <path d="M19.5 41 C 25.5 38 27.5 32.5 25.8 27.5 C 24.4 23.5 22.8 16.5 22.05 12.5"
+        stroke="#2dd4bf" stroke-width="1.8"/>
+</svg>

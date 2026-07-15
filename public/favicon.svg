@@ -1,11 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
-  <rect width="48" height="48" rx="10" fill="#0b1018"/>
-  <!-- back peak -->
-  <path d="M28 15 L44 41 H12 Z" fill="#14766b"/>
-  <path d="M28 15 L33.5 24 L31 23 L28.5 25 L25.5 22.5 L23.3 22.6 Z" fill="#bff5ee"/>
-  <!-- front peak -->
-  <path d="M17 20 L34 41 H4 Z" fill="#2dd4bf"/>
-  <path d="M17 20 L22.5 26.8 L19.8 25.8 L17.5 28 L14.5 25.5 L12.2 25.9 Z" fill="#eafffb"/>
-  <!-- sun -->
-  <circle cx="38" cy="11" r="4" fill="#eafffb"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none">
+  <!-- Fjellrute favicon: the MountainIcon mark from src/components/icons.tsx,
+       styled like the in-app brand icon (LoginPage .brandIcon):
+       accent teal tile with accent-contrast strokes.
+       Keep in sync with the component and index.css tokens. -->
+  <rect width="24" height="24" rx="5.5" fill="#2dd4bf"/>
+  <g transform="translate(1.2 1.2) scale(0.9)"
+     stroke="#04241f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- skyline: low left peak, main summit, tall right peak -->
+    <path d="M1.5 20 L4.5 14.5 L6.5 17 L11 5.5 L14.5 12.5 L17.5 8.5 L22.5 20 Z"/>
+    <!-- route up the main face -->
+    <path d="M5.5 19.9 C 11 19 13.5 16.5 12 13.8 C 11 11.9 11.1 9.6 11.05 7.8"
+          stroke-width="1.8"/>
+    <!-- floating summit marker -->
+    <circle cx="11" cy="3.4" r="1.2" fill="#04241f" stroke="none"/>
+  </g>
 </svg>

@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <!-- Nordic night sky -->
+    <linearGradient id="sky" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0C2438"/>
+      <stop offset="0.55" stop-color="#0E3040"/>
+      <stop offset="1" stop-color="#0F3A44"/>
+    </linearGradient>
+    <!-- soft glow behind the summit -->
+    <radialGradient id="summitGlow" cx="555" cy="300" r="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2DD4BF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#2DD4BF" stop-opacity="0"/>
+    </radialGradient>
+    <!-- main peak faces -->
+    <linearGradient id="faceLight" x1="330" y1="240" x2="330" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2C5D7A"/>
+      <stop offset="1" stop-color="#1B4159"/>
+    </linearGradient>
+    <linearGradient id="faceDark" x1="780" y1="240" x2="780" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1C4560"/>
+      <stop offset="1" stop-color="#122F45"/>
+    </linearGradient>
+    <linearGradient id="routeGrad" x1="300" y1="940" x2="555" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#2DD4BF"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect width="1024" height="1024" rx="228"/>
+    </clipPath>
+    <linearGradient id="mist" x1="512" y1="790" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9FCBDA" stop-opacity="0"/>
+      <stop offset="1" stop-color="#9FCBDA" stop-opacity="0.22"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#tile)">
+    <!-- background -->
+    <rect width="1024" height="1024" fill="url(#sky)"/>
+    <rect width="1024" height="1024" fill="url(#summitGlow)"/>
+
+    <!-- faint stars -->
+    <circle cx="180" cy="190" r="7" fill="#DDEBF2" opacity="0.35"/>
+    <circle cx="840" cy="150" r="5" fill="#DDEBF2" opacity="0.28"/>
+    <circle cx="740" cy="270" r="4" fill="#DDEBF2" opacity="0.22"/>
+    <circle cx="300" cy="330" r="4" fill="#DDEBF2" opacity="0.18"/>
+
+    <!-- background peaks -->
+    <path d="M250 560 L640 1024 L-140 1024 Z" fill="#204A64"/>
+    <path d="M250 560 L300 620 L250 660 L200 620 Z" fill="#346482" opacity="0.9"/>
+    <path d="M830 500 L1220 1024 L440 1024 Z" fill="#1B4056"/>
+    <path d="M830 500 L885 570 L830 615 L775 570 Z" fill="#305C77" opacity="0.9"/>
+
+    <!-- main peak: light left face + shaded right face -->
+    <path d="M555 240 L1030 1024 L80 1024 Z" fill="url(#faceLight)"/>
+    <path d="M555 240 L1030 1024 L620 1024 Z" fill="url(#faceDark)"/>
+
+    <!-- snow cap with wavy edge, split at the ridge for depth -->
+    <path d="M555 240 L445 428
+             C470 408 486 446 508 430
+             C528 416 542 448 560 432
+             C580 414 598 450 620 432
+             C642 414 655 444 668 428
+             Z" fill="#EEF5F9"/>
+    <path d="M555 240 L668 428 C655 444 642 414 620 432 L598 320 Z" fill="#CFE0EA"/>
+
+    <!-- atmospheric haze at the base -->
+    <rect y="790" width="1024" height="234" fill="url(#mist)"/>
+
+    <!-- route: dark casing, then teal line -->
+    <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M300 940 C480 906 662 846 640 722 C622 616 462 566 482 462 C497 384 536 296 553 250"
+            stroke="#0C2438" stroke-width="58" opacity="0.55"/>
+      <path d="M300 940 C480 906 662 846 640 722 C622 616 462 566 482 462 C497 384 536 296 553 250"
+            stroke="url(#routeGrad)" stroke-width="34"/>
+    </g>
+
+    <!-- start marker -->
+    <circle cx="300" cy="940" r="30" fill="#0C2438"/>
+    <circle cx="300" cy="940" r="30" stroke="#2DD4BF" stroke-width="14" fill="none"/>
+
+    <!-- summit marker -->
+    <circle cx="555" cy="246" r="52" fill="#0C2438" opacity="0.45"/>
+    <circle cx="555" cy="246" r="44" fill="#FFFFFF"/>
+    <circle cx="555" cy="246" r="26" fill="#2DD4BF"/>
+  </g>
+</svg>
