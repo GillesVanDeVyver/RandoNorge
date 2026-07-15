@@ -1,5 +1,14 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Map } from './components/Map';
+import { NavigationBar } from './components/NavigationBar';
 import { ElevationPanel, SnowPanel } from './components/ProfilePanel';
 import { SnowDateBar } from './components/SnowDateBar';
 import { SummaryCard, SummaryPanel } from './components/SummaryPanel';
@@ -9,16 +18,24 @@ import { WeatherPanel } from './components/WeatherPanel';
 import { AvalancheRisk } from './components/AvalancheRisk';
 import { TermsDialog } from './components/TermsDialog';
 import { SaveRouteDialog } from './components/SaveRouteDialog';
-import { BookmarkPlusIcon, PencilIcon, UploadIcon } from './components/icons';
+import {
+  BookmarkPlusIcon,
+  PencilIcon,
+  PlayIcon,
+  UploadIcon,
+} from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
+import { segmentLength } from './geometry';
 import { createRoute, updateRoute, type SavedRoute } from './routes/api';
+import { createTrack, type SavedTrack } from './tracking/api';
+import { useTracking, type TrackingStatus } from './tracking/useTracking';
 import {
   importRouteFile,
   RouteImportError,
   IMPORT_ACCEPT,
 } from './routes/import';
-import { formatAscent, formatDistance } from './routes/format';
+import { formatAscent, formatDate, formatDistance } from './routes/format';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
@@ -31,6 +48,42 @@ const Map3DView = lazy(() =>
 type ViewMode = '2d' | '3d';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+
+// While recording, every accepted GPS fix would otherwise re-run the full
+// elevation/snow pipeline on the growing track. Instead the copy fed to the
+// pipeline refreshes at most once per THROTTLE_MS — and immediately when
+// recording pauses or finishes, so the review state is exact.
+const TRACK_STATS_THROTTLE_MS = 20000;
+
+function useThrottledTrack(track: Route, status: TrackingStatus): Route {
+  const [out, setOut] = useState<Route>([]);
+  const lastFlushRef = useRef(0);
+  useEffect(() => {
+    // Everything runs through a (possibly zero-delay) timer so the effect
+    // never sets state synchronously; the cleanup keeps only the latest
+    // scheduled flush alive.
+    if (status === 'idle') {
+      lastFlushRef.current = 0;
+      const id = window.setTimeout(
+        () => setOut((prev) => (prev.length === 0 ? prev : [])),
+        0,
+      );
+      return () => window.clearTimeout(id);
+    }
+    if (track.length === 0) return;
+    const since = Date.now() - lastFlushRef.current;
+    const delay =
+      status !== 'recording'
+        ? 0 // paused/finished: reflect the final track immediately
+        : Math.max(0, TRACK_STATS_THROTTLE_MS - since);
+    const id = window.setTimeout(() => {
+      lastFlushRef.current = Date.now();
+      setOut(track);
+    }, delay);
+    return () => window.clearTimeout(id);
+  }, [track, status]);
+  return out;
+}
 
 interface Props {
   /**
@@ -45,6 +98,8 @@ interface Props {
     onChanged: (saved: SavedRoute) => void;
     /** Navigate to the saved-routes library (the toast's "Go to library"). */
     onGoToLibrary: () => void;
+    /** A navigation recording was saved — lets the activity log refresh. */
+    onActivitySaved?: (track: SavedTrack) => void;
   };
 }
 
@@ -93,6 +148,101 @@ function App({ saving }: Props) {
   // "unresponsive page" behavior.
   const loading = elevation.loading || snow.loading;
 
+  // ---- Navigation mode ("Start route") ----------------------------------
+  // GPS recording of the actually-travelled route, komoot-style. `navLive`
+  // is an active session (recording or paused); `navSession` additionally
+  // covers the post-Finish review state where both routes stay plotted.
+  const tracking = useTracking();
+  const navLive = tracking.status === 'recording' || tracking.status === 'paused';
+  const navSession = navLive || tracking.status === 'finished';
+  // Which route the summary rail describes: the plan or the recording.
+  const [statsView, setStatsView] = useState<'planned' | 'actual'>('planned');
+  const [trackSaving, setTrackSaving] = useState(false);
+  // Transient confirmation/error line for saving an activity.
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<number | null>(null);
+  const showNotice = useCallback((message: string) => {
+    setNotice(message);
+    if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => {
+      setNotice(null);
+      noticeTimer.current = null;
+    }, 5000);
+  }, []);
+
+  // The actual route runs through the same elevation/snow pipeline as the
+  // plan, so both stats views are directly comparable — but throttled while
+  // recording so the pipeline isn't re-run on every GPS fix.
+  const statsTrack = useThrottledTrack(tracking.track, tracking.status);
+  const actualElevation = useElevation(statsTrack);
+  const actualSnow = useSnow(actualElevation.profile, snowDate);
+
+  // Live travelled distance for the recording bar (cheap client-side sum,
+  // independent of the throttled pipeline).
+  const trackDistanceM = useMemo(
+    () => tracking.track.reduce((sum, seg) => sum + segmentLength(seg), 0),
+    [tracking.track],
+  );
+  const trackHasLine = tracking.track.some((seg) => seg.length >= 2);
+
+  const handleStartNavigation = useCallback(() => {
+    setMode('idle');
+    setView('2d'); // navigation renders on the 2D map
+    setStatsView('actual');
+    tracking.start();
+  }, [tracking]);
+
+  const handleFinishNavigation = useCallback(() => {
+    tracking.finish();
+    setStatsView('actual');
+  }, [tracking]);
+
+  const handleDiscardActivity = useCallback(() => {
+    tracking.reset();
+    setStatsView('planned');
+  }, [tracking]);
+
+  const handleSaveActivity = useCallback(async () => {
+    if (!saving || !trackHasLine || tracking.startedAt === null) return;
+    setTrackSaving(true);
+    try {
+      const profile = actualElevation.profile;
+      const saved = await createTrack({
+        name: savedMeta
+          ? savedMeta.name
+          : `Tour ${formatDate(tracking.startedAt)}`,
+        routeId: savedMeta?.id ?? null,
+        track: tracking.track,
+        stats: {
+          distanceM: trackDistanceM,
+          ascentM: profile ? profile.stats.ascent : null,
+          descentM: profile ? profile.stats.descent : null,
+          durationS: tracking.elapsedMs / 1000,
+        },
+        startedAt: tracking.startedAt,
+        finishedAt: tracking.finishedAt ?? new Date().toISOString(),
+      });
+      saving.onActivitySaved?.(saved);
+      tracking.reset();
+      setStatsView('planned');
+      showNotice('Activity saved to your completed routes');
+    } catch (err) {
+      showNotice(
+        err instanceof Error ? err.message : 'Saving the activity failed.',
+      );
+    } finally {
+      setTrackSaving(false);
+    }
+  }, [
+    saving,
+    trackHasLine,
+    tracking,
+    actualElevation.profile,
+    savedMeta,
+    trackDistanceM,
+    showNotice,
+  ]);
+
   // The route just got extended (a draw stroke committed) or replaced — drop
   // back to navigation mode so the map shows the grab cursor and the user
   // can pan/zoom while the worker is busy. Erase strokes also flow through
@@ -109,9 +259,12 @@ function App({ saving }: Props) {
   const handleModeChange = useCallback(
     (next: Mode) => {
       if (next === 'draw' && loading) return;
+      // The plan is read-only while navigating it (or reviewing the
+      // recording): editing mid-tour would silently change the comparison.
+      if (next !== 'idle' && navSession) return;
       setMode(next);
     },
-    [loading],
+    [loading, navSession],
   );
 
   // Esc exits the current mode.
@@ -212,6 +365,9 @@ function App({ saving }: Props) {
     if (importErrorTimer.current !== null) {
       window.clearTimeout(importErrorTimer.current);
     }
+    if (noticeTimer.current !== null) {
+      window.clearTimeout(noticeTimer.current);
+    }
   }, []);
 
   // Save (create or update) the current route to the user's library. Runs
@@ -256,10 +412,19 @@ function App({ saving }: Props) {
   }, [route.length, mode]);
 
   const hasRoute = route.length > 0;
-  const showHint = !hasRoute && !elevation.loading;
+  const showHint = !hasRoute && !elevation.loading && !navSession;
+
+  // Which dataset the summary rail shows. "Actual" is offered as soon as a
+  // navigation session exists; before the first accepted GPS fix its panels
+  // simply show their empty/loading states.
+  const showActualStats = statsView === 'actual' && navSession;
+  const activeElevation = showActualStats ? actualElevation : elevation;
+  const activeSnow = showActualStats ? actualSnow : snow;
 
   return (
-    <div className={`${styles.app} ${hasRoute ? styles.summary : ''}`}>
+    <div
+      className={`${styles.app} ${hasRoute || navSession ? styles.summary : ''}`}
+    >
       <div className={styles.frame}>
       <div className={styles.mapPane}>
         {view === '2d' ? (
@@ -270,6 +435,10 @@ function App({ saving }: Props) {
             overlay={overlay}
             onOverlayChange={setOverlay}
             snowDate={snowDate}
+            track={tracking.track}
+            position={tracking.position}
+            positionAccuracy={tracking.accuracy}
+            navigating={navLive}
           />
         ) : (
           <Suspense fallback={null}>
@@ -283,6 +452,7 @@ function App({ saving }: Props) {
             />
           </Suspense>
         )}
+        {!navSession && (
         <div className={styles.viewToggle} role="group" aria-label="Map view">
           <button
             type="button"
@@ -301,6 +471,7 @@ function App({ saving }: Props) {
             3D
           </button>
         </div>
+        )}
         <button
           type="button"
           className={styles.infoBtn}
@@ -310,14 +481,49 @@ function App({ saving }: Props) {
         >
           ⓘ
         </button>
-        <Toolbar
-          mode={mode}
-          onModeChange={handleModeChange}
-          onClear={handleClear}
-          hasRoute={hasRoute}
-          loading={loading}
-          onImport={handleImportFile}
-        />
+        {!navSession && (
+          <Toolbar
+            mode={mode}
+            onModeChange={handleModeChange}
+            onClear={handleClear}
+            hasRoute={hasRoute}
+            loading={loading}
+            onImport={handleImportFile}
+          />
+        )}
+        {hasRoute && tracking.status === 'idle' && view === '2d' && (
+          <button
+            type="button"
+            className={styles.startNavBtn}
+            onClick={handleStartNavigation}
+            title="Follow this route and record where you actually go"
+          >
+            <PlayIcon />
+            <span>Start route</span>
+          </button>
+        )}
+        {navSession && tracking.status !== 'idle' && (
+          <NavigationBar
+            status={tracking.status as 'recording' | 'paused' | 'finished'}
+            elapsedMs={tracking.elapsedMs}
+            distanceM={trackDistanceM}
+            error={tracking.error}
+            canSave={Boolean(saving) && trackHasLine}
+            cantSaveReason={
+              !saving
+                ? 'Sign in to save this activity to your completed routes.'
+                : !trackHasLine
+                  ? 'Not enough GPS data was recorded to save this activity.'
+                  : undefined
+            }
+            saving={trackSaving}
+            onPause={tracking.pause}
+            onResume={tracking.resume}
+            onFinish={handleFinishNavigation}
+            onSave={handleSaveActivity}
+            onDiscard={handleDiscardActivity}
+          />
+        )}
         {overlay === 'snowdepth' && (
           <SnowDateBar date={snowDate} onDateChange={setSnowDate} />
         )}
@@ -380,6 +586,18 @@ function App({ saving }: Props) {
             onDismiss={dismissImportError}
           />
         )}
+        {notice && !clearedRoute && !importError && (
+          <Toast
+            message={notice}
+            onDismiss={() => {
+              if (noticeTimer.current !== null) {
+                window.clearTimeout(noticeTimer.current);
+                noticeTimer.current = null;
+              }
+              setNotice(null);
+            }}
+          />
+        )}
         {savedToast && !clearedRoute && (
           <Toast
             message="Route saved to your library"
@@ -403,60 +621,93 @@ function App({ saving }: Props) {
           />
         )}
       </div>
-      {hasRoute && (
+      {(hasRoute || navSession) && (
         <SummaryPanel
           action={
-            saving && (
-              <button
-                type="button"
-                className={styles.saveBtn}
-                onClick={() => setSaveOpen(true)}
-                disabled={loading}
-                title={
-                  loading
-                    ? 'Loading route data…'
-                    : savedMeta
-                      ? 'Save your changes to this route'
-                      : 'Save this route to your library'
-                }
-              >
-                <BookmarkPlusIcon />
-                <span>
-                  {loading
-                    ? 'Loading…'
-                    : savedMeta
-                      ? 'Save changes'
-                      : 'Save route'}
-                </span>
-              </button>
-            )
+            <>
+              {navSession && (
+                <div
+                  className={styles.statsToggle}
+                  role="group"
+                  aria-label="Statistics source"
+                >
+                  <button
+                    type="button"
+                    className={statsView === 'planned' ? styles.statsActive : ''}
+                    onClick={() => setStatsView('planned')}
+                    aria-pressed={statsView === 'planned'}
+                  >
+                    Planned route
+                  </button>
+                  <button
+                    type="button"
+                    className={statsView === 'actual' ? styles.statsActive : ''}
+                    onClick={() => setStatsView('actual')}
+                    aria-pressed={statsView === 'actual'}
+                  >
+                    Actual route
+                  </button>
+                </div>
+              )}
+              {saving && !navSession && (
+                <button
+                  type="button"
+                  className={styles.saveBtn}
+                  onClick={() => setSaveOpen(true)}
+                  disabled={loading}
+                  title={
+                    loading
+                      ? 'Loading route data…'
+                      : savedMeta
+                        ? 'Save your changes to this route'
+                        : 'Save this route to your library'
+                  }
+                >
+                  <BookmarkPlusIcon />
+                  <span>
+                    {loading
+                      ? 'Loading…'
+                      : savedMeta
+                        ? 'Save changes'
+                        : 'Save route'}
+                  </span>
+                </button>
+              )}
+            </>
           }
         >
           <SummaryCard title="Elevation">
-            <ElevationPanel
-              profile={elevation.profile}
-              loading={elevation.loading}
-              error={elevation.error}
-            />
+            {showActualStats && !trackHasLine ? (
+              <p className={styles.statsEmpty}>
+                Waiting for GPS — your actual route's stats appear here as
+                you move.
+              </p>
+            ) : (
+              <ElevationPanel
+                profile={activeElevation.profile}
+                loading={activeElevation.loading}
+                error={activeElevation.error}
+              />
+            )}
           </SummaryCard>
           <SummaryCard title="Snow">
             <SnowPanel
-              profile={elevation.profile}
-              snow={snow.snow}
-              loading={snow.loading}
-              error={snow.error}
+              profile={activeElevation.profile}
+              snow={activeSnow.snow}
+              loading={activeSnow.loading}
+              error={activeSnow.error}
               date={snowDate}
               onDateChange={setSnowDate}
             />
           </SummaryCard>
-          {elevation.profile && (
+          {activeElevation.profile && (
             <SummaryCard title="Avalanche warnings">
-              <AvalancheRisk profile={elevation.profile} />
+              <AvalancheRisk profile={activeElevation.profile} />
             </SummaryCard>
           )}
-          {elevation.profile && (
+          {activeElevation.profile && (
             <SummaryCard title="Weather forecast" padded={false}>
-              <WeatherPanel profile={elevation.profile} />
+              <WeatherPanel profile={activeElevation.profile} />
             </SummaryCard>
           )}
         </SummaryPanel>

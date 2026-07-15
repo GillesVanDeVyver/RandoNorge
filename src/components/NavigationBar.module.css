@@ -1,0 +1,173 @@
+/* Floating navigation/recording bar, top-center of the map pane. Same
+   glass chip language as the toolbar and hints. */
+.wrap {
+  position: absolute;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100% - var(--space-6) * 2);
+}
+
+.bar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-2);
+}
+
+/* Pulsing red dot: recording. Static amber dot: paused. */
+.dotLive,
+.dotPaused {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.dotLive {
+  background: #ef4444;
+  animation: nav-pulse 1.6s ease-in-out infinite;
+}
+
+.dotPaused {
+  background: #f59e0b;
+}
+
+@keyframes nav-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+}
+
+.statValue {
+  font-size: var(--text-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+.statLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background: var(--hairline);
+  flex: none;
+}
+
+.btn,
+.btnFinish {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 34px;
+  padding: 0 var(--space-3);
+
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.btn {
+  color: var(--text-1);
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.btnFinish {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.btnFinish:hover:not(:disabled) {
+  background: var(--accent-hover, var(--accent));
+}
+
+.btn:disabled,
+.btnFinish:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.btn:focus-visible,
+.btnFinish:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.btn svg,
+.btnFinish svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+/* Secondary line under the bar: sign-in hint or geolocation error. */
+.note,
+.error {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-1, var(--shadow-2));
+  text-align: center;
+}
+
+.note {
+  color: var(--text-2);
+}
+
+.error {
+  color: #b91c1c;
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .btnFinish {
+    height: 42px;
+  }
+}

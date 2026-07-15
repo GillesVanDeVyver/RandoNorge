@@ -2,10 +2,11 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { MapContainer, TileLayer, WMSTileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { Mode, Overlay, Route } from '../types';
+import type { LatLng, Mode, Overlay, Route } from '../types';
 import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
 import { MapControls } from './MapControls';
+import { NavigationLayer } from './NavigationLayer';
 import styles from './Map.module.css';
 
 // Leaflet caches the container size and only re-measures on its own resize
@@ -65,6 +66,14 @@ interface Props {
   overlay: Overlay;
   onOverlayChange: (overlay: Overlay) => void;
   snowDate: string;
+  /** Navigation mode: the travelled track drawn on top of the plan. */
+  track?: Route;
+  /** Live GPS position while navigating (drives the marker + follow). */
+  position?: LatLng | null;
+  /** Accuracy of the latest fix in meters. */
+  positionAccuracy?: number | null;
+  /** True while a recording session is live (recording or paused). */
+  navigating?: boolean;
 }
 
 export function Map({
@@ -74,6 +83,10 @@ export function Map({
   overlay,
   onOverlayChange,
   snowDate,
+  track = [],
+  position = null,
+  positionAccuracy = null,
+  navigating = false,
 }: Props) {
   return (
     <MapContainer
@@ -146,6 +159,14 @@ export function Map({
         />
       )}
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
+      {(track.length > 0 || navigating) && (
+        <NavigationLayer
+          active={navigating}
+          track={track}
+          position={position}
+          accuracy={positionAccuracy}
+        />
+      )}
       <HoverMarker />
       <MapControls
         overlay={overlay}

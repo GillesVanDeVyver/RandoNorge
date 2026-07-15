@@ -245,6 +245,120 @@
   }
 }
 
+/* "Start route" — enters navigation mode (komoot-style follow + GPS
+   recording) for the route currently open in the planner. Floats
+   top-center of the map, mirroring where the recording bar will appear. */
+.startNavBtn {
+  position: absolute;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-5);
+
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--accent-contrast);
+  cursor: pointer;
+
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-pill);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    var(--shadow-2);
+  transition:
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.startNavBtn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.startNavBtn:hover {
+  background: var(--accent-hover, var(--accent));
+  transform: translate(-50%, -1px);
+}
+
+.startNavBtn:active {
+  transform: translateX(-50%);
+}
+
+.startNavBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+@media (pointer: coarse) {
+  .startNavBtn {
+    height: 46px;
+  }
+}
+
+/* Planned/actual segmented switch in the summary rail's tab bar. Mirrors
+   the 2D/3D map toggle's look, scaled to fit the tab row. */
+.statsToggle {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--hairline);
+}
+
+.statsToggle button {
+  height: 28px;
+  padding: 0 var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.statsToggle button:hover {
+  color: var(--text-1);
+}
+
+.statsToggle button.statsActive,
+.statsToggle button.statsActive:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.statsToggle button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Placeholder inside the Elevation card while the actual route has no
+   recorded line yet. */
+.statsEmpty {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
 /* Quiet onboarding hint shown over the map when no route exists yet.
    The stack centres both balloons and keeps them vertically aligned. */
 .hintStack {

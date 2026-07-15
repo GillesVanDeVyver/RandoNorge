@@ -16,6 +16,11 @@ import {
   listRoutes,
   type SavedRoute,
 } from './routes/api.ts';
+import {
+  deleteTrack,
+  listTracks,
+  type SavedTrack,
+} from './tracking/api.ts';
 import { formatAscent, formatDate, formatDistance } from './routes/format.ts';
 
 /**
@@ -61,9 +66,21 @@ function pathToNav(pathname: string): Nav {
   return { view: 'overview', routeId: null };
 }
 
-// Completed routes are not persisted yet (saved routes now are); the
-// overview count and the list page still derive from this single spot.
-const COMPLETED_ROUTES: RouteListItem[] = [];
+/** SavedTrack (API) → the preformatted strings the list rows render.
+ *  Completed routes are the tracks recorded in navigation mode. */
+function trackToListItem(track: SavedTrack): RouteListItem {
+  return {
+    id: track.id,
+    name: track.name,
+    distance: formatDistance(track.distanceM),
+    ascent: formatAscent(track.ascentM),
+    descent:
+      track.descentM !== null ? formatAscent(track.descentM) : undefined,
+    date: formatDate(track.finishedAt),
+    // Recorded geometry for the row's mini-map preview.
+    route: track.track,
+  };
+}
 
 /** SavedRoute (API) → the preformatted strings the list rows render. */
 function toListItem(route: SavedRoute): RouteListItem {
@@ -113,6 +130,11 @@ export function Root() {
   // in sync by the save/delete flows. Null while the first fetch is
   // pending so counts don't flash "0" for users who do have routes.
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[] | null>(null);
+  // The user's recorded activities ("completed routes"), same lifecycle
+  // as the saved-routes library above.
+  const [completedTracks, setCompletedTracks] = useState<SavedTrack[] | null>(
+    null,
+  );
   // Library route currently opened in the planner (null = fresh plan).
   // Derived from the URL's route id; also used as the planner's key so
   // reopening resets its state. While the library is still loading a
@@ -178,6 +200,13 @@ export function Root() {
         // repopulates the list through handleRouteSaved.
         if (!cancelled) setSavedRoutes([]);
       });
+    listTracks()
+      .then((tracks) => {
+        if (!cancelled) setCompletedTracks(tracks);
+      })
+      .catch(() => {
+        if (!cancelled) setCompletedTracks([]);
+      });
     return () => {
       cancelled = true;
     };
@@ -196,6 +225,20 @@ export function Root() {
   const handleDeleteRoute = useCallback(async (id: string) => {
     await deleteRoute(id);
     setSavedRoutes((prev) => (prev ?? []).filter((r) => r.id !== id));
+  }, []);
+
+  // A recorded activity was saved from navigation mode: prepend it to the
+  // completed list (newest-first, keyed by finish time).
+  const handleActivitySaved = useCallback((track: SavedTrack) => {
+    setCompletedTracks((prev) => {
+      const rest = (prev ?? []).filter((t) => t.id !== track.id);
+      return [track, ...rest];
+    });
+  }, []);
+
+  const handleDeleteTrack = useCallback(async (id: string) => {
+    await deleteTrack(id);
+    setCompletedTracks((prev) => (prev ?? []).filter((t) => t.id !== id));
   }, []);
 
   const handleOpenRoute = useCallback(
@@ -223,6 +266,7 @@ export function Root() {
       setNav({ view: 'overview', routeId: null });
       setGuest(false);
       setSavedRoutes(null);
+      setCompletedTracks(null);
       // Replace (don't push) so back after logout doesn't step through
       // the previous account's pages.
       window.history.replaceState(null, '', '/');
@@ -234,13 +278,14 @@ export function Root() {
   if (session) {
     const name = session.user.name || session.user.email;
     const savedItems = (savedRoutes ?? []).map(toListItem);
+    const completedItems = (completedTracks ?? []).map(trackToListItem);
     return (
       <>
         {view === 'overview' && (
           <AccountOverview
             name={name}
             savedCount={savedItems.length}
-            completedCount={COMPLETED_ROUTES.length}
+            completedCount={completedItems.length}
             onOpenSavedRoutes={() => navigate('saved')}
             onOpenCompletedRoutes={() => navigate('completed')}
             onPlanNewRoute={handlePlanNewRoute}
@@ -253,17 +298,20 @@ export function Root() {
               initial: openRoute,
               onChanged: handleRouteSaved,
               onGoToLibrary: () => navigate('saved'),
+              onActivitySaved: handleActivitySaved,
             }}
           />
         )}
         {(view === 'saved' || view === 'completed') && (
           <RoutesListPage
             kind={view}
-            routes={view === 'saved' ? savedItems : COMPLETED_ROUTES}
+            routes={view === 'saved' ? savedItems : completedItems}
             onBack={() => navigate('overview')}
             onPlanNewRoute={handlePlanNewRoute}
             onOpenRoute={view === 'saved' ? handleOpenRoute : undefined}
-            onDeleteRoute={view === 'saved' ? handleDeleteRoute : undefined}
+            onDeleteRoute={
+              view === 'saved' ? handleDeleteRoute : handleDeleteTrack
+            }
           />
         )}
         <AccountChip

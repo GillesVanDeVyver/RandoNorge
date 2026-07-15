@@ -15,6 +15,7 @@
 import { proxyGet } from './proxy.js';
 import { getAuth } from './auth.js';
 import { handleRoutesApi } from './routes.js';
+import { handleTracksApi } from './tracks.js';
 
 const ROUTES = [
   { prefix: '/metno-api', upstream: 'https://api.met.no', ttl: 1800 },
@@ -45,6 +46,12 @@ export default {
     // (worker/routes.js).
     if (pathname === '/api/routes' || pathname.startsWith('/api/routes/')) {
       return handleRoutesApi(request, env, url);
+    }
+
+    // Recorded tracks ("actual routes" from navigation mode): authenticated
+    // CRUD against the "track" table (worker/tracks.js).
+    if (pathname === '/api/tracks' || pathname.startsWith('/api/tracks/')) {
+      return handleTracksApi(request, env, url);
     }
 
     for (const { prefix, upstream, ttl } of ROUTES) {

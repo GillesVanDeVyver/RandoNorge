@@ -91,6 +91,33 @@ export function LocateIcon() {
   );
 }
 
+export function PlayIcon() {
+  return (
+    <svg {...baseProps}>
+      <polygon points="6 3 20 12 6 21 6 3" />
+    </svg>
+  );
+}
+
+export function PauseIcon() {
+  return (
+    <svg {...baseProps}>
+      <rect x="5" y="4" width="4.5" height="16" rx="1" />
+      <rect x="14.5" y="4" width="4.5" height="16" rx="1" />
+    </svg>
+  );
+}
+
+export function FlagIcon() {
+  // Lucide "flag": finish marker for ending a navigation recording.
+  return (
+    <svg {...baseProps}>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+  );
+}
+
 export function PlusIcon() {
   return (
     <svg {...baseProps}>

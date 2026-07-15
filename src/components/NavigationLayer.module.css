@@ -1,0 +1,56 @@
+/* "Re-center" chip: appears bottom-center of the map when the user pans
+   away during navigation and auto-follow detaches. Same glass language as
+   the rest of the floating map chrome. */
+.recenter {
+  position: absolute;
+  bottom: calc(max(var(--space-3), env(safe-area-inset-bottom)) + 56px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-4);
+
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  cursor: pointer;
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-2);
+  transition:
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.recenter:hover {
+  background: var(--surface-hover);
+  transform: translate(-50%, -1px);
+}
+
+.recenter:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.recenter svg {
+  width: 16px;
+  height: 16px;
+  color: #f97316;
+}
+
+@media (pointer: coarse) {
+  .recenter {
+    height: 44px;
+  }
+}
