@@ -17,6 +17,12 @@ const RDP_EPSILON_M = 8;
 const ERASER_RADIUS_PX = 32;
 const ROUTE_COLOR = '#2dd4bf'; // matches --accent (alpine/glacier teal)
 const ROUTE_WEIGHT = 4;
+// White halo drawn beneath the teal line so the route stays readable on top
+// of busy overlays (e.g. the red/orange steepness ramp) — matching the white
+// band in the saved-route thumbnails (RouteThumbnail.tsx).
+const HALO_COLOR = '#ffffff';
+const HALO_WEIGHT = ROUTE_WEIGHT + 3;
+const HALO_OPACITY = 0.9;
 // Minimum pixel distance between consecutive accepted points while drawing.
 // Caps the number of accumulated points to be proportional to stroke length
 // rather than stroke duration, which otherwise blows up O(N²) work on long
@@ -308,6 +314,28 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
 
   return (
     <>
+      {/* White halos first, so every teal line renders on top of every halo. */}
+      {displayRoute.map((seg, i) => (
+        <Polyline
+          key={`halo-${i}`}
+          positions={seg}
+          pathOptions={{
+            color: HALO_COLOR,
+            weight: HALO_WEIGHT,
+            opacity: HALO_OPACITY,
+          }}
+        />
+      ))}
+      {livePoints.length >= 2 && (
+        <Polyline
+          positions={livePoints}
+          pathOptions={{
+            color: HALO_COLOR,
+            weight: HALO_WEIGHT,
+            opacity: HALO_OPACITY * 0.7,
+          }}
+        />
+      )}
       {displayRoute.map((seg, i) => (
         <Polyline
           key={i}
