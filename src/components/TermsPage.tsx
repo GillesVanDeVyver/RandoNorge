@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MountainIcon } from './icons';
 import { TERMS, TERMS_VERSION, type TermsLang } from '../terms/content';
+import { PRIVACY, PRIVACY_VERSION } from '../terms/privacy';
 import styles from './TermsPage.module.css';
 
 // Re-exported for callers that record which version was accepted. The terms
@@ -20,10 +21,19 @@ type Props = {
  * entering the app as a guest. Acceptance is deliberately not persisted:
  * sign-up simply cannot complete without it, and guests are asked on every
  * visit.
+ *
+ * Two documents are presented in tabs — the terms of use and the privacy
+ * policy (GDPR arts. 12–14 require the privacy information to be available
+ * at the point where data collection starts, i.e. before sign-up) — and the
+ * accept button covers both, as its label states.
  */
 export function TermsPage({ onAccept, onDecline }: Props) {
   const [lang, setLang] = useState<TermsLang>('en');
+  const [doc, setDoc] = useState<'terms' | 'privacy'>('terms');
   const t = TERMS[lang];
+  const p = PRIVACY[lang];
+  const active = doc === 'terms' ? t : p;
+  const activeVersion = doc === 'terms' ? TERMS_VERSION : PRIVACY_VERSION;
 
   return (
     <div className={styles.page}>
@@ -39,9 +49,9 @@ export function TermsPage({ onAccept, onDecline }: Props) {
       <div className={styles.card}>
         <div className={styles.cardHeader}>
           <div>
-            <h1 className={styles.title}>{t.title}</h1>
+            <h1 className={styles.title}>{active.title}</h1>
             <p className={styles.updated}>
-              {t.updated}: {TERMS_VERSION}
+              {active.updated}: {activeVersion}
             </p>
           </div>
           <div
@@ -68,9 +78,36 @@ export function TermsPage({ onAccept, onDecline }: Props) {
           </div>
         </div>
 
+        <div
+          className={styles.docTabs}
+          role="tablist"
+          aria-label={lang === 'en' ? 'Document' : 'Dokument'}
+        >
+          <button
+            type="button"
+            role="tab"
+            className={styles.docTab}
+            aria-selected={doc === 'terms'}
+            data-active={doc === 'terms' || undefined}
+            onClick={() => setDoc('terms')}
+          >
+            {t.title}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={styles.docTab}
+            aria-selected={doc === 'privacy'}
+            data-active={doc === 'privacy' || undefined}
+            onClick={() => setDoc('privacy')}
+          >
+            {p.title}
+          </button>
+        </div>
+
         <div className={styles.body}>
-          <p className={styles.intro}>{t.intro}</p>
-          {t.sections.map((section) => (
+          <p className={styles.intro}>{active.intro}</p>
+          {active.sections.map((section) => (
             <section key={section.heading}>
               <h2 className={styles.sectionHeading}>{section.heading}</h2>
               {section.body.map((paragraph, i) => (

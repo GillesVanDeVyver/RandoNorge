@@ -62,5 +62,14 @@
 			"/gts-api/*",
 			"/varsom-api/*"
 		]
+	},
+	// Daily GDPR retention cleanup (worker/index.js scheduled handler):
+	// purges expired session rows (they contain IP address + user agent)
+	// and expired email-verification tokens. 03:47 UTC — low-traffic and
+	// off the full hour, as Cloudflare recommends for cron triggers.
+	"triggers": {
+		"crons": [
+			"47 3 * * *"
+		]
 	}
 }

@@ -1,5 +1,7 @@
 # Fjellrute — legal vulnerability review
 
+> **Remediation update (2026-07-16, same day):** the code-fixable GDPR items have been addressed. Privacy policy added (`src/terms/privacy.ts`, shown as a tab on the acceptance gate and in the info dialog; static mirror at `public/privacy.html` for the Google OAuth consent screen). Inter is now self-hosted via @fontsource (no more fonts.googleapis.com requests). A daily cron (`triggers` in wrangler.jsonc + `scheduled` handler in worker/index.js) purges expired session rows (IP/UA) and verification tokens. The over-broad `like '%email%'` in REMOVE_USER.md is fixed. ToS updated: age minimum (13), privacy-policy section, accept label covers both documents; the stale draft mirrors in docs/terms-of-service.\*.md were replaced with pointers to the canonical source. Still open (non-code): accept/verify DPAs with Cloudflare, Resend and Google; document the EAWS icons and the two hero photos in DATA_LICENSES.md; lawyer review; and the pre-monetization package.
+
 Reviewed: 2026-07-16. Scope: the full codebase (frontend, Worker, migrations, docs, assets, git history), assessed against Norwegian/EEA law and the upstream providers' terms. This is a technical review by an AI assistant, not legal advice — have a lawyer confirm the critical items before charging money for the service.
 
 ## What is already in good shape

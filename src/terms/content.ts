@@ -133,6 +133,7 @@ export const TERMS: Record<TermsLang, TermsText> = {
           'The service is intended for personal trip planning. You may ' +
             'not misuse it, attempt to disrupt it, or use it to place ' +
             'unreasonable load on the public APIs it is built on.',
+          'You must be at least 13 years old to create an account.',
         ],
       },
       {
@@ -160,14 +161,23 @@ export const TERMS: Record<TermsLang, TermsText> = {
         ],
       },
       {
-        heading: '9. Governing law',
+        heading: '9. Privacy and personal data',
+        body: [
+          'How Fjellrute processes personal data — what is stored, why, ' +
+            'for how long, and your rights under the GDPR — is described ' +
+            'in the Privacy Policy, which forms part of your agreement ' +
+            'with the service and is available alongside these terms.',
+        ],
+      },
+      {
+        heading: '10. Governing law',
         body: [
           'These terms are governed by Norwegian law. Disputes are ' +
             'subject to the ordinary Norwegian courts.',
         ],
       },
     ],
-    acceptLabel: 'I have read and accept the terms',
+    acceptLabel: 'I have read and accept the terms and the privacy policy',
     declineLabel: 'Decline',
     gateNote:
       'By pressing accept you confirm that you understand that Fjellrute ' +
@@ -261,6 +271,7 @@ export const TERMS: Record<TermsLang, TermsText> = {
             'misbruke den, forsøke å forstyrre den, eller bruke den til ' +
             'å påføre de offentlige API-ene den bygger på urimelig ' +
             'belastning.',
+          'Du må være minst 13 år for å opprette en konto.',
         ],
       },
       {
@@ -286,14 +297,24 @@ export const TERMS: Record<TermsLang, TermsText> = {
         ],
       },
       {
-        heading: '9. Lovvalg',
+        heading: '9. Personvern',
+        body: [
+          'Hvordan Fjellrute behandler personopplysninger — hva som ' +
+            'lagres, hvorfor, hvor lenge, og hvilke rettigheter du har ' +
+            'etter GDPR — er beskrevet i personvernerklæringen, som er ' +
+            'en del av avtalen din med tjenesten og er tilgjengelig ' +
+            'sammen med disse vilkårene.',
+        ],
+      },
+      {
+        heading: '10. Lovvalg',
         body: [
           'Disse vilkårene er underlagt norsk rett. Tvister hører inn ' +
             'under de ordinære norske domstolene.',
         ],
       },
     ],
-    acceptLabel: 'Jeg har lest og godtar vilkårene',
+    acceptLabel: 'Jeg har lest og godtar vilkårene og personvernerklæringen',
     declineLabel: 'Avslå',
     gateNote:
       'Ved å trykke godta bekrefter du at du forstår at Fjellrute kun er ' +

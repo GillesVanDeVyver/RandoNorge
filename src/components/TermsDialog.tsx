@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { TERMS, TERMS_VERSION, type TermsLang } from '../terms/content';
+import { PRIVACY, PRIVACY_VERSION } from '../terms/privacy';
 import styles from './TermsDialog.module.css';
 
-// In-app reference view of the terms of use, shown in a modal (opened from
-// the ⓘ button). The text itself lives in src/terms/content.ts and is the
-// SAME text the user accepted on the TermsPage gate — the two must never
-// diverge, so this component only provides the modal chrome.
+// In-app reference view of the terms of use and the privacy policy, shown
+// in a modal (opened from the ⓘ button). The texts live in
+// src/terms/content.ts and src/terms/privacy.ts and are the SAME texts the
+// user accepted on the TermsPage gate — the two must never diverge, so this
+// component only provides the modal chrome.
 
 interface Props {
   onClose: () => void;
@@ -13,8 +15,12 @@ interface Props {
 
 export function TermsDialog({ onClose }: Props) {
   const [lang, setLang] = useState<TermsLang>('en');
+  const [doc, setDoc] = useState<'terms' | 'privacy'>('terms');
   const panelRef = useRef<HTMLDivElement>(null);
   const t = TERMS[lang];
+  const p = PRIVACY[lang];
+  const active = doc === 'terms' ? t : p;
+  const activeVersion = doc === 'terms' ? TERMS_VERSION : PRIVACY_VERSION;
 
   // Esc closes the dialog. Stop propagation so the app-level Esc handler
   // (which exits draw/erase mode) doesn't also fire.
@@ -50,7 +56,7 @@ export function TermsDialog({ onClose }: Props) {
         tabIndex={-1}
       >
         <header className={styles.header}>
-          <h2 className={styles.title}>{t.title}</h2>
+          <h2 className={styles.title}>{active.title}</h2>
           <div
             className={styles.langToggle}
             role="group"
@@ -82,11 +88,35 @@ export function TermsDialog({ onClose }: Props) {
             ×
           </button>
         </header>
+        <div
+          className={styles.docTabs}
+          role="tablist"
+          aria-label={lang === 'en' ? 'Document' : 'Dokument'}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={doc === 'terms'}
+            className={doc === 'terms' ? styles.docActive : ''}
+            onClick={() => setDoc('terms')}
+          >
+            {t.title}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={doc === 'privacy'}
+            className={doc === 'privacy' ? styles.docActive : ''}
+            onClick={() => setDoc('privacy')}
+          >
+            {p.title}
+          </button>
+        </div>
         <div className={styles.body}>
           <p className={styles.updated}>
-            {t.updated}: {TERMS_VERSION}
+            {active.updated}: {activeVersion}
           </p>
-          {t.sections.map((s) => (
+          {active.sections.map((s) => (
             <section key={s.heading}>
               <h3 className={styles.sectionHeading}>{s.heading}</h3>
               {s.body.map((p, i) => (

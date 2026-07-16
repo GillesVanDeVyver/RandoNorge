@@ -262,3 +262,40 @@
     height: 40px;
   }
 }
+
+/* --- Document tabs (Terms of Use / Privacy Policy) ----------------------- */
+
+.docTabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--hairline-strong);
+}
+
+.docTab {
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.docTab:hover {
+  color: var(--text-1);
+}
+
+.docTab[data-active] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.docTab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  border-radius: var(--radius-sm, 6px);
+}

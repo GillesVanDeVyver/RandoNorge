@@ -140,3 +140,42 @@
   line-height: 1.6;
   color: var(--text-2);
 }
+
+/* --- Document tabs (Terms of Use / Privacy Policy) ----------------------- */
+
+.docTabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+
+.docTabs button {
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.docTabs button:hover {
+  color: var(--text-1);
+}
+
+.docTabs button.docActive,
+.docTabs button.docActive:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.docTabs button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  border-radius: var(--radius-sm, 6px);
+}

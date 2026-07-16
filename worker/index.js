@@ -64,7 +64,44 @@ export default {
     // configured in wrangler.jsonc).
     return env.ASSETS.fetch(request);
   },
+
+  // Daily data-retention cleanup (cron in wrangler.jsonc). GDPR storage
+  // limitation (art. 5(1)(e)): expired session rows contain the user's IP
+  // address and user agent and must not accumulate forever, and expired
+  // verification tokens have no purpose after their expiry. Better Auth
+  // expires sessions logically but does not purge the rows from D1, so we
+  // do it here. The privacy policy (src/terms/privacy.ts §5) promises this
+  // cleanup — keep both in sync.
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(purgeExpiredRows(env));
+  },
 };
+
+/**
+ * Delete expired "session" and "verification" rows. Better Auth's kysely
+ * adapter has stored datetimes both as ISO-8601 strings and as epoch
+ * milliseconds depending on version, so compare in whichever form the row
+ * actually uses (typeof() is SQLite-native).
+ */
+async function purgeExpiredRows(env) {
+  const nowIso = new Date().toISOString();
+  const nowMs = Date.now();
+  const expired = (table) =>
+    env.DB.prepare(
+      `delete from "${table}" where (case
+         when typeof("expiresAt") = 'text' then "expiresAt" < ?1
+         else "expiresAt" < ?2
+       end)`,
+    ).bind(nowIso, nowMs);
+  const [sessions, verifications] = await env.DB.batch([
+    expired('session'),
+    expired('verification'),
+  ]);
+  console.log(
+    `retention cleanup: ${sessions.meta.changes} expired sessions, ` +
+      `${verifications.meta.changes} expired verification tokens deleted`,
+  );
+}
 
 /** POST { email } → { exists: boolean }. Backs the login form's
  *  "user not found" / "wrong password" distinction. */

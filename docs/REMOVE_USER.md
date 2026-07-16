@@ -41,10 +41,17 @@ rather than by user id and therefore do **not** cascade.
 ```sh
 npx wrangler d1 execute fjellrute-db --remote --command "
   delete from verification
-  where lower(identifier) like '%someone@example.com%';
+  where lower(identifier) = lower('someone@example.com')
+     or lower(identifier) like '%:' || lower('someone@example.com');
   delete from user
   where lower(email) = lower('someone@example.com')"
 ```
+
+(The identifier is either the bare email or prefixed like
+`reset-password:email`, hence the two conditions. Do **not** use a plain
+`like '%email%'` — with one address that is a substring of another, e.g.
+`one@example.com` vs `someone@example.com`, it would delete the wrong
+user's tokens.)
 
 The output of the second statement shows `"changes": n` — the user row
 plus its cascaded rows. `"changes": 0`-style output with `changed_db:
