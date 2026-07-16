@@ -24,6 +24,17 @@ export type TrackingStatus = 'idle' | 'recording' | 'paused' | 'finished';
 const MAX_ACCURACY_M = 75;
 const MIN_STEP_M = 3;
 
+// ---- Pace bookkeeping ----------------------------------------------------
+// Below this speed a fix interval counts as standing still (GPS noise while
+// stationary typically reads a few tenths of a m/s).
+const MOVING_MIN_SPEED_MPS = 0.5;
+// Fix intervals longer than this (signal loss, backgrounded tab) tell us
+// nothing about motion, so they count as neither moving nor add to max speed.
+const MAX_FIX_GAP_S = 15;
+// Guard against position jumps: anything faster than ~160 km/h on a tour is
+// a GPS glitch, not skiing.
+const MAX_PLAUSIBLE_SPEED_MPS = 45;
+
 export interface Tracking {
   status: TrackingStatus;
   /** The recorded track so far (one segment per uninterrupted stretch). */
@@ -36,6 +47,10 @@ export interface Tracking {
   error: string | null;
   /** Active recording time in ms (pauses excluded), ticking each second. */
   elapsedMs: number;
+  /** Time actually spent moving, ms (standing-still intervals excluded). */
+  movingMs: number;
+  /** Fastest observed speed in m/s (null until the first measurable move). */
+  maxSpeedMps: number | null;
   /** ISO timestamp of when recording first started. */
   startedAt: string | null;
   /** ISO timestamp of when Finish was pressed. */
@@ -68,6 +83,8 @@ export function useTracking(): Tracking {
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [movingMs, setMovingMs] = useState(0);
+  const [maxSpeedMps, setMaxSpeedMps] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const [finishedAt, setFinishedAt] = useState<string | null>(null);
 
@@ -83,6 +100,13 @@ export function useTracking(): Tracking {
   // stretches + the timestamp of the current stretch's start.
   const accumulatedMsRef = useRef(0);
   const resumedAtRef = useRef<number | null>(null);
+  // Pace bookkeeping: every good-accuracy fix (also the sub-MIN_STEP_M ones
+  // dropped from the line — standing still must read as 0 km/h, which needs
+  // the short intervals) is compared with the previous one to classify the
+  // interval as moving or standing and to update the max speed.
+  const lastFixRef = useRef<{ point: LatLng; time: number } | null>(null);
+  const movingMsRef = useRef(0);
+  const maxSpeedRef = useRef<number | null>(null);
 
   const stopWatch = useCallback(() => {
     if (watchIdRef.current !== null) {
@@ -105,6 +129,35 @@ export function useTracking(): Tracking {
 
         // Gate what extends the recorded line (see module comment).
         if (fix.coords.accuracy > MAX_ACCURACY_M) return;
+
+        // Pace stats — measured fix-to-fix, before the min-step gate so
+        // standing still is observed (as near-zero speed) rather than
+        // silently dropped.
+        const prevFix = lastFixRef.current;
+        lastFixRef.current = { point, time: fix.timestamp };
+        if (prevFix) {
+          const dtS = (fix.timestamp - prevFix.time) / 1000;
+          if (dtS > 0 && dtS <= MAX_FIX_GAP_S) {
+            // Prefer the device's Doppler-derived speed when available;
+            // fall back to distance/time between fixes.
+            const reported = fix.coords.speed;
+            const speed =
+              reported != null && Number.isFinite(reported) && reported >= 0
+                ? reported
+                : haversine(prevFix.point, point) / dtS;
+            if (speed <= MAX_PLAUSIBLE_SPEED_MPS) {
+              if (speed >= MOVING_MIN_SPEED_MPS) {
+                movingMsRef.current += dtS * 1000;
+                setMovingMs(movingMsRef.current);
+              }
+              if (maxSpeedRef.current === null || speed > maxSpeedRef.current) {
+                maxSpeedRef.current = speed;
+                setMaxSpeedMps(speed);
+              }
+            }
+          }
+        }
+
         const last = lastAcceptedRef.current;
         if (last && haversine(last, point) < MIN_STEP_M) return;
 
@@ -132,8 +185,13 @@ export function useTracking(): Tracking {
     needsSegmentRef.current = true;
     accumulatedMsRef.current = 0;
     resumedAtRef.current = Date.now();
+    lastFixRef.current = null;
+    movingMsRef.current = 0;
+    maxSpeedRef.current = null;
     setTrack([]);
     setElapsedMs(0);
+    setMovingMs(0);
+    setMaxSpeedMps(null);
     setError(null);
     setStartedAt(new Date().toISOString());
     setFinishedAt(null);
@@ -160,6 +218,8 @@ export function useTracking(): Tracking {
       // the distance gate must not compare against the pre-pause point.
       needsSegmentRef.current = true;
       lastAcceptedRef.current = null;
+      // Same for pace: the gap spent paused must not read as an interval.
+      lastFixRef.current = null;
       resumedAtRef.current = Date.now();
       startWatch();
       return 'recording';
@@ -187,11 +247,16 @@ export function useTracking(): Tracking {
     needsSegmentRef.current = true;
     accumulatedMsRef.current = 0;
     resumedAtRef.current = null;
+    lastFixRef.current = null;
+    movingMsRef.current = 0;
+    maxSpeedRef.current = null;
     setTrack([]);
     setPosition(null);
     setAccuracy(null);
     setError(null);
     setElapsedMs(0);
+    setMovingMs(0);
+    setMaxSpeedMps(null);
     setStartedAt(null);
     setFinishedAt(null);
     setStatus('idle');
@@ -220,6 +285,8 @@ export function useTracking(): Tracking {
     accuracy,
     error,
     elapsedMs,
+    movingMs,
+    maxSpeedMps,
     startedAt,
     finishedAt,
     start,

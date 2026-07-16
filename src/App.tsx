@@ -10,6 +10,7 @@ import {
 import { Map } from './components/Map';
 import { NavigationBar } from './components/NavigationBar';
 import { ElevationPanel, SnowPanel } from './components/ProfilePanel';
+import { PacePanel } from './components/PacePanel';
 import { SnowDateBar } from './components/SnowDateBar';
 import { SummaryCard, SummaryPanel } from './components/SummaryPanel';
 import { Toast } from './components/Toast';
@@ -245,12 +246,13 @@ function App({ saving }: Props) {
     [],
   );
 
-  // The actual route runs through the same elevation/snow pipeline as the
-  // plan, so both stats views are directly comparable — but throttled while
-  // recording so the pipeline isn't re-run on every GPS fix.
+  // The actual route runs through the same elevation pipeline as the plan,
+  // so both elevation views are directly comparable — but throttled while
+  // recording so the pipeline isn't re-run on every GPS fix. (Snow /
+  // avalanche / weather stay plan-only: the actual view shows the elevation
+  // profile plus the pace stats instead.)
   const statsTrack = useThrottledTrack(tracking.track, tracking.status);
   const actualElevation = useElevation(statsTrack);
-  const actualSnow = useSnow(actualElevation.profile, snowDate);
 
   // Live travelled distance for the recording bar (cheap client-side sum,
   // independent of the throttled pipeline).
@@ -502,7 +504,6 @@ function App({ saving }: Props) {
   // simply show their empty/loading states.
   const showActualStats = statsView === 'actual' && navSession;
   const activeElevation = showActualStats ? actualElevation : elevation;
-  const activeSnow = showActualStats ? actualSnow : snow;
 
   // Mobile redesign: full-screen map with the summary rail as a bottom sheet,
   // a collapsible edit toolbar, and consolidated map controls.
@@ -827,24 +828,37 @@ function App({ saving }: Props) {
               />
             )}
           </SummaryCard>
-          <SummaryCard title="Snow">
-            <SnowPanel
-              profile={activeElevation.profile}
-              snow={activeSnow.snow}
-              loading={activeSnow.loading}
-              error={activeSnow.error}
-              date={snowDate}
-              onDateChange={setSnowDate}
-            />
-          </SummaryCard>
-          {activeElevation.profile && (
-            <SummaryCard title="Avalanche warnings">
-              <AvalancheRisk profile={activeElevation.profile} />
+          {showActualStats && (
+            <SummaryCard title="Pace">
+              <PacePanel
+                elapsedMs={tracking.elapsedMs}
+                movingMs={tracking.movingMs}
+                distanceM={trackDistanceM}
+                maxSpeedMps={tracking.maxSpeedMps}
+                waiting={!trackHasLine}
+              />
             </SummaryCard>
           )}
-          {activeElevation.profile && (
+          {!showActualStats && (
+            <SummaryCard title="Snow">
+              <SnowPanel
+                profile={elevation.profile}
+                snow={snow.snow}
+                loading={snow.loading}
+                error={snow.error}
+                date={snowDate}
+                onDateChange={setSnowDate}
+              />
+            </SummaryCard>
+          )}
+          {!showActualStats && elevation.profile && (
+            <SummaryCard title="Avalanche warnings">
+              <AvalancheRisk profile={elevation.profile} />
+            </SummaryCard>
+          )}
+          {!showActualStats && elevation.profile && (
             <SummaryCard title="Weather forecast" padded={false}>
-              <WeatherPanel profile={activeElevation.profile} />
+              <WeatherPanel profile={elevation.profile} />
             </SummaryCard>
           )}
         </SummaryPanel>
