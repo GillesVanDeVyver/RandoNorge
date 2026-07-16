@@ -525,17 +525,6 @@ function App({ saving }: Props) {
             collapsible={isMobile}
           />
         )}
-        {hasRoute && tracking.status === 'idle' && view === '2d' && (
-          <button
-            type="button"
-            className={styles.startNavBtn}
-            onClick={handleStartNavigation}
-            title="Follow this route and record where you actually go"
-          >
-            <PlayIcon />
-            <span>Start route</span>
-          </button>
-        )}
         {navSession && tracking.status !== 'idle' && (
           <NavigationBar
             status={tracking.status as 'recording' | 'paused' | 'finished'}
@@ -699,6 +688,17 @@ function App({ saving }: Props) {
                     Actual route
                   </button>
                 </div>
+              )}
+              {hasRoute && tracking.status === 'idle' && view === '2d' && !navSession && (
+                <button
+                  type="button"
+                  className={styles.startNavBtn}
+                  onClick={handleStartNavigation}
+                  title="Follow this route and record where you actually go"
+                >
+                  <PlayIcon />
+                  <span>Start route</span>
+                </button>
               )}
               {saving && !navSession && (
                 <button
