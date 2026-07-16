@@ -789,6 +789,27 @@ function App({ saving }: Props) {
                   </span>
                 </button>
               )}
+              {/* Guest mode: no `saving` prop, so there's no way to persist a
+                  route. We still show the Save button (grayed out and inert)
+                  so the feature is discoverable, and hang the tooltip off a
+                  wrapping span — a disabled <button> swallows pointer events,
+                  so its own `title` never appears on hover. */}
+              {!saving && !navSession && (
+                <span
+                  className={styles.saveBtnLockWrap}
+                  title="Create an account to save routes"
+                >
+                  <button
+                    type="button"
+                    className={`${styles.saveBtn} ${styles.saveBtnLocked}`}
+                    disabled
+                    aria-disabled="true"
+                  >
+                    <BookmarkPlusIcon />
+                    <span>Save route</span>
+                  </button>
+                </span>
+              )}
             </>
           }
         >

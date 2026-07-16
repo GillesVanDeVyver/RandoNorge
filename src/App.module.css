@@ -271,6 +271,16 @@
   cursor: progress;
 }
 
+/* Guest "Save route": inert, grayed out, and never interactive. The wrapper
+   carries the tooltip because a disabled button doesn't emit hover events. */
+.saveBtnLockWrap {
+  display: inline-flex;
+}
+
+.saveBtnLocked:disabled {
+  cursor: not-allowed;
+}
+
 @media (pointer: coarse) {
   .saveBtn {
     height: 44px;
