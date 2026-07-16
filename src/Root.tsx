@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import App from './App.tsx';
+import App, { clearNewPlanDraft } from './App.tsx';
 import { authClient } from './auth/client.ts';
 import { AccountChip } from './components/AccountChip.tsx';
 import { AccountOverview } from './components/AccountOverview.tsx';
@@ -251,6 +251,9 @@ export function Root() {
   );
 
   const handlePlanNewRoute = useCallback(() => {
+    // Explicitly starting a new plan discards any fresh-plan draft left by
+    // a previous planner visit; only back/return navigation restores it.
+    clearNewPlanDraft();
     navigate('planner');
   }, [navigate]);
 

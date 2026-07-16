@@ -50,6 +50,57 @@ type ViewMode = '2d' | '3d';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
+// ---- Planner draft persistence -----------------------------------------
+// The planner unmounts whenever the user navigates to another view (library,
+// overview, …), which used to discard the drawn route. The in-progress route
+// (and the library identity it belongs to, so Save keeps updating the right
+// route) is mirrored into sessionStorage and restored on remount — e.g. when
+// the browser's back button returns to /planner. sessionStorage is per-tab,
+// so a fresh visit still starts with a clean planner. Keyed per opened
+// library route, matching the `key` Root gives each planner instance.
+
+interface PlannerDraft {
+  route: Route;
+  savedMeta: { id: string; name: string; description: string | null } | null;
+}
+
+const draftKey = (routeId: string | null) =>
+  `randonorge:planner-draft:${routeId ?? 'new'}`;
+
+function loadDraft(routeId: string | null): PlannerDraft | null {
+  try {
+    const raw = sessionStorage.getItem(draftKey(routeId));
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const draft = parsed as PlannerDraft;
+    if (!Array.isArray(draft.route)) return null;
+    return draft;
+  } catch {
+    // Storage unavailable or corrupted entry — fall back to a clean planner.
+    return null;
+  }
+}
+
+function storeDraft(routeId: string | null, draft: PlannerDraft): void {
+  try {
+    sessionStorage.setItem(draftKey(routeId), JSON.stringify(draft));
+  } catch {
+    // Storage unavailable/full — the draft just won't survive navigation.
+  }
+}
+
+/** Drop the fresh-plan draft. Called when the user explicitly starts a new
+ *  plan, so "Plan a new route" really is new — only back/return navigation
+ *  restores a draft. */
+export function clearNewPlanDraft(): void {
+  try {
+    sessionStorage.removeItem(draftKey(null));
+  } catch {
+    // Storage unavailable — nothing to clear.
+  }
+}
+
 // While recording, every accepted GPS fix would otherwise re-run the full
 // elevation/snow pipeline on the growing track. Instead the copy fed to the
 // pipeline refreshes at most once per THROTTLE_MS — and immediately when
@@ -109,22 +160,36 @@ interface Props {
 
 function App({ saving }: Props) {
   const [mode, setMode] = useState<Mode>('idle');
-  const [route, setRoute] = useState<Route>(saving?.initial?.route ?? []);
+  // Stable for the lifetime of this planner instance: Root remounts the
+  // planner (via `key`) whenever a different library route is opened.
+  const initialId = saving?.initial?.id ?? null;
+  // A draft stashed by a previous planner instance in this tab (the user
+  // navigated away and came back) wins over the pristine library route.
+  const [route, setRoute] = useState<Route>(
+    () => loadDraft(initialId)?.route ?? saving?.initial?.route ?? [],
+  );
   // Identity of the library route currently being edited; Save updates it
   // instead of creating a duplicate, and its name/notes prefill the dialog.
   const [savedMeta, setSavedMeta] = useState<{
     id: string;
     name: string;
     description: string | null;
-  } | null>(
-    saving?.initial
+  } | null>(() => {
+    const draft = loadDraft(initialId);
+    if (draft) return draft.savedMeta;
+    return saving?.initial
       ? {
           id: saving.initial.id,
           name: saving.initial.name,
           description: saving.initial.description,
         }
-      : null,
-  );
+      : null;
+  });
+  // Mirror the in-progress route into sessionStorage so it survives the
+  // planner unmounting (tab navigation) and reappears on return.
+  useEffect(() => {
+    storeDraft(initialId, { route, savedMeta });
+  }, [initialId, route, savedMeta]);
   const [saveOpen, setSaveOpen] = useState(false);
   // Transient "Route saved" confirmation, mirroring the clear-undo toast.
   const [savedToast, setSavedToast] = useState(false);
