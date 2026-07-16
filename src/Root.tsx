@@ -11,6 +11,7 @@ import {
   LoginPage,
   PENDING_VERIFICATION_KEY,
 } from './components/LoginPage.tsx';
+import { TermsPage } from './components/TermsPage.tsx';
 import {
   deleteRoute,
   listRoutes,
@@ -125,6 +126,12 @@ export function Root() {
   const [nav, setNav] = useState<Nav>(() =>
     pathToNav(window.location.pathname),
   );
+  // Guests must accept the terms of use on every visit before entering
+  // the planner. Held in component state only (never persisted), so a
+  // reload — or a deep link straight to /planner — asks again. Signed-in
+  // users are unaffected: they accepted at sign-up, and the signed-in
+  // branch renders before the guest gate below.
+  const [guestTermsAccepted, setGuestTermsAccepted] = useState(false);
   const { view, routeId: openRouteId } = nav;
   // The signed-in user's route library, loaded once per session and kept
   // in sync by the save/delete flows. Null while the first fetch is
@@ -331,9 +338,27 @@ export function Root() {
 
   // Guests get the planner behind its own history entry, so the back
   // button returns to the login page (and forward re-enters the planner).
-  return guest ? (
-    <App />
-  ) : (
+  // The terms-of-use gate sits in front of the planner: it covers both
+  // the "Continue as guest" button and deep links straight to /planner,
+  // and declining lands back on the login page.
+  if (guest) {
+    return guestTermsAccepted ? (
+      <App />
+    ) : (
+      <TermsPage
+        onAccept={() => setGuestTermsAccepted(true)}
+        onDecline={() => {
+          setGuest(false);
+          // Leave the planner URL too, so a refresh doesn't re-open the
+          // gate the user just declined.
+          window.history.replaceState(null, '', '/');
+          setNav({ view: 'overview', routeId: null });
+        }}
+      />
+    );
+  }
+
+  return (
     <LoginPage
       onContinueAsGuest={() => {
         navigate('planner');

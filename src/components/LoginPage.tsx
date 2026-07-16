@@ -8,6 +8,7 @@ import {
   RouteIcon,
   SnowflakeIcon,
 } from './icons';
+import { TermsPage } from './TermsPage';
 import styles from './LoginPage.module.css';
 
 type Props = {
@@ -25,6 +26,15 @@ type Props = {
  *    which carries ?token=... back to this page)
  */
 type CardMode = 'login' | 'signup' | 'verify' | 'forgot' | 'reset';
+
+/**
+ * Sign-up path waiting behind the terms-of-use gate. Set when the user
+ * submits the sign-up form or picks "Sign up with Google"; the full-screen
+ * TermsPage is shown and the action only runs after Accept. Nothing is
+ * persisted — sign-up simply cannot complete without accepting. (The guest
+ * gate lives in Root so planner deep links are covered too.)
+ */
+type PendingAction = 'signup' | 'google-signup';
 
 /** Reads one-shot query params left by emailed links, then cleans the URL. */
 function consumeAuthParams() {
@@ -146,6 +156,11 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   const [resendCooldown, setResendCooldown] = useState(
     () => readResendCooldown() ?? 0,
   );
+  // Non-null while the terms-of-use page is blocking a sign-up or guest
+  // entry; holds the action to run once the user accepts.
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(
+    null,
+  );
 
   // Ticks the resend cooldown down once per second while it is active.
   // Recomputes from the persisted deadline (rather than decrementing) so the
@@ -253,7 +268,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     }
   };
 
-  const handleSignup = async (e: FormEvent) => {
+  // Form submit on the sign-up card: validate locally, then hold the
+  // actual account creation behind the terms-of-use gate. performSignup
+  // below only runs after the user accepts on the TermsPage.
+  const handleSignup = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setEmailTaken(false);
@@ -266,6 +284,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       setError('The passwords do not match.');
       return;
     }
+    setPendingAction('signup');
+  };
+
+  const performSignup = async () => {
     setBusy(true);
     // Better Auth deliberately answers duplicate sign-ups with a fake
     // success (anti-enumeration when email verification is required), so
@@ -314,6 +336,15 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       setNotice(SIGNUP_SUCCESS_NOTICE);
       setMode('verify');
     }
+  };
+
+  // The user accepted the terms: run whichever sign-up path was waiting
+  // behind the gate. Declining just returns to the login page unchanged.
+  const handleTermsAccept = () => {
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action === 'signup') void performSignup();
+    else if (action === 'google-signup') void handleGoogle();
   };
 
   const handleResend = async () => {
@@ -402,6 +433,17 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       setNotice('Password updated. Log in with your new password.');
     }
   };
+
+  // Terms-of-use gate: replaces the whole page while a sign-up or guest
+  // entry is waiting for acceptance.
+  if (pendingAction) {
+    return (
+      <TermsPage
+        onAccept={handleTermsAccept}
+        onDecline={() => setPendingAction(null)}
+      />
+    );
+  }
 
   return (
     <div className={styles.page}>
@@ -572,7 +614,13 @@ export function LoginPage({ onContinueAsGuest }: Props) {
               <button
                 type="button"
                 className={styles.googleBtn}
-                onClick={handleGoogle}
+                onClick={
+                  // Creating an account via Google also goes through the
+                  // terms gate; existing users logging in do not.
+                  mode === 'signup'
+                    ? () => setPendingAction('google-signup')
+                    : handleGoogle
+                }
                 disabled={busy}
               >
                 <GoogleIcon className={styles.googleIcon} />
@@ -737,6 +785,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
               <button
                 type="button"
                 className={styles.guestBtn}
+                // The terms gate for guests lives in Root (so deep links
+                // straight into the planner are covered too); this just
+                // hands over.
                 onClick={onContinueAsGuest}
               >
                 Continue as guest

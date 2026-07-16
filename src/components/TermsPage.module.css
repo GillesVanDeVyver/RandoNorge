@@ -1,0 +1,264 @@
+/* =========================================================================
+   TermsPage — full-screen terms-of-use gate shown before sign-up and
+   before entering as a guest. Same photo backdrop and "Alpine Glass"
+   card language as the LoginPage; the card is wider and its body
+   scrolls so the whole text is available before accepting.
+   ========================================================================= */
+
+.page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(16px, 3vw, 40px);
+  background:
+    url('/login-backcountry.jpg') center / cover no-repeat,
+    #dfe7ee;
+  overflow: hidden;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(8, 18, 28, 0.45);
+}
+
+/* --- Brand (top-left, matches LoginPage) -------------------------------- */
+
+.brand {
+  position: relative;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.brandIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: var(--shadow-2);
+}
+
+.brandIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.brandName {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(8, 18, 28, 0.45);
+}
+
+/* --- Card ---------------------------------------------------------------- */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  min-height: 0;
+  flex: 1;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-8) var(--space-4);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+}
+
+.updated {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+/* --- EN / NO toggle ------------------------------------------------------ */
+
+.langToggle {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--surface-hover);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-pill);
+}
+
+.langBtn {
+  padding: 5px 14px;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.langBtn[data-active] {
+  color: var(--accent-contrast);
+  background: var(--accent);
+}
+
+.langBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* --- Scrollable body ------------------------------------------------------ */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-8);
+  overscroll-behavior: contain;
+}
+
+.intro {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--text-1);
+}
+
+.sectionHeading {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+}
+
+.paragraph {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+/* --- Footer with Accept / Decline ----------------------------------------- */
+
+.footer {
+  padding: var(--space-4) var(--space-8) var(--space-6);
+  border-top: 1px solid var(--hairline);
+}
+
+.gateNote {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.declineBtn {
+  height: 44px;
+  padding: 0 var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-1);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.declineBtn:hover {
+  background: var(--surface-hover);
+}
+
+.declineBtn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.acceptBtn {
+  flex: 1;
+  height: 44px;
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+  transition:
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.acceptBtn:hover {
+  background: var(--accent-hover);
+}
+
+.acceptBtn:active {
+  transform: translateY(1px);
+}
+
+.acceptBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* --- Smaller screens ------------------------------------------------------ */
+
+@media (max-width: 640px) {
+  .cardHeader,
+  .body,
+  .footer {
+    padding-inline: var(--space-4);
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .declineBtn {
+    height: 40px;
+  }
+}
