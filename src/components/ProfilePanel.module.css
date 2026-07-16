@@ -63,6 +63,19 @@
   grid-column: 1 / -1;
 }
 
+/* Safety-critical data-gap notice (e.g. NVE runout layer failed to load).
+   Amber warning treatment so it reads as "caution", not decoration. */
+.dataWarning {
+  font-size: var(--text-sm);
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+  line-height: 1.4;
+}
+
 .dateField {
   display: flex;
   flex-direction: column;

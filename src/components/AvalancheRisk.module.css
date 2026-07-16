@@ -160,6 +160,26 @@
   color: var(--text-2);
 }
 
+/* The forecaster's headline advisory (Varsom MainText) for a region. */
+.mainText {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  line-height: 1.5;
+}
+
+/* Deep link to the region's full bulletin on varsom.no. */
+.regionLink {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  text-decoration: underline;
+  width: fit-content;
+}
+
+.regionLink:hover {
+  color: var(--text-1);
+}
+
 /* Reference scale: full 1–5 danger legend plus the "not rated" state. */
 .legend {
   display: flex;

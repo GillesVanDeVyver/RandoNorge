@@ -16,6 +16,10 @@ export interface AvalancheState {
   regions: AvalancheWarning[];
   loading: boolean;
   error: string | null;
+  // Epoch ms of the OLDEST underlying Varsom retrieval shown (cached
+  // results keep their original time), so the UI can display honest data
+  // age. Null while nothing has been loaded.
+  fetchedAt: number | null;
 }
 
 // How many points along the route to probe. Avalanche regions are large
@@ -64,15 +68,26 @@ export function useAvalanche(
     regions: [],
     loading: false,
     error: null,
+    fetchedAt: null,
   });
 
   useEffect(() => {
     if (points.length === 0) {
-      setState({ level: 0, regions: [], loading: false, error: null });
+      startTransition(() => {
+        setState({
+          level: 0,
+          regions: [],
+          loading: false,
+          error: null,
+          fetchedAt: null,
+        });
+      });
       return;
     }
     const controller = new AbortController();
-    setState((s) => ({ ...s, loading: true, error: null }));
+    startTransition(() => {
+      setState((s) => ({ ...s, loading: true, error: null }));
+    });
 
     Promise.all(
       points.map((p) =>
@@ -92,15 +107,25 @@ export function useAvalanche(
           (a, b) => b.dangerLevel - a.dangerLevel,
         );
         const level = regions.reduce((m, r) => Math.max(m, r.dangerLevel), 0);
+        // Oldest retrieval among the shown warnings — conservative data age.
+        const fetchedAt = regions.length
+          ? regions.reduce((m, r) => Math.min(m, r.fetchedAt), Infinity)
+          : Date.now();
         startTransition(() => {
-          setState({ level, regions, loading: false, error: null });
+          setState({ level, regions, loading: false, error: null, fetchedAt });
         });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : 'Failed to fetch';
         startTransition(() => {
-          setState({ level: 0, regions: [], loading: false, error: msg });
+          setState({
+            level: 0,
+            regions: [],
+            loading: false,
+            error: msg,
+            fetchedAt: null,
+          });
         });
       });
 

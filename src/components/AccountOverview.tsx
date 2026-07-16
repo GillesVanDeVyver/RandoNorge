@@ -72,8 +72,8 @@ export function AccountOverview({
             <span className={styles.cardBody}>
               <span className={styles.cardTitle}>Plan new route</span>
               <span className={styles.cardText}>
-                Draw a tour and read the terrain, snow and avalanche
-                forecast for every metre.
+                Draw a tour and explore the terrain, snow and avalanche
+                information along your route.
               </span>
             </span>
             <span className={styles.cardArrow} aria-hidden="true">

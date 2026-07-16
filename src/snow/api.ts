@@ -70,7 +70,12 @@ function latLngToUtm33(lat: number, lng: number): [number, number] {
 }
 
 // (cellKey + date) → snow depth in cm. NaN means "fetched, no data here".
-const cache = new Map<string, number>();
+// Entries expire after CACHE_TTL_MS: seNorge's grid for "today" is updated
+// during the day, so a session-long cache could keep showing this morning's
+// snow depth all day. Historical dates rarely change, but a uniform 1 h TTL
+// keeps the logic simple and the service load negligible.
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const cache = new Map<string, { at: number; v: number }>();
 const cellKey = (cx: number, cy: number) => `${cx},${cy}`;
 const fullKey = (k: string, date: string) => `${k}@${date}`;
 
@@ -128,18 +133,19 @@ export async function fetchSnowDepths(
   await Promise.all(
     cells.map(async (c) => {
       const fk = fullKey(c.key, date);
-      if (cache.has(fk)) return;
+      const hit = cache.get(fk);
+      if (hit && Date.now() - hit.at < CACHE_TTL_MS) return;
       try {
         const v = await fetchCell(c.x, c.y, date, signal);
-        cache.set(fk, v);
+        cache.set(fk, { at: Date.now(), v });
       } catch {
-        // Leave uncached so a later retry can fill it in.
+        // Leave uncached (or stale) so a later retry can fill it in.
       }
     }),
   );
 
   return pointKeys.map((k) => {
-    const v = cache.get(fullKey(k, date));
-    return typeof v === 'number' ? v : NaN;
+    const hit = cache.get(fullKey(k, date));
+    return hit ? hit.v : NaN;
   });
 }

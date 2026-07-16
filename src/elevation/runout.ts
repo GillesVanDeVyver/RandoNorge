@@ -18,6 +18,13 @@ const EXPORT_URL =
 // 3 = inside "short" runout (darkest blue, layer 2 — closest to release)
 export type RunoutLevel = 0 | 1 | 2 | 3;
 
+// Sentinel for "runout data could not be fetched/decoded". This is
+// deliberately distinct from 0 ("verified to be outside all runout
+// zones"): a failed lookup must never render as safe terrain. Consumers
+// must treat RUNOUT_UNKNOWN as "no information" and display it as such.
+export const RUNOUT_UNKNOWN = -1;
+export type RunoutSample = RunoutLevel | typeof RUNOUT_UNKNOWN;
+
 // NVE Norway runout colors decoded from the service legend. Order matters:
 // when multiple layers cover a pixel, NVE renders the darkest on top, so
 // the rendered pixel color identifies the innermost layer.
@@ -62,8 +69,14 @@ function classify(r: number, g: number, b: number, a: number): RunoutLevel {
 export async function fetchRunoutLevels(
   points: LatLng[],
   signal?: AbortSignal,
-): Promise<RunoutLevel[]> {
+): Promise<RunoutSample[]> {
   if (points.length === 0) return [];
+
+  // Fail SAFE, not open: every failure path below returns RUNOUT_UNKNOWN
+  // for all points, never 0, so a network/decode error can't masquerade
+  // as "outside all runout zones".
+  const unknown = () =>
+    new Array<RunoutSample>(points.length).fill(RUNOUT_UNKNOWN);
 
   let minLat = Infinity;
   let maxLat = -Infinity;
@@ -111,18 +124,18 @@ export async function fetchRunoutLevels(
   let bitmap: ImageBitmap;
   try {
     const res = await fetch(url, { signal });
-    if (!res.ok) return new Array(points.length).fill(0);
+    if (!res.ok) return unknown();
     const blob = await res.blob();
     bitmap = await createImageBitmap(blob);
   } catch {
-    return new Array(points.length).fill(0);
+    return unknown();
   }
 
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) {
     bitmap.close();
-    return new Array(points.length).fill(0);
+    return unknown();
   }
   ctx.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
@@ -131,12 +144,12 @@ export async function fetchRunoutLevels(
   try {
     data = ctx.getImageData(0, 0, width, height);
   } catch {
-    return new Array(points.length).fill(0);
+    return unknown();
   }
 
   const dLng = maxLng - minLng;
   const dLat = maxLat - minLat;
-  const result: RunoutLevel[] = new Array(points.length);
+  const result: RunoutSample[] = new Array(points.length);
   for (let i = 0; i < points.length; i++) {
     const [lat, lng] = points[i];
     const px = Math.min(

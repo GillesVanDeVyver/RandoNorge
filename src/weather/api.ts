@@ -52,7 +52,11 @@ interface MetNoResponse {
 }
 
 // (lat,lon quantized to 3 decimals ≈ ~100 m) → cached forecast.
-const cache = new Map<string, WeatherHour[]>();
+// Entries expire after CACHE_TTL_MS: MET updates Locationforecast roughly
+// hourly, and a session-long cache would silently serve an outdated forecast
+// for as long as the tab stays open — dangerous for a trip-planning tool.
+const CACHE_TTL_MS = 30 * 60 * 1000;
+const cache = new Map<string, { at: number; hours: WeatherHour[] }>();
 
 function cacheKey(lat: number, lon: number): string {
   return `${lat.toFixed(3)},${lon.toFixed(3)}`;
@@ -65,7 +69,7 @@ export async function fetchForecast(
 ): Promise<WeatherHour[]> {
   const key = cacheKey(lat, lon);
   const cached = cache.get(key);
-  if (cached) return cached;
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.hours;
 
   const url = `${ENDPOINT}?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`;
   const res = await fetch(url, { signal });
@@ -90,6 +94,6 @@ export async function fetchForecast(
     };
   });
 
-  cache.set(key, hours);
+  cache.set(key, { at: Date.now(), hours });
   return hours;
 }

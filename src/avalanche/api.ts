@@ -39,6 +39,10 @@ export interface AvalancheWarning {
   dangerLevel: number; // 0 = not assessed, 1–5 = EAWS danger level
   mainText: string;
   problems: AvalancheProblem[];
+  // Epoch ms when this warning was actually retrieved from Varsom. Cached
+  // results keep their original retrieval time so the UI can show honest
+  // data age instead of implying the forecast is live.
+  fetchedAt: number;
 }
 
 interface VarsomProblem {
@@ -67,7 +71,15 @@ interface VarsomWarning {
 // Quantized (lat,lon,date) → warning. Avalanche regions are large, but route
 // points are quantized only to ~100 m so two nearby samples that straddle a
 // region border still resolve independently.
-const cache = new Map<string, AvalancheWarning | null>();
+//
+// Entries expire after CACHE_TTL_MS: Varsom updates its bulletins during the
+// day, so a session-long cache could keep showing a superseded danger level
+// for hours. 30 minutes keeps the service load low while staying current.
+const CACHE_TTL_MS = 30 * 60 * 1000;
+const cache = new Map<
+  string,
+  { value: AvalancheWarning | null; at: number }
+>();
 
 function cacheKey(lat: number, lon: number, date: string): string {
   return `${lat.toFixed(3)},${lon.toFixed(3)}@${date}`;
@@ -101,13 +113,16 @@ export async function fetchAvalancheWarning(
 ): Promise<AvalancheWarning | null> {
   const key = cacheKey(lat, lon, date);
   const cached = cache.get(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined && Date.now() - cached.at < CACHE_TTL_MS) {
+    return cached.value;
+  }
 
   const url = `${ENDPOINT}/${lat.toFixed(4)}/${lon.toFixed(4)}/2/${date}/${date}`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Avalanche API ${res.status}`);
   const data = (await res.json()) as VarsomWarning[];
 
+  const now = Date.now();
   const w = data[0];
   const result: AvalancheWarning | null = w
     ? {
@@ -116,9 +131,10 @@ export async function fetchAvalancheWarning(
         dangerLevel: Number.parseInt(w.DangerLevel, 10) || 0,
         mainText: w.MainText ?? '',
         problems: (w.AvalancheProblems ?? []).map(mapProblem),
+        fetchedAt: now,
       }
     : null;
 
-  cache.set(key, result);
+  cache.set(key, { value: result, at: now });
   return result;
 }

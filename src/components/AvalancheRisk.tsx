@@ -99,7 +99,10 @@ export function AvalancheRisk({ profile }: Props) {
   // window; `selected` is the day actually shown (one of the window chips).
   const [anchor, setAnchor] = useState(today);
   const [selected, setSelected] = useState(today);
-  const { level, regions, loading, error } = useAvalanche(profile, selected);
+  const { level, regions, loading, error, fetchedAt } = useAvalanche(
+    profile,
+    selected,
+  );
 
   const windowDays = useMemo(
     () => WINDOW_OFFSETS.map((off) => shiftYMD(anchor, off)),
@@ -177,6 +180,16 @@ export function AvalancheRisk({ profile }: Props) {
       {current}
       <Legend />
       <p className={styles.attribution}>
+        {fetchedAt != null && Number.isFinite(fetchedAt) && (
+          <>
+            Forecast retrieved{' '}
+            {new Date(fetchedAt).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+            . Always check the latest bulletin before heading out.{' '}
+          </>
+        )}
         Avalanche forecast ©{' '}
         <a
           href="https://www.varsom.no/"
@@ -199,10 +212,12 @@ export function AvalancheRisk({ profile }: Props) {
   );
 }
 
-// A single region's avalanche report: its danger level, region name, and the
-// avalanche problems Varsom identified for it.
+// A single region's avalanche report: its danger level, region name, the
+// forecaster's headline advisory (MainText), and the avalanche problems
+// Varsom identified for it, with a link to the full bulletin on varsom.no.
 function RegionReport({ region }: { region: AvalancheWarning }) {
   const info = LEVELS[region.dangerLevel];
+  const varsomUrl = `https://www.varsom.no/snoskredvarsling/varsel/${encodeURIComponent(region.regionName)}/`;
   return (
     <div className={styles.report}>
       <div className={styles.row}>
@@ -218,9 +233,20 @@ function RegionReport({ region }: { region: AvalancheWarning }) {
           <span className={styles.regions}>{region.regionName}</span>
         </div>
       </div>
+      {region.mainText && (
+        <p className={styles.mainText}>{region.mainText}</p>
+      )}
       {region.problems.length > 0 && (
         <AvalancheProblems problems={region.problems} />
       )}
+      <a
+        className={styles.regionLink}
+        href={varsomUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Full bulletin for {region.regionName} on varsom.no →
+      </a>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { ProfileData } from '../elevation/profile';
+import { RUNOUT_UNKNOWN } from '../elevation/runout';
 import type { SnowData } from '../snow/useSnow';
 import { setHoverPoint } from '../hoverStore';
 import { DatePopover } from './DatePopover';
@@ -71,7 +72,8 @@ function flattenForChart(profile: ProfileData, snow: SnowData | null) {
         slopeDeg: NaN,
         lat: null,
         lng: null,
-        runoutLevel: 0,
+        // Synthetic gap point (eraser cut) — no runout information here.
+        runoutLevel: RUNOUT_UNKNOWN,
         snow: null,
       });
     }
@@ -156,14 +158,15 @@ type ChartPoint = {
 
 // Mean terrain slope of the segment between two chart points (used to pick
 // a color). Falls back to whichever endpoint has a finite slope; if both
-// are NaN, returns 0 (gray).
+// are NaN, returns NaN ("slope unknown") — callers must render that as
+// unverified data, never as flat terrain.
 function segmentSlope(a: ChartPoint, b: ChartPoint): number {
   const aS = Number.isFinite(a.slopeDeg) ? a.slopeDeg : NaN;
   const bS = Number.isFinite(b.slopeDeg) ? b.slopeDeg : NaN;
   if (Number.isFinite(aS) && Number.isFinite(bS)) return (aS + bS) / 2;
   if (Number.isFinite(aS)) return aS;
   if (Number.isFinite(bS)) return bS;
-  return 0;
+  return NaN;
 }
 
 type ProgressPoint = ChartPoint & { done: number | null };
@@ -431,8 +434,9 @@ export function ElevationPanel({
   // blocked the main thread — and froze the Leaflet map — while Recharts
   // committed and the browser laid out/painted the large SVG subtree.
   const steepnessRuns = useMemo(() => {
-    const runs: { color: string; points: number[] }[] = [];
-    let cur: { color: string; points: number[] } | null = null;
+    const runs: { color: string; dashed: boolean; points: number[] }[] = [];
+    let cur: { color: string; dashed: boolean; points: number[] } | null =
+      null;
     for (let i = 0; i < chartData.length - 1; i++) {
       const a = chartData[i];
       const b = chartData[i + 1];
@@ -440,27 +444,60 @@ export function ElevationPanel({
         cur = null;
         continue;
       }
-      let color = steepnessColor(segmentSlope(a, b));
+      const slope = segmentSlope(a, b);
+      // Unknown slope (neighbor elevation fetch failed) is drawn as a
+      // dashed gray segment — "unverified", visually distinct from the
+      // solid gray that means "verified flat terrain".
+      let color = Number.isFinite(slope) ? steepnessColor(slope) : GRAY;
+      let dashed = !Number.isFinite(slope);
       // Override the "flat terrain" gray with NVE's runout-zone blue when
       // both endpoints fall inside a modeled snow-avalanche runout polygon.
       // Colored (steep) segments keep their steepness color. Picking the
       // lower severity of the two endpoints (lighter blue) keeps the chart
-      // visually conservative at boundaries.
+      // visually conservative at boundaries. If the runout lookup failed
+      // (RUNOUT_UNKNOWN), the segment is drawn dashed instead of solid so
+      // "no data" never looks identical to "verified outside all zones".
       if (color === GRAY) {
-        const lvl = Math.min(a.runoutLevel, b.runoutLevel);
-        if (lvl > 0) color = RUNOUT_COLORS[lvl];
+        if (
+          a.runoutLevel === RUNOUT_UNKNOWN ||
+          b.runoutLevel === RUNOUT_UNKNOWN
+        ) {
+          dashed = true;
+        } else if (!dashed) {
+          const lvl = Math.min(a.runoutLevel, b.runoutLevel);
+          if (lvl > 0) color = RUNOUT_COLORS[lvl];
+        }
       }
-      if (cur && cur.color === color) {
+      if (cur && cur.color === color && cur.dashed === dashed) {
         cur.points.push(b.distance, b.elevation);
       } else {
         cur = {
           color,
+          dashed,
           points: [a.distance, a.elevation, b.distance, b.elevation],
         };
         runs.push(cur);
       }
     }
     return runs;
+  }, [chartData]);
+
+  // True when the NVE runout lookup failed for any point on the route —
+  // drives the "runout data unavailable" notice below the chart.
+  const runoutUnknown = useMemo(
+    () => chartData.some((p) => p.runoutLevel === RUNOUT_UNKNOWN),
+    [chartData],
+  );
+  // True when any drawable segment has no usable slope estimate (the
+  // neighbor-elevation fetch failed there) — same notice, different cause.
+  const slopeUnknown = useMemo(() => {
+    for (let i = 0; i < chartData.length - 1; i++) {
+      const a = chartData[i];
+      const b = chartData[i + 1];
+      if (a.elevation == null || b.elevation == null) continue;
+      if (!Number.isFinite(segmentSlope(a, b))) return true;
+    }
+    return false;
   }, [chartData]);
 
   // Draw the decimated runs onto a canvas overlay aligned with Recharts'
@@ -501,9 +538,13 @@ export function ElevationPanel({
         for (let i = 2; i < pts.length; i += 2) {
           ctx.lineTo(px(pts[i]), py(pts[i + 1]));
         }
+        // Dashed = runout data unavailable for this stretch (fetch/decode
+        // failed) — visually distinct from the solid "verified" line.
+        ctx.setLineDash(run.dashed ? [4, 6] : []);
         ctx.strokeStyle = overrideColor ?? run.color;
         ctx.stroke();
       }
+      ctx.setLineDash([]);
     };
     drawRuns();
     // Navigation progress: repaint the line left of the progress point in
@@ -673,13 +714,20 @@ export function ElevationPanel({
                       const slope = Number.isFinite(p.slopeDeg)
                         ? `${p.slopeDeg.toFixed(1)}°`
                         : '–';
+                      const rows = [
+                        { text: `${Math.round(p.elevation)} m` },
+                        { text: `Steepness ${slope}`, muted: true },
+                      ];
+                      if (p.runoutLevel === RUNOUT_UNKNOWN) {
+                        rows.push({
+                          text: 'Runout data unavailable',
+                          muted: true,
+                        });
+                      }
                       return (
                         <ChartTooltip
                           label={fmtKm(label as number)}
-                          rows={[
-                            { text: `${Math.round(p.elevation)} m` },
-                            { text: `Steepness ${slope}`, muted: true },
-                          ]}
+                          rows={rows}
                         />
                       );
                     }}
@@ -727,6 +775,18 @@ export function ElevationPanel({
               </>
             )}
         </div>
+        {(runoutUnknown || slopeUnknown) && (
+          <div className={styles.dataWarning} role="alert">
+            {runoutUnknown && slopeUnknown
+              ? 'Steepness and avalanche runout data could not be fully loaded.'
+              : runoutUnknown
+                ? 'Avalanche runout data could not be loaded.'
+                : 'Steepness data could not be fully loaded.'}{' '}
+            Dashed sections of the profile line are{' '}
+            <strong>unverified</strong> — do not treat them as flat or safe
+            terrain.
+          </div>
+        )}
         <SourceAttribution
           what="Elevation data"
           source={{ label: 'Kartverket', href: 'https://www.kartverket.no/' }}

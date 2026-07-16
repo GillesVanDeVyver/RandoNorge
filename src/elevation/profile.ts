@@ -1,7 +1,7 @@
 import type { LatLng, Route } from '../types';
 import { haversine, resample } from '../geometry';
 import { fetchElevations } from './api';
-import { fetchRunoutLevels, type RunoutLevel } from './runout';
+import { fetchRunoutLevels, type RunoutSample } from './runout';
 
 const RESAMPLE_INTERVAL_M = 20;
 // Cap the total number of resampled points across the whole route. Long routes
@@ -25,7 +25,9 @@ export interface ProfilePoint {
   lat: number;
   lng: number;
   slopeDeg: number; // terrain slope at this point (degrees), NaN if unknown
-  runoutLevel: RunoutLevel; // 0=none, 1=long, 2=medium, 3=short runout
+  // 0=none, 1=long, 2=medium, 3=short runout, -1=data unavailable
+  // (RUNOUT_UNKNOWN — must never be rendered as "no exposure").
+  runoutLevel: RunoutSample;
 }
 
 export interface ProfileStats {
