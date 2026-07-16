@@ -165,6 +165,7 @@ export function Map({
           track={track}
           position={position}
           accuracy={positionAccuracy}
+          plannedRoute={route}
         />
       )}
       <HoverMarker />

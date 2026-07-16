@@ -3,9 +3,10 @@
 // centred on the user komoot-style — auto-follow that detaches as soon as
 // the user pans, with a "re-center" chip to snap back.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, CircleMarker, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import type { LatLng, Route } from '../types';
+import { projectOntoRoute, splitRouteAt } from '../geometry';
 import { LocateIcon } from './icons';
 import styles from './NavigationLayer.module.css';
 
@@ -18,6 +19,20 @@ const HALO_WEIGHT = TRACK_WEIGHT + 3;
 const HALO_OPACITY = 0.9;
 const FOLLOW_ZOOM = 15;
 
+// On-route indication: while navigating within SNAP_MAX_M of the planned
+// route, a dotted connector is drawn from the live position to the nearest
+// point on the plan, and the part of the plan already passed is repainted
+// gray. Beyond SNAP_MAX_M the plan stays fully teal — a straight connector
+// across kilometres of terrain would suggest a shortcut that likely doesn't
+// exist. Same width as the planned route so the gray reads as a state of
+// the same line, not a separate object.
+const SNAP_MAX_M = 1000;
+const DONE_COLOR = '#9ca3af';
+const DONE_WEIGHT = 4; // matches ROUTE_WEIGHT in DrawingHandler
+const CONNECTOR_COLOR = '#6b7280';
+const CONNECTOR_WEIGHT = 3;
+const CONNECTOR_DASH = '1 9';
+
 interface Props {
   /** True while recording/paused: enables follow behaviour + the chip. */
   active: boolean;
@@ -27,9 +42,17 @@ interface Props {
   position: LatLng | null;
   /** Accuracy of the latest fix in meters (drawn as a soft ring). */
   accuracy: number | null;
+  /** The planned route being followed (for the connector + progress gray). */
+  plannedRoute?: Route;
 }
 
-export function NavigationLayer({ active, track, position, accuracy }: Props) {
+export function NavigationLayer({
+  active,
+  track,
+  position,
+  accuracy,
+  plannedRoute = [],
+}: Props) {
   const map = useMap();
   const [follow, setFollow] = useState(true);
   // First fix of a session gets a real setView (zoom in to street level);
@@ -74,8 +97,43 @@ export function NavigationLayer({ active, track, position, accuracy }: Props) {
 
   const hasFix = position !== null;
 
+  // Where the live position sits relative to the planned route. Only while
+  // actively navigating with a fix and within SNAP_MAX_M — otherwise the
+  // plan is left untouched (fully teal, no connector).
+  const snap = useMemo(() => {
+    if (!active || !position || plannedRoute.length === 0) return null;
+    const proj = projectOntoRoute(plannedRoute, position);
+    if (!proj || proj.distanceM > SNAP_MAX_M) return null;
+    return { proj, done: splitRouteAt(plannedRoute, proj).done };
+  }, [active, position, plannedRoute]);
+
   return (
     <>
+      {/* Progress on the plan: the passed part repainted gray. Rendered
+          before the travelled track so the orange line stays on top. */}
+      {snap &&
+        snap.done.map((seg, i) =>
+          seg.length >= 2 ? (
+            <Polyline
+              key={`done-${i}`}
+              positions={seg}
+              pathOptions={{ color: DONE_COLOR, weight: DONE_WEIGHT }}
+            />
+          ) : null,
+        )}
+      {/* Dotted connector from the live position to the nearest point on
+          the plan — the "get (back) on track" hint. */}
+      {snap && position && (
+        <Polyline
+          positions={[position, snap.proj.point]}
+          pathOptions={{
+            color: CONNECTOR_COLOR,
+            weight: CONNECTOR_WEIGHT,
+            dashArray: CONNECTOR_DASH,
+            lineCap: 'round',
+          }}
+        />
+      )}
       {/* Travelled track: white halo beneath, orange line on top. */}
       {track.map((seg, i) =>
         seg.length >= 2 ? (
