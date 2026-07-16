@@ -6,7 +6,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, CircleMarker, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import type { LatLng, Route } from '../types';
-import { projectOntoRoute, splitRouteAt } from '../geometry';
+import { splitRouteAtDistance } from '../geometry';
+import type { RouteProgress } from '../tracking/useRouteProgress';
 import { LocateIcon } from './icons';
 import styles from './NavigationLayer.module.css';
 
@@ -19,14 +20,13 @@ const HALO_WEIGHT = TRACK_WEIGHT + 3;
 const HALO_OPACITY = 0.9;
 const FOLLOW_ZOOM = 15;
 
-// On-route indication: while navigating within SNAP_MAX_M of the planned
-// route, a dotted connector is drawn from the live position to the nearest
-// point on the plan, and the part of the plan already passed is repainted
-// gray. Beyond SNAP_MAX_M the plan stays fully teal — a straight connector
-// across kilometres of terrain would suggest a shortcut that likely doesn't
-// exist. Same width as the planned route so the gray reads as a state of
-// the same line, not a separate object.
-const SNAP_MAX_M = 1000;
+// On-route indication: while navigating within range of the planned route
+// (see useRouteProgress), a dotted connector is drawn from the live
+// position to the progress point on the plan, and the part of the plan
+// already passed is repainted gray. Out of range the plan stays fully
+// teal — a straight connector across kilometres of terrain would suggest
+// a shortcut that likely doesn't exist. Same width as the planned route
+// so the gray reads as a state of the same line, not a separate object.
 const DONE_COLOR = '#9ca3af';
 const DONE_WEIGHT = 4; // matches ROUTE_WEIGHT in DrawingHandler
 const CONNECTOR_COLOR = '#6b7280';
@@ -44,6 +44,8 @@ interface Props {
   accuracy: number | null;
   /** The planned route being followed (for the connector + progress gray). */
   plannedRoute?: Route;
+  /** Monotonic progress along the plan; null when off-route or not navigating. */
+  progress?: RouteProgress | null;
 }
 
 export function NavigationLayer({
@@ -52,6 +54,7 @@ export function NavigationLayer({
   position,
   accuracy,
   plannedRoute = [],
+  progress = null,
 }: Props) {
   const map = useMap();
   const [follow, setFollow] = useState(true);
@@ -97,15 +100,16 @@ export function NavigationLayer({
 
   const hasFix = position !== null;
 
-  // Where the live position sits relative to the planned route. Only while
-  // actively navigating with a fix and within SNAP_MAX_M — otherwise the
-  // plan is left untouched (fully teal, no connector).
+  // The part of the plan already passed, cut at the monotonic progress
+  // point. Null when off-route or not navigating (progress is null) —
+  // the plan is then left untouched (fully teal, no connector).
   const snap = useMemo(() => {
-    if (!active || !position || plannedRoute.length === 0) return null;
-    const proj = projectOntoRoute(plannedRoute, position);
-    if (!proj || proj.distanceM > SNAP_MAX_M) return null;
-    return { proj, done: splitRouteAt(plannedRoute, proj).done };
-  }, [active, position, plannedRoute]);
+    if (!active || !progress || plannedRoute.length === 0) return null;
+    return {
+      point: progress.point,
+      done: splitRouteAtDistance(plannedRoute, progress.alongM).done,
+    };
+  }, [active, progress, plannedRoute]);
 
   return (
     <>
@@ -121,11 +125,11 @@ export function NavigationLayer({
             />
           ) : null,
         )}
-      {/* Dotted connector from the live position to the nearest point on
+      {/* Dotted connector from the live position to the progress point on
           the plan — the "get (back) on track" hint. */}
       {snap && position && (
         <Polyline
-          positions={[position, snap.proj.point]}
+          positions={[position, snap.point]}
           pathOptions={{
             color: CONNECTOR_COLOR,
             weight: CONNECTOR_WEIGHT,

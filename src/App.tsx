@@ -31,6 +31,7 @@ import { segmentLength } from './geometry';
 import { createRoute, updateRoute, type SavedRoute } from './routes/api';
 import { createTrack, type SavedTrack } from './tracking/api';
 import { useTracking, type TrackingStatus } from './tracking/useTracking';
+import { useRouteProgress } from './tracking/useRouteProgress';
 import {
   importRouteFile,
   RouteImportError,
@@ -253,6 +254,11 @@ function App({ saving }: Props) {
   // profile plus the pace stats instead.)
   const statsTrack = useThrottledTrack(tracking.track, tracking.status);
   const actualElevation = useElevation(statsTrack);
+
+  // Monotonic progress along the plan while navigating: drives the gray
+  // "already travelled" part of the route on the map, the dotted connector,
+  // and the progress wash on the elevation/snow charts.
+  const routeProgress = useRouteProgress(route, tracking.position, navLive);
 
   // Live travelled distance for the recording bar (cheap client-side sum,
   // independent of the throttled pipeline).
@@ -538,6 +544,7 @@ function App({ saving }: Props) {
             position={tracking.position}
             positionAccuracy={tracking.accuracy}
             navigating={navLive}
+            progress={routeProgress}
           />
         ) : (
           <Suspense fallback={null}>
@@ -825,6 +832,13 @@ function App({ saving }: Props) {
                 profile={activeElevation.profile}
                 loading={activeElevation.loading}
                 error={activeElevation.error}
+                // Progress only makes sense on the *planned* profile while
+                // a session is live — the actual profile IS the progress.
+                progressM={
+                  !showActualStats && navLive
+                    ? (routeProgress?.alongM ?? null)
+                    : null
+                }
               />
             )}
           </SummaryCard>
@@ -848,6 +862,7 @@ function App({ saving }: Props) {
                 error={snow.error}
                 date={snowDate}
                 onDateChange={setSnowDate}
+                progressM={navLive ? (routeProgress?.alongM ?? null) : null}
               />
             </SummaryCard>
           )}

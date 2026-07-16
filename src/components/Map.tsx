@@ -3,6 +3,7 @@ import L from 'leaflet';
 import { MapContainer, TileLayer, WMSTileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { LatLng, Mode, Overlay, Route } from '../types';
+import type { RouteProgress } from '../tracking/useRouteProgress';
 import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
 import { MapControls } from './MapControls';
@@ -74,6 +75,8 @@ interface Props {
   positionAccuracy?: number | null;
   /** True while a recording session is live (recording or paused). */
   navigating?: boolean;
+  /** Monotonic progress along the plan; null when off-route or idle. */
+  progress?: RouteProgress | null;
 }
 
 export function Map({
@@ -87,6 +90,7 @@ export function Map({
   position = null,
   positionAccuracy = null,
   navigating = false,
+  progress = null,
 }: Props) {
   return (
     <MapContainer
@@ -166,6 +170,7 @@ export function Map({
           position={position}
           accuracy={positionAccuracy}
           plannedRoute={route}
+          progress={progress}
         />
       )}
       <HoverMarker />

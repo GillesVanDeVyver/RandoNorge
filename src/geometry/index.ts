@@ -79,110 +79,147 @@ export function resample(seg: Segment, intervalM: number): Segment {
 }
 
 // Where a point projects onto a route: the nearest location on any edge.
+// Distances "along" the route are cumulative within-segment haversine sums
+// (segment gaps contribute nothing) — the same convention the elevation
+// profile uses for its x-axis, so the two stay aligned.
 export interface RouteProjection {
   /** Nearest point on the route. */
   point: LatLng;
   /** Straight-line distance from the query point, meters. */
   distanceM: number;
-  /** Index of the segment containing the nearest edge. */
-  segmentIndex: number;
-  /** Index of the edge's start vertex within that segment. */
-  vertexIndex: number;
-  /** Interpolation factor along that edge, in [0, 1]. */
-  t: number;
+  /** Along-route distance of `point` from the route start, meters. */
+  alongM: number;
 }
 
-// Find the closest point on a route to `p`. Uses the same equirectangular
-// approximation as `project` (planar math around the query latitude), which
-// is accurate to well under a metre at ski-tour scales. O(N) over all
-// route vertices — cheap enough to run per GPS fix. Returns null for an
-// empty route.
-export function projectOntoRoute(route: Route, p: LatLng): RouteProjection | null {
+// When choosing where a position projects onto the route, candidates whose
+// straight-line distance is within this tolerance of the best are treated
+// as ties, and the earliest (smallest along-route distance) wins. On
+// out-and-back routes the outbound and return legs overlap, so a pure
+// nearest-point search could jump progress to the return leg; preferring
+// the minimal advance keeps progress honest (it can always catch up).
+const AHEAD_TIE_TOLERANCE_M = 25;
+
+// Find the closest point on the route to `p`, restricted to the part of
+// the route between `minAlongM` and `maxAlongM` (a forward search window —
+// pass Infinity for no upper bound). Uses the same equirectangular
+// approximation as `project` (planar math around the query latitude),
+// accurate to well under a metre at ski-tour scales. O(N) over all route
+// vertices — cheap enough to run per GPS fix. Returns null when the route
+// has no edges in the window.
+export function projectOntoRouteAhead(
+  route: Route,
+  p: LatLng,
+  minAlongM = 0,
+  maxAlongM = Infinity,
+): RouteProjection | null {
   const latToM = 110540;
   const lngToM = 111320 * Math.cos((p[0] * Math.PI) / 180);
   const px = p[1] * lngToM;
   const py = p[0] * latToM;
 
+  let cum = 0;
   let best: RouteProjection | null = null;
-  let bestD2 = Infinity;
+  let bestD = Infinity;
 
-  for (let s = 0; s < route.length; s++) {
-    const seg = route[s];
-    if (seg.length === 0) continue;
-    let ax = seg[0][1] * lngToM;
-    let ay = seg[0][0] * latToM;
-    if (seg.length === 1) {
-      const d2 = (px - ax) ** 2 + (py - ay) ** 2;
-      if (d2 < bestD2) {
-        bestD2 = d2;
-        best = {
-          point: seg[0],
-          distanceM: 0,
-          segmentIndex: s,
-          vertexIndex: 0,
-          t: 0,
-        };
-      }
-      continue;
-    }
+  for (const seg of route) {
     for (let i = 1; i < seg.length; i++) {
-      const bx = seg[i][1] * lngToM;
-      const by = seg[i][0] * latToM;
+      const a = seg[i - 1];
+      const b = seg[i];
+      const edgeLen = haversine(a, b);
+      const cumStart = cum;
+      cum += edgeLen;
+      if (edgeLen === 0) continue;
+      if (cum < minAlongM) continue; // edge lies wholly behind the window
+      if (cumStart > maxAlongM) continue; // edge lies wholly past the window
+
+      const ax = a[1] * lngToM;
+      const ay = a[0] * latToM;
+      const bx = b[1] * lngToM;
+      const by = b[0] * latToM;
       const dx = bx - ax;
       const dy = by - ay;
-      let t = 0;
       const len2 = dx * dx + dy * dy;
-      if (len2 > 0) {
-        t = ((px - ax) * dx + (py - ay) * dy) / len2;
-        t = Math.max(0, Math.min(1, t));
-      }
+      let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      // Clamp to the part of the edge inside the window so a partially
+      // covered edge can't project outside it.
+      const tMin = Math.max(0, Math.min(1, (minAlongM - cumStart) / edgeLen));
+      const tMax = Math.max(
+        tMin,
+        Math.min(1, (maxAlongM - cumStart) / edgeLen),
+      );
+      if (t < tMin) t = tMin;
+      if (t > tMax) t = tMax;
+
       const fx = ax + t * dx;
       const fy = ay + t * dy;
-      const d2 = (px - fx) ** 2 + (py - fy) ** 2;
-      if (d2 < bestD2) {
-        bestD2 = d2;
-        const a = seg[i - 1];
-        const b = seg[i];
+      const d = Math.hypot(px - fx, py - fy);
+      if (d < bestD - AHEAD_TIE_TOLERANCE_M) {
+        bestD = d;
         best = {
           point: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
-          distanceM: 0, // filled in below
-          segmentIndex: s,
-          vertexIndex: i - 1,
-          t,
+          distanceM: d,
+          alongM: cumStart + t * edgeLen,
         };
       }
-      ax = bx;
-      ay = by;
     }
   }
-
-  if (best) best.distanceM = Math.sqrt(bestD2);
   return best;
 }
 
-// Split a route at a projection into the part already passed (segments and
-// vertices before the projected point, ending at it) and the remainder
-// (starting at the projected point). Segment order is taken as travel
-// order — segment 0 first, drawn start to end.
-export function splitRouteAt(
+// Split a route at an along-route distance into the part already passed
+// (from the start up to the split point) and the remainder (from the split
+// point onward). Segment order is taken as travel order — segment 0 first,
+// drawn start to end. Distances follow the same within-segment convention
+// as projectOntoRouteAhead.
+export function splitRouteAtDistance(
   route: Route,
-  proj: RouteProjection,
+  alongM: number,
 ): { done: Route; remaining: Route } {
-  const done: Route = route.slice(0, proj.segmentIndex);
+  const done: Route = [];
   const remaining: Route = [];
+  let cum = 0;
+  let past = alongM <= 0; // already beyond the split point?
 
-  const seg = route[proj.segmentIndex];
-  const before = seg.slice(0, proj.vertexIndex + 1);
-  before.push(proj.point);
-  if (before.length >= 2) done.push(before);
-
-  const after: Segment = [proj.point, ...seg.slice(proj.vertexIndex + 1)];
-  // When t === 1 the projected point coincides with the next vertex; the
-  // duplicate first point is harmless for Polyline rendering.
-  if (after.length >= 2) remaining.push(after);
-
-  for (let s = proj.segmentIndex + 1; s < route.length; s++) {
-    remaining.push(route[s]);
+  for (const seg of route) {
+    if (past) {
+      remaining.push(seg);
+      continue;
+    }
+    if (seg.length < 2) {
+      done.push(seg);
+      continue;
+    }
+    const before: Segment = [seg[0]];
+    let after: Segment | null = null;
+    for (let i = 1; i < seg.length; i++) {
+      if (after) {
+        after.push(seg[i]);
+        continue;
+      }
+      const d = haversine(seg[i - 1], seg[i]);
+      if (cum + d <= alongM) {
+        cum += d;
+        before.push(seg[i]);
+        continue;
+      }
+      const t = d > 0 ? (alongM - cum) / d : 0;
+      const a = seg[i - 1];
+      const b = seg[i];
+      const split: LatLng = [
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+      ];
+      if (t > 0) before.push(split);
+      after = [split, seg[i]];
+    }
+    if (after) {
+      if (before.length >= 2) done.push(before);
+      remaining.push(after);
+      past = true;
+    } else {
+      done.push(seg); // entire segment lies before the split point
+    }
   }
   return { done, remaining };
 }

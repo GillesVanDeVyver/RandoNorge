@@ -3,6 +3,8 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,6 +21,9 @@ interface ElevationProps {
   profile: ProfileData | null;
   loading: boolean;
   error: string | null;
+  /** Along-route navigation progress in meters; the part of the chart left
+   *  of it is washed gray. Null/undefined hides the indication. */
+  progressM?: number | null;
 }
 
 interface SnowProps {
@@ -28,7 +33,20 @@ interface SnowProps {
   error: string | null;
   date: string;
   onDateChange: (date: string) => void;
+  /** Along-route navigation progress in meters (see ElevationProps). */
+  progressM?: number | null;
 }
+
+// Navigation progress styling. Rather than washing the travelled part of
+// the plot with a rectangle, the terrain/snow *shape itself* is re-rendered
+// in desaturated grays up to the progress point (gradient defs below), the
+// steepness line is repainted gray there (like the passed route on the
+// map), and a marker dot pins the "you are here" point on the curve.
+const PROGRESS_LINE_COLOR = '#9ca3af';
+// Marker dot: white core with a ring in the planned-route teal.
+const PROGRESS_MARKER_COLOR = '#2dd4bf';
+// Faint dashed vertical hairline at the progress distance.
+const PROGRESS_CURSOR_COLOR = 'rgba(156, 163, 175, 0.7)';
 
 // Flatten multi-segment profile to a single Recharts-friendly array.
 // Insert a null-elevation entry between segments so the line renders
@@ -148,6 +166,60 @@ function segmentSlope(a: ChartPoint, b: ChartPoint): number {
   return 0;
 }
 
+type ProgressPoint = ChartPoint & { done: number | null };
+
+// Derive the "already travelled" series for a chart: `done` mirrors `key`
+// up to the progress distance and is null past it, with one interpolated
+// point inserted exactly at the boundary so the gray overlay ends at the
+// true progress point rather than at the nearest sample. Also returns the
+// interpolated y-value at the boundary, which anchors the marker dot.
+function progressSeries(
+  data: ChartPoint[],
+  key: 'elevation' | 'snow',
+  progressX: number,
+): { data: ProgressPoint[]; at: number | null } {
+  if (progressX <= 0) {
+    return { data: data.map((p) => ({ ...p, done: null })), at: null };
+  }
+  const lerp = (a: number | null, b: number | null, t: number) =>
+    a != null && b != null ? a + (b - a) * t : null;
+  const out: ProgressPoint[] = [];
+  let at: number | null = null;
+  let crossed = false; // has the boundary been passed (or landed on)?
+  for (let i = 0; i < data.length; i++) {
+    const p = data[i];
+    if (p.distance <= progressX) {
+      out.push({ ...p, done: p[key] });
+      if (p.distance === progressX) {
+        at = p[key];
+        crossed = true;
+      }
+      continue;
+    }
+    if (!crossed) {
+      crossed = true;
+      const a = data[i - 1];
+      if (a && a[key] != null && p[key] != null && p.distance > a.distance) {
+        const t = (progressX - a.distance) / (p.distance - a.distance);
+        const v = lerp(a[key], p[key], t);
+        at = v;
+        out.push({
+          distance: progressX,
+          elevation: lerp(a.elevation, p.elevation, t),
+          slopeDeg: a.slopeDeg,
+          lat: lerp(a.lat, p.lat, t),
+          lng: lerp(a.lng, p.lng, t),
+          runoutLevel: Math.min(a.runoutLevel, p.runoutLevel),
+          snow: lerp(a.snow, p.snow, t),
+          done: v,
+        });
+      }
+    }
+    out.push({ ...p, done: null });
+  }
+  return { data: out, at };
+}
+
 // Generate round, evenly-spaced tick values covering [min, max] with
 // step sizes from the 1/2/5 × 10ⁿ "nice" set. Targets ~5 ticks.
 function niceTicks(min: number, max: number, target = 5): number[] {
@@ -207,7 +279,12 @@ function useChartHover(chartData: ChartPoint[]) {
   return { onMouseMove, onMouseLeave };
 }
 
-export function ElevationPanel({ profile, loading, error }: ElevationProps) {
+export function ElevationPanel({
+  profile,
+  loading,
+  error,
+  progressM = null,
+}: ElevationProps) {
   // Live pixel size of the elevation chart container, used to size
   // the chart's height at true 1:1 metres-per-pixel so the curve's
   // visual slope reflects real terrain steepness.
@@ -334,6 +411,18 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
     return m;
   }, [chartData]);
 
+  // Navigation progress clamped into the chart's domain; 0 hides it.
+  const progressX = useMemo(() => {
+    if (progressM == null || progressM <= 0 || xMax <= 0) return 0;
+    return Math.min(progressM, xMax);
+  }, [progressM, xMax]);
+  // Chart data augmented with the travelled (`done`) series, plus the
+  // interpolated elevation at the progress point for the marker dot.
+  const { data: progressData, at: progressElev } = useMemo(
+    () => progressSeries(chartData, 'elevation', progressX),
+    [chartData, progressX],
+  );
+
   // Colored steepness line, decimated into runs of consecutive segments
   // that share a color. Each run is a flat [d0,e0,d1,e1,…] polyline.
   // Merging same-color segments collapses the typical ~500 segments to a
@@ -404,19 +493,61 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
     ctx.lineWidth = 4;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    for (const run of steepnessRuns) {
-      const pts = run.points;
-      ctx.beginPath();
-      ctx.moveTo(px(pts[0]), py(pts[1]));
-      for (let i = 2; i < pts.length; i += 2) {
-        ctx.lineTo(px(pts[i]), py(pts[i + 1]));
+    const drawRuns = (overrideColor?: string) => {
+      for (const run of steepnessRuns) {
+        const pts = run.points;
+        ctx.beginPath();
+        ctx.moveTo(px(pts[0]), py(pts[1]));
+        for (let i = 2; i < pts.length; i += 2) {
+          ctx.lineTo(px(pts[i]), py(pts[i + 1]));
+        }
+        ctx.strokeStyle = overrideColor ?? run.color;
+        ctx.stroke();
       }
-      ctx.strokeStyle = run.color;
+    };
+    drawRuns();
+    // Navigation progress: repaint the line left of the progress point in
+    // the same gray as the passed part of the route on the map. A clipped
+    // second pass keeps the geometry identical (no run re-splitting).
+    if (progressX > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(plotLeft, 0, px(progressX) - plotLeft, elevChartHeight);
+      ctx.clip();
+      drawRuns(PROGRESS_LINE_COLOR);
+      ctx.restore();
+      // "You are here" marker: a faint dashed hairline at the progress
+      // distance and a white dot with a teal ring pinned on the curve.
+      const mx = px(progressX);
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = PROGRESS_CURSOR_COLOR;
+      ctx.beginPath();
+      ctx.moveTo(mx, plotTop);
+      ctx.lineTo(mx, plotBottom);
       ctx.stroke();
+      ctx.setLineDash([]);
+      if (progressElev != null) {
+        ctx.beginPath();
+        ctx.arc(mx, py(progressElev), 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = PROGRESS_MARKER_COLOR;
+        ctx.stroke();
+      }
     }
-  }, [steepnessRuns, containerWidth, elevChartHeight, xMax, yTicks]);
+  }, [
+    steepnessRuns,
+    containerWidth,
+    elevChartHeight,
+    xMax,
+    yTicks,
+    progressX,
+    progressElev,
+  ]);
 
-  const hover = useChartHover(chartData);
+  const hover = useChartHover(progressData);
 
   // Approximate rendered height of the hover tooltip (3 lines + padding
   // + border). Used to decide whether it fits inside the chart box.
@@ -479,8 +610,9 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
               <AreaChart
                 width={containerWidth}
                 height={elevChartHeight}
-                data={chartData}
+                data={progressData}
                 syncId="route"
+                syncMethod="value"
                 margin={{ top: M_TOP, right: M_RIGHT, left: M_LEFT, bottom: M_BOTTOM }}
                 onMouseMove={hover.onMouseMove}
                 onMouseLeave={hover.onMouseLeave}
@@ -495,6 +627,15 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                       <stop offset="35%" stopColor="#7a624a" stopOpacity={0.7} />
                       <stop offset="70%" stopColor="#544334" stopOpacity={0.85} />
                       <stop offset="100%" stopColor="#332821" stopOpacity={0.95} />
+                    </linearGradient>
+                    {/* Desaturated twin of elevFill for the travelled part
+                        of the terrain — same lightness ramp, cool grays
+                        matching the passed route on the map (#9ca3af). */}
+                    <linearGradient id="elevFillDone" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#c8ccd2" stopOpacity={0.55} />
+                      <stop offset="35%" stopColor="#9ca3af" stopOpacity={0.7} />
+                      <stop offset="70%" stopColor="#737a86" stopOpacity={0.85} />
+                      <stop offset="100%" stopColor="#4b5563" stopOpacity={0.95} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#f1f2f4" strokeDasharray="2 4" vertical={false} />
@@ -552,6 +693,22 @@ export function ElevationPanel({ profile, loading, error }: ElevationProps) {
                     isAnimationActive={false}
                     activeDot={false}
                   />
+                  {/* Travelled part of the terrain, re-fills the shape in
+                      grays (drawn over the colored fill, under the canvas
+                      steepness line). Ends exactly at the progress point
+                      thanks to the interpolated boundary sample. */}
+                  {progressX > 0 && (
+                    <Area
+                      type="linear"
+                      dataKey="done"
+                      stroke="transparent"
+                      fill="url(#elevFillDone)"
+                      connectNulls={false}
+                      isAnimationActive={false}
+                      activeDot={false}
+                      tooltipType="none"
+                    />
+                  )}
               </AreaChart>
               {/* Colored steepness line, drawn in one canvas pass on top
                   of the SVG area fill. pointer-events:none lets the chart
@@ -587,10 +744,24 @@ export function SnowPanel({
   error,
   date,
   onDateChange,
+  progressM = null,
 }: SnowProps) {
   const chartData = useMemo(
     () => (profile ? flattenForChart(profile, snow) : []),
     [profile, snow],
+  );
+  // Navigation progress clamped into the chart's domain; 0 hides it.
+  const progressX = useMemo(() => {
+    if (progressM == null || progressM <= 0) return 0;
+    let xMax = 0;
+    for (const p of chartData) if (p.distance > xMax) xMax = p.distance;
+    return xMax > 0 ? Math.min(progressM, xMax) : 0;
+  }, [progressM, chartData]);
+  // Chart data augmented with the travelled (`done`) series, plus the
+  // interpolated snow depth at the progress point for the marker dot.
+  const { data: progressData, at: progressSnow } = useMemo(
+    () => progressSeries(chartData, 'snow', progressX),
+    [chartData, progressX],
   );
   const snowMax = useMemo(() => {
     let m = 0;
@@ -605,7 +776,7 @@ export function SnowPanel({
   );
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const hover = useChartHover(chartData);
+  const hover = useChartHover(progressData);
 
   if (!profile && !loading && !error) return null;
 
@@ -628,8 +799,9 @@ export function SnowPanel({
           {profile && (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
-                data={chartData}
+                data={progressData}
                 syncId="route"
+                syncMethod="value"
                 margin={{ top: 8, right: 16, left: 8, bottom: 4 }}
                 onMouseMove={hover.onMouseMove}
                 onMouseLeave={hover.onMouseLeave}
@@ -643,6 +815,14 @@ export function SnowPanel({
                     <stop offset="35%" stopColor="#eaf3fb" stopOpacity={0.95} />
                     <stop offset="70%" stopColor="#bcd6ec" stopOpacity={0.9} />
                     <stop offset="100%" stopColor="#7fa8cf" stopOpacity={0.9} />
+                  </linearGradient>
+                  {/* Desaturated twin of snowFill for the travelled part
+                      of the snowpack — icy grays instead of blues. */}
+                  <linearGradient id="snowFillDone" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#fafafa" stopOpacity={0.98} />
+                    <stop offset="35%" stopColor="#eceef1" stopOpacity={0.95} />
+                    <stop offset="70%" stopColor="#d1d5db" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#9ca3af" stopOpacity={0.9} />
                   </linearGradient>
                   {/* Snowflake tile, stamped over the gradient via a
                       second Area layer. Two snowflakes per 28×28 cell at
@@ -743,6 +923,22 @@ export function SnowPanel({
                   isAnimationActive={false}
                   activeDot={{ r: 3 }}
                 />
+                {/* Travelled part of the snowpack, re-filled in icy grays
+                    (over the blue fill, under the snowflake stamps so the
+                    texture carries across the boundary). */}
+                {progressX > 0 && (
+                  <Area
+                    type="monotone"
+                    dataKey="done"
+                    stroke="#9ca3af"
+                    strokeWidth={1.25}
+                    fill="url(#snowFillDone)"
+                    connectNulls={false}
+                    isAnimationActive={false}
+                    activeDot={false}
+                    tooltipType="none"
+                  />
+                )}
                 {/* Snowflake stamps, clipped to the snowpack area. */}
                 <Area
                   type="monotone"
@@ -754,6 +950,25 @@ export function SnowPanel({
                   activeDot={false}
                   legendType="none"
                 />
+                {/* "You are here": dashed hairline at the progress
+                    distance and a marker dot on the snow surface. */}
+                {progressX > 0 && (
+                  <ReferenceLine
+                    x={progressX}
+                    stroke={PROGRESS_CURSOR_COLOR}
+                    strokeDasharray="3 3"
+                  />
+                )}
+                {progressX > 0 && progressSnow != null && (
+                  <ReferenceDot
+                    x={progressX}
+                    y={progressSnow}
+                    r={5}
+                    fill="#ffffff"
+                    stroke={PROGRESS_MARKER_COLOR}
+                    strokeWidth={2.5}
+                  />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           )}
