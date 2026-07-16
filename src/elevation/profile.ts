@@ -41,6 +41,8 @@ export interface ProfileStats {
 export interface ProfileData {
   segments: ProfilePoint[][];
   stats: ProfileStats;
+  // Epoch ms of when the elevation data for this profile was retrieved.
+  fetchedAt: number;
 }
 
 // Compute the elevation profile of a route: resample each segment at 20 m,
@@ -79,6 +81,7 @@ export async function computeProfile(
         minElevation: 0,
         maxElevation: 0,
       },
+      fetchedAt: Date.now(),
     };
   }
 
@@ -141,7 +144,7 @@ export async function computeProfile(
     segments.push(segPoints);
   }
 
-  return { segments, stats: computeStats(segments) };
+  return { segments, stats: computeStats(segments), fetchedAt: Date.now() };
 }
 
 function totalLength(seg: LatLng[]): number {

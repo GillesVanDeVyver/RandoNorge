@@ -49,6 +49,24 @@ const PROGRESS_MARKER_COLOR = '#2dd4bf';
 // Faint dashed vertical hairline at the progress distance.
 const PROGRESS_CURSOR_COLOR = 'rgba(156, 163, 175, 0.7)';
 
+// "Data retrieved <date> HH:MM." prefix for a panel's SourceAttribution
+// line, mirroring the weather and avalanche panels. Undefined hides the note.
+function retrievedNote(fetchedAt: number | null | undefined) {
+  if (fetchedAt == null || !Number.isFinite(fetchedAt)) return undefined;
+  return (
+    <>
+      Data retrieved{' '}
+      {new Date(fetchedAt).toLocaleString([], {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      })}
+      .{' '}
+    </>
+  );
+}
+
 // Flatten multi-segment profile to a single Recharts-friendly array.
 // Insert a null-elevation entry between segments so the line renders
 // as a discontinuous chart with gaps where the eraser cut the route.
@@ -791,6 +809,7 @@ export function ElevationPanel({
           what="Elevation data"
           source={{ label: 'Kartverket', href: 'https://www.kartverket.no/' }}
           license={CC_BY_4}
+          note={retrievedNote(profile?.fetchedAt)}
         />
       </div>
     </div>
@@ -1037,6 +1056,7 @@ export function SnowPanel({
           what="Snow depth"
           source={{ label: 'NVE / seNorge.no', href: 'https://www.senorge.no/' }}
           license={NLOD}
+          note={retrievedNote(snow?.fetchedAt)}
         />
       </div>
     </div>

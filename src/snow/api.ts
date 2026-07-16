@@ -104,6 +104,15 @@ async function fetchCell(
   return v;
 }
 
+export interface SnowDepthsResult {
+  // Snow depth (cm) per input point; NaN where the cell has no data.
+  depths: number[];
+  // Epoch ms of the OLDEST retrieval among the grid cells used (cache hits
+  // keep their original time), so the shown age is conservative. Null when
+  // no cell produced data at all.
+  fetchedAt: number | null;
+}
+
 // Fetch snow depth (cm) for each input point on the given date. Returns an
 // array of numbers in input order; NaN where the cell has no data (sea,
 // outside the seNorge grid, or date out of range).
@@ -111,8 +120,8 @@ export async function fetchSnowDepths(
   points: LatLng[],
   date: string,
   signal?: AbortSignal,
-): Promise<number[]> {
-  if (points.length === 0) return [];
+): Promise<SnowDepthsResult> {
+  if (points.length === 0) return { depths: [], fetchedAt: null };
 
   const cells: { key: string; cx: number; cy: number; x: number; y: number }[] = [];
   const pointKeys: string[] = new Array(points.length);
@@ -144,8 +153,12 @@ export async function fetchSnowDepths(
     }),
   );
 
-  return pointKeys.map((k) => {
+  let oldest = Infinity;
+  const depths = pointKeys.map((k) => {
     const hit = cache.get(fullKey(k, date));
-    return hit ? hit.v : NaN;
+    if (!hit) return NaN;
+    if (hit.at < oldest) oldest = hit.at;
+    return hit.v;
   });
+  return { depths, fetchedAt: Number.isFinite(oldest) ? oldest : null };
 }

@@ -7,6 +7,9 @@ export interface SnowData {
   // the seNorge grid has no value for that point on the requested date.
   depths: number[][];
   date: string;
+  // Epoch ms of the oldest retrieval among the grid cells shown (cached
+  // cells keep their original time). Null when no cell produced data.
+  fetchedAt: number | null;
 }
 
 interface SnowState {
@@ -27,11 +30,15 @@ export function useSnow(profile: ProfileData | null, date: string): SnowState {
 
   useEffect(() => {
     if (!profile || profile.segments.length === 0) {
-      setState({ snow: null, loading: false, error: null });
+      startTransition(() => {
+        setState({ snow: null, loading: false, error: null });
+      });
       return;
     }
     const controller = new AbortController();
-    setState((s) => ({ ...s, loading: true, error: null }));
+    startTransition(() => {
+      setState((s) => ({ ...s, loading: true, error: null }));
+    });
 
     const flat: [number, number][] = [];
     const segLens: number[] = [];
@@ -41,7 +48,7 @@ export function useSnow(profile: ProfileData | null, date: string): SnowState {
     }
 
     fetchSnowDepths(flat, date, controller.signal)
-      .then((all) => {
+      .then(({ depths: all, fetchedAt }) => {
         if (controller.signal.aborted) return;
         const depths: number[][] = [];
         let off = 0;
@@ -52,7 +59,11 @@ export function useSnow(profile: ProfileData | null, date: string): SnowState {
         // Transition: the snow chart re-render is heavy enough to stall the
         // map's render/input loop if committed synchronously. See useElevation.
         startTransition(() => {
-          setState({ snow: { depths, date }, loading: false, error: null });
+          setState({
+            snow: { depths, date, fetchedAt },
+            loading: false,
+            error: null,
+          });
         });
       })
       .catch((err: unknown) => {

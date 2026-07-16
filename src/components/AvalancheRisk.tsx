@@ -183,7 +183,9 @@ export function AvalancheRisk({ profile }: Props) {
         {fetchedAt != null && Number.isFinite(fetchedAt) && (
           <>
             Forecast retrieved{' '}
-            {new Date(fetchedAt).toLocaleTimeString([], {
+            {new Date(fetchedAt).toLocaleString([], {
+              day: 'numeric',
+              month: 'short',
               hour: '2-digit',
               minute: '2-digit',
             })}

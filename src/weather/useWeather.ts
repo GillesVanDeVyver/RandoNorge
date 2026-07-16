@@ -6,6 +6,9 @@ interface WeatherState {
   hours: WeatherHour[] | null;
   loading: boolean;
   error: string | null;
+  // Epoch ms of when the shown forecast was retrieved from MET (cached
+  // results keep their original time). Null while nothing is loaded.
+  fetchedAt: number | null;
 }
 
 export interface WeatherPoint {
@@ -49,6 +52,7 @@ export function useWeather(point: WeatherPoint | null): WeatherState {
     hours: null,
     loading: false,
     error: null,
+    fetchedAt: null,
   });
 
   // Destructure so the effect only re-runs when the coordinates actually
@@ -58,27 +62,31 @@ export function useWeather(point: WeatherPoint | null): WeatherState {
 
   useEffect(() => {
     if (lat == null || lng == null) {
-      setState({ hours: null, loading: false, error: null });
+      startTransition(() => {
+        setState({ hours: null, loading: false, error: null, fetchedAt: null });
+      });
       return;
     }
     const controller = new AbortController();
-    setState((s) => ({ ...s, loading: true, error: null }));
+    startTransition(() => {
+      setState((s) => ({ ...s, loading: true, error: null }));
+    });
 
     fetchForecast(lat, lng, controller.signal)
-      .then((hours) => {
+      .then(({ hours, fetchedAt }) => {
         if (controller.signal.aborted) return;
         // Transition: the weather chart mounts alongside the elevation/snow
         // panels when a route's data lands; rendering it concurrently keeps
         // the map interactive. See useElevation.
         startTransition(() => {
-          setState({ hours, loading: false, error: null });
+          setState({ hours, loading: false, error: null, fetchedAt });
         });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : 'Failed to fetch';
         startTransition(() => {
-          setState({ hours: null, loading: false, error: msg });
+          setState({ hours: null, loading: false, error: msg, fetchedAt: null });
         });
       });
 

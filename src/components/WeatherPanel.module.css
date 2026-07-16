@@ -5,6 +5,13 @@
   width: 100%;
 }
 
+/* The weather card is rendered flush (no card padding) so the table can run
+   edge to edge; give the attribution line its own inset so it doesn't touch
+   the card edges. */
+.attributionWrap {
+  margin: 0 var(--space-3) var(--space-2);
+}
+
 .topRow {
   display: flex;
   align-items: center;

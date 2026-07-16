@@ -16,13 +16,17 @@ interface Props {
   what: string;
   source: SourceLink;
   license: SourceLink;
+  // Optional sentence(s) shown before the © credit, e.g. the retrieval time
+  // of the data currently on screen.
+  note?: React.ReactNode;
 }
 
 const ext = { target: '_blank', rel: 'noopener noreferrer' } as const;
 
-export function SourceAttribution({ what, source, license }: Props) {
+export function SourceAttribution({ what, source, license, note }: Props) {
   return (
     <p className={styles.attribution}>
+      {note}
       {what} ©{' '}
       <a href={source.href} {...ext}>
         {source.label}

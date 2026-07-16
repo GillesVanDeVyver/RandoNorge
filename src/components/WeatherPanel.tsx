@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import type { WeatherHour } from '../weather/api';
 import { useWeather, weatherCandidates } from '../weather/useWeather';
@@ -74,7 +74,7 @@ export function WeatherPanel({ profile }: Props) {
   const candidates = useMemo(() => weatherCandidates(profile), [profile]);
   const [locKey, setLocKey] = useState<LocationKey>('lowest');
   const point = candidates ? candidates[locKey] : null;
-  const { hours, loading, error } = useWeather(point);
+  const { hours, loading, error, fetchedAt } = useWeather(point);
 
   const today = useMemo(() => toYMDLocal(new Date()), []);
   const grouped = useMemo(() => (hours ? groupByDay(hours) : null), [hours]);
@@ -86,10 +86,14 @@ export function WeatherPanel({ profile }: Props) {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   useEffect(() => {
     if (!selectedDay && days.length > 0) {
-      setSelectedDay(days.includes(today) ? today : days[0]);
+      startTransition(() => {
+        setSelectedDay(days.includes(today) ? today : days[0]);
+      });
     } else if (selectedDay && days.length > 0 && !days.includes(selectedDay)) {
       // The previously selected day fell off the end of the forecast window.
-      setSelectedDay(days[0]);
+      startTransition(() => {
+        setSelectedDay(days[0]);
+      });
     }
   }, [days, selectedDay, today]);
 
@@ -253,11 +257,27 @@ export function WeatherPanel({ profile }: Props) {
           <ChevronDownIcon />
         </div>
       </div>
+      <div className={styles.attributionWrap}>
       <SourceAttribution
         what="Weather forecast"
         source={{ label: 'MET Norway', href: 'https://www.met.no/en' }}
         license={NLOD}
+        note={
+          fetchedAt != null && (
+            <>
+              Forecast retrieved{' '}
+              {new Date(fetchedAt).toLocaleString([], {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+              .{' '}
+            </>
+          )
+        }
       />
+      </div>
     </div>
   );
 }

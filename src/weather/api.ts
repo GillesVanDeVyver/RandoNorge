@@ -51,6 +51,14 @@ interface MetNoResponse {
   properties: { timeseries: MetNoTimeseries[] };
 }
 
+export interface ForecastResult {
+  hours: WeatherHour[];
+  // Epoch ms of when this forecast was actually retrieved from MET. Cache
+  // hits keep their original retrieval time so the UI can show honest data
+  // age (mirrors the avalanche panel's fetchedAt).
+  fetchedAt: number;
+}
+
 // (lat,lon quantized to 3 decimals ≈ ~100 m) → cached forecast.
 // Entries expire after CACHE_TTL_MS: MET updates Locationforecast roughly
 // hourly, and a session-long cache would silently serve an outdated forecast
@@ -66,10 +74,12 @@ export async function fetchForecast(
   lat: number,
   lon: number,
   signal?: AbortSignal,
-): Promise<WeatherHour[]> {
+): Promise<ForecastResult> {
   const key = cacheKey(lat, lon);
   const cached = cache.get(key);
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.hours;
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+    return { hours: cached.hours, fetchedAt: cached.at };
+  }
 
   const url = `${ENDPOINT}?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`;
   const res = await fetch(url, { signal });
@@ -94,6 +104,7 @@ export async function fetchForecast(
     };
   });
 
-  cache.set(key, { at: Date.now(), hours });
-  return hours;
+  const at = Date.now();
+  cache.set(key, { at, hours });
+  return { hours, fetchedAt: at };
 }
