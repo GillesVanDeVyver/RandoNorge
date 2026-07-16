@@ -452,10 +452,69 @@ export function Map3DView({
       commitErase();
     };
 
+    // Touch handlers mirroring the mouse ones: MapLibre never synthesises
+    // mouse events from touch drags, so without these, drawing on mobile
+    // silently does nothing. e.preventDefault() stops the map's own gesture
+    // handling (pan/rotate) from competing with the stroke; a second finger
+    // commits the stroke and yields to pinch-zoom.
+    const onTouchStart = (e: maplibregl.MapTouchEvent) => {
+      const m = modeRef.current;
+      if (m === 'idle') return;
+      if (e.originalEvent.touches.length > 1) {
+        commitDraw();
+        commitErase();
+        return;
+      }
+      // Two distinct defaults must be cancelled: MapLibre's own gesture
+      // handling (e.preventDefault) and the *browser's* native touch
+      // gestures — edge-swipe history navigation, pull-to-refresh, page
+      // scroll (e.originalEvent.preventDefault). Missing the latter lets
+      // a draw stroke starting near the screen edge navigate away from
+      // the app entirely.
+      e.preventDefault();
+      if (e.originalEvent.cancelable) e.originalEvent.preventDefault();
+      if (m === 'draw') {
+        drawingRef.current = [[e.lngLat.lat, e.lngLat.lng]];
+        lastDrawPxRef.current = { x: e.point.x, y: e.point.y };
+        renderRoute();
+      } else if (m === 'erase') {
+        erasingRef.current = true;
+        eraseAt([e.lngLat.lat, e.lngLat.lng]);
+      }
+    };
+    const onTouchMove = (e: maplibregl.MapTouchEvent) => {
+      const m = modeRef.current;
+      if (m === 'idle') return;
+      if (e.originalEvent.touches.length > 1) return;
+      e.preventDefault();
+      if (e.originalEvent.cancelable) e.originalEvent.preventDefault();
+      if (m === 'draw' && drawingRef.current) {
+        const last = lastDrawPxRef.current;
+        if (last) {
+          const dx = e.point.x - last.x;
+          const dy = e.point.y - last.y;
+          if (dx * dx + dy * dy < MIN_DRAW_PX2) return;
+        }
+        lastDrawPxRef.current = { x: e.point.x, y: e.point.y };
+        drawingRef.current.push([e.lngLat.lat, e.lngLat.lng]);
+        scheduleLiveUpdate();
+      } else if (m === 'erase' && erasingRef.current) {
+        eraseAt([e.lngLat.lat, e.lngLat.lng]);
+      }
+    };
+    const onTouchEnd = () => {
+      commitDraw();
+      commitErase();
+    };
+
     map.on('mousedown', onMouseDown);
     map.on('mousemove', onMouseMove);
     map.on('mouseup', onMouseUp);
     map.on('mouseout', onMouseOut);
+    map.on('touchstart', onTouchStart);
+    map.on('touchmove', onTouchMove);
+    map.on('touchend', onTouchEnd);
+    map.on('touchcancel', onTouchEnd);
     map.on('rotate', () => setBearing(map.getBearing()));
 
     map.on('load', () => {
@@ -554,10 +613,15 @@ export function Map3DView({
       map.dragPan.enable();
       map.doubleClickZoom.enable();
       canvas.style.cursor = '';
+      canvas.style.touchAction = '';
     } else {
       map.dragPan.disable();
       map.doubleClickZoom.disable();
       canvas.style.cursor = mode === 'draw' ? 'crosshair' : ERASER_CURSOR;
+      // Stop the browser from claiming one-finger drags for native gestures
+      // (scroll, pull-to-refresh, edge-swipe history navigation) so the
+      // stroke's touchmove events keep flowing to the handlers above.
+      canvas.style.touchAction = 'none';
     }
   }, [mode]);
 

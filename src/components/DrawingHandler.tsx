@@ -83,15 +83,20 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
       map.dragging.enable();
       map.doubleClickZoom.enable();
       container.style.cursor = '';
+      container.style.touchAction = '';
     } else {
       map.dragging.disable();
       map.doubleClickZoom.disable();
       container.style.cursor = mode === 'draw' ? 'crosshair' : ERASER_CURSOR;
+      // Stop the browser from treating a one-finger drag as page pan/zoom
+      // so touchmove events reach the drawing handlers below.
+      container.style.touchAction = 'none';
     }
     return () => {
       map.dragging.enable();
       map.doubleClickZoom.enable();
       container.style.cursor = '';
+      container.style.touchAction = '';
     };
   }, [mode, map]);
 
@@ -274,6 +279,83 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
       }
     };
   }, [mode]);
+
+  // Touch support. Leaflet only synthesises mouse events for taps — a
+  // finger *drag* never produces the mousedown/mousemove map events used
+  // below, so on mobile drawing silently did nothing. Handle touch strokes
+  // with native listeners on the map container instead. Listeners are
+  // registered with passive: false so preventDefault() can actually stop
+  // the browser's default pan/scroll while a stroke is in progress.
+  useEffect(() => {
+    if (mode === 'idle') return;
+    const container = map.getContainer();
+
+    const touchLatLng = (t: Touch): LatLng => {
+      const rect = container.getBoundingClientRect();
+      const ll = map.containerPointToLatLng([
+        t.clientX - rect.left,
+        t.clientY - rect.top,
+      ]);
+      return [ll.lat, ll.lng];
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) {
+        // Second finger down (pinch gesture): commit whatever stroke is in
+        // progress and let Leaflet's touchZoom take over.
+        finishDraw();
+        commitErase();
+        return;
+      }
+      e.preventDefault();
+      const ll = touchLatLng(e.touches[0]);
+      if (mode === 'draw') {
+        drawingRef.current = [ll];
+        lastDrawPxRef.current = map.latLngToContainerPoint(ll);
+        setLivePoints(drawingRef.current.slice());
+      } else {
+        erasingRef.current = true;
+        eraseAt(ll);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      e.preventDefault();
+      const ll = touchLatLng(e.touches[0]);
+      if (mode === 'draw' && drawingRef.current) {
+        const pt = map.latLngToContainerPoint(ll);
+        const last = lastDrawPxRef.current;
+        if (last) {
+          const dx = pt.x - last.x;
+          const dy = pt.y - last.y;
+          if (dx * dx + dy * dy < MIN_DRAW_PX2) return;
+        }
+        lastDrawPxRef.current = pt;
+        drawingRef.current.push(ll);
+        scheduleLiveUpdate();
+      } else if (mode === 'erase' && erasingRef.current) {
+        eraseAt(ll);
+      }
+    };
+
+    const onTouchEnd = () => {
+      finishDraw();
+      commitErase();
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: false });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd);
+    container.addEventListener('touchcancel', onTouchEnd);
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, map, route, onRouteChange]);
 
   useMapEvents({
     mousedown(e) {
