@@ -153,7 +153,7 @@
 
   /* Partially transparent so the backcountry photo shows through the
      glass blur; more see-through than --surface-2 (0.96) on purpose. */
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.68);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--hairline);
