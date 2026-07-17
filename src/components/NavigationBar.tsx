@@ -158,51 +158,32 @@ interface ReviewProps {
   name: string;
   /** ISO timestamp of when the tour was finished. */
   finishedAt: string;
-  /** Active recording time in ms (null when the track predates duration). */
-  elapsedMs: number | null;
-  /** Recorded distance in meters (null when unknown). */
-  distanceM: number | null;
   /** Back to the completed-routes list. */
   onBack: () => void;
 }
 
 /**
  * Review twin of the recording bar, shown when a completed route is opened
- * from the library. Same chip, same stats — but the session is over, so the
- * controls collapse to a single Back button and the note line identifies
- * the tour instead of surfacing recording problems.
+ * from the library. The session is over, so the chip collapses to a single
+ * Back button and the note line identifies the tour instead of surfacing
+ * recording problems.
  */
 export function ReviewNavigationBar({
   name,
   finishedAt,
-  elapsedMs,
-  distanceM,
   onBack,
 }: ReviewProps) {
   return (
     <div className={styles.wrap}>
-      <div className={styles.bar} role="status">
-        <button
-          type="button"
-          className={styles.btn}
-          onClick={onBack}
-          title="Back to your completed routes"
-        >
-          <ArrowLeftIcon />
-          <span>Back</span>
-        </button>
-        <span className={styles.divider} aria-hidden />
-        <span className={styles.stat}>
-          <span className={styles.statValue}>
-            {elapsedMs !== null ? formatElapsed(elapsedMs) : '–'}
-          </span>
-          <span className={styles.statLabel}>time</span>
-        </span>
-        <span className={styles.stat}>
-          <span className={styles.statValue}>{formatDistance(distanceM)}</span>
-          <span className={styles.statLabel}>travelled</span>
-        </span>
-      </div>
+      <button
+        type="button"
+        className={`${styles.btn} ${styles.backChip}`}
+        onClick={onBack}
+        title="Back to your completed routes"
+      >
+        <ArrowLeftIcon />
+        <span>Back</span>
+      </button>
       <div className={styles.note}>
         {name} · Completed {formatDate(finishedAt)}
       </div>

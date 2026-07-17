@@ -110,6 +110,16 @@
   border: 1px solid var(--hairline);
 }
 
+/* Standalone Back chip (review mode): the button is the glass pill itself,
+   so it carries its own surface, blur and shadow instead of nesting inside
+   the .bar container. */
+.backChip {
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-2);
+}
+
 .btn:hover:not(:disabled) {
   background: var(--surface-hover);
 }

@@ -673,8 +673,6 @@ function App({ saving, review }: Props) {
           <ReviewNavigationBar
             name={review.track.name}
             finishedAt={review.track.finishedAt}
-            elapsedMs={reviewElapsedMs}
-            distanceM={reviewDistanceM}
             onBack={review.onBack}
           />
         )}
@@ -842,7 +840,7 @@ function App({ saving, review }: Props) {
                   </button>
                 </div>
               )}
-              {hasRoute && tracking.status === 'idle' && view === '2d' && !session && (
+              {saving && hasRoute && tracking.status === 'idle' && view === '2d' && !session && (
                 <button
                   type="button"
                   className={styles.startNavBtn}
@@ -852,6 +850,27 @@ function App({ saving, review }: Props) {
                   <PlayIcon />
                   <span>Start route</span>
                 </button>
+              )}
+              {/* Guest mode: no `saving` prop, so a recorded activity can't be
+                  persisted to an account. We still show "Start route" (grayed
+                  out and inert) so the feature is discoverable, and hang the
+                  tooltip off a wrapping span — a disabled <button> swallows
+                  pointer events, so its own `title` never appears on hover. */}
+              {!saving && hasRoute && tracking.status === 'idle' && view === '2d' && !session && (
+                <span
+                  className={styles.startNavBtnLockWrap}
+                  title="Create an account to start a route"
+                >
+                  <button
+                    type="button"
+                    className={`${styles.startNavBtn} ${styles.startNavBtnLocked}`}
+                    disabled
+                    aria-disabled="true"
+                  >
+                    <PlayIcon />
+                    <span>Start route</span>
+                  </button>
+                </span>
               )}
               {saving && !session && (
                 <button

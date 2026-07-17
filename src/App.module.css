@@ -306,13 +306,13 @@
   flex: none;
 }
 
-.startNavBtn:hover {
+.startNavBtn:hover:not(:disabled) {
   background: var(--surface-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-2);
 }
 
-.startNavBtn:active {
+.startNavBtn:active:not(:disabled) {
   transform: none;
   box-shadow: var(--shadow-1);
 }
@@ -320,6 +320,20 @@
 .startNavBtn:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.startNavBtn:disabled {
+  opacity: 0.55;
+}
+
+/* Guest "Start route": inert, grayed out, and never interactive. The wrapper
+   carries the tooltip because a disabled button doesn't emit hover events. */
+.startNavBtnLockWrap {
+  display: inline-flex;
+}
+
+.startNavBtnLocked:disabled {
+  cursor: not-allowed;
 }
 
 @media (pointer: coarse) {
