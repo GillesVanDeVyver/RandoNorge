@@ -168,16 +168,14 @@ export function Map3DView({
       style: {
         version: 8,
         sources: {
+          // Credits (Kartverket, MET, NVE/Varsom, terrain, and the active
+          // overlay's source) are rendered by <MapAttribution/> in App.tsx —
+          // keep it in sync when sources change here.
           basemap: {
             type: 'raster',
             tiles: [KARTVERKET_TILES],
             tileSize: 256,
             maxzoom: 18,
-            // Always-mounted source, so this carries the app-wide credits for
-            // panel-rendered data (MET weather, Varsom forecasts) too — their
-            // licenses require visible attribution even without a map layer.
-            attribution:
-              '&copy; <a href="https://www.kartverket.no/">Kartverket</a> (CC BY 4.0) | Vær: <a href="https://www.met.no/">MET Norway</a> (CC BY 4.0) | Snøskredvarsel: <a href="https://varsom.no/">NVE / Varsom</a> (NLOD)',
           },
           terrain: {
             type: 'raster-dem',
@@ -185,24 +183,18 @@ export function Map3DView({
             tileSize: 256,
             encoding: 'terrarium',
             maxzoom: 15,
-            attribution:
-              'Terrain &copy; <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen / AWS Open Data</a>',
           },
           snow: {
             type: 'raster',
             tiles: [snowTilesUrl(snowDate)],
             tileSize: 256,
             maxzoom: 9,
-            attribution:
-              'Snødybde &copy; <a href="https://www.nve.no/">NVE</a> / <a href="https://www.met.no/">MET</a> (seNorge, NLOD)',
           },
           steepness: {
             type: 'raster',
             tiles: [STEEPNESS_TILES],
             tileSize: 256,
             maxzoom: 16,
-            attribution:
-              'Bratthet med utløp &copy; <a href="https://www.nve.no/">NVE</a>',
           },
           route: { type: 'geojson', data: routeToGeoJSON(routeRef.current) },
         },
@@ -247,10 +239,10 @@ export function Map3DView({
       zoom: 5,
       pitch: 62,
       maxPitch: 85,
-      // compact:false keeps the attribution line permanently expanded rather
-      // than collapsed behind an ⓘ icon — CC BY 4.0 / NLOD require the credit
-      // to be visible, and a collapsed control is a weak claim to that.
-      attributionControl: { compact: false },
+      // Attribution is rendered by the shared <MapAttribution/> component
+      // (App.tsx): always-visible pill on desktop, collapsible © chip on
+      // small screens — so MapLibre's own control stays off.
+      attributionControl: false,
       // Linear rotation model: horizontal drag always maps to the same bearing
       // direction. The default "orbital" model (aroundCenter: true) flips the
       // rotation direction depending on whether the cursor is above or below

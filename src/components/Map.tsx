@@ -99,6 +99,10 @@ export function Map({
       minZoom={3}
       maxZoom={18}
       zoomControl={false}
+      // Credits are rendered by <MapAttribution/> (App.tsx) instead of
+      // Leaflet's control: the built-in line wraps into a tall block on
+      // phone widths and collides with the bottom map chrome.
+      attributionControl={false}
       // Render vector overlays (the route polylines) through L.Canvas
       // instead of the default SVG renderer. SVG rebuilds the entire
       // <path> element on every positions update, which becomes the
@@ -112,11 +116,9 @@ export function Map({
     >
       <TileLayer
         url="https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png"
-        // The basemap is always mounted, so this line doubles as the app-wide
-        // data attribution: weather (MET, CC BY 4.0) and avalanche forecasts
-        // (NVE/Varsom, NLOD) are rendered in panels rather than map layers,
-        // yet their licenses still require visible credit.
-        attribution='&copy; <a href="https://www.kartverket.no/">Kartverket</a> (CC BY 4.0) | Vær: <a href="https://www.met.no/">MET Norway</a> (CC BY 4.0) | Snøskredvarsel: <a href="https://varsom.no/">NVE / Varsom</a> (NLOD)'
+        // Credits (Kartverket, MET, NVE/Varsom, and the active overlay's
+        // source) live in <MapAttribution/> — keep it in sync when layers
+        // change.
         className={overlay === 'snowdepth' ? styles.grayscaleBase : undefined}
       />
       {overlay === 'steepness' && (
@@ -124,7 +126,6 @@ export function Map({
           url="https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}"
           opacity={0.6}
           maxNativeZoom={16}
-          attribution='Bratthet med utløp &copy; <a href="https://www.nve.no/">NVE</a>'
         />
       )}
       {overlay === 'snowdepth' && (
@@ -159,7 +160,6 @@ export function Map({
           // ArcGIS endpoint; cast because Leaflet's WMSParams type only
           // models the standard set.
           params={{ layers: 'sd', time: snowDate } as L.WMSParams}
-          attribution='Snødybde &copy; <a href="https://www.nve.no/">NVE</a> / <a href="https://www.met.no/">MET</a> (seNorge, NLOD)'
         />
       )}
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />

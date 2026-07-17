@@ -113,22 +113,8 @@ body {
   font-family: var(--font-sans);
 }
 
-.leaflet-control-attribution {
-  background: var(--surface-1) !important;
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-pill);
-  color: var(--text-3) !important;
-  font-size: 10px !important;
-  padding: 2px 10px !important;
-  margin: 0 8px 8px 0 !important;
-  box-shadow: var(--shadow-1);
-}
-
-.leaflet-control-attribution a {
-  color: var(--text-2) !important;
-}
+/* The attribution control is disabled on both map views — credits render
+   through the app-controlled <MapAttribution/> component instead. */
 
 @media (prefers-reduced-motion: reduce) {
   * {

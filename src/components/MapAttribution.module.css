@@ -1,0 +1,115 @@
+/* Map data-source credits, bottom-right of the map pane.
+   Desktop: an always-visible inline glass pill (visual match for the old
+   Leaflet control). Mobile: a small © chip that expands to a credit card,
+   so the long credit line can never wrap over the 2D/3D pill or info chip.
+   `--sheet-peek` (set by App.module.css in summary mode on small screens)
+   lifts the chip above the collapsed bottom sheet's grabber strip. */
+
+/* --- Desktop: inline pill ---------------------------------------------- */
+.inline {
+  position: absolute;
+  bottom: var(--space-2);
+  right: var(--space-2);
+  z-index: 1000;
+  max-width: calc(100% - 140px); /* keep clear of the 2D/3D toggle */
+  padding: 2px 10px;
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-1);
+
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: right;
+}
+
+.inline .item {
+  white-space: nowrap;
+}
+
+/* Pipe separators between credits, matching the old Leaflet line. */
+.inline .item + .item::before {
+  content: '|';
+  margin: 0 5px;
+  color: var(--text-3);
+}
+
+.inline a,
+.panel a {
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.inline a:hover,
+.panel a:hover {
+  text-decoration: underline;
+}
+
+/* --- Mobile: collapsed © chip + expandable credit card ------------------ */
+.root {
+  position: absolute;
+  bottom: calc(
+    max(var(--space-3), env(safe-area-inset-bottom)) + var(--sheet-peek, 0px)
+  );
+  right: max(var(--space-3), env(safe-area-inset-right));
+  z-index: 1000;
+}
+
+.chip {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-2);
+  cursor: pointer;
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-1);
+}
+
+.chip:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Expanded credits open to the left of the chip (not above it, where the
+   info chip lives), bottom-aligned so they grow upward over open map. */
+.panel {
+  position: absolute;
+  right: calc(100% + var(--space-2));
+  bottom: 0;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: max-content;
+  max-width: min(72vw, 300px);
+  padding: var(--space-3);
+
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: left;
+}

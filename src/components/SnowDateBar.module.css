@@ -107,11 +107,46 @@
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-@media (max-width: 640px) {
+/* Small screens (breakpoint matches useIsMobile): the bar slims down to the
+   essentials — day arrows, the date field, and "today". The ±year/±week
+   steppers and the snowflake brand disappear, and instead of spanning the
+   full width the pill centers itself in the strip between the edit FAB
+   (top-left) and the account chip / control stack (top-right), so nothing
+   overlaps. The date input remains the way to jump far back in time. */
+@media (max-width: 760px) {
+  .bar {
+    /* Clear the edit-toolbar FAB (≈54px + gap)… */
+    left: calc(max(var(--space-3), env(safe-area-inset-left)) + 62px);
+    /* …and the account chip (≈38px + gap). The control stack below it
+       starts lower and is cleared by the same inset. */
+    right: calc(max(var(--space-3), env(safe-area-inset-right)) + 46px);
+    transform: none;
+    max-width: 100%;
+    width: fit-content;
+    margin: 0 auto; /* center within the left/right bounds */
+  }
+
+  .brand {
+    display: none;
+  }
+
+  .secondary {
+    display: none;
+  }
+
   .label {
     display: none;
   }
+
   .btn {
-    min-width: 34px;
+    min-width: 30px;
+    padding: var(--space-1);
+  }
+
+  .dateInput {
+    min-width: 0;
+    flex: 0 1 auto;
+    padding: var(--space-2) var(--space-1);
+    font-size: 12px;
   }
 }

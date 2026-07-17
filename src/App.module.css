@@ -70,19 +70,17 @@
     height: 100%;
   }
 
-  .summary .mapPane :global(.leaflet-bottom) {
-    bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom));
-  }
-
   .viewToggle {
     bottom: calc(
       max(var(--space-3), env(safe-area-inset-bottom)) + var(--sheet-peek, 0px)
     );
   }
 
+  /* Stacked above the collapsed © attribution chip (28px + gap), which owns
+     the bottom-right corner on small screens (MapAttribution.module.css). */
   .infoBtn {
     bottom: calc(
-      max(var(--space-3), env(safe-area-inset-bottom)) + 24px +
+      max(var(--space-3), env(safe-area-inset-bottom)) + 36px +
         var(--sheet-peek, 0px)
     );
   }

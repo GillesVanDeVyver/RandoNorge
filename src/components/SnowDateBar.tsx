@@ -50,6 +50,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         label="Year"
         title="Previous year"
         onClick={() => set(shiftYears(date, -1))}
+        secondary
       >
         <SkipBackIcon />
       </NavButton>
@@ -57,6 +58,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         label="Week"
         title="Previous week"
         onClick={() => set(shiftDays(date, -7))}
+        secondary
       >
         <ChevronsLeftIcon />
       </NavButton>
@@ -89,6 +91,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         title="Next week"
         onClick={() => set(shiftDays(date, 7))}
         disabled={isToday}
+        secondary
       >
         <ChevronsRightIcon />
       </NavButton>
@@ -97,6 +100,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         title="Next year"
         onClick={() => set(shiftYears(date, 1))}
         disabled={isToday}
+        secondary
       >
         <SkipForwardIcon />
       </NavButton>
@@ -120,6 +124,7 @@ function NavButton({
   onClick,
   disabled = false,
   accent = false,
+  secondary = false,
 }: {
   children: ReactNode;
   label: string;
@@ -127,11 +132,14 @@ function NavButton({
   onClick: () => void;
   disabled?: boolean;
   accent?: boolean;
+  /** Coarse steppers (±year/±week) — hidden on small screens, where the
+   *  bar must fit between the edit FAB and the top-right control stack. */
+  secondary?: boolean;
 }) {
   return (
     <button
       type="button"
-      className={`${styles.btn} ${accent ? styles.accentBtn : ''}`}
+      className={`${styles.btn} ${accent ? styles.accentBtn : ''} ${secondary ? styles.secondary : ''}`}
       onClick={onClick}
       disabled={disabled}
       title={title}

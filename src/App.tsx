@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { Map } from './components/Map';
+import { MapAttribution } from './components/MapAttribution';
 import { NavigationBar } from './components/NavigationBar';
 import { ElevationPanel, SnowPanel } from './components/ProfilePanel';
 import { PacePanel } from './components/PacePanel';
@@ -587,6 +588,7 @@ function App({ saving }: Props) {
         >
           ⓘ
         </button>
+        <MapAttribution view={view} overlay={overlay} />
         {!navSession && (
           <Toolbar
             mode={mode}
