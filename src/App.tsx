@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { Map } from './components/Map';
 import { MapAttribution } from './components/MapAttribution';
-import { NavigationBar } from './components/NavigationBar';
+import { NavigationBar, ReviewNavigationBar } from './components/NavigationBar';
 import { ElevationPanel, SnowPanel } from './components/ProfilePanel';
 import { PacePanel } from './components/PacePanel';
 import { SnowDateBar } from './components/SnowDateBar';
@@ -159,17 +159,36 @@ interface Props {
     /** A navigation recording was saved — lets the activity log refresh. */
     onActivitySaved?: (track: SavedTrack) => void;
   };
+  /**
+   * Present when reviewing a completed tour from the library. The app then
+   * renders the same interface as while navigating the route, read-only:
+   * the saved track plays the live recording's role, the planned route (if
+   * it still exists) is shown beneath it, and sliding over the "Actual
+   * route" elevation profile scrubs back through the tour — the hover
+   * marker on the map retraces where you were, exactly like hovering the
+   * planned route's profile does while planning.
+   */
+  review?: {
+    /** The completed tour (recorded track) being reviewed. */
+    track: SavedTrack;
+    /** The planned route it navigated, if it still exists in the library. */
+    planned: SavedRoute | null;
+    /** Back to the completed-routes list. */
+    onBack: () => void;
+  };
 }
 
-function App({ saving }: Props) {
+function App({ saving, review }: Props) {
   const [mode, setMode] = useState<Mode>('idle');
   // Stable for the lifetime of this planner instance: Root remounts the
   // planner (via `key`) whenever a different library route is opened.
   const initialId = saving?.initial?.id ?? null;
   // A draft stashed by a previous planner instance in this tab (the user
   // navigated away and came back) wins over the pristine library route.
-  const [route, setRoute] = useState<Route>(
-    () => loadDraft(initialId)?.route ?? saving?.initial?.route ?? [],
+  const [route, setRoute] = useState<Route>(() =>
+    review
+      ? (review.planned?.route ?? [])
+      : (loadDraft(initialId)?.route ?? saving?.initial?.route ?? []),
   );
   // Identity of the library route currently being edited; Save updates it
   // instead of creating a duplicate, and its name/notes prefill the dialog.
@@ -178,6 +197,7 @@ function App({ saving }: Props) {
     name: string;
     description: string | null;
   } | null>(() => {
+    if (review) return null; // review mode never saves the plan
     const draft = loadDraft(initialId);
     if (draft) return draft.savedMeta;
     return saving?.initial
@@ -189,10 +209,13 @@ function App({ saving }: Props) {
       : null;
   });
   // Mirror the in-progress route into sessionStorage so it survives the
-  // planner unmounting (tab navigation) and reappears on return.
+  // planner unmounting (tab navigation) and reappears on return. Review
+  // mode is read-only and must not clobber the planner's drafts.
+  const reviewing = review != null;
   useEffect(() => {
+    if (reviewing) return;
     storeDraft(initialId, { route, savedMeta });
-  }, [initialId, route, savedMeta]);
+  }, [reviewing, initialId, route, savedMeta]);
   const [saveOpen, setSaveOpen] = useState(false);
   // Transient "Route saved" confirmation, mirroring the clear-undo toast.
   const [savedToast, setSavedToast] = useState(false);
@@ -227,8 +250,15 @@ function App({ saving }: Props) {
   const tracking = useTracking();
   const navLive = tracking.status === 'recording' || tracking.status === 'paused';
   const navSession = navLive || tracking.status === 'finished';
+  // Reviewing a completed tour renders the same read-only session chrome
+  // as an active navigation session (no toolbar, stats toggle, both lines
+  // on the map) — `session` is "either of the two".
+  const session = navSession || reviewing;
   // Which route the summary rail describes: the plan or the recording.
-  const [statsView, setStatsView] = useState<'planned' | 'actual'>('planned');
+  // A review opens on the recording — that's the tour being looked at.
+  const [statsView, setStatsView] = useState<'planned' | 'actual'>(
+    reviewing ? 'actual' : 'planned',
+  );
   const [trackSaving, setTrackSaving] = useState(false);
   // Transient confirmation/error line for saving an activity.
   const [notice, setNotice] = useState<{
@@ -254,7 +284,13 @@ function App({ saving }: Props) {
   // avalanche / weather stay plan-only: the actual view shows the elevation
   // profile plus the pace stats instead.)
   const statsTrack = useThrottledTrack(tracking.track, tracking.status);
-  const actualElevation = useElevation(statsTrack);
+  // In review mode the saved track replaces the live recording everywhere:
+  // on the map, in the elevation pipeline (whose profile carries lat/lng
+  // per sample, so hovering/sliding over the chart scrubs the map marker
+  // back through the tour), and in the stats below.
+  const reviewTrack = review?.track.track;
+  const displayTrack = reviewTrack ?? tracking.track;
+  const actualElevation = useElevation(reviewTrack ?? statsTrack);
 
   // Monotonic progress along the plan while navigating: drives the gray
   // "already travelled" part of the route on the map, the dotted connector,
@@ -262,12 +298,24 @@ function App({ saving }: Props) {
   const routeProgress = useRouteProgress(route, tracking.position, navLive);
 
   // Live travelled distance for the recording bar (cheap client-side sum,
-  // independent of the throttled pipeline).
+  // independent of the throttled pipeline). In review the saved stats win
+  // (they were computed at save time); the sum is only the fallback.
   const trackDistanceM = useMemo(
-    () => tracking.track.reduce((sum, seg) => sum + segmentLength(seg), 0),
-    [tracking.track],
+    () => displayTrack.reduce((sum, seg) => sum + segmentLength(seg), 0),
+    [displayTrack],
   );
-  const trackHasLine = tracking.track.some((seg) => seg.length >= 2);
+  const trackHasLine = displayTrack.some((seg) => seg.length >= 2);
+  const reviewDistanceM = review ? (review.track.distanceM ?? trackDistanceM) : null;
+  const reviewElapsedMs =
+    review && review.track.durationS !== null
+      ? review.track.durationS * 1000
+      : null;
+  // Frame the initial view around everything shown: the plan plus the
+  // recorded track (a tour without a surviving plan still gets framed).
+  const reviewFit = useMemo(
+    () => (reviewing ? [...route, ...displayTrack] : undefined),
+    [reviewing, route, displayTrack],
+  );
 
   const handleStartNavigation = useCallback(() => {
     setMode('idle');
@@ -353,10 +401,10 @@ function App({ saving }: Props) {
       if (next === 'draw' && loading) return;
       // The plan is read-only while navigating it (or reviewing the
       // recording): editing mid-tour would silently change the comparison.
-      if (next !== 'idle' && navSession) return;
+      if (next !== 'idle' && session) return;
       setMode(next);
     },
-    [loading, navSession],
+    [loading, session],
   );
 
   // Esc exits the current mode.
@@ -504,12 +552,12 @@ function App({ saving }: Props) {
   }, [route.length, mode]);
 
   const hasRoute = route.length > 0;
-  const showHint = !hasRoute && !elevation.loading && !navSession;
+  const showHint = !hasRoute && !elevation.loading && !session;
 
   // Which dataset the summary rail shows. "Actual" is offered as soon as a
-  // navigation session exists; before the first accepted GPS fix its panels
-  // simply show their empty/loading states.
-  const showActualStats = statsView === 'actual' && navSession;
+  // navigation session (or review) exists; before the first accepted GPS
+  // fix its panels simply show their empty/loading states.
+  const showActualStats = statsView === 'actual' && session;
   const activeElevation = showActualStats ? actualElevation : elevation;
 
   // Mobile redesign: full-screen map with the summary rail as a bottom sheet,
@@ -519,7 +567,9 @@ function App({ saving }: Props) {
   // One-line summary for the sheet's collapsed grabber strip.
   const sheetPeek =
     showActualStats && !trackHasLine
-      ? 'Waiting for GPS…'
+      ? reviewing
+        ? 'No GPS data recorded'
+        : 'Waiting for GPS…'
       : activeElevation.profile
         ? `${formatDistance(activeElevation.profile.stats.distance)} · ` +
           `${formatAscent(activeElevation.profile.stats.ascent)} ascent`
@@ -529,7 +579,7 @@ function App({ saving }: Props) {
 
   return (
     <div
-      className={`${styles.app} ${hasRoute || navSession ? styles.summary : ''}`}
+      className={`${styles.app} ${hasRoute || session ? styles.summary : ''}`}
     >
       <div className={styles.frame}>
       <div className={styles.mapPane}>
@@ -541,11 +591,12 @@ function App({ saving }: Props) {
             overlay={overlay}
             onOverlayChange={setOverlay}
             snowDate={snowDate}
-            track={tracking.track}
-            position={tracking.position}
-            positionAccuracy={tracking.accuracy}
+            track={displayTrack}
+            position={reviewing ? null : tracking.position}
+            positionAccuracy={reviewing ? null : tracking.accuracy}
             navigating={navLive}
             progress={routeProgress}
+            fitTo={reviewFit}
           />
         ) : (
           <Suspense fallback={null}>
@@ -559,7 +610,7 @@ function App({ saving }: Props) {
             />
           </Suspense>
         )}
-        {!navSession && (
+        {!session && (
         <div className={styles.viewToggle} role="group" aria-label="Map view">
           <button
             type="button"
@@ -589,7 +640,7 @@ function App({ saving }: Props) {
           ⓘ
         </button>
         <MapAttribution view={view} overlay={overlay} />
-        {!navSession && (
+        {!session && (
           <Toolbar
             mode={mode}
             onModeChange={handleModeChange}
@@ -598,6 +649,15 @@ function App({ saving }: Props) {
             loading={loading}
             onImport={handleImportFile}
             collapsible={isMobile}
+          />
+        )}
+        {reviewing && (
+          <ReviewNavigationBar
+            name={review.track.name}
+            finishedAt={review.track.finishedAt}
+            elapsedMs={reviewElapsedMs}
+            distanceM={reviewDistanceM}
+            onBack={review.onBack}
           />
         )}
         {navSession && tracking.status !== 'idle' && (
@@ -734,13 +794,13 @@ function App({ saving }: Props) {
           />
         )}
       </div>
-      {(hasRoute || navSession) && (
+      {(hasRoute || session) && (
         <SummaryPanel
           sheet={isMobile}
           peek={sheetPeek}
           action={
             <>
-              {navSession && (
+              {(navSession || (reviewing && hasRoute)) && (
                 <div
                   className={styles.statsToggle}
                   role="group"
@@ -764,7 +824,7 @@ function App({ saving }: Props) {
                   </button>
                 </div>
               )}
-              {hasRoute && tracking.status === 'idle' && view === '2d' && !navSession && (
+              {hasRoute && tracking.status === 'idle' && view === '2d' && !session && (
                 <button
                   type="button"
                   className={styles.startNavBtn}
@@ -775,7 +835,7 @@ function App({ saving }: Props) {
                   <span>Start route</span>
                 </button>
               )}
-              {saving && !navSession && (
+              {saving && !session && (
                 <button
                   type="button"
                   className={styles.saveBtn}
@@ -804,7 +864,7 @@ function App({ saving }: Props) {
                   so the feature is discoverable, and hang the tooltip off a
                   wrapping span — a disabled <button> swallows pointer events,
                   so its own `title` never appears on hover. */}
-              {!saving && !navSession && (
+              {!saving && !session && (
                 <span
                   className={styles.saveBtnLockWrap}
                   title="Create an account to save routes"
@@ -826,8 +886,11 @@ function App({ saving }: Props) {
           <SummaryCard title="Elevation">
             {showActualStats && !trackHasLine ? (
               <p className={styles.statsEmpty}>
-                Waiting for GPS — your actual route's stats appear here as
-                you move.
+                {reviewing
+                  ? 'This tour has no drawable GPS line, so its profile ' +
+                    "can't be shown."
+                  : "Waiting for GPS — your actual route's stats appear " +
+                    'here as you move.'}
               </p>
             ) : (
               <ElevationPanel
@@ -847,10 +910,13 @@ function App({ saving }: Props) {
           {showActualStats && (
             <SummaryCard title="Pace">
               <PacePanel
-                elapsedMs={tracking.elapsedMs}
-                movingMs={tracking.movingMs}
-                distanceM={trackDistanceM}
-                maxSpeedMps={tracking.maxSpeedMps}
+                // Saved tracks only carry the total active time and the
+                // distance; the moving/standing split and max speed are
+                // live-session data and render as "—" in a review.
+                elapsedMs={reviewing ? reviewElapsedMs : tracking.elapsedMs}
+                movingMs={reviewing ? null : tracking.movingMs}
+                distanceM={reviewing ? (reviewDistanceM ?? 0) : trackDistanceM}
+                maxSpeedMps={reviewing ? null : tracking.maxSpeedMps}
                 waiting={!trackHasLine}
               />
             </SummaryCard>

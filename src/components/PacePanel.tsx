@@ -9,13 +9,16 @@ import { formatDuration, formatPace, formatSpeed } from '../routes/format';
 import styles from './PacePanel.module.css';
 
 interface Props {
-  /** Active recording time in ms (pauses excluded). */
-  elapsedMs: number;
-  /** Time actually spent moving, ms. */
-  movingMs: number;
+  /** Active recording time in ms (pauses excluded); null when unknown
+   *  (e.g. reviewing a saved track that predates duration recording). */
+  elapsedMs: number | null;
+  /** Time actually spent moving, ms; null when unknown (saved tracks only
+   *  store the total active time, not the moving/standing split). */
+  movingMs: number | null;
   /** Travelled distance in meters. */
   distanceM: number;
-  /** Fastest observed speed, m/s (null until the first measurable move). */
+  /** Fastest observed speed, m/s (null until the first measurable move,
+   *  or unknown when reviewing a saved track). */
   maxSpeedMps: number | null;
   /** True while no GPS line has been recorded yet. */
   waiting: boolean;
@@ -30,8 +33,10 @@ export function PacePanel({
 }: Props) {
   // Average over the whole active recording (pauses excluded, stops
   // included) vs. average over the time actually spent moving.
-  const avgSpeedMps = elapsedMs > 0 ? distanceM / (elapsedMs / 1000) : null;
-  const movingSpeedMps = movingMs > 0 ? distanceM / (movingMs / 1000) : null;
+  const avgSpeedMps =
+    elapsedMs !== null && elapsedMs > 0 ? distanceM / (elapsedMs / 1000) : null;
+  const movingSpeedMps =
+    movingMs !== null && movingMs > 0 ? distanceM / (movingMs / 1000) : null;
 
   if (waiting) {
     return (

@@ -77,6 +77,9 @@ interface Props {
   navigating?: boolean;
   /** Monotonic progress along the plan; null when off-route or idle. */
   progress?: RouteProgress | null;
+  /** Geometry the initial fit frames instead of the plan (e.g. reviewing a
+   *  completed tour fits the plan and the recorded track together). */
+  fitTo?: Route;
 }
 
 export function Map({
@@ -91,6 +94,7 @@ export function Map({
   positionAccuracy = null,
   navigating = false,
   progress = null,
+  fitTo,
 }: Props) {
   return (
     <MapContainer
@@ -180,7 +184,7 @@ export function Map({
         route={route}
       />
       <InvalidateOnResize />
-      <FitToRoute route={route} />
+      <FitToRoute route={fitTo ?? route} />
     </MapContainer>
   );
 }

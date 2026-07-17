@@ -12,7 +12,6 @@ import {
   PENDING_VERIFICATION_KEY,
 } from './components/LoginPage.tsx';
 import { TermsPage } from './components/TermsPage.tsx';
-import { TrackOverviewPage } from './components/TrackOverviewPage.tsx';
 import {
   deleteRoute,
   listRoutes,
@@ -358,14 +357,20 @@ export function Root() {
           />
         )}
         {view === 'track' && openTrack && (
-          <TrackOverviewPage
-            track={openTrack}
-            planned={
-              (openTrack.routeId &&
-                savedRoutes?.find((r) => r.id === openTrack.routeId)) ||
-              null
-            }
-            onBack={() => navigate('completed')}
+          // Reviewing a completed tour reuses the planner/navigation app in
+          // read-only review mode: the same map + summary rail as while
+          // navigating, with the elevation profile doubling as a scrubber
+          // back through the tour. Keyed so opening another tour resets it.
+          <App
+            key={openTrack.id}
+            review={{
+              track: openTrack,
+              planned:
+                (openTrack.routeId &&
+                  savedRoutes?.find((r) => r.id === openTrack.routeId)) ||
+                null,
+              onBack: () => navigate('completed'),
+            }}
           />
         )}
         <AccountChip
