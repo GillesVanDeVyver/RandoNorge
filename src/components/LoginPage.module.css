@@ -517,8 +517,12 @@
 
   /* Slim down the card and form so everything fits above the fold,
      and pin it to the bottom of the screen (sheet-like), leaving the
-     photo and headline to breathe at the top. */
+     photo and headline to breathe at the top. Include the padding in
+     the card's width (there is no global border-box reset) — otherwise
+     `width: 100%` + padding overflows the page's edge padding and the
+     card sits flush against the sides of the screen. */
   .card {
+    box-sizing: border-box;
     padding: var(--space-4);
     margin-top: auto;
   }
