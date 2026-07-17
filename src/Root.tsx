@@ -12,6 +12,7 @@ import {
   PENDING_VERIFICATION_KEY,
 } from './components/LoginPage.tsx';
 import { TermsPage } from './components/TermsPage.tsx';
+import { TrackOverviewPage } from './components/TrackOverviewPage.tsx';
 import {
   deleteRoute,
   listRoutes,
@@ -30,6 +31,7 @@ import { formatAscent, formatDate, formatDistance } from './routes/format.ts';
  *  - planner   → the map / route-planning app
  *  - saved     → list of saved routes
  *  - completed → list of completed routes
+ *  - track     → overview of one completed route (planned vs actual tour)
  *
  * Each view is mirrored to a URL path via the History API so the browser's
  * back/forward buttons work and views can be deep-linked/refreshed:
@@ -38,9 +40,12 @@ import { formatAscent, formatDate, formatDistance } from './routes/format.ts';
  *  - /planner/:id→ a saved route opened in the planner
  *  - /saved      → saved routes list
  *  - /completed  → completed routes list
+ *  - /completed/:id → one completed route's overview
  */
-type SignedInView = 'overview' | 'planner' | 'saved' | 'completed';
+type SignedInView = 'overview' | 'planner' | 'saved' | 'completed' | 'track';
 
+/** `routeId` doubles as the id of whatever the view opens: a saved route
+ *  for `planner`, a recorded track for `track`. */
 type Nav = { view: SignedInView; routeId: string | null };
 
 function navToPath({ view, routeId }: Nav): string {
@@ -51,6 +56,10 @@ function navToPath({ view, routeId }: Nav): string {
       return '/saved';
     case 'completed':
       return '/completed';
+    case 'track':
+      return routeId
+        ? `/completed/${encodeURIComponent(routeId)}`
+        : '/completed';
     default:
       return '/';
   }
@@ -64,6 +73,10 @@ function pathToNav(pathname: string): Nav {
   }
   if (pathname === '/saved') return { view: 'saved', routeId: null };
   if (pathname === '/completed') return { view: 'completed', routeId: null };
+  const trackOpened = pathname.match(/^\/completed\/([^/]+)\/?$/);
+  if (trackOpened) {
+    return { view: 'track', routeId: decodeURIComponent(trackOpened[1]) };
+  }
   return { view: 'overview', routeId: null };
 }
 
@@ -149,6 +162,14 @@ export function Root() {
   // the planner once the route arrives.
   const openRoute =
     (openRouteId && savedRoutes?.find((r) => r.id === openRouteId)) || null;
+  // Completed track opened in the overview page (view === 'track'). Same
+  // lifecycle as openRoute: null while the list is loading or if the id
+  // doesn't resolve (deleted track, someone else's deep link).
+  const openTrack =
+    (view === 'track' &&
+      openRouteId &&
+      completedTracks?.find((t) => t.id === openRouteId)) ||
+    null;
 
   // Navigate to a view: update state and push a matching history entry
   // (unless we're already there) so the browser's back button retraces
@@ -257,6 +278,12 @@ export function Root() {
     [savedRoutes, navigate],
   );
 
+  // Open a completed route's overview (planned vs actual tour).
+  const handleOpenTrack = useCallback(
+    (id: string) => navigate('track', id),
+    [navigate],
+  );
+
   const handlePlanNewRoute = useCallback(() => {
     // Explicitly starting a new plan discards any fresh-plan draft left by
     // a previous planner visit; only back/return navigation restores it.
@@ -313,16 +340,32 @@ export function Root() {
             }}
           />
         )}
-        {(view === 'saved' || view === 'completed') && (
+        {(view === 'saved' ||
+          view === 'completed' ||
+          (view === 'track' && !openTrack)) && (
+          // A /completed/:id deep link whose track is still loading — or
+          // gone (deleted, other account) — falls back to the completed
+          // list rather than a dead end.
           <RoutesListPage
-            kind={view}
+            kind={view === 'saved' ? 'saved' : 'completed'}
             routes={view === 'saved' ? savedItems : completedItems}
             onBack={() => navigate('overview')}
             onPlanNewRoute={handlePlanNewRoute}
-            onOpenRoute={view === 'saved' ? handleOpenRoute : undefined}
+            onOpenRoute={view === 'saved' ? handleOpenRoute : handleOpenTrack}
             onDeleteRoute={
               view === 'saved' ? handleDeleteRoute : handleDeleteTrack
             }
+          />
+        )}
+        {view === 'track' && openTrack && (
+          <TrackOverviewPage
+            track={openTrack}
+            planned={
+              (openTrack.routeId &&
+                savedRoutes?.find((r) => r.id === openTrack.routeId)) ||
+              null
+            }
+            onBack={() => navigate('completed')}
           />
         )}
         <AccountChip
