@@ -33,6 +33,7 @@ import { createRoute, updateRoute, type SavedRoute } from './routes/api';
 import { createTrack, type SavedTrack } from './tracking/api';
 import { useTracking, type TrackingStatus } from './tracking/useTracking';
 import { useRouteProgress } from './tracking/useRouteProgress';
+import { buildTrackTiming } from './tracking/timing';
 import {
   importRouteFile,
   RouteImportError,
@@ -50,6 +51,12 @@ const Map3DView = lazy(() =>
 );
 
 type ViewMode = '2d' | '3d';
+
+// Map hover dot while scrubbing the *actual* route's elevation profile —
+// matches the recorded-track orange (NavigationLayer's TRACK_COLOR), so
+// the dot always takes the color of the line it retraces. The planned
+// profile keeps the marker's default teal.
+const ACTUAL_HOVER_COLOR = '#f97316';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -291,6 +298,14 @@ function App({ saving, review }: Props) {
   const reviewTrack = review?.track.track;
   const displayTrack = reviewTrack ?? tracking.track;
   const actualElevation = useElevation(reviewTrack ?? statsTrack);
+  // Distance↔time curve of the reviewed tour (null when the track predates
+  // per-fix timestamp recording). Gives the actual-route profile its
+  // clock-time axis and the per-point speed/pace in the hover tooltip.
+  const reviewTiming = useMemo(
+    () =>
+      review ? buildTrackTiming(review.track.track, review.track.times) : null,
+    [review],
+  );
 
   // Monotonic progress along the plan while navigating: drives the gray
   // "already travelled" part of the route on the map, the dotted connector,
@@ -345,11 +360,14 @@ function App({ saving, review }: Props) {
           : `Tour ${formatDate(tracking.startedAt)}`,
         routeId: savedMeta?.id ?? null,
         track: tracking.track,
+        times: tracking.times,
         stats: {
           distanceM: trackDistanceM,
           ascentM: profile ? profile.stats.ascent : null,
           descentM: profile ? profile.stats.descent : null,
           durationS: tracking.elapsedMs / 1000,
+          movingS: tracking.movingMs / 1000,
+          maxSpeedMps: tracking.maxSpeedMps,
         },
         startedAt: tracking.startedAt,
         finishedAt: tracking.finishedAt ?? new Date().toISOString(),
@@ -904,19 +922,35 @@ function App({ saving, review }: Props) {
                     ? (routeProgress?.alongM ?? null)
                     : null
                 }
+                // Reviewing the actual route with timestamps: the chart
+                // grows its clock-time axis and the tooltip reports the
+                // speed/pace at the hovered point.
+                timing={showActualStats ? reviewTiming : null}
+                // The map hover dot takes the color of the line the chart
+                // retraces: orange over the recorded track, teal (default)
+                // over the plan.
+                hoverColor={showActualStats ? ACTUAL_HOVER_COLOR : undefined}
               />
             )}
           </SummaryCard>
           {showActualStats && (
             <SummaryCard title="Pace">
               <PacePanel
-                // Saved tracks only carry the total active time and the
-                // distance; the moving/standing split and max speed are
-                // live-session data and render as "—" in a review.
+                // In a review the saved stats stand in for the live
+                // session's; tracks saved before the moving/max-speed
+                // stats were recorded render those as "—".
                 elapsedMs={reviewing ? reviewElapsedMs : tracking.elapsedMs}
-                movingMs={reviewing ? null : tracking.movingMs}
+                movingMs={
+                  reviewing
+                    ? review.track.movingS !== null
+                      ? review.track.movingS * 1000
+                      : null
+                    : tracking.movingMs
+                }
                 distanceM={reviewing ? (reviewDistanceM ?? 0) : trackDistanceM}
-                maxSpeedMps={reviewing ? null : tracking.maxSpeedMps}
+                maxSpeedMps={
+                  reviewing ? review.track.maxSpeedMps : tracking.maxSpeedMps
+                }
                 waiting={!trackHasLine}
               />
             </SummaryCard>

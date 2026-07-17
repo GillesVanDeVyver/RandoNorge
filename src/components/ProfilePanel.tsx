@@ -14,6 +14,13 @@ import type { ProfileData } from '../elevation/profile';
 import { RUNOUT_UNKNOWN } from '../elevation/runout';
 import type { SnowData } from '../snow/useSnow';
 import { setHoverPoint } from '../hoverStore';
+import {
+  distanceAtTime,
+  speedAtDistance,
+  timeAtDistance,
+  type TrackTiming,
+} from '../tracking/timing';
+import { formatPace, formatSpeed } from '../routes/format';
 import { DatePopover } from './DatePopover';
 import { SourceAttribution, NLOD, CC_BY_4 } from './SourceAttribution';
 import styles from './ProfilePanel.module.css';
@@ -25,6 +32,16 @@ interface ElevationProps {
   /** Along-route navigation progress in meters; the part of the chart left
    *  of it is washed gray. Null/undefined hides the indication. */
   progressM?: number | null;
+  /** Distance↔time curve of the recorded track shown by this profile.
+   *  When present, the chart grows a clock-time axis along its top edge
+   *  and the hover tooltip reports when you were at that point and how
+   *  fast you were moving. Null/undefined = no timing (planned routes,
+   *  tracks saved before timestamps were recorded). */
+  timing?: TrackTiming | null;
+  /** Fill color for the map hover dot while scrubbing this chart. Defaults
+   *  to the planned-route teal; the actual route's profile passes the
+   *  recorded-track orange so the dot matches the line it retraces. */
+  hoverColor?: string;
 }
 
 interface SnowProps {
@@ -270,13 +287,42 @@ const M_TOP = 8;
 const M_BOTTOM = 4;
 const Y_AXIS_W = 58;
 const X_AXIS_H = 22;
+// Extra top band reserved for the clock-time axis when the chart shows a
+// timestamped recorded track (drawn by the canvas overlay, mirroring the
+// distance axis at the bottom).
+const TIME_AXIS_H = 18;
 const PLOT_CHROME_W = Y_AXIS_W + M_RIGHT + M_LEFT; // yAxis + right margin + left margin
-const PLOT_CHROME_H = M_TOP + M_BOTTOM + X_AXIS_H;  // top margin + bottom margin + xAxis band
+
+// "Nice" clock-time tick intervals for the time axis, minutes.
+const TIME_TICK_STEPS_MIN = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360];
+
+// Round clock times covering [t0, t1] (epoch ms), aligned to the local
+// timezone so labels read as wall-clock values ("14:30", not ":47 past").
+// Targets ~5 ticks.
+function niceTimeTicks(t0: number, t1: number, target = 5): number[] {
+  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) return [];
+  const rawStepMin = (t1 - t0) / 60000 / target;
+  const stepMin =
+    TIME_TICK_STEPS_MIN.find((s) => s >= rawStepMin) ??
+    TIME_TICK_STEPS_MIN[TIME_TICK_STEPS_MIN.length - 1];
+  const stepMs = stepMin * 60000;
+  // Epoch ms are UTC-aligned; shift by the local offset so tick boundaries
+  // land on round local times. The offset is sampled at t0 — a DST change
+  // mid-tour would shift labels by an hour, which is acceptable.
+  const offsetMs = new Date(t0).getTimezoneOffset() * 60000;
+  const first = Math.ceil((t0 - offsetMs) / stepMs) * stepMs + offsetMs;
+  const ticks: number[] = [];
+  for (let t = first; t <= t1; t += stepMs) ticks.push(t);
+  return ticks;
+}
+
+const fmtClock = (t: number) =>
+  new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 // Shared hover handler factory. Both charts emit map-marker updates
 // from the same chartData, and Recharts' syncId="route" keeps their
 // tooltip cursors aligned.
-function useChartHover(chartData: ChartPoint[]) {
+function useChartHover(chartData: ChartPoint[], hoverColor?: string) {
   const lastHoverIdx = useRef<number | null>(null);
   const onMouseMove = (e: unknown) => {
     const ev = e as { activeTooltipIndex?: string | null };
@@ -287,7 +333,7 @@ function useChartHover(chartData: ChartPoint[]) {
     lastHoverIdx.current = next;
     const cp = next != null ? chartData[next] : undefined;
     if (cp && typeof cp.lat === 'number' && typeof cp.lng === 'number') {
-      setHoverPoint([cp.lat, cp.lng]);
+      setHoverPoint([cp.lat, cp.lng], hoverColor);
     } else {
       setHoverPoint(null);
     }
@@ -305,7 +351,14 @@ export function ElevationPanel({
   loading,
   error,
   progressM = null,
+  timing = null,
+  hoverColor,
 }: ElevationProps) {
+  // A usable timing curve grows the clock-time axis band along the top.
+  const hasTimeAxis = timing !== null && timing.timesMs.length >= 2;
+  const mTop = hasTimeAxis ? M_TOP + TIME_AXIS_H : M_TOP;
+  // Top margin + bottom margin + xAxis band.
+  const plotChromeH = mTop + M_BOTTOM + X_AXIS_H;
   // Live pixel size of the elevation chart container, used to size
   // the chart's height at true 1:1 metres-per-pixel so the curve's
   // visual slope reflects real terrain steepness.
@@ -363,14 +416,14 @@ export function ElevationPanel({
   // steep terrain produces a tall chart (correctly steep).
   const elevChartHeight = useMemo(() => {
     if (!profile || containerWidth <= 0 || yTicks.length < 2) {
-      return PLOT_CHROME_H;
+      return plotChromeH;
     }
     const plotW = Math.max(containerWidth - PLOT_CHROME_W, 1);
     const dist = Math.max(profile.stats.distance, 1);
     const domainSpan = yTicks[yTicks.length - 1] - yTicks[0];
     const plotH = (plotW * domainSpan) / dist;
-    return plotH + PLOT_CHROME_H;
-  }, [profile, containerWidth, yTicks]);
+    return plotH + plotChromeH;
+  }, [profile, containerWidth, yTicks, plotChromeH]);
   // Displayed y-axis ticks — adaptive to the rendered plot height. yTicks
   // (above) always defines the domain (and the canvas-overlay geometry),
   // but on flat routes the 1:1 plot is only a sliver tall, so five 11px
@@ -379,7 +432,7 @@ export function ElevationPanel({
   // ticks and, at minimum, the domain endpoints.
   const displayYTicks = useMemo(() => {
     if (yTicks.length < 2) return yTicks;
-    const plotH = elevChartHeight - PLOT_CHROME_H;
+    const plotH = elevChartHeight - plotChromeH;
     const maxLabels = Math.max(2, Math.floor(plotH / 16) + 1);
     if (maxLabels >= yTicks.length) return yTicks;
     const n = yTicks.length;
@@ -389,15 +442,15 @@ export function ElevationPanel({
       if (out[out.length - 1] !== v) out.push(v);
     }
     return out;
-  }, [yTicks, elevChartHeight]);
+  }, [yTicks, elevChartHeight, plotChromeH]);
   // When even two labels can't fit inside the plot (ultra-flat routes),
   // nudge the min label down and the max label up so they never collide.
   // Capped so the labels stay within the chart's top margin / axis band.
   const yTickNudge = useMemo(() => {
     if (displayYTicks.length !== 2) return 0;
-    const plotH = elevChartHeight - PLOT_CHROME_H;
+    const plotH = elevChartHeight - plotChromeH;
     return Math.min(7, Math.max(0, (14 - plotH) / 2));
-  }, [displayYTicks, elevChartHeight]);
+  }, [displayYTicks, elevChartHeight, plotChromeH]);
   const renderYTick = useCallback(
     (props: {
       x?: number | string;
@@ -538,13 +591,47 @@ export function ElevationPanel({
     const yMax = yTicks[yTicks.length - 1];
     const plotLeft = M_LEFT + Y_AXIS_W;
     const plotRight = containerWidth - M_RIGHT;
-    const plotTop = M_TOP;
+    const plotTop = mTop;
     const plotBottom = elevChartHeight - M_BOTTOM - X_AXIS_H;
     const plotW = plotRight - plotLeft;
     const plotH = plotBottom - plotTop;
     if (plotW <= 0 || plotH <= 0 || yMax <= yMin) return;
     const px = (d: number) => plotLeft + (d / xMax) * plotW;
     const py = (e: number) => plotBottom - ((e - yMin) / (yMax - yMin)) * plotH;
+    // Clock-time axis along the top edge: the recorded track's timestamps
+    // map each round wall-clock time to the distance where it was reached,
+    // so the tick spacing is non-uniform — dense where you moved slowly,
+    // sparse where you moved fast. Same visual language as the distance
+    // axis below (no axis line, small gray labels), plus a short tick
+    // stub dropping into the plot.
+    if (hasTimeAxis && timing) {
+      const t0 = timing.timesMs[0];
+      const t1 = timing.timesMs[timing.timesMs.length - 1];
+      ctx.font =
+        '10px ui-sans-serif, system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#9ca3af';
+      ctx.strokeStyle = 'rgba(156, 163, 175, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      let lastLabelRight = -Infinity;
+      for (const t of niceTimeTicks(t0, t1)) {
+        const d = distanceAtTime(timing, t);
+        if (d === null) continue;
+        const x = px(Math.min(d, xMax));
+        if (x < plotLeft - 0.5 || x > plotRight + 0.5) continue;
+        const label = fmtClock(t);
+        const w = ctx.measureText(label).width;
+        // Skip labels that would collide with the previous one.
+        if (x - w / 2 < lastLabelRight + 6) continue;
+        lastLabelRight = x + w / 2;
+        ctx.fillText(label, x, plotTop - 8);
+        ctx.beginPath();
+        ctx.moveTo(x, plotTop - 5);
+        ctx.lineTo(x, plotTop);
+        ctx.stroke();
+      }
+    }
     ctx.lineWidth = 4;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
@@ -604,13 +691,17 @@ export function ElevationPanel({
     yTicks,
     progressX,
     progressElev,
+    hasTimeAxis,
+    timing,
+    mTop,
   ]);
 
-  const hover = useChartHover(progressData);
+  const hover = useChartHover(progressData, hoverColor);
 
   // Approximate rendered height of the hover tooltip (3 lines + padding
-  // + border). Used to decide whether it fits inside the chart box.
-  const TOOLTIP_EST_H = 72;
+  // + border; two more lines when the timing rows are shown). Used to
+  // decide whether it fits inside the chart box.
+  const TOOLTIP_EST_H = hasTimeAxis ? 104 : 72;
   // On flat routes the 1:1 chart is only a sliver tall — far shorter than
   // the tooltip. A cursor-following tooltip would then hang below the
   // chart and get clipped by the summary card's rounded-corner clipping.
@@ -618,7 +709,7 @@ export function ElevationPanel({
   // panel background above/below the sliver and stays fully visible
   // (allowEscapeViewBox lets it leave the plot box; the chart container
   // itself no longer clips). Tall charts keep the default cursor-follow.
-  const tooltipFits = elevChartHeight >= TOOLTIP_EST_H + M_TOP + M_BOTTOM;
+  const tooltipFits = elevChartHeight >= TOOLTIP_EST_H + mTop + M_BOTTOM;
   const tooltipPosition = tooltipFits
     ? undefined
     : { y: (elevChartHeight - TOOLTIP_EST_H) / 2 };
@@ -672,7 +763,7 @@ export function ElevationPanel({
                 data={progressData}
                 syncId="route"
                 syncMethod="value"
-                margin={{ top: M_TOP, right: M_RIGHT, left: M_LEFT, bottom: M_BOTTOM }}
+                margin={{ top: mTop, right: M_RIGHT, left: M_LEFT, bottom: M_BOTTOM }}
                 onMouseMove={hover.onMouseMove}
                 onMouseLeave={hover.onMouseLeave}
               >
@@ -736,6 +827,21 @@ export function ElevationPanel({
                         { text: `${Math.round(p.elevation)} m` },
                         { text: `Steepness ${slope}`, muted: true },
                       ];
+                      // Recorded-track timing: when you were here, and how
+                      // fast you were moving at that moment.
+                      if (hasTimeAxis && timing) {
+                        const t = timeAtDistance(timing, p.distance);
+                        const sp = speedAtDistance(timing, p.distance);
+                        if (t !== null) {
+                          rows.splice(1, 0, { text: `At ${fmtClock(t)}` });
+                        }
+                        if (sp !== null) {
+                          rows.push({
+                            text: `${formatSpeed(sp)} · ${formatPace(sp)}`,
+                            muted: true,
+                          });
+                        }
+                      }
                       if (p.runoutLevel === RUNOUT_UNKNOWN) {
                         rows.push({
                           text: 'Runout data unavailable',

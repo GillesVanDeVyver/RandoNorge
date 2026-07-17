@@ -16,7 +16,7 @@
 // line is gated.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LatLng, Route } from '../types';
+import type { LatLng, Route, TrackTimes } from '../types';
 import { haversine } from '../geometry';
 
 export type TrackingStatus = 'idle' | 'recording' | 'paused' | 'finished';
@@ -39,6 +39,10 @@ export interface Tracking {
   status: TrackingStatus;
   /** The recorded track so far (one segment per uninterrupted stretch). */
   track: Route;
+  /** Fix timestamps (epoch ms), shaped exactly like `track`: times[s][i]
+   *  is when track[s][i] was accepted. Persisted with the track so a
+   *  review can scrub through real clock time. */
+  times: TrackTimes;
   /** Latest raw GPS fix (also while paused/finished: last known). */
   position: LatLng | null;
   /** Reported accuracy of the latest fix, meters. */
@@ -79,6 +83,7 @@ function geoErrorMessage(err: GeolocationPositionError): string {
 export function useTracking(): Tracking {
   const [status, setStatus] = useState<TrackingStatus>('idle');
   const [track, setTrack] = useState<Route>([]);
+  const [times, setTimes] = useState<TrackTimes>([]);
   const [position, setPosition] = useState<LatLng | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +97,8 @@ export function useTracking(): Tracking {
   // Mutable working copy of the track; state is refreshed from it on every
   // accepted fix. Avoids re-reading state inside the watch callback.
   const trackRef = useRef<Route>([]);
+  // Fix timestamps, kept in lockstep with trackRef (same segment/point shape).
+  const timesRef = useRef<TrackTimes>([]);
   const lastAcceptedRef = useRef<LatLng | null>(null);
   // True until the first fix of the current segment arrives; the segment
   // array is only created then, so pauses can't leave empty segments.
@@ -163,14 +170,22 @@ export function useTracking(): Tracking {
 
         if (needsSegmentRef.current) {
           trackRef.current = [...trackRef.current, [point]];
+          timesRef.current = [...timesRef.current, [fix.timestamp]];
           needsSegmentRef.current = false;
         } else {
           const segs = trackRef.current;
           const lastSeg = segs[segs.length - 1];
           trackRef.current = [...segs.slice(0, -1), [...lastSeg, point]];
+          const tsegs = timesRef.current;
+          const lastTimes = tsegs[tsegs.length - 1];
+          timesRef.current = [
+            ...tsegs.slice(0, -1),
+            [...lastTimes, fix.timestamp],
+          ];
         }
         lastAcceptedRef.current = point;
         setTrack(trackRef.current);
+        setTimes(timesRef.current);
       },
       (err) => {
         setError(geoErrorMessage(err));
@@ -181,6 +196,7 @@ export function useTracking(): Tracking {
 
   const start = useCallback(() => {
     trackRef.current = [];
+    timesRef.current = [];
     lastAcceptedRef.current = null;
     needsSegmentRef.current = true;
     accumulatedMsRef.current = 0;
@@ -189,6 +205,7 @@ export function useTracking(): Tracking {
     movingMsRef.current = 0;
     maxSpeedRef.current = null;
     setTrack([]);
+    setTimes([]);
     setElapsedMs(0);
     setMovingMs(0);
     setMaxSpeedMps(null);
@@ -243,6 +260,7 @@ export function useTracking(): Tracking {
   const reset = useCallback(() => {
     stopWatch();
     trackRef.current = [];
+    timesRef.current = [];
     lastAcceptedRef.current = null;
     needsSegmentRef.current = true;
     accumulatedMsRef.current = 0;
@@ -251,6 +269,7 @@ export function useTracking(): Tracking {
     movingMsRef.current = 0;
     maxSpeedRef.current = null;
     setTrack([]);
+    setTimes([]);
     setPosition(null);
     setAccuracy(null);
     setError(null);
@@ -281,6 +300,7 @@ export function useTracking(): Tracking {
   return {
     status,
     track,
+    times,
     position,
     accuracy,
     error,

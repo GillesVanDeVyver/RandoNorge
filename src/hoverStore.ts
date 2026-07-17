@@ -4,20 +4,37 @@ import type { LatLng } from './types';
 // Tiny pub/sub store for the elevation-chart hover point. Kept out of
 // React state so that hovering the chart doesn't trigger re-renders of
 // App / Map / the chart itself — only the subscribed HoverMarker updates.
-let current: LatLng | null = null;
+//
+// Besides the position, the hover carries the color of the dataset being
+// hovered (teal for the planned route's profile, the recorded-track orange
+// for the actual route's), so the map dot always matches the line it
+// retraces. Undefined color = the marker's default (teal).
+
+export interface HoverPoint {
+  point: LatLng;
+  color?: string;
+}
+
+let current: HoverPoint | null = null;
 const listeners = new Set<() => void>();
 
-export function setHoverPoint(p: LatLng | null) {
-  if (p === current) return;
-  if (
-    p &&
-    current &&
-    p[0] === current[0] &&
-    p[1] === current[1]
-  ) {
-    return;
+export function setHoverPoint(p: LatLng | null, color?: string) {
+  if (p === null) {
+    if (current === null) return;
+    current = null;
+  } else {
+    if (
+      current &&
+      p[0] === current.point[0] &&
+      p[1] === current.point[1] &&
+      color === current.color
+    ) {
+      return;
+    }
+    // A fresh object per change keeps useSyncExternalStore snapshots
+    // referentially stable between changes.
+    current = { point: p, color };
   }
-  current = p;
   for (const l of listeners) l();
 }
 
@@ -32,6 +49,6 @@ function getSnapshot() {
   return current;
 }
 
-export function useHoverPoint(): LatLng | null {
+export function useHoverPoint(): HoverPoint | null {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

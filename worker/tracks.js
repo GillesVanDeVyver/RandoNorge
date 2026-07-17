@@ -7,9 +7,11 @@
 //
 // "geometry" follows the same storage model as saved routes: a stringified
 // GeoJSON Feature with a MultiLineString geometry (one line per
-// uninterrupted recording stretch) and precomputed display stats in
-// properties (distanceM, ascentM, descentM, durationS). Coordinates are
-// validated but otherwise treated as opaque.
+// uninterrupted recording stretch), precomputed display stats in
+// properties (distanceM, ascentM, descentM, durationS, movingS,
+// maxSpeedMps), and optional per-fix timestamps (properties.times, epoch
+// ms, shaped like the coordinates). Coordinates are validated but
+// otherwise treated as opaque.
 //
 // Every endpoint requires a Better Auth session cookie; ownership is
 // enforced in SQL. A supplied routeId must reference one of the caller's
@@ -236,6 +238,22 @@ function validateGeometry(geometry) {
   const props = typeof feature.properties === 'object' && feature.properties !== null
     ? feature.properties
     : {};
+  // Per-fix timestamps (epoch ms), shaped exactly like the coordinates.
+  // Anything malformed or misaligned is dropped to null rather than
+  // rejected — the track itself is still perfectly valid without timing.
+  let times = null;
+  if (
+    Array.isArray(props.times) &&
+    props.times.length === geom.coordinates.length &&
+    props.times.every(
+      (line, i) =>
+        Array.isArray(line) &&
+        line.length === geom.coordinates[i].length &&
+        line.every((t) => Number.isFinite(t)),
+    )
+  ) {
+    times = props.times;
+  }
   const clean = JSON.stringify({
     type: 'Feature',
     properties: {
@@ -243,6 +261,9 @@ function validateGeometry(geometry) {
       ascentM: Number.isFinite(props.ascentM) ? props.ascentM : null,
       descentM: Number.isFinite(props.descentM) ? props.descentM : null,
       durationS: Number.isFinite(props.durationS) ? props.durationS : null,
+      movingS: Number.isFinite(props.movingS) ? props.movingS : null,
+      maxSpeedMps: Number.isFinite(props.maxSpeedMps) ? props.maxSpeedMps : null,
+      times,
     },
     geometry: { type: 'MultiLineString', coordinates: geom.coordinates },
   });
