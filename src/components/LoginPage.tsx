@@ -465,9 +465,8 @@ export function LoginPage({ onContinueAsGuest }: Props) {
             the mountain<span className={styles.headlineDot}>.</span>
           </h1>
           <p className={styles.tagline}>
-            From trailhead to summit and back. Fjellrute brings terrain,
-            snow and avalanche information together to support your own
-            tour planning.
+            Everything you need to plan your tour: terrain, snow and
+            avalanche information in one place.
           </p>
           <ul className={styles.chips}>
             <li className={styles.chip}>
