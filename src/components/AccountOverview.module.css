@@ -309,4 +309,9 @@
   .cardPrimary {
     order: -1;
   }
+
+  /* Hide the photo credit on smaller screens to save space. */
+  .credit {
+    display: none;
+  }
 }

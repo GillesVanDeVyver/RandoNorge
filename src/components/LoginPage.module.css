@@ -548,8 +548,10 @@
   .signupRow {
     margin-top: var(--space-3);
   }
+}
 
-  /* Hide the photo credit on smaller screens to save space. */
+/* Hide the photo credit on smaller screens to save space. */
+@media (max-width: 900px) {
   .credit {
     display: none;
   }
