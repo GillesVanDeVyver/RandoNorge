@@ -15,6 +15,18 @@ export default defineConfig({
         target: 'http://localhost:8787',
         changeOrigin: false,
       },
+      // Terrain-DEM tiles for the 3D view. In production the Worker serves
+      // these from R2 (Kartverket-derived tiles) with AWS fallback
+      // (worker/terrain.js); in frontend-only dev we skip straight to the
+      // AWS Terrarium fallback so the 3D view works without wrangler
+      // running. Run `wrangler dev` and hit :8787 to exercise the R2 path.
+      '/terrain-dem': {
+        target: 'https://s3.amazonaws.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) =>
+          path.replace(/^\/terrain-dem/, '/elevation-tiles-prod/terrarium'),
+      },
       // NVE's GridTimeSeries (seNorge snow data) does not return CORS headers,
       // so we forward dev requests through the Vite dev server. The browser
       // hits /gts-api/... and Vite rewrites it to https://gts.nve.no/api/...

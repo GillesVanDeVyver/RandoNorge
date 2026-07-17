@@ -16,6 +16,7 @@ import { proxyGet } from './proxy.js';
 import { getAuth } from './auth.js';
 import { handleRoutesApi } from './routes.js';
 import { handleTracksApi } from './tracks.js';
+import { handleTerrainTile } from './terrain.js';
 
 const ROUTES = [
   { prefix: '/metno-api', upstream: 'https://api.met.no', ttl: 1800 },
@@ -52,6 +53,13 @@ export default {
     // CRUD against the "track" table (worker/tracks.js).
     if (pathname === '/api/tracks' || pathname.startsWith('/api/tracks/')) {
       return handleTracksApi(request, env, url);
+    }
+
+    // Terrain-DEM tiles for the 3D view: own Kartverket-derived tiles from
+    // R2 with AWS Terrarium fallback (worker/terrain.js).
+    if (pathname.startsWith('/terrain-dem/')) {
+      const res = await handleTerrainTile(request, env, ctx);
+      if (res) return res;
     }
 
     for (const { prefix, upstream, ttl } of ROUTES) {

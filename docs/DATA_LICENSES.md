@@ -145,15 +145,32 @@ Links:
 - GTS API: https://gts.nve.no/ (docs: https://gts.nve.no/swagger)
 - NVE open data terms: https://www.nve.no/om-nve/apne-data-og-api-fra-nve/
 
-## 5. Mapzen/AWS Open Data Terrarium terrain tiles (3D DEM)
+## 5. 3D terrain DEM — Kartverket NDH (self-hosted) + Mapzen/AWS fallback
 
-Endpoint used: `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`
+Endpoint used: `/terrain-dem/{z}/{x}/{y}.png` (our Worker, `worker/terrain.js`),
+which serves, in order:
 
-Not in the original audit scope but part of the stack: hosted on the AWS Open
-Data registry, free for any use; upstream sources (incl. USGS, ArcticDEM, EU-DEM)
-require attribution, which the 3D map's attribution control shows.
+1. **Self-generated Terrarium tiles from Kartverket's national elevation
+   model (NDH DTM, 1 m / 10 m)**, stored in R2 and produced by
+   `scripts/terrain/make_terrarium_tiles.py` from GeoTIFF exports off
+   https://hoydedata.no.
 
-Link: https://registry.opendata.aws/terrain-tiles/
+   **License: CC BY 4.0 (© Kartverket).** Important distinction from the
+   Geovekst restriction in §1: that restriction covers the *topo map cache
+   tiles* at z12+; the høydedata **elevation model itself is openly licensed**
+   — bulk download and derived products (our tiles) are explicitly permitted.
+   Attribution "Terrain © Kartverket (CC BY 4.0)" is shown in the 3D map
+   credits (`MapAttribution.tsx`).
+
+2. **Fallback: AWS Open Data Terrarium tiles**
+   (`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png`)
+   for areas not yet covered by our tiles: hosted on the AWS Open Data
+   registry, free for any use; upstream sources (incl. USGS, ArcticDEM,
+   EU-DEM) require attribution, which the 3D map credits show.
+
+Links:
+- Høydedata / NDH: https://hoydedata.no (license: https://creativecommons.org/licenses/by/4.0/)
+- AWS terrain tiles: https://registry.opendata.aws/terrain-tiles/
 
 ---
 

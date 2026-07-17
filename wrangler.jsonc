@@ -33,6 +33,22 @@
 			"remote": true
 		}
 	],
+	// R2 bucket with self-generated Terrarium terrain tiles (Kartverket NDH
+	// DTM, CC BY 4.0) served by worker/terrain.js at /terrain-dem/* with
+	// AWS Open Data fallback for uncovered areas. Create the bucket once:
+	//   npx wrangler r2 bucket create fjellrute-terrain
+	// Generate + upload tiles: scripts/terrain/make_terrarium_tiles.py.
+	"r2_buckets": [
+		{
+			"binding": "TERRAIN",
+			"bucket_name": "fjellrute-terrain"
+		},
+		{
+			"bucket_name": "fjellrute-terrain",
+			"binding": "fjellrute_terrain",
+			"remote": true
+		}
+	],
 	// Sender for auth emails (worker/email.js). NOTE: Resend only sends
 	// from domains verified in its dashboard — gmail.com cannot be
 	// verified, so this must be changed to an address on a verified
@@ -60,7 +76,8 @@
 			"/api/*",
 			"/metno-api/*",
 			"/gts-api/*",
-			"/varsom-api/*"
+			"/varsom-api/*",
+			"/terrain-dem/*"
 		]
 	},
 	// Daily GDPR retention cleanup (worker/index.js scheduled handler):

@@ -21,11 +21,15 @@ import styles from './Map3DView.module.css';
 // Same Kartverket topo tiles as the 2D map — draped over the terrain mesh.
 const KARTVERKET_TILES =
   'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png';
-// AWS Open Data terrain tiles (Terrarium encoding). Above 60°N these are
-// sourced from ArcticDEM 5 m mosaics, so they resolve Norwegian alpine
-// terrain well. Tiles top out at z15; MapLibre overzooms beyond that.
-const TERRARIUM_TILES =
-  'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+// Terrain DEM tiles (Terrarium encoding), served by our Worker at
+// /terrain-dem/* (worker/terrain.js): self-generated tiles from Kartverket's
+// 1 m national LiDAR DTM (NDH) out of R2 where coverage exists, falling back
+// to the AWS Open Data Terrarium set (ArcticDEM 5 m above 60°N, coarser
+// sources further south) everywhere else. Both encodings are identical, so
+// the mesh seamlessly sharpens as regions are generated. Tiles top out at
+// z15; MapLibre overzooms beyond that. Absolute URL because MapLibre does
+// not reliably resolve relative tile templates.
+const TERRAIN_DEM_TILES = `${location.origin}/terrain-dem/{z}/{x}/{y}.png`;
 
 // NVE seNorge snow-depth grid (the same `sd` layer the 2D map drapes for the
 // "snow depth" overlay), requested as a WebMercator WMS image so MapLibre can
@@ -102,7 +106,8 @@ interface Props {
 }
 
 // Embedded MapLibre GL view that drapes the Kartverket topo map over a
-// 3D terrain mesh (AWS Terrarium DEM) and draws the route on top. The line
+// 3D terrain mesh (/terrain-dem tiles: Kartverket NDH DTM via R2 with AWS
+// Terrarium fallback) and draws the route on top. The line
 // is clamped to the terrain, so it follows the surface like CalTopo's 3D
 // view. Route elevation accuracy is independent of the mesh resolution.
 // Drawing and erasing work exactly like the 2D map — the same freehand
@@ -179,7 +184,7 @@ export function Map3DView({
           },
           terrain: {
             type: 'raster-dem',
-            tiles: [TERRARIUM_TILES],
+            tiles: [TERRAIN_DEM_TILES],
             tileSize: 256,
             encoding: 'terrarium',
             maxzoom: 15,

@@ -63,9 +63,15 @@ function Credits({ view, overlay }: Props) {
       </span>
       {view === '3d' && (
         <span className={styles.item}>
+          {/* /terrain-dem serves Kartverket NDH-derived tiles from R2 with
+              AWS Terrarium fallback (worker/terrain.js) — credit both. */}
           Terrain ©{' '}
+          <a href="https://hoydedata.no/" {...ext}>
+            Kartverket
+          </a>{' '}
+          (CC BY 4.0) /{' '}
           <a href="https://registry.opendata.aws/terrain-tiles/" {...ext}>
-            Mapzen / AWS Open Data
+            Mapzen, AWS Open Data
           </a>
         </span>
       )}
