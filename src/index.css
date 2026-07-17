@@ -113,8 +113,14 @@ body {
   font-family: var(--font-sans);
 }
 
-/* The attribution control is disabled on both map views — credits render
-   through the app-controlled <MapAttribution/> component instead. */
+/* Credits render through the app-controlled <MapAttribution/> component;
+   the built-in control is disabled at map creation (attributionControl:
+   false) on both views. Hide it here too so a stale map instance (e.g.
+   surviving an HMR cycle) can never paint the default "Leaflet" pill over
+   the redesigned bottom-right corner. */
+.leaflet-control-attribution {
+  display: none !important;
+}
 
 @media (prefers-reduced-motion: reduce) {
   * {
