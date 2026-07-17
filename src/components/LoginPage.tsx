@@ -606,9 +606,12 @@ export function LoginPage({ onContinueAsGuest }: Props) {
             </>
           ) : (
             <>
-              <h2 className={styles.cardTitle}>
-                {mode === 'signup' ? 'Create account' : 'Log in'}
-              </h2>
+              {/* No title on the login face — the primary button already
+                  says "Log in", so a heading would just repeat it. Sign-up
+                  keeps its title as a clear signal the mode switched. */}
+              {mode === 'signup' && (
+                <h2 className={styles.cardTitle}>Create account</h2>
+              )}
 
               <button
                 type="button"

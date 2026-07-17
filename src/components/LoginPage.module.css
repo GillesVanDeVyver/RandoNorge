@@ -151,7 +151,9 @@
   padding: var(--space-8);
   border-radius: var(--radius-lg);
 
-  background: var(--surface-2);
+  /* Partially transparent so the backcountry photo shows through the
+     glass blur; more see-through than --surface-2 (0.96) on purpose. */
+  background: rgba(255, 255, 255, 0.55);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--hairline);
@@ -487,22 +489,64 @@
   }
 }
 
+/* Phones: collapse the hero to a compact headline and tighten the card
+   so the login form fits in the first viewport without scrolling. */
 @media (max-width: 640px) {
+  .page {
+    padding: var(--space-4);
+  }
+
   .content {
     align-items: center;
     text-align: center;
+    justify-content: flex-start;
+    gap: var(--space-4);
+    padding-block: var(--space-3);
   }
 
-  .tagline {
-    margin-inline: auto;
+  /* Collapse the branding: the brand header + a small one-glance
+     headline is enough on a phone. */
+  .headline {
+    font-size: clamp(24px, 7vw, 32px);
   }
 
+  .tagline,
   .chips {
-    justify-content: center;
+    display: none;
   }
 
+  /* Slim down the card and form so everything fits above the fold,
+     and pin it to the bottom of the screen (sheet-like), leaving the
+     photo and headline to breathe at the top. */
   .card {
-    padding: var(--space-6);
+    padding: var(--space-4);
+    margin-top: auto;
+  }
+
+  .cardTitle {
+    margin-bottom: var(--space-3);
+  }
+
+  .form {
+    gap: var(--space-3);
+  }
+
+  .input {
+    height: 38px;
+  }
+
+  /* .googleBtn composes .guestBtn, so this covers both. */
+  .primaryBtn,
+  .guestBtn {
+    height: 40px;
+  }
+
+  .divider {
+    margin: var(--space-3) 0;
+  }
+
+  .signupRow {
+    margin-top: var(--space-3);
   }
 
   /* Hide the photo credit on smaller screens to save space. */
