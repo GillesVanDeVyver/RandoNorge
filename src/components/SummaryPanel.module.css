@@ -335,14 +335,18 @@
     display: none;
   }
 
-  /* The bar now only carries the action slot (Save / Start route). Let it
-     sit flush with no divider; its own vertical margin gives the button
-     breathing room, and when the slot has no button (e.g. mid-navigation)
+  /* The bar now only carries the action slot — the Save / Start route button
+     while planning, or the Planned/Actual route toggle while navigating or
+     reviewing. Let it sit flush with no divider; its own vertical margin
+     gives the control breathing room, and when the slot happens to be empty
      what's left is just quiet padding under the grabber. */
   .tabs {
     padding: 0 var(--space-4);
     border-bottom: none;
-    min-height: 0;
+    /* Never let the sheet's column flex shrink this bar below its button —
+       otherwise the Save / Start route control overflows down onto the
+       chart title in the slide beneath it. */
+    flex: none;
   }
 
   .tabsAction {
@@ -361,7 +365,13 @@
   .section {
     flex: 0 0 100%;
     min-width: 0;
-    scroll-snap-align: start;
+    /* Centre each slide in the scrollport. `flex-basis: 100%` resolves
+       against the scroll area's content box, so a slide is a touch narrower
+       than the viewport (by the container's left+right padding). Snapping to
+       `start` would pin the slide's left edge to the viewport edge and leave
+       all that slack on the right, drifting the chart off-centre; `center`
+       rests it with equal padding on both sides. */
+    scroll-snap-align: center;
     overflow-y: auto;
     scrollbar-width: none;
   }

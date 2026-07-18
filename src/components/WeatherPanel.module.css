@@ -289,3 +289,18 @@
   color: var(--text-2);
   text-align: center;
 }
+
+/* Small screens: the Lowest / Highest point switch is oversized for the
+   narrow mobile card — the 84px-wide segments and roomy padding crowd the
+   row. Let each segment size to its own text with tighter padding and a
+   smaller label so the switch stays compact. */
+@media (max-width: 760px) {
+  .locOption {
+    min-width: 0;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .locLabel {
+    font-size: var(--text-xs);
+  }
+}

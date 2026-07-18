@@ -385,16 +385,6 @@
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-/* Small screens: the mobile bottom sheet is pared back to just the route
-   summary + chart, so the Planned/Actual statistics toggle is dropped from
-   its tab-bar action slot. The active source falls back to whatever the
-   app's state holds ("planned" by default). */
-@media (max-width: 760px) {
-  .statsToggle {
-    display: none;
-  }
-}
-
 /* Placeholder inside the Elevation card while the actual route has no
    recorded line yet. */
 .statsEmpty {
