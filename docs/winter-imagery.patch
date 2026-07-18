@@ -1,0 +1,610 @@
+diff --git a/src/components/CursorReadout.tsx b/src/components/CursorReadout.tsx
+index a6b4819..077cbf8 100644
+--- a/src/components/CursorReadout.tsx
++++ b/src/components/CursorReadout.tsx
+@@ -42,7 +42,12 @@ interface Props {
+ export function CursorReadout({ overlay, snowDate, disabled = false }: Props) {
+   const map = useMap();
+   const isMobile = useIsMobile();
+-  const active = !isMobile && !disabled && overlay !== 'none';
++  // Only the two data overlays have a point value to read out; 'winter'
++  // (satellite imagery) and 'none' have nothing to sample.
++  const active =
++    !isMobile &&
++    !disabled &&
++    (overlay === 'steepness' || overlay === 'snowdepth');
+ 
+   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+   const [reading, setReading] = useState<Reading | null>(null);
+diff --git a/src/components/Map.module.css b/src/components/Map.module.css
+index 44ff82e..e6ebfe2 100644
+--- a/src/components/Map.module.css
++++ b/src/components/Map.module.css
+@@ -9,3 +9,12 @@
+ .grayscaleBase {
+   filter: grayscale(100%) contrast(0.9) brightness(1.05);
+ }
++
++/* Multiply-blend the Kartverket fjellskygge hillshade into the winter
++   satellite imagery underneath it. The hillshade is rendered from the 1 m
++   national DTM, so it carries far more spatial detail than the 10 m
++   Sentinel-2 mosaic — the blend restores the crisp relief (gullies, ridges,
++   cornice lines) that the imagery alone cannot resolve. */
++.hillshadeBlend {
++  mix-blend-mode: multiply;
++}
+diff --git a/src/components/Map.tsx b/src/components/Map.tsx
+index e924042..49a3fb5 100644
+--- a/src/components/Map.tsx
++++ b/src/components/Map.tsx
+@@ -126,6 +126,43 @@ export function Map({
+         // change.
+         className={overlay === 'snowdepth' ? styles.grayscaleBase : undefined}
+       />
++      {overlay === 'winter' && (
++        <TileLayer
++          // Sentinel-2 Q1 (Jan–Mar) cloudless mosaic — true winter satellite
++          // imagery, served by worker/winter.js (R2 write-through cache over
++          // the CDSE Sentinel Hub WMTS). Fully opaque: it replaces the topo
++          // view rather than tinting it, like FATMAP's winter imagery.
++          // 10 m/px source data → maxNativeZoom 14, upscaled beyond.
++          url="/winter-tiles/{z}/{x}/{y}.jpg"
++          maxNativeZoom={14}
++          // The mosaic collection rejects requests coarser than 1600 m/px
++          // (z6 and below render as error-text tiles), so z7 is the lowest
++          // level served; Leaflet downscales z7 tiles for wider views.
++          minNativeZoom={7}
++          keepBuffer={4}
++        />
++      )}
++      {overlay === 'winter' && (
++        <WMSTileLayer
++          // Kartverket fjellskygge (hillshade from the 1 m national DTM),
++          // multiply-blended into the winter imagery below (CSS
++          // mix-blend-mode, see Map.module.css). The imagery is 10 m/px;
++          // the 1 m hillshade restores crisp terrain relief on top of it.
++          url="https://wms.geonorge.no/skwms1/wms.fjellskygge"
++          layers="fjellskygge"
++          format="image/png"
++          version="1.3.0"
++          className={styles.hillshadeBlend}
++          // Rendered on the fly (no tile cache upstream) — same request
++          // diet as the seNorge WMS layer: bigger tiles, no requests while
++          // panning, wide off-screen buffer.
++          tileSize={512}
++          zoomOffset={-1}
++          maxNativeZoom={16}
++          updateWhenIdle
++          keepBuffer={4}
++        />
++      )}
+       {overlay === 'steepness' && (
+         <TileLayer
+           url="https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}"
+diff --git a/src/components/Map3DView.tsx b/src/components/Map3DView.tsx
+index e9b1263..8eb90ee 100644
+--- a/src/components/Map3DView.tsx
++++ b/src/components/Map3DView.tsx
+@@ -12,6 +12,7 @@ import {
+   MountainIcon,
+   PlusIcon,
+   RouteIcon,
++  SatelliteIcon,
+   SearchIcon,
+   SnowflakeIcon,
+ } from './icons';
+@@ -49,6 +50,14 @@ const snowTilesUrl = (date: string) =>
+ const STEEPNESS_TILES =
+   'https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}';
+ 
++// Sentinel-2 Q1 (Jan–Mar) cloudless mosaic — true winter satellite imagery,
++// served by our Worker at /winter-tiles/* (worker/winter.js: permanent R2
++// write-through cache over the CDSE Sentinel Hub WMTS). Draped fully opaque
++// over the terrain mesh, this is the FATMAP-style winter 3D view. 10 m/px
++// source → tiles top out at z14; MapLibre overzooms beyond. Absolute URL for
++// the same reason as TERRAIN_DEM_TILES.
++const WINTER_TILES = `${location.origin}/winter-tiles/{z}/{x}/{y}.jpg`;
++
+ // Vertical exaggeration of the terrain mesh. 1.0 is true-to-life; a small
+ // bump makes ridgelines and couloirs read more clearly without looking fake.
+ const TERRAIN_EXAGGERATION = 1.4;
+@@ -189,6 +198,18 @@ export function Map3DView({
+             encoding: 'terrarium',
+             maxzoom: 15,
+           },
++          // Second DEM source over the same tiles: MapLibre does not allow
++          // one raster-dem source to back both the terrain mesh and a
++          // hillshade layer. Used to shade the winter imagery, which the
++          // terrain drape leaves unlit (tiles are edge-cached, so the
++          // duplicate source costs no extra upstream fetches).
++          hillshadeDem: {
++            type: 'raster-dem',
++            tiles: [TERRAIN_DEM_TILES],
++            tileSize: 256,
++            encoding: 'terrarium',
++            maxzoom: 15,
++          },
+           snow: {
+             type: 'raster',
+             tiles: [snowTilesUrl(snowDate)],
+@@ -201,10 +222,43 @@ export function Map3DView({
+             tileSize: 256,
+             maxzoom: 16,
+           },
++          winter: {
++            type: 'raster',
++            tiles: [WINTER_TILES],
++            tileSize: 256,
++            maxzoom: 14,
++            // No tiles below z7 (the collection rejects requests coarser
++            // than 1600 m/px); the Kartverket basemap shows through when
++            // zoomed out beyond that.
++            minzoom: 7,
++          },
+           route: { type: 'geojson', data: routeToGeoJSON(routeRef.current) },
+         },
+         layers: [
+           { id: 'basemap', type: 'raster', source: 'basemap' },
++          {
++            // Opaque winter imagery sits directly on the basemap, fully
++            // covering it when visible (unlike the translucent thematic
++            // overlays below).
++            id: 'winter',
++            type: 'raster',
++            source: 'winter',
++            layout: { visibility: overlay === 'winter' ? 'visible' : 'none' },
++          },
++          {
++            // Hillshade over the winter imagery: the 10 m mosaic looks flat
++            // when draped (MapLibre applies no lighting to the mesh), so the
++            // 1 m DEM's shading restores the terrain relief on top of it.
++            id: 'winter-hillshade',
++            type: 'hillshade',
++            source: 'hillshadeDem',
++            layout: { visibility: overlay === 'winter' ? 'visible' : 'none' },
++            paint: {
++              'hillshade-exaggeration': 0.35,
++              'hillshade-shadow-color': '#38414d',
++              'hillshade-highlight-color': '#ffffff',
++            },
++          },
+           {
+             id: 'steepness',
+             type: 'raster',
+@@ -642,6 +696,15 @@ export function Map3DView({
+           overlay === 'steepness' ? 'visible' : 'none',
+         );
+       }
++      for (const id of ['winter', 'winter-hillshade']) {
++        if (map.getLayer(id)) {
++          map.setLayoutProperty(
++            id,
++            'visibility',
++            overlay === 'winter' ? 'visible' : 'none',
++          );
++        }
++      }
+     };
+     if (map.isStyleLoaded()) apply();
+     else map.once('load', apply);
+@@ -721,15 +784,31 @@ export function Map3DView({
+     [query],
+   );
+ 
+-  // Top button flips to the other thematic layer (and shows steepness when the
+-  // overlay is hidden). Bottom button hides the overlay while a layer is shown,
+-  // and becomes a "Show snow depth" shortcut when hidden — so in the hidden
+-  // state the two buttons offer both layers directly.
+-  const nextOverlay: Overlay = overlay === 'steepness' ? 'snowdepth' : 'steepness';
++  // Top button cycles through the thematic layers (steepness → snow depth →
++  // winter imagery → steepness; and shows steepness when the overlay is
++  // hidden). Bottom button hides the overlay while a layer is shown, and
++  // becomes a "Show snow depth" shortcut when hidden — so in the hidden
++  // state the two buttons offer two layers directly. Mirrors MapControls.tsx.
++  const nextOverlay: Overlay =
++    overlay === 'steepness'
++      ? 'snowdepth'
++      : overlay === 'snowdepth'
++        ? 'winter'
++        : 'steepness';
+   const overlayLabel =
+-    overlay === 'steepness' ? 'Show snow depth' : 'Show steepness';
++    nextOverlay === 'snowdepth'
++      ? 'Show snow depth'
++      : nextOverlay === 'winter'
++        ? 'Show winter imagery'
++        : 'Show steepness';
+   const overlayIcon =
+-    overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />;
++    nextOverlay === 'snowdepth' ? (
++      <SnowflakeIcon />
++    ) : nextOverlay === 'winter' ? (
++      <SatelliteIcon />
++    ) : (
++      <MountainIcon />
++    );
+   const visibilityTarget: Overlay = overlay === 'none' ? 'snowdepth' : 'none';
+   const visibilityLabel =
+     overlay === 'none' ? 'Show snow depth' : 'Hide overlay';
+diff --git a/src/components/MapAttribution.tsx b/src/components/MapAttribution.tsx
+index af87028..5c79fd5 100644
+--- a/src/components/MapAttribution.tsx
++++ b/src/components/MapAttribution.tsx
+@@ -83,6 +83,25 @@ function Credits({ view, overlay }: Props) {
+           </a>
+         </span>
+       )}
++      {overlay === 'winter' && (
++        <span className={styles.item}>
++          {/* Required CC BY 4.0 credit for the Sentinel-2 Q1 cloudless
++              mosaic (worker/winter.js) — keep the year in sync with
++              WINTER_TIME there. */}
++          Vinterbilder: Contains modified{' '}
++          <a href="https://dataspace.copernicus.eu/" {...ext}>
++            Copernicus Sentinel data 2026
++          </a>{' '}
++          processed by{' '}
++          <a href="https://www.sentinel-hub.com/" {...ext}>
++            Sentinel Hub
++          </a>{' '}
++          (CC BY 4.0) / Fjellskygge ©{' '}
++          <a href="https://www.kartverket.no/" {...ext}>
++            Kartverket
++          </a>
++        </span>
++      )}
+       {overlay === 'snowdepth' && (
+         <span className={styles.item}>
+           Snødybde ©{' '}
+diff --git a/src/components/MapControls.tsx b/src/components/MapControls.tsx
+index 0e10558..4e96063 100644
+--- a/src/components/MapControls.tsx
++++ b/src/components/MapControls.tsx
+@@ -11,6 +11,7 @@ import {
+   MountainIcon,
+   PlusIcon,
+   RouteIcon,
++  SatelliteIcon,
+   SearchIcon,
+   SnowflakeIcon,
+ } from './icons';
+@@ -99,20 +100,39 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
+     [map, query],
+   );
+ 
+-  // Top button flips to the other thematic layer (and shows steepness when the
+-  // overlay is currently hidden). Bottom button hides the overlay entirely
+-  // while a layer is shown, and becomes a "Show snow depth" shortcut when
+-  // hidden — so in the hidden state the two buttons offer both layers directly.
++  // Top button cycles through the thematic layers (steepness → snow depth →
++  // winter imagery → steepness; and shows steepness when the overlay is
++  // currently hidden). Bottom button hides the overlay entirely while a layer
++  // is shown, and becomes a "Show snow depth" shortcut when hidden — so in
++  // the hidden state the two buttons offer two layers directly.
++  const nextOverlay: Overlay =
++    overlay === 'steepness'
++      ? 'snowdepth'
++      : overlay === 'snowdepth'
++        ? 'winter'
++        : 'steepness';
+   const handleToggleOverlay = useCallback(() => {
+-    onOverlayChange(overlay === 'steepness' ? 'snowdepth' : 'steepness');
+-  }, [overlay, onOverlayChange]);
++    onOverlayChange(nextOverlay);
++  }, [nextOverlay, onOverlayChange]);
+ 
+   const handleToggleVisibility = useCallback(() => {
+     onOverlayChange(overlay === 'none' ? 'snowdepth' : 'none');
+   }, [overlay, onOverlayChange]);
+ 
+   const overlayLabel =
+-    overlay === 'steepness' ? 'Show snow depth' : 'Show steepness';
++    nextOverlay === 'snowdepth'
++      ? 'Show snow depth'
++      : nextOverlay === 'winter'
++        ? 'Show winter imagery'
++        : 'Show steepness';
++  const overlayIcon =
++    nextOverlay === 'snowdepth' ? (
++      <SnowflakeIcon />
++    ) : nextOverlay === 'winter' ? (
++      <SatelliteIcon />
++    ) : (
++      <MountainIcon />
++    );
+ 
+   const visibilityLabel =
+     overlay === 'none' ? 'Show snow depth' : 'Hide overlay';
+@@ -128,7 +148,7 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
+             title={overlayLabel}
+             aria-label={overlayLabel}
+           >
+-            {overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />}
++            {overlayIcon}
+             <span className={styles.overlayLabel}>{overlayLabel}</span>
+           </button>
+           <button
+@@ -180,6 +200,16 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
+                   <SnowflakeIcon />
+                   <span>Snow depth</span>
+                 </button>
++                <button
++                  type="button"
++                  role="menuitemradio"
++                  aria-checked={overlay === 'winter'}
++                  className={`${styles.layersItem} ${overlay === 'winter' ? styles.layersItemActive : ''}`}
++                  onClick={() => pickOverlay('winter')}
++                >
++                  <SatelliteIcon />
++                  <span>Winter imagery</span>
++                </button>
+                 <button
+                   type="button"
+                   role="menuitemradio"
+diff --git a/src/components/icons.tsx b/src/components/icons.tsx
+index 1d84170..00c0e1f 100644
+--- a/src/components/icons.tsx
++++ b/src/components/icons.tsx
+@@ -170,6 +170,23 @@ export function MountainIcon() {
+   );
+ }
+ 
++// Satellite dish over terrain — the "winter imagery" overlay (Sentinel-2
++// Q1 cloudless mosaic draped over the map).
++export function SatelliteIcon() {
++  return (
++    <svg {...baseProps}>
++      {/* orbiting satellite body with solar panels */}
++      <rect x="9.5" y="3.5" width="5" height="5" rx="1" transform="rotate(45 12 6)" />
++      <line x1="6" y1="6" x2="8.5" y2="6" />
++      <line x1="15.5" y1="6" x2="18" y2="6" />
++      {/* signal beam down to the ground */}
++      <line x1="12" y1="10" x2="12" y2="13.5" strokeDasharray="1.5 2" />
++      {/* terrain below */}
++      <path d="M2 20 L7 14.5 L10.5 18 L14 13.5 L22 20 Z" />
++    </svg>
++  );
++}
++
+ // Stacked layers — opens the mobile map-layers menu (overlay picker).
+ export function LayersIcon() {
+   return (
+diff --git a/src/types/index.ts b/src/types/index.ts
+index 41aea45..625adba 100644
+--- a/src/types/index.ts
++++ b/src/types/index.ts
+@@ -15,4 +15,7 @@ export type Mode = 'idle' | 'draw' | 'erase';
+ 
+ // Which thematic overlay is shown on top of the base map.
+ // 'none' shows the plain base map with no thematic layer draped on top.
+-export type Overlay = 'steepness' | 'snowdepth' | 'none';
++// 'winter' drapes the Sentinel-2 Q1 (Jan–Mar) cloudless mosaic — true winter
++// satellite imagery with snow on the ground — fully opaque over the base map
++// (served by worker/winter.js at /winter-tiles/*).
++export type Overlay = 'steepness' | 'snowdepth' | 'winter' | 'none';
+diff --git a/vite.config.ts b/vite.config.ts
+index 6e4ec7b..54aa013 100644
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -15,6 +15,15 @@ export default defineConfig({
+         target: 'http://localhost:8787',
+         changeOrigin: false,
+       },
++      // Winter satellite imagery (Sentinel-2 Q1 mosaic) is served by the
++      // Worker (worker/winter.js: R2 cache + CDSE Sentinel Hub upstream,
++      // which needs the CDSE_WINTER_INSTANCE_ID secret). There is no
++      // frontend-only fallback, so run `wrangler dev` (listens on 8787)
++      // alongside Vite to see the winter layer in development.
++      '/winter-tiles': {
++        target: 'http://localhost:8787',
++        changeOrigin: false,
++      },
+       // Terrain-DEM tiles for the 3D view. In production the Worker serves
+       // these from R2 (Kartverket-derived tiles) with AWS fallback
+       // (worker/terrain.js); in frontend-only dev we skip straight to the
+diff --git a/worker/index.js b/worker/index.js
+index f7c577b..5ad3bda 100644
+--- a/worker/index.js
++++ b/worker/index.js
+@@ -17,6 +17,7 @@ import { getAuth } from './auth.js';
+ import { handleRoutesApi } from './routes.js';
+ import { handleTracksApi } from './tracks.js';
+ import { handleTerrainTile } from './terrain.js';
++import { handleWinterTile } from './winter.js';
+ 
+ const ROUTES = [
+   { prefix: '/metno-api', upstream: 'https://api.met.no', ttl: 1800 },
+@@ -62,6 +63,14 @@ export default {
+       if (res) return res;
+     }
+ 
++    // Winter satellite imagery (Sentinel-2 Q1 cloudless mosaic) for the
++    // "winter" overlay: CDSE Sentinel Hub upstream with permanent R2
++    // write-through cache (worker/winter.js).
++    if (pathname.startsWith('/winter-tiles/')) {
++      const res = await handleWinterTile(request, env, ctx);
++      if (res) return res;
++    }
++
+     for (const { prefix, upstream, ttl } of ROUTES) {
+       if (pathname === prefix || pathname.startsWith(prefix + '/')) {
+         return proxyGet(request, ctx, prefix, upstream, ttl);
+diff --git a/worker/winter.js b/worker/winter.js
+new file mode 100644
+index 0000000..bc23634
+--- /dev/null
++++ b/worker/winter.js
+@@ -0,0 +1,155 @@
++// Winter-imagery tile endpoint for the "winter" map overlay (see
++// worker/index.js).
++//
++//   GET /winter-tiles/{z}/{x}/{y}.jpg  →  Sentinel-2 Q1 cloudless mosaic tile
++//
++// The imagery is the Copernicus Data Space Ecosystem (CDSE) "Sentinel-2
++// quarterly cloudless mosaic" for Q1 (January–March) — true winter satellite
++// imagery with snow on the ground, the closest open replacement for FATMAP's
++// winter imagery. 10 m/px, so tiles are generated to z14 and the client
++// overzooms beyond that.
++//
++// License: CC BY 4.0 — "Contains modified Copernicus Sentinel data [year]
++// processed by Sentinel Hub". The credit is rendered by <MapAttribution/>
++// whenever the winter overlay is active; keep the year there in sync with
++// WINTER_TIME below.
++//
++// Serving order:
++//   1. R2 (binding TERRAIN, key winter/{version}/{z}/{x}/{y}.jpg). A given
++//      quarter's mosaic never changes once published, so tiles are written
++//      back on first fetch and served from R2 forever after — each tile
++//      costs CDSE quota exactly once, ever.
++//   2. CDSE Sentinel Hub OGC WMTS (sh.dataspace.copernicus.eu). Requires a
++//      configured OGC instance; see SETUP below. Free tier: 50 000 OGC
++//      requests/month — comfortably enough for cache misses only.
++//
++// SETUP (one-time, free CDSE account):
++//   1. Register at https://dataspace.copernicus.eu and open the Sentinel Hub
++//      dashboard (Copernicus users get the free-tier quota automatically).
++//   2. Create a "Configuration" (OGC instance) with a layer named WINTER on
++//      the Sentinel-2 quarterly mosaics collection
++//      (byoc-5460de54-082e-473a-b6ea-d5cbe3c17cca), TRUE_COLOR evalscript.
++//   3. Store the instance id as a Worker secret:
++//        npx wrangler secret put CDSE_WINTER_INSTANCE_ID
++//   Until the secret exists the endpoint returns 503 and the frontend layer
++//   simply renders no tiles — everything else keeps working.
++
++// Which quarterly mosaic to serve: any date inside the target quarter.
++// Q1 of the most recent fully published year. Bump once a year when the new
++// Q1 mosaic lands (and bump WINTER_VERSION with it to roll the caches).
++const WINTER_TIME = '2026-02-01';
++
++// Folded into R2 keys and the edge cache key; bump together with
++// WINTER_TIME (or after changing the OGC layer/evalscript) so previously
++// cached tiles are invalidated in one go.
++const WINTER_VERSION = 'q1-2026b'; // b: snow-preserving tone-map evalscript
++
++// Layer name of the OGC instance configuration (step 2 above).
++const WINTER_LAYER = 'WINTER';
++
++// Sentinel-2 mosaics are 10 m/px — z14 (~6 m/px at 60°N) already oversamples
++// them slightly, so there is no detail beyond it. Leaflet/MapLibre upscale
++// client-side past this.
++const MAX_ZOOM = 14;
++
++// The mosaic collection rejects requests coarser than 1600 m/px, rendering a
++// red error-text tile instead of imagery. WebMercator 256px tiles are
++// 156543/2^z m/px: z6 ≈ 2446 (rejected), z7 ≈ 1223 (ok) — so z7 is the
++// lowest level we ever ask upstream for. The clients scale z7 tiles for
++// lower zooms (Leaflet minNativeZoom / MapLibre source minzoom).
++const MIN_ZOOM = 7;
++
++const TILE_RE = /^\/winter-tiles\/(\d{1,2})\/(\d+)\/(\d+)\.jpg$/;
++
++/** Handle GET /winter-tiles/{z}/{x}/{y}.jpg. Returns null when the path
++ *  doesn't match, so the caller can fall through to other routes. */
++export async function handleWinterTile(request, env, ctx) {
++  const url = new URL(request.url);
++  const m = TILE_RE.exec(url.pathname);
++  if (!m) return null;
++
++  if (request.method !== 'GET') {
++    return new Response('Method not allowed', { status: 405 });
++  }
++
++  const z = Number(m[1]);
++  const x = Number(m[2]);
++  const y = Number(m[3]);
++  const n = 2 ** z;
++  if (z > MAX_ZOOM || z < MIN_ZOOM || x >= n || y >= n) {
++    return new Response('Tile out of range', { status: 404 });
++  }
++
++  // Edge cache lookup (version folded into the key, like terrain.js).
++  const cache = caches.default;
++  const cacheKey = new Request(
++    `${url.origin}${url.pathname}?v=${WINTER_VERSION}`,
++  );
++  const hit = await cache.match(cacheKey);
++  if (hit) return hit;
++
++  const r2Key = `winter/${WINTER_VERSION}/${z}/${x}/${y}.jpg`;
++
++  // 1) R2 write-through cache: any tile ever fetched lives here permanently.
++  if (env.TERRAIN) {
++    const obj = await env.TERRAIN.get(r2Key);
++    if (obj) {
++      const res = tileResponse(obj.body);
++      ctx.waitUntil(cache.put(cacheKey, res.clone()));
++      return res;
++    }
++  }
++
++  // 2) CDSE Sentinel Hub WMTS. PopularWebMercator256 matches the standard
++  //    z/x/y WebMercator pyramid, so indices map 1:1.
++  const instanceId = env.CDSE_WINTER_INSTANCE_ID;
++  if (!instanceId) {
++    return new Response('Winter imagery not configured', {
++      status: 503,
++      headers: { 'Cache-Control': 'no-store' },
++    });
++  }
++  const upstreamUrl =
++    `https://sh.dataspace.copernicus.eu/ogc/wmts/${instanceId}` +
++    `?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0` +
++    `&LAYER=${WINTER_LAYER}&STYLE=default` +
++    `&TILEMATRIXSET=PopularWebMercator256` +
++    `&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}` +
++    // SHOWLOGO=false drops the Copernicus watermark baked into each tile;
++    // the required CC BY credit is rendered by <MapAttribution/> instead.
++    `&FORMAT=image/jpeg&TIME=${WINTER_TIME}&SHOWLOGO=false`;
++  const upstream = await fetch(upstreamUrl);
++  if (!upstream.ok) {
++    // Pass the status through but never cache errors (quota exhaustion or
++    // transient CDSE errors must not stick).
++    return new Response(upstream.body, {
++      status: upstream.status,
++      headers: { 'Cache-Control': 'no-store' },
++    });
++  }
++
++  // Buffer the tile so it can go to the browser, the edge cache, and R2 at
++  // once. Tiles are 256px JPEGs (tens of kB) — fine to hold in memory.
++  const bytes = await upstream.arrayBuffer();
++  if (env.TERRAIN) {
++    ctx.waitUntil(
++      env.TERRAIN.put(r2Key, bytes, {
++        httpMetadata: { contentType: 'image/jpeg' },
++      }),
++    );
++  }
++  const res = tileResponse(bytes);
++  ctx.waitUntil(cache.put(cacheKey, res.clone()));
++  return res;
++}
++
++function tileResponse(body) {
++  return new Response(body, {
++    headers: {
++      'Content-Type': 'image/jpeg',
++      // Immutable per version; WINTER_VERSION bumps handle the yearly roll.
++      'Cache-Control': 'public, max-age=31536000, immutable',
++      'X-Winter-Source': `sentinel2-q1-${WINTER_VERSION}`,
++    },
++  });
++}
+diff --git a/wrangler.jsonc b/wrangler.jsonc
+index 9d35b52..2d2204c 100644
+--- a/wrangler.jsonc
++++ b/wrangler.jsonc
+@@ -77,7 +77,12 @@
+ 			"/metno-api/*",
+ 			"/gts-api/*",
+ 			"/varsom-api/*",
+-			"/terrain-dem/*"
++			"/terrain-dem/*",
++			// Winter satellite imagery (Sentinel-2 Q1 mosaic) served by
++			// worker/winter.js from R2 with CDSE Sentinel Hub upstream.
++			// Requires the CDSE_WINTER_INSTANCE_ID secret (see worker/winter.js
++			// SETUP): npx wrangler secret put CDSE_WINTER_INSTANCE_ID
++			"/winter-tiles/*"
+ 		]
+ 	},
+ 	// Daily GDPR retention cleanup (worker/index.js scheduled handler):
