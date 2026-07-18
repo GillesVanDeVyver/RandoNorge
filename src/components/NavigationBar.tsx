@@ -56,12 +56,22 @@ function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
       type="button"
       className={`${styles.btnFinish} ${styles.btnHold}`}
       onPointerDown={(e) => {
+        // Ignore secondary mouse buttons; respond to primary click / touch.
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        // Suppress the long-press callout / text selection / synthetic mouse
+        // events that on touch devices can trigger a spurious pointercancel
+        // and kill the hold before it completes.
+        e.preventDefault();
         e.currentTarget.setPointerCapture?.(e.pointerId);
         start();
       }}
       onPointerUp={stop}
-      onPointerLeave={stop}
+      // No onPointerLeave: pointer capture (set above) guarantees pointerup /
+      // pointercancel are delivered here even if the finger drifts off the
+      // button, so cancelling on leave only served to break the hold on touch
+      // where a stationary press can emit a spurious leave.
       onPointerCancel={stop}
+      onContextMenu={(e) => e.preventDefault()}
       onKeyDown={(e) => {
         if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
           e.preventDefault();
