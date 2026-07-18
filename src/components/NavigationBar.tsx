@@ -3,9 +3,89 @@
 // time, travelled distance) with Pause/Resume and Finish; once finished it
 // flips to a review state offering Save activity / Discard.
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDate, formatDistance } from '../routes/format';
 import { ArrowLeftIcon, FlagIcon, PauseIcon, PlayIcon } from './icons';
 import styles from './NavigationBar.module.css';
+
+/** How long (ms) the Finish button must be held before the tour ends. */
+const FINISH_HOLD_MS = 1200;
+
+/**
+ * Finish button that must be pressed and held for {@link FINISH_HOLD_MS}
+ * before {@link onFinish} fires. A loader bar inside the button fills up to
+ * reflect hold progress; releasing early cancels and resets it. This guards
+ * against an accidental tap ending a tour mid-hike.
+ */
+function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
+  const [progress, setProgress] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number>(0);
+
+  const stop = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    setProgress(0);
+  }, []);
+
+  const start = useCallback(() => {
+    if (rafRef.current !== null) return;
+    startRef.current = performance.now();
+
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - startRef.current) / FINISH_HOLD_MS);
+      setProgress(p);
+      if (p >= 1) {
+        rafRef.current = null;
+        setProgress(0);
+        onFinish();
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }, [onFinish]);
+
+  // Clean up any pending frame if the button unmounts mid-hold.
+  useEffect(() => stop, [stop]);
+
+  return (
+    <button
+      type="button"
+      className={`${styles.btnFinish} ${styles.btnHold}`}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        start();
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+          e.preventDefault();
+          start();
+        }
+      }}
+      onKeyUp={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') stop();
+      }}
+      title="Press and hold to finish and review your tour"
+      aria-label="Press and hold to finish your tour"
+    >
+      <span
+        className={styles.holdFill}
+        style={{ transform: `scaleX(${progress})` }}
+        aria-hidden
+      />
+      <span className={styles.holdLabel}>
+        <FlagIcon />
+        <span>Hold to finish</span>
+      </span>
+    </button>
+  );
+}
 
 /** ms → "1:23:45" (or "23:45" under an hour). */
 function formatElapsed(ms: number): string {
@@ -97,15 +177,7 @@ export function NavigationBar({
                 <span>Resume</span>
               </button>
             )}
-            <button
-              type="button"
-              className={styles.btnFinish}
-              onClick={onFinish}
-              title="Finish and review your tour"
-            >
-              <FlagIcon />
-              <span>Finish</span>
-            </button>
+            <HoldToFinishButton onFinish={onFinish} />
           </>
         ) : (
           <>
