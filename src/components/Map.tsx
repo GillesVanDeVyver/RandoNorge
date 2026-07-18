@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, WMSTileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { LatLng, Mode, Overlay, Route } from '../types';
 import type { RouteProgress } from '../tracking/useRouteProgress';
+import { CursorReadout } from './CursorReadout';
 import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
 import { MapControls } from './MapControls';
@@ -178,6 +179,14 @@ export function Map({
         />
       )}
       <HoverMarker />
+      {/* Terrain values under the cursor for the active overlay. Map.tsx is
+          shared by the planning and review screens, so both get it. Hidden
+          while drawing/erasing so it doesn't chase the pen. */}
+      <CursorReadout
+        overlay={overlay}
+        snowDate={snowDate}
+        disabled={mode !== 'idle'}
+      />
       <MapControls
         overlay={overlay}
         onOverlayChange={onOverlayChange}
