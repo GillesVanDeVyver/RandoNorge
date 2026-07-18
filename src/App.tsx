@@ -590,7 +590,8 @@ function App({ saving, review }: Props) {
         : 'Waiting for GPS…'
       : activeElevation.profile
         ? `${formatDistance(activeElevation.profile.stats.distance)} · ` +
-          `${formatAscent(activeElevation.profile.stats.ascent)} ascent`
+          `${formatAscent(activeElevation.profile.stats.ascent)} ascent · ` +
+          `${formatAscent(activeElevation.profile.stats.descent)} descent`
         : activeElevation.loading
           ? 'Calculating route stats…'
           : 'Route details';
