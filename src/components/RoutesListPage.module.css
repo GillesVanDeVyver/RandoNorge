@@ -271,7 +271,12 @@
 .rowMeta {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  /* Wrap onto multiple lines rather than overflowing on very narrow
+     screens (e.g. iPhone SE), where distance · ascent · descent · date
+     is wider than the available row width. row-gap keeps wrapped lines
+     from touching. */
+  flex-wrap: wrap;
+  gap: 2px var(--space-2);
   font-size: var(--text-sm);
   color: var(--text-2);
 }
