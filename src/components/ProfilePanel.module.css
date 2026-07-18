@@ -166,3 +166,23 @@
 .tooltipMuted {
   color: var(--text-2);
 }
+
+/* Small screens: on the mobile bottom sheet the card slide spans the full
+   width of the phone (or the far wider tablet), which would stretch the
+   stats row and elevation chart edge to edge. Cap the content to a
+   comfortable column and centre it so the chart sits balanced in the middle
+   of the sheet instead of hugging the left. The chart measures its own
+   pixel width via ResizeObserver, so its 1:1 metres-per-pixel height simply
+   re-derives from the narrower column. */
+@media (max-width: 760px) {
+  .body {
+    width: 100%;
+    max-width: 440px;
+    margin-inline: auto;
+  }
+
+  .sectionHeader,
+  .stats {
+    justify-content: center;
+  }
+}

@@ -325,8 +325,28 @@
     display: none;
   }
 
+  /* Simpler mobile chrome while planning/navigating: drop the section tab
+     bar entirely — the card slider below is swiped through directly. The
+     tab buttons double as the scroll-spy pager, but that all keeps working
+     invisibly; only the visible tab row is hidden. The action slot
+     (Save / Start route) stays, now sitting alone in the strip. */
+  .tab,
+  .tabActive {
+    display: none;
+  }
+
+  /* The bar now only carries the action slot (Save / Start route). Let it
+     sit flush with no divider; its own vertical margin gives the button
+     breathing room, and when the slot has no button (e.g. mid-navigation)
+     what's left is just quiet padding under the grabber. */
   .tabs {
-    padding: var(--space-2) var(--space-4);
+    padding: 0 var(--space-4);
+    border-bottom: none;
+    min-height: 0;
+  }
+
+  .tabsAction {
+    margin: var(--space-2) 0 var(--space-2) auto;
   }
 
   .scroll {
