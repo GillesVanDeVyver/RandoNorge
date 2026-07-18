@@ -11,8 +11,10 @@ import type { LatLng, Route } from '../types';
 
 // Beyond this straight-line distance from the route, the position is
 // considered "somewhere else": no connector is drawn, no progress is shown
-// (and none is accrued) until the user comes back within range.
-export const PROGRESS_MAX_OFF_ROUTE_M = 1000;
+// (and none is accrued) until the user comes back within range. Tripled
+// from the original 1000 m so the dotted "get back on track" connector to
+// the closest point on the plan keeps showing from farther off-route.
+export const PROGRESS_MAX_OFF_ROUTE_M = 3000;
 
 // Forward search window per fix. Restricting the match to shortly ahead of
 // the current progress keeps it from jumping to a later, overlapping part

@@ -337,7 +337,38 @@ function App({ saving, review }: Props) {
     setView('2d'); // navigation renders on the 2D map
     setStatsView('actual');
     tracking.start();
-  }, [tracking]);
+    // Starting directly from a freshly drawn route (without pressing Save
+    // first) used to record only the actual track and lose the plan. If the
+    // plan isn't in the library yet, persist it now so the planned route is
+    // saved too — and its id links the recording to its plan when the
+    // activity is saved. Fire-and-forget: a failure here must not stop the
+    // recording that just began.
+    if (saving && !savedMeta && route.some((seg) => seg.length >= 2)) {
+      const stats = elevation.profile
+        ? {
+            distanceM: elevation.profile.stats.distance,
+            ascentM: elevation.profile.stats.ascent,
+            descentM: elevation.profile.stats.descent,
+          }
+        : null;
+      createRoute({
+        name: `Route ${formatDate(new Date().toISOString())}`,
+        route,
+        stats,
+      })
+        .then((saved) => {
+          setSavedMeta({
+            id: saved.id,
+            name: saved.name,
+            description: saved.description,
+          });
+          saving.onChanged(saved);
+        })
+        .catch(() => {
+          // Non-fatal: the recording still saves; the plan just isn't linked.
+        });
+    }
+  }, [tracking, saving, savedMeta, route, elevation.profile]);
 
   const handleFinishNavigation = useCallback(() => {
     tracking.finish();
