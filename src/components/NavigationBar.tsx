@@ -81,7 +81,7 @@ function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
       />
       <span className={styles.holdLabel}>
         <FlagIcon />
-        <span>Hold to finish</span>
+        <span>Finish</span>
       </span>
     </button>
   );
