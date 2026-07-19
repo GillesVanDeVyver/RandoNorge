@@ -357,9 +357,14 @@
   height: 18px;
 }
 
-.pagerBtn:hover:not(:disabled) {
-  color: var(--text-1);
-  background: var(--surface-hover);
+/* Only paint the hover state where hover truly exists — on touch devices a
+   :hover sticks after a tap, leaving the button looking grayed-out until you
+   tap elsewhere. */
+@media (hover: hover) {
+  .pagerBtn:hover:not(:disabled) {
+    color: var(--text-1);
+    background: var(--surface-hover);
+  }
 }
 
 .pagerBtn:focus-visible {
