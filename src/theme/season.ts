@@ -88,9 +88,11 @@ export type SeasonPhoto = {
 /** Login page: someone on their way up, whatever the season. */
 export const LOGIN_PHOTOS: Record<Season, SeasonPhoto> = {
   spring: {
+    // Subject walks left-of-centre so the login card (right side on
+    // desktop) never overlaps the person.
     src: '/login-spring.jpg',
-    href: 'https://www.pexels.com/photo/hiker-with-backpack-walking-across-grassland-near-mountain-20895349/',
-    credit: 'Mathias Dargnat',
+    href: 'https://www.pexels.com/photo/man-walking-on-grassland-near-a-mountain-1994893/',
+    credit: 'Andrei Tanase',
   },
   summer: {
     src: '/login-summer.jpg',
@@ -110,17 +112,18 @@ export const LOGIN_PHOTOS: Record<Season, SeasonPhoto> = {
 };
 
 /** Account overview: mountain scenery without people — the signed-in
- *  hub reads as its own place, same as before. */
+ *  hub reads as its own place, same as before. All four lean "cloudy
+ *  mystic": peaks and ridges in fog, matching the winter original. */
 export const OVERVIEW_PHOTOS: Record<Season, SeasonPhoto> = {
   spring: {
     src: '/overview-spring.jpg',
-    href: 'https://www.pexels.com/photo/green-pasture-and-snowcapped-mountains-in-the-distance-18057178/',
-    credit: 'M.Emin BİLİR',
+    href: 'https://www.pexels.com/photo/clouds-in-mountains-8722318/',
+    credit: 'Gutjahr Aleksandr',
   },
   summer: {
     src: '/overview-summer.jpg',
-    href: 'https://www.pexels.com/photo/a-view-of-the-mountains-and-valleys-in-switzerland-27562236/',
-    credit: 'Stephan Leuzinger',
+    href: 'https://www.pexels.com/photo/a-mountain-covered-in-fog-4762987/',
+    credit: 'Michael Wernet',
   },
   fall: {
     src: '/overview-fall.jpg',
