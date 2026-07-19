@@ -13,9 +13,15 @@
 //   GOOGLE_CLIENT_SECRET  secret — Google OAuth client secret
 
 import { betterAuth } from 'better-auth';
+import { APIError } from 'better-auth/api';
 import { D1Dialect } from 'kysely-d1';
 import { hashPassword, verifyPassword } from './password.js';
 import { sendEmail, emailTemplate } from './email.js';
+import {
+  validateUsername,
+  isUsernameTaken,
+  deriveUniqueUsername,
+} from './usernameRules.js';
 
 // One instance per isolate+origin is enough; the D1 binding is stable for
 // the isolate's lifetime.
@@ -34,6 +40,47 @@ export function getAuth(env, origin) {
     database: {
       dialect: new D1Dialect({ database: env.DB }),
       type: 'sqlite',
+    },
+
+    // The public handle is chosen at sign-up and travels as an extra field
+    // on the sign-up call. `input: true` lets the client send it; the
+    // create hook below validates it and guarantees uniqueness.
+    user: {
+      additionalFields: {
+        username: { type: 'string', required: false, input: true },
+      },
+    },
+
+    // Validate / normalise / de-duplicate the handle before the user row is
+    // written. Email+password sign-ups supply one from the form; social
+    // sign-ins (Google) don't, so we derive a unique one from their email.
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (user) => {
+            const provided =
+              typeof user.username === 'string' ? user.username : '';
+            let username;
+            if (provided.trim()) {
+              const check = validateUsername(provided);
+              if (!check.ok) {
+                throw new APIError('UNPROCESSABLE_ENTITY', {
+                  message: check.error,
+                });
+              }
+              if (await isUsernameTaken(env, check.username)) {
+                throw new APIError('UNPROCESSABLE_ENTITY', {
+                  message: 'that username is taken',
+                });
+              }
+              username = check.username;
+            } else {
+              username = await deriveUniqueUsername(env, user.email);
+            }
+            return { data: { ...user, username } };
+          },
+        },
+      },
     },
 
     // Social sign-in. Google is only enabled when its credentials are

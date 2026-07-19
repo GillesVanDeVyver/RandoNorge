@@ -4,6 +4,9 @@ import {
   ArrowLeftIcon,
   BookmarkIcon,
   CircleCheckIcon,
+  GlobeIcon,
+  LinkIcon,
+  LockIcon,
   MountainIcon,
   RouteIcon,
   TrashIcon,
@@ -30,6 +33,10 @@ export type RouteListItem = {
    * the steepness map, north-up). Absent → generic route icon.
    */
   route?: Route;
+  /** Whether this route/tour is publicly shared. */
+  isShared?: boolean;
+  /** Absolute public link to this item, when shared (for the copy button). */
+  shareUrl?: string;
 };
 
 type Props = {
@@ -44,6 +51,12 @@ type Props = {
   onOpenRoute?: (id: string) => void;
   /** Delete a route (rejects on failure). Hides the trash button when absent. */
   onDeleteRoute?: (id: string) => Promise<void>;
+  /**
+   * Toggle a route's public/private state (rejects on failure). When
+   * present, each row shows a visibility toggle and — once public — a
+   * copy-link button. Absent → no sharing controls at all.
+   */
+  onToggleShare?: (id: string, share: boolean) => Promise<void>;
 };
 
 const COPY = {
@@ -76,6 +89,7 @@ export function RoutesListPage({
   onPlanNewRoute,
   onOpenRoute,
   onDeleteRoute,
+  onToggleShare,
 }: Props) {
   const copy = COPY[kind];
   // Two-step delete: the trash button arms a per-row inline confirmation
@@ -84,6 +98,10 @@ export function RoutesListPage({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which row's share toggle is mid-request, and which row just had its
+  // public link copied (so the button can flash a check).
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     if (!onDeleteRoute) return;
@@ -98,6 +116,36 @@ export function RoutesListPage({
       );
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleToggleShare = async (id: string, share: boolean) => {
+    if (!onToggleShare) return;
+    setSharingId(id);
+    setError(null);
+    try {
+      await onToggleShare(id, share);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not update sharing',
+      );
+    } finally {
+      setSharingId(null);
+    }
+  };
+
+  const handleCopyLink = async (id: string, url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(id);
+      window.setTimeout(
+        () => setCopiedId((c) => (c === id ? null : c)),
+        1800,
+      );
+    } catch {
+      // Clipboard blocked (insecure context / permissions): surface the
+      // link so the user can copy it by hand.
+      setError(`Copy failed — the link is ${url}`);
     }
   };
 
@@ -160,84 +208,143 @@ export function RoutesListPage({
               <ul className={styles.list}>
                 {routes.map((route) => (
                   <li key={route.id} className={styles.item}>
-                    <button
-                      type="button"
-                      className={styles.row}
-                      onClick={
-                        onOpenRoute ? () => onOpenRoute(route.id) : undefined
-                      }
-                    >
-                      <RouteThumbnail route={route.route} />
-                      <span className={styles.rowBody}>
-                        <span className={styles.rowName}>{route.name}</span>
-                        <span className={styles.rowMeta}>
-                          <span className="tnum">{route.distance}</span>
-                          <span
-                            className={styles.rowDivider}
-                            aria-hidden="true"
+                    <div className={styles.routeCard}>
+                      {onToggleShare && (
+                        <div className={styles.shareRow}>
+                          <button
+                            type="button"
+                            className={`${styles.visToggle} ${
+                              route.isShared ? styles.visTogglePublic : ''
+                            }`}
+                            onClick={() =>
+                              handleToggleShare(route.id, !route.isShared)
+                            }
+                            disabled={sharingId === route.id}
+                            aria-pressed={route.isShared}
+                            aria-label={
+                              route.isShared
+                                ? `${route.name} is public; make private`
+                                : `${route.name} is private; make public`
+                            }
                           >
-                            ·
-                          </span>
-                          <span className="tnum">{route.ascent} ascent</span>
-                          {route.descent && (
-                            <>
-                              <span
-                                className={styles.rowDivider}
-                                aria-hidden="true"
-                              >
-                                ·
+                            <span className={styles.visIcon}>
+                              {route.isShared ? <GlobeIcon /> : <LockIcon />}
+                            </span>
+                            <span className={styles.visLabel}>
+                              {route.isShared ? 'Public' : 'Private'}
+                            </span>
+                            <span className={styles.visHint}>
+                              {sharingId === route.id
+                                ? 'Updating…'
+                                : route.isShared
+                                  ? 'Anyone with the link can view — click to make private'
+                                  : 'Only you can see this — click to make public'}
+                            </span>
+                          </button>
+                          {route.isShared && route.shareUrl && (
+                            <button
+                              type="button"
+                              className={`${styles.copyLinkBtn} ${
+                                copiedId === route.id
+                                  ? styles.copyLinkBtnCopied
+                                  : ''
+                              }`}
+                              onClick={() =>
+                                handleCopyLink(route.id, route.shareUrl!)
+                              }
+                              aria-label={`Copy public link to ${route.name}`}
+                            >
+                              {copiedId === route.id ? (
+                                <CircleCheckIcon />
+                              ) : (
+                                <LinkIcon />
+                              )}
+                              <span>
+                                {copiedId === route.id ? 'Copied' : 'Copy link'}
                               </span>
-                              <span className="tnum">
-                                {route.descent} descent
-                              </span>
-                            </>
+                            </button>
                           )}
-                          <span
-                            className={styles.rowDivider}
-                            aria-hidden="true"
-                          >
-                            ·
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className={`${styles.row} ${styles.rowAttached}`}
+                        onClick={
+                          onOpenRoute ? () => onOpenRoute(route.id) : undefined
+                        }
+                      >
+                        <RouteThumbnail route={route.route} />
+                        <span className={styles.rowBody}>
+                          <span className={styles.rowName}>{route.name}</span>
+                          <span className={styles.rowMeta}>
+                            <span className="tnum">{route.distance}</span>
+                            <span
+                              className={styles.rowDivider}
+                              aria-hidden="true"
+                            >
+                              ·
+                            </span>
+                            <span className="tnum">{route.ascent} ascent</span>
+                            {route.descent && (
+                              <>
+                                <span
+                                  className={styles.rowDivider}
+                                  aria-hidden="true"
+                                >
+                                  ·
+                                </span>
+                                <span className="tnum">
+                                  {route.descent} descent
+                                </span>
+                              </>
+                            )}
+                            <span
+                              className={styles.rowDivider}
+                              aria-hidden="true"
+                            >
+                              ·
+                            </span>
+                            <span>{route.date}</span>
                           </span>
-                          <span>{route.date}</span>
+                          {route.description && (
+                            <span className={styles.rowNotes}>
+                              {route.description}
+                            </span>
+                          )}
                         </span>
-                        {route.description && (
-                          <span className={styles.rowNotes}>
-                            {route.description}
-                          </span>
-                        )}
-                      </span>
-                    </button>
+                      </button>
+                    </div>
                     {onDeleteRoute &&
                       (confirmId === route.id ? (
-                        <span className={styles.confirm}>
+                          <span className={styles.confirm}>
+                            <button
+                              type="button"
+                              className={styles.confirmDelete}
+                              onClick={() => handleDelete(route.id)}
+                              disabled={deletingId === route.id}
+                            >
+                              {deletingId === route.id ? 'Deleting…' : 'Delete'}
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.confirmCancel}
+                              onClick={() => setConfirmId(null)}
+                              disabled={deletingId === route.id}
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : (
                           <button
                             type="button"
-                            className={styles.confirmDelete}
-                            onClick={() => handleDelete(route.id)}
-                            disabled={deletingId === route.id}
+                            className={styles.deleteBtn}
+                            onClick={() => setConfirmId(route.id)}
+                            title="Delete route"
+                            aria-label={`Delete ${route.name}`}
                           >
-                            {deletingId === route.id ? 'Deleting…' : 'Delete'}
+                            <TrashIcon />
                           </button>
-                          <button
-                            type="button"
-                            className={styles.confirmCancel}
-                            onClick={() => setConfirmId(null)}
-                            disabled={deletingId === route.id}
-                          >
-                            Cancel
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className={styles.deleteBtn}
-                          onClick={() => setConfirmId(route.id)}
-                          title="Delete route"
-                          aria-label={`Delete ${route.name}`}
-                        >
-                          <TrashIcon />
-                        </button>
-                      ))}
+                        ))}
                   </li>
                 ))}
               </ul>

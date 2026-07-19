@@ -65,6 +65,10 @@ export interface SavedTrack {
   movingS: number | null;
   /** Fastest observed speed, m/s; null on older tracks. */
   maxSpeedMps: number | null;
+  /** Whether the completed tour is publicly shared. */
+  isShared: boolean;
+  /** The unguessable slug behind the public link, when shared (else null). */
+  shareSlug: string | null;
   startedAt: string;
   finishedAt: string;
   createdAt: string;
@@ -117,6 +121,8 @@ interface ApiTrackRow {
   routeId: string | null;
   name: string;
   geometry: string;
+  isShared?: boolean;
+  shareSlug?: string | null;
   startedAt: string;
   finishedAt: string;
   createdAt: string;
@@ -172,6 +178,8 @@ function parseRow(row: ApiTrackRow): SavedTrack {
     durationS,
     movingS,
     maxSpeedMps,
+    isShared: row.isShared ?? false,
+    shareSlug: row.shareSlug ?? null,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     createdAt: row.createdAt,
@@ -227,4 +235,20 @@ export async function deleteTrack(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/tracks/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
+}
+
+/**
+ * Share or unshare a completed tour. The server mints the share slug on the
+ * first share and returns the updated track, so the caller can immediately
+ * build the public link.
+ */
+export async function setTrackShared(
+  id: string,
+  isShared: boolean,
+): Promise<SavedTrack> {
+  const row = await request<ApiTrackRow>(`/api/tracks/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isShared }),
+  });
+  return parseRow(row);
 }

@@ -19,6 +19,7 @@
 // attached to (or probe for) other users' plans.
 
 import { getAuth } from './auth.js';
+import { newShareSlug, toBool } from './share.js';
 
 // Recorded tracks are denser than drawn routes (one point every few
 // meters of GPS movement), so allow the same generous ceiling as routes.
@@ -48,8 +49,9 @@ export async function handleTracksApi(request, env, url) {
       return methodNotAllowed('GET, POST');
     }
     if (request.method === 'GET') return getTrack(env, userId, id);
+    if (request.method === 'PATCH') return updateTrack(request, env, userId, id);
     if (request.method === 'DELETE') return deleteTrack(env, userId, id);
-    return methodNotAllowed('GET, DELETE');
+    return methodNotAllowed('GET, PATCH, DELETE');
   } catch (err) {
     console.error('tracks api error:', err);
     return Response.json({ error: 'internal error' }, { status: 500 });
@@ -70,6 +72,8 @@ function toApiTrack(row) {
     routeId: row.routeId ?? null,
     name: row.name,
     geometry: row.geometry,
+    isShared: Boolean(row.isShared),
+    shareSlug: row.isShared ? (row.shareSlug ?? null) : null,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     createdAt: row.createdAt,
@@ -78,7 +82,8 @@ function toApiTrack(row) {
 
 async function listTracks(env, userId) {
   const { results } = await env.DB.prepare(
-    'select id, "routeId", name, geometry, "startedAt", "finishedAt", "createdAt" ' +
+    'select id, "routeId", name, geometry, "isShared", "shareSlug", ' +
+      '"startedAt", "finishedAt", "createdAt" ' +
       'from "track" where "userId" = ? order by "finishedAt" desc',
   )
     .bind(userId)
@@ -88,13 +93,69 @@ async function listTracks(env, userId) {
 
 async function getTrack(env, userId, id) {
   const row = await env.DB.prepare(
-    'select id, "routeId", name, geometry, "startedAt", "finishedAt", "createdAt" ' +
+    'select id, "routeId", name, geometry, "isShared", "shareSlug", ' +
+      '"startedAt", "finishedAt", "createdAt" ' +
       'from "track" where id = ? and "userId" = ?',
   )
     .bind(id, userId)
     .first();
   if (!row) return Response.json({ error: 'not found' }, { status: 404 });
   return Response.json(toApiTrack(row));
+}
+
+/** PATCH { isShared?, name? } — share/unshare or rename a completed tour.
+ *  Mirrors updateRoute: slug is minted on first share and kept thereafter. */
+async function updateTrack(request, env, userId, id) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: 'invalid JSON body' }, { status: 400 });
+  }
+
+  const sets = [];
+  const binds = [];
+  if (body.name !== undefined) {
+    const name = validateName(body.name);
+    if (name instanceof Response) return name;
+    sets.push('name = ?');
+    binds.push(name);
+  }
+  if (body.isShared !== undefined) {
+    const isShared = toBool(body.isShared);
+    if (isShared === null) {
+      return Response.json(
+        { error: 'isShared must be a boolean' },
+        { status: 400 },
+      );
+    }
+    sets.push('"isShared" = ?');
+    binds.push(isShared ? 1 : 0);
+    if (isShared) {
+      const existing = await env.DB.prepare(
+        'select "shareSlug" from "track" where id = ? and "userId" = ?',
+      )
+        .bind(id, userId)
+        .first();
+      if (existing && !existing.shareSlug) {
+        sets.push('"shareSlug" = ?');
+        binds.push(newShareSlug());
+      }
+    }
+  }
+  if (sets.length === 0) {
+    return Response.json({ error: 'nothing to update' }, { status: 400 });
+  }
+
+  const result = await env.DB.prepare(
+    `update "track" set ${sets.join(', ')} where id = ? and "userId" = ?`,
+  )
+    .bind(...binds, id, userId)
+    .run();
+  if (result.meta.changes === 0) {
+    return Response.json({ error: 'not found' }, { status: 404 });
+  }
+  return getTrack(env, userId, id);
 }
 
 async function createTrack(request, env, userId) {
@@ -142,7 +203,17 @@ async function createTrack(request, env, userId) {
     .bind(id, userId, routeId, name, geometry, startedAt, finishedAt, now)
     .run();
   return Response.json(
-    { id, routeId, name, geometry, startedAt, finishedAt, createdAt: now },
+    {
+      id,
+      routeId,
+      name,
+      geometry,
+      isShared: false,
+      shareSlug: null,
+      startedAt,
+      finishedAt,
+      createdAt: now,
+    },
     { status: 201 },
   );
 }

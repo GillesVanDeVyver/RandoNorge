@@ -212,10 +212,30 @@
   list-style: none;
 }
 
+/* Each library entry: one route card beside its delete control. */
 .item {
   display: flex;
   align-items: stretch;
   gap: var(--space-2);
+}
+
+/* The card groups the visibility/share header and the route info into a
+   single bordered element (split by a hairline) so the control clearly
+   belongs to the route beneath it. */
+.routeCard {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.routeCard:hover {
+  border-color: var(--accent);
 }
 
 .row {
@@ -248,6 +268,26 @@
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Route button when it sits inside .routeCard (the library list): the card
+   already draws the border/background, so the button is a plain full-width
+   clickable region below the share header — no border, no lift. */
+.rowAttached {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.rowAttached:hover {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: transparent;
+  transform: none;
+}
+
+.rowAttached:focus-visible {
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px var(--accent-ring);
 }
 
 /* The row's leading visual is now the RouteThumbnail mini-map (see
@@ -294,6 +334,140 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* --- Share header (visibility toggle + copy link, inside the card top) ----- */
+
+/* Sits at the top of .routeCard; the hairline below it is the only thing
+   separating it from the route info, so the two read as one element. */
+.shareRow {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* The visibility toggle fills the header: an icon + a Public/Private label
+   and an explanatory hint. Clicking it flips the state. Borderless — the
+   card provides the frame. */
+.visToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px var(--space-4);
+  text-align: left;
+  font-family: inherit;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.visToggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.visToggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.visToggle:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent-ring);
+}
+
+.visIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.visIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.visLabel {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.visHint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+/* Public state: accent-colored icon + label (no fill) mark it as live. */
+.visTogglePublic {
+  color: var(--accent);
+}
+
+.visTogglePublic .visLabel {
+  color: var(--accent);
+}
+
+.visTogglePublic:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Copy-link button on the right of the header; only present once public.
+   A hairline on its left separates it from the toggle. */
+.copyLinkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  padding: 0 var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--hairline);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.copyLinkBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.copyLinkBtn:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--accent);
+}
+
+.copyLinkBtn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent-ring);
+}
+
+/* Momentary confirmation after a successful copy. */
+.copyLinkBtnCopied,
+.copyLinkBtnCopied:hover {
+  color: #1f8a4c;
+}
+
+@media (max-width: 640px) {
+  /* Drop the explanatory hint on narrow screens so the label + copy button
+     stay on one line. */
+  .visHint {
+    display: none;
+  }
 }
 
 /* --- Delete (two-step inline confirm) --------------------------------------- */

@@ -16,6 +16,8 @@ import { proxyGet } from './proxy.js';
 import { getAuth } from './auth.js';
 import { handleRoutesApi } from './routes.js';
 import { handleTracksApi } from './tracks.js';
+import { handlePublicApi } from './public.js';
+import { handleUsernameApi } from './username.js';
 import { handleTerrainTile } from './terrain.js';
 
 const ROUTES = [
@@ -53,6 +55,17 @@ export default {
     // CRUD against the "track" table (worker/tracks.js).
     if (pathname === '/api/tracks' || pathname.startsWith('/api/tracks/')) {
       return handleTracksApi(request, env, url);
+    }
+
+    // The signed-in user's public handle (worker/username.js).
+    if (pathname === '/api/me/username') {
+      return handleUsernameApi(request, env, url);
+    }
+
+    // Anonymous, read-only access to shared routes/tracks and public
+    // profiles (worker/public.js). No session required.
+    if (pathname.startsWith('/api/public/')) {
+      return handlePublicApi(request, env, url);
     }
 
     // Terrain-DEM tiles for the 3D view: own Kartverket-derived tiles from

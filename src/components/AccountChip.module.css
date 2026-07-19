@@ -88,10 +88,47 @@
   color: var(--text-1);
 }
 
+.identityHandle {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+}
+
 .identityEmail {
   font-size: var(--text-xs);
   color: var(--text-2);
   overflow-wrap: anywhere;
+}
+
+/* Secondary navigation item (e.g. "View public profile") — quieter than the
+   accent-filled .menuBtn so the popover has a clear primary/secondary
+   hierarchy. */
+.linkBtn {
+  width: 100%;
+  padding: 8px 0;
+  margin-bottom: var(--space-2);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.linkBtn:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.linkBtn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 /* Navigation item in the popover (e.g. "Account overview"). */

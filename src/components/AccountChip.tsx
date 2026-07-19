@@ -5,6 +5,14 @@ import styles from './AccountChip.module.css';
 type Props = {
   name: string;
   email: string;
+  /** The account's public handle, shown as @handle in the popover. Null
+   *  while still loading (or if the account has none). */
+  username?: string | null;
+  /**
+   * When provided (and a handle exists), the popover shows a "View public
+   * profile" item that opens /u/<handle>.
+   */
+  onViewProfile?: () => void;
   /**
    * When provided, the popover shows an "Account overview" item that
    * calls this (omitted while already on the overview itself).
@@ -15,10 +23,16 @@ type Props = {
 /**
  * Small signed-in indicator floating over the map (top-right, clear of the
  * toolbar on the left and the info button bottom-right). Click to open a
- * popover with the account details, a link back to the account overview,
- * and a log-out action.
+ * popover with the account details (name, handle, email), links back to the
+ * account overview and the user's own public profile, and a log-out action.
  */
-export function AccountChip({ name, email, onOverview }: Props) {
+export function AccountChip({
+  name,
+  email,
+  username,
+  onViewProfile,
+  onOverview,
+}: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -58,8 +72,24 @@ export function AccountChip({ name, email, onOverview }: Props) {
         <div className={styles.popover} role="menu">
           <div className={styles.identity}>
             <span className={styles.identityName}>{name}</span>
+            {username && (
+              <span className={styles.identityHandle}>@{username}</span>
+            )}
             <span className={styles.identityEmail}>{email}</span>
           </div>
+          {username && onViewProfile && (
+            <button
+              type="button"
+              className={styles.linkBtn}
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onViewProfile();
+              }}
+            >
+              View public profile
+            </button>
+          )}
           {onOverview && (
             <button
               type="button"

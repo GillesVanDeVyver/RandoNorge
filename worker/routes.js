@@ -14,10 +14,16 @@
 //
 // Every endpoint requires a Better Auth session cookie; ownership is
 // enforced in SQL ("where id = ? and userId = ?") so a valid session for
-// user A can never read or touch user B's routes. Sharing (isShared /
-// shareSlug) is deliberately not exposed yet — routes are always private.
+// user A can never read or touch user B's routes.
+//
+// Sharing: a route is private (isShared = 0) until the owner PATCHes
+// { isShared: true }, which mints a stable, unguessable "shareSlug" the
+// first time and reuses it thereafter (so a link stays valid if the route
+// is unshared and re-shared). Anonymous read access to shared routes lives
+// in worker/public.js; this module only ever serves the owner.
 
 import { getAuth } from './auth.js';
+import { newShareSlug, toBool } from './share.js';
 
 // Generous but bounded: a full-day tour simplified at 8 m epsilon is a few
 // kilobytes; 512 KB leaves room for very long traverses while keeping
@@ -72,6 +78,10 @@ function toApiRoute(row) {
     name: row.name,
     description: row.description ?? null,
     geometry: row.geometry,
+    isShared: Boolean(row.isShared),
+    // Only surfaced while the route is shared; a stale slug isn't a secret
+    // but there's no reason to expose it once the route is private again.
+    shareSlug: row.isShared ? (row.shareSlug ?? null) : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -79,7 +89,8 @@ function toApiRoute(row) {
 
 async function listRoutes(env, userId) {
   const { results } = await env.DB.prepare(
-    'select id, name, description, geometry, "createdAt", "updatedAt" ' +
+    'select id, name, description, geometry, "isShared", "shareSlug", ' +
+      '"createdAt", "updatedAt" ' +
       'from "route" where "userId" = ? order by "updatedAt" desc',
   )
     .bind(userId)
@@ -89,7 +100,8 @@ async function listRoutes(env, userId) {
 
 async function getRoute(env, userId, id) {
   const row = await env.DB.prepare(
-    'select id, name, description, geometry, "createdAt", "updatedAt" ' +
+    'select id, name, description, geometry, "isShared", "shareSlug", ' +
+      '"createdAt", "updatedAt" ' +
       'from "route" where id = ? and "userId" = ?',
   )
     .bind(id, userId)
@@ -119,7 +131,16 @@ async function createRoute(request, env, userId) {
     .bind(id, userId, name, description, geometry, now, now)
     .run();
   return Response.json(
-    { id, name, description, geometry, createdAt: now, updatedAt: now },
+    {
+      id,
+      name,
+      description,
+      geometry,
+      isShared: false,
+      shareSlug: null,
+      createdAt: now,
+      updatedAt: now,
+    },
     { status: 201 },
   );
 }
@@ -149,6 +170,31 @@ async function updateRoute(request, env, userId, id) {
     if (geometry instanceof Response) return geometry;
     sets.push('geometry = ?');
     binds.push(geometry);
+  }
+  if (body.isShared !== undefined) {
+    const isShared = toBool(body.isShared);
+    if (isShared === null) {
+      return Response.json(
+        { error: 'isShared must be a boolean' },
+        { status: 400 },
+      );
+    }
+    sets.push('"isShared" = ?');
+    binds.push(isShared ? 1 : 0);
+    // Mint a slug the first time a route is shared, and only then; an
+    // already-shared route keeps its link, and unsharing leaves the slug
+    // in place so re-sharing restores the same URL.
+    if (isShared) {
+      const existing = await env.DB.prepare(
+        'select "shareSlug" from "route" where id = ? and "userId" = ?',
+      )
+        .bind(id, userId)
+        .first();
+      if (existing && !existing.shareSlug) {
+        sets.push('"shareSlug" = ?');
+        binds.push(newShareSlug());
+      }
+    }
   }
   if (sets.length === 0) {
     return Response.json({ error: 'nothing to update' }, { status: 400 });

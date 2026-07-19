@@ -236,24 +236,32 @@ export function NavigationBar({
 }
 
 interface ReviewProps {
-  /** Name of the completed tour being reviewed. */
+  /** Name of the completed tour (or shared route) being viewed. */
   name: string;
-  /** ISO timestamp of when the tour was finished. */
-  finishedAt: string;
-  /** Back to the completed-routes list. */
+  /** ISO timestamp of when the tour was finished. Omitted for a shared
+   *  planned route, which has no completion date. */
+  finishedAt?: string;
+  /** Back to the completed-routes list (or the owner's public profile). */
   onBack: () => void;
+  /** Public owner's display name, shown as "by <owner>" when present. */
+  owner?: string;
+  /** Overrides the back button's label/tooltip (e.g. "Back to profile"). */
+  backLabel?: string;
 }
 
 /**
  * Review twin of the recording bar, shown when a completed route is opened
- * from the library. The session is over, so the chip collapses to a single
- * Back button and the note line identifies the tour instead of surfacing
- * recording problems.
+ * from the library — and reused, read-only, for a public route/tour opened
+ * from a share link. The session is over, so the chip collapses to a single
+ * Back button and the note line identifies the item (its completion date
+ * when it's a tour, the owner when it's someone else's shared item).
  */
 export function ReviewNavigationBar({
   name,
   finishedAt,
   onBack,
+  owner,
+  backLabel = 'Back',
 }: ReviewProps) {
   return (
     <div className={styles.wrap}>
@@ -261,13 +269,15 @@ export function ReviewNavigationBar({
         type="button"
         className={`${styles.btn} ${styles.backChip}`}
         onClick={onBack}
-        title="Back to your completed routes"
+        title={backLabel}
       >
         <ArrowLeftIcon />
-        <span>Back</span>
+        <span>{backLabel}</span>
       </button>
       <div className={styles.note}>
-        {name} · Completed {formatDate(finishedAt)}
+        {name}
+        {finishedAt ? ` · Completed ${formatDate(finishedAt)}` : ''}
+        {owner ? ` · by ${owner}` : ''}
       </div>
     </div>
   );

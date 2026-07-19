@@ -243,6 +243,13 @@
   color: #1e5c37;
 }
 
+/* Advisory helper text under a field, e.g. the /u/<username> preview. */
+.hint {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  word-break: break-all;
+}
+
 /* Small text-only action, e.g. "Forgot password?" / "Back to log in". */
 .linkBtn {
   align-self: center;

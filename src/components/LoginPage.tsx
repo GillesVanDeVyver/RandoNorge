@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
 import { authClient } from '../auth/client';
 import { checkPassword, MIN_PASSWORD_LENGTH } from '../auth/passwordPolicy';
+import { checkUsername } from '../auth/usernamePolicy';
 import {
   GoogleIcon,
   MountainIcon,
@@ -131,6 +132,8 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         : 'login',
   );
   const [name, setName] = useState('');
+  // Public handle chosen at sign-up; becomes the /u/<username> profile URL.
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState(
     () => readPendingVerificationEmail() ?? '',
   );
@@ -196,6 +199,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setNotice(null);
     setPassword('');
     setConfirm('');
+    setUsername('');
     setWrongPassword(false);
     setEmailTaken(false);
   };
@@ -276,6 +280,11 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     e.preventDefault();
     setError(null);
     setEmailTaken(false);
+    const handle = checkUsername(username);
+    if (!handle.ok) {
+      setError(handle.error);
+      return;
+    }
     const check = checkPassword(password);
     if (!check.ok) {
       setError(check.error);
@@ -316,14 +325,20 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       name: name.trim().split(/\s+/)[0] || email.split('@')[0],
       email,
       password,
+      // The chosen public handle (normalized); the worker validates it and
+      // guarantees uniqueness before the account row is written.
+      username: username.trim().toLowerCase(),
       callbackURL: '/',
-    });
+    } as Parameters<typeof authClient.signUp.email>[0] & { username: string });
     setBusy(false);
     if (err) {
+      // 422 covers both a duplicate email and a taken/invalid handle; the
+      // worker's message (e.g. "that username is taken") is the specific one.
       setError(
-        err.status === 422
-          ? 'An account with this email already exists. Try logging in.'
-          : (err.message ?? 'Could not create the account. Please try again.'),
+        err.message ??
+          (err.status === 422
+            ? 'An account with this email already exists. Try logging in.'
+            : 'Could not create the account. Please try again.'),
       );
     } else {
       // Survive the remount Root triggers while the session refetches:
@@ -659,6 +674,28 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
+                  </label>
+                )}
+
+                {mode === 'signup' && (
+                  <label className={styles.field}>
+                    <span className={styles.label}>Username</span>
+                    <input
+                      className={styles.input}
+                      type="text"
+                      name="username"
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="your public handle"
+                      required
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                    />
+                    <span className={styles.hint}>
+                      Your public profile lives at /u/{username.trim().toLowerCase() || 'username'}
+                    </span>
                   </label>
                 )}
 

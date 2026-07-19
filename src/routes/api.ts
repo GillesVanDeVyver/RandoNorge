@@ -38,6 +38,10 @@ export interface SavedRoute {
   ascentM: number | null;
   /** Total descent in meters (null for routes saved before it was recorded). */
   descentM: number | null;
+  /** Whether the route is publicly shared. */
+  isShared: boolean;
+  /** The unguessable slug behind the public link, when shared (else null). */
+  shareSlug: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -74,6 +78,8 @@ interface ApiRouteRow {
   name: string;
   description: string | null;
   geometry: string;
+  isShared?: boolean;
+  shareSlug?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -101,6 +107,8 @@ function parseRow(row: ApiRouteRow): SavedRoute {
     distanceM,
     ascentM,
     descentM,
+    isShared: row.isShared ?? false,
+    shareSlug: row.shareSlug ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -172,4 +180,20 @@ export async function deleteRoute(id: string): Promise<void> {
   await request<{ ok: true }>(`/api/routes/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
+}
+
+/**
+ * Share or unshare a saved route. The server mints the share slug on the
+ * first share and returns the updated route (with `isShared`/`shareSlug`),
+ * so the caller can immediately build the public link.
+ */
+export async function setRouteShared(
+  id: string,
+  isShared: boolean,
+): Promise<SavedRoute> {
+  const row = await request<ApiRouteRow>(`/api/routes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isShared }),
+  });
+  return parseRow(row);
 }

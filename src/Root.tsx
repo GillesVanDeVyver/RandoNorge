@@ -7,6 +7,8 @@ import {
   RoutesListPage,
   type RouteListItem,
 } from './components/RoutesListPage.tsx';
+import { PublicView, type PublicNav } from './components/PublicView.tsx';
+import { getMyUsername } from './public/api.ts';
 import {
   LoginPage,
   PENDING_VERIFICATION_KEY,
@@ -15,11 +17,13 @@ import { TermsPage } from './components/TermsPage.tsx';
 import {
   deleteRoute,
   listRoutes,
+  setRouteShared,
   type SavedRoute,
 } from './routes/api.ts';
 import {
   deleteTrack,
   listTracks,
+  setTrackShared,
   type SavedTrack,
 } from './tracking/api.ts';
 import { formatAscent, formatDate, formatDistance } from './routes/format.ts';
@@ -79,9 +83,71 @@ function pathToNav(pathname: string): Nav {
   return { view: 'overview', routeId: null };
 }
 
+/**
+ * Public (anonymous-readable) URLs, handled separately from the signed-in
+ * navigation because they render regardless of session state. Every public
+ * URL is namespaced under the owner's handle:
+ *  - /u/:username          → a public profile (that account's shared items)
+ *  - /u/:username/r/:slug  → a single shared planned route
+ *  - /u/:username/t/:slug  → a single shared completed tour
+ * Returns null for every other path. The more specific route/tour patterns
+ * are tested before the bare profile so the extra segments aren't lost.
+ */
+function pathToPublic(pathname: string): PublicNav | null {
+  const route = pathname.match(/^\/u\/([^/]+)\/r\/([^/]+)\/?$/);
+  if (route) {
+    return {
+      kind: 'route',
+      username: decodeURIComponent(route[1]),
+      slug: decodeURIComponent(route[2]),
+    };
+  }
+  const track = pathname.match(/^\/u\/([^/]+)\/t\/([^/]+)\/?$/);
+  if (track) {
+    return {
+      kind: 'track',
+      username: decodeURIComponent(track[1]),
+      slug: decodeURIComponent(track[2]),
+    };
+  }
+  const profile = pathname.match(/^\/u\/([^/]+)\/?$/);
+  if (profile) {
+    return { kind: 'profile', username: decodeURIComponent(profile[1]) };
+  }
+  return null;
+}
+
+function publicToPath(nav: PublicNav): string {
+  const user = encodeURIComponent(nav.username);
+  switch (nav.kind) {
+    case 'profile':
+      return `/u/${user}`;
+    case 'route':
+      return `/u/${user}/r/${encodeURIComponent(nav.slug)}`;
+    case 'track':
+      return `/u/${user}/t/${encodeURIComponent(nav.slug)}`;
+  }
+}
+
+/** Public link to a shared item, namespaced under the owner's handle:
+ *  /u/<username>/(r|t)/<slug>. Undefined until the item is shared (has a
+ *  slug) and the owner's handle is known, which is what hides the row's
+ *  copy-link button in the meantime. */
+function shareUrlFor(
+  kind: 'r' | 't',
+  isShared: boolean | undefined,
+  slug: string | null | undefined,
+  username: string | null,
+): string | undefined {
+  if (!isShared || !slug || !username) return undefined;
+  return `${window.location.origin}/u/${encodeURIComponent(
+    username,
+  )}/${kind}/${slug}`;
+}
+
 /** SavedTrack (API) → the preformatted strings the list rows render.
  *  Completed routes are the tracks recorded in navigation mode. */
-function trackToListItem(track: SavedTrack): RouteListItem {
+function trackToListItem(track: SavedTrack, username: string | null): RouteListItem {
   return {
     id: track.id,
     name: track.name,
@@ -92,11 +158,13 @@ function trackToListItem(track: SavedTrack): RouteListItem {
     date: formatDate(track.finishedAt),
     // Recorded geometry for the row's mini-map preview.
     route: track.track,
+    isShared: track.isShared,
+    shareUrl: shareUrlFor('t', track.isShared, track.shareSlug, username),
   };
 }
 
 /** SavedRoute (API) → the preformatted strings the list rows render. */
-function toListItem(route: SavedRoute): RouteListItem {
+function toListItem(route: SavedRoute, username: string | null): RouteListItem {
   return {
     id: route.id,
     name: route.name,
@@ -109,6 +177,8 @@ function toListItem(route: SavedRoute): RouteListItem {
     description: route.description ?? undefined,
     // Geometry for the row's mini-map preview (steepness map, north-up).
     route: route.route,
+    isShared: route.isShared,
+    shareUrl: shareUrlFor('r', route.isShared, route.shareSlug, username),
   };
 }
 
@@ -138,6 +208,12 @@ export function Root() {
   const [nav, setNav] = useState<Nav>(() =>
     pathToNav(window.location.pathname),
   );
+  // Public (anonymous-readable) pages live outside the signed-in navigation
+  // so they render for signed-out visitors too. Non-null → a /u, /r or /t
+  // URL is open and the public branch below takes over.
+  const [publicNav, setPublicNav] = useState<PublicNav | null>(() =>
+    pathToPublic(window.location.pathname),
+  );
   // Guests must accept the terms of use on every visit before entering
   // the planner. Held in component state only (never persisted), so a
   // reload — or a deep link straight to /planner — asks again. Signed-in
@@ -154,6 +230,10 @@ export function Root() {
   const [completedTracks, setCompletedTracks] = useState<SavedTrack[] | null>(
     null,
   );
+  // The signed-in user's public handle, fetched once per session. Drives the
+  // account chip's "view public profile" link and the /u/<handle>/... share
+  // URLs built for each route/tour row. Null while loading (or if absent).
+  const [myUsername, setMyUsername] = useState<string | null>(null);
   // Library route currently opened in the planner (null = fresh plan).
   // Derived from the URL's route id; also used as the planner's key so
   // reopening resets its state. While the library is still loading a
@@ -191,7 +271,11 @@ export function Root() {
   // page and "forward" re-enters it.
   useEffect(() => {
     const onPopState = () => {
-      const restored = pathToNav(window.location.pathname);
+      const path = window.location.pathname;
+      const restoredPublic = pathToPublic(path);
+      setPublicNav(restoredPublic);
+      if (restoredPublic) return;
+      const restored = pathToNav(path);
       setNav(restored);
       setGuest(restored.view === 'planner');
     };
@@ -234,6 +318,15 @@ export function Root() {
       .catch(() => {
         if (!cancelled) setCompletedTracks([]);
       });
+    getMyUsername()
+      .then((username) => {
+        if (!cancelled) setMyUsername(username);
+      })
+      .catch(() => {
+        // Handle lookup failed: leave it null. Share URLs and the chip's
+        // profile link simply stay hidden until a later load succeeds.
+        if (!cancelled) setMyUsername(null);
+      });
     return () => {
       cancelled = true;
     };
@@ -254,6 +347,19 @@ export function Root() {
     setSavedRoutes((prev) => (prev ?? []).filter((r) => r.id !== id));
   }, []);
 
+  // Flip a saved route's public/private state and fold the server's answer
+  // (with a freshly minted slug on first share) back into the library so the
+  // row's copy-link button appears immediately.
+  const handleToggleRouteShare = useCallback(
+    async (id: string, share: boolean) => {
+      const updated = await setRouteShared(id, share);
+      setSavedRoutes((prev) =>
+        (prev ?? []).map((r) => (r.id === id ? updated : r)),
+      );
+    },
+    [],
+  );
+
   // A recorded activity was saved from navigation mode: prepend it to the
   // completed list (newest-first, keyed by finish time).
   const handleActivitySaved = useCallback((track: SavedTrack) => {
@@ -266,6 +372,35 @@ export function Root() {
   const handleDeleteTrack = useCallback(async (id: string) => {
     await deleteTrack(id);
     setCompletedTracks((prev) => (prev ?? []).filter((t) => t.id !== id));
+  }, []);
+
+  const handleToggleTrackShare = useCallback(
+    async (id: string, share: boolean) => {
+      const updated = await setTrackShared(id, share);
+      setCompletedTracks((prev) =>
+        (prev ?? []).map((t) => (t.id === id ? updated : t)),
+      );
+    },
+    [],
+  );
+
+  // Push a public URL (/u, /r, /t) and hand control to the public branch.
+  const navigatePublic = useCallback((next: PublicNav) => {
+    const path = publicToPath(next);
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+    setPublicNav(next);
+  }, []);
+
+  // Leave the public section for the app root (overview when signed in, the
+  // login/guest gate when signed out).
+  const exitPublic = useCallback(() => {
+    if (window.location.pathname !== '/') {
+      window.history.pushState(null, '', '/');
+    }
+    setPublicNav(null);
+    setNav({ view: 'overview', routeId: null });
   }, []);
 
   const handleOpenRoute = useCallback(
@@ -300,21 +435,51 @@ export function Root() {
     setWasSignedIn(signedIn);
     if (!signedIn) {
       setNav({ view: 'overview', routeId: null });
+      setPublicNav(null);
       setGuest(false);
       setSavedRoutes(null);
       setCompletedTracks(null);
+      setMyUsername(null);
       // Replace (don't push) so back after logout doesn't step through
       // the previous account's pages.
       window.history.replaceState(null, '', '/');
     }
   }
 
+  // Public pages render regardless of session state (a shared link works
+  // for anyone). This branch sits ahead of the signed-in / signed-out gates
+  // so /u, /r and /t take over the whole screen for both.
+  if (publicNav) {
+    return (
+      <PublicView
+        // Reset the fetch/render state when the target changes.
+        key={publicToPath(publicNav)}
+        nav={publicNav}
+        signedIn={Boolean(session)}
+        onOpenProfile={(username) =>
+          navigatePublic({ kind: 'profile', username })
+        }
+        onOpenRoute={(username, slug) =>
+          navigatePublic({ kind: 'route', username, slug })
+        }
+        onOpenTrack={(username, slug) =>
+          navigatePublic({ kind: 'track', username, slug })
+        }
+        onExit={exitPublic}
+      />
+    );
+  }
+
   if (isPending) return null;
 
   if (session) {
     const name = session.user.name || session.user.email;
-    const savedItems = (savedRoutes ?? []).map(toListItem);
-    const completedItems = (completedTracks ?? []).map(trackToListItem);
+    const savedItems = (savedRoutes ?? []).map((r) =>
+      toListItem(r, myUsername),
+    );
+    const completedItems = (completedTracks ?? []).map((t) =>
+      trackToListItem(t, myUsername),
+    );
     return (
       <>
         {view === 'overview' && (
@@ -354,6 +519,11 @@ export function Root() {
             onDeleteRoute={
               view === 'saved' ? handleDeleteRoute : handleDeleteTrack
             }
+            onToggleShare={
+              view === 'saved'
+                ? handleToggleRouteShare
+                : handleToggleTrackShare
+            }
           />
         )}
         {view === 'track' && openTrack && (
@@ -376,6 +546,16 @@ export function Root() {
         <AccountChip
           name={session.user.name}
           email={session.user.email}
+          username={myUsername}
+          onViewProfile={
+            myUsername
+              ? () =>
+                  navigatePublic({
+                    kind: 'profile',
+                    username: myUsername,
+                  })
+              : undefined
+          }
           onOverview={
             view === 'overview' ? undefined : () => navigate('overview')
           }

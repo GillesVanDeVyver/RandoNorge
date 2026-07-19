@@ -183,19 +183,57 @@ interface Props {
     /** Back to the completed-routes list. */
     onBack: () => void;
   };
+  /**
+   * Present when rendering someone else's *shared* route or tour to an
+   * anonymous visitor. It reuses the same read-only chrome as `review`: no
+   * toolbar, no save/start buttons, both lines on the map. Exactly one of
+   * `route` / `track` is set — a shared planned route shows as a read-only
+   * plan; a shared completed tour shows as a review (with its plan beneath
+   * it if that plan is public too).
+   */
+  publicView?: {
+    /** The shared planned route (when a route link was opened). */
+    route: SavedRoute | null;
+    /** The shared completed tour (when a tour link was opened). */
+    track: SavedTrack | null;
+    /** Public display name of the owner, shown in the top bar. */
+    ownerName: string;
+    /** Owner's handle, if any (lets the top bar link back to their profile). */
+    ownerUsername: string | null;
+    /** Leave the public view (back to the owner's profile, or home). */
+    onBack: () => void;
+  };
 }
 
-function App({ saving, review }: Props) {
+function App({ saving, review: reviewProp, publicView }: Props) {
   const [mode, setMode] = useState<Mode>('idle');
   // Stable for the lifetime of this planner instance: Root remounts the
   // planner (via `key`) whenever a different library route is opened.
   const initialId = saving?.initial?.id ?? null;
+  // A shared completed tour is driven through the exact same code path as an
+  // owner's review; a shared planned route has no track and renders as a
+  // read-only plan instead.
+  const publicTrack = publicView?.track ?? null;
+  const publicRoute = publicView?.route ?? null;
+  const review = useMemo(
+    () =>
+      reviewProp ??
+      (publicTrack && publicView
+        ? { track: publicTrack, planned: publicRoute, onBack: publicView.onBack }
+        : undefined),
+    [reviewProp, publicTrack, publicRoute, publicView],
+  );
+  const isPublic = publicView != null;
+  // Shared planned-route view: read-only planner, no recorded track.
+  const publicRouteOnly = isPublic && publicTrack == null;
   // A draft stashed by a previous planner instance in this tab (the user
   // navigated away and came back) wins over the pristine library route.
   const [route, setRoute] = useState<Route>(() =>
     review
       ? (review.planned?.route ?? [])
-      : (loadDraft(initialId)?.route ?? saving?.initial?.route ?? []),
+      : publicRouteOnly
+        ? (publicRoute?.route ?? [])
+        : (loadDraft(initialId)?.route ?? saving?.initial?.route ?? []),
   );
   // Identity of the library route currently being edited; Save updates it
   // instead of creating a duplicate, and its name/notes prefill the dialog.
@@ -220,9 +258,11 @@ function App({ saving, review }: Props) {
   // mode is read-only and must not clobber the planner's drafts.
   const reviewing = review != null;
   useEffect(() => {
-    if (reviewing) return;
+    // Review and public views are read-only; they must not clobber the
+    // planner's own drafts in sessionStorage.
+    if (reviewing || isPublic) return;
     storeDraft(initialId, { route, savedMeta });
-  }, [reviewing, initialId, route, savedMeta]);
+  }, [reviewing, isPublic, initialId, route, savedMeta]);
   const [saveOpen, setSaveOpen] = useState(false);
   // Transient "Route saved" confirmation, mirroring the clear-undo toast.
   const [savedToast, setSavedToast] = useState(false);
@@ -260,7 +300,7 @@ function App({ saving, review }: Props) {
   // Reviewing a completed tour renders the same read-only session chrome
   // as an active navigation session (no toolbar, stats toggle, both lines
   // on the map) — `session` is "either of the two".
-  const session = navSession || reviewing;
+  const session = navSession || reviewing || isPublic;
   // Which route the summary rail describes: the plan or the recording.
   // A review opens on the recording — that's the tour being looked at.
   const [statsView, setStatsView] = useState<'planned' | 'actual'>(
@@ -328,8 +368,9 @@ function App({ saving, review }: Props) {
   // Frame the initial view around everything shown: the plan plus the
   // recorded track (a tour without a surviving plan still gets framed).
   const reviewFit = useMemo(
-    () => (reviewing ? [...route, ...displayTrack] : undefined),
-    [reviewing, route, displayTrack],
+    () =>
+      reviewing || publicRouteOnly ? [...route, ...displayTrack] : undefined,
+    [reviewing, publicRouteOnly, route, displayTrack],
   );
 
   const handleStartNavigation = useCallback(() => {
@@ -706,6 +747,16 @@ function App({ saving, review }: Props) {
             name={review.track.name}
             finishedAt={review.track.finishedAt}
             onBack={review.onBack}
+            owner={isPublic ? publicView.ownerName : undefined}
+            backLabel={isPublic ? 'Back to profile' : undefined}
+          />
+        )}
+        {publicRouteOnly && publicRoute && (
+          <ReviewNavigationBar
+            name={publicRoute.name}
+            onBack={publicView.onBack}
+            owner={publicView.ownerName}
+            backLabel="Back to profile"
           />
         )}
         {navSession && tracking.status !== 'idle' && (

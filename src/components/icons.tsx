@@ -364,6 +364,37 @@ export function ArrowRightIcon() {
   );
 }
 
+export function GlobeIcon() {
+  // Lucide "globe" — reads as "public / shared with the world".
+  return (
+    <svg {...baseProps}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+      <path d="M2 12h20" />
+    </svg>
+  );
+}
+
+export function LockIcon() {
+  // Lucide "lock" — reads as "private / only you".
+  return (
+    <svg {...baseProps}>
+      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
+
+export function LinkIcon() {
+  // Lucide "link" — the copy-share-link affordance.
+  return (
+    <svg {...baseProps}>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
 export function GoogleIcon({ className }: { className?: string }) {
   // Official multi-colour "G" mark (filled, not stroked, so it doesn't
   // take the Lucide baseProps). Used on the "Continue with Google" button.
