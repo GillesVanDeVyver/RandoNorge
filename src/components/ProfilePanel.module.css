@@ -219,6 +219,40 @@
    of the sheet instead of hugging the left. The chart measures its own
    pixel width via ResizeObserver, so its 1:1 metres-per-pixel height simply
    re-derives from the narrower column. */
+/* Narrow / medium screens (< 1300px): the elevation stats row (distance,
+   ascent, descent, min/max) crowds the header and squashes the chart on the
+   mobile bottom sheet. Move the stats *underneath* the chart — laid out as a
+   grid, mirroring the pace stats shown while navigating a route. Only the
+   elevation panel reflows (.bodyElevation); the snow panel is untouched.
+
+   The header wrapper is dropped from the box tree (display: contents) so its
+   children — the stats grid and the scale toggle — become direct flex items
+   of the body column and can be reordered independently: the toggle stays on
+   top (right-aligned), the chart follows, and the stats drop below it. */
+@media (max-width: 1299.98px) {
+  .bodyElevation .sectionHeader {
+    display: contents;
+  }
+
+  .bodyElevation .aspectToggle {
+    order: -2;
+  }
+
+  .bodyElevation .chart {
+    order: -1;
+  }
+
+  /* Stats fall into the default order (0), landing after the chart and
+     spanning the full width as an even grid instead of a cramped header row. */
+  .bodyElevation .stats {
+    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 16px;
+    row-gap: 4px;
+    justify-content: stretch;
+  }
+}
+
 @media (max-width: 760px) {
   .body {
     width: 100%;
@@ -229,5 +263,14 @@
   .sectionHeader,
   .stats {
     justify-content: center;
+  }
+}
+
+/* On the narrowest phones the four stats no longer fit side by side (the
+   min/max value is the widest); fold them into a 2×2 grid like the pace card. */
+@media (max-width: 620px) {
+  .bodyElevation .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 16px;
   }
 }

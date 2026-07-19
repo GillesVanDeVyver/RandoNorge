@@ -736,7 +736,7 @@ export function ElevationPanel({
 
   return (
     <div className={styles.panel}>
-      <div className={styles.body}>
+      <div className={`${styles.body} ${styles.bodyElevation}`}>
         <div className={styles.sectionHeader}>
           {profile ? (
             <>
