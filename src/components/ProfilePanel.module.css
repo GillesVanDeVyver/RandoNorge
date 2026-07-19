@@ -14,6 +14,8 @@
 .sectionHeader {
   display: flex;
   align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   padding: 0 4px;
 }
 
@@ -27,6 +29,49 @@
   column-gap: 28px;
   row-gap: 0;
   align-items: start;
+}
+
+/* Segmented control switching the elevation chart's vertical scale between
+   true 1:1 steepness and a fixed fit-to-view height. */
+.aspectToggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: flex-end;
+  padding: 2px;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+}
+
+.aspectToggleBtn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--text-2);
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.aspectToggleBtn:hover {
+  color: var(--text-1);
+}
+
+.aspectToggleBtnActive {
+  background: #ffffff;
+  color: var(--text-1);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.aspectToggleBtnActive:hover {
+  color: var(--text-1);
 }
 
 .stat {

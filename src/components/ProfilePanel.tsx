@@ -292,6 +292,11 @@ const X_AXIS_H = 22;
 // distance axis at the bottom).
 const TIME_AXIS_H = 18;
 const PLOT_CHROME_W = Y_AXIS_W + M_RIGHT + M_LEFT; // yAxis + right margin + left margin
+// Plot-area height (px) used in "Fit to view" mode: the chart keeps a fixed
+// height and the elevation range is stretched to fill it, so the curve's
+// visual slope no longer reflects real terrain steepness. Matches the
+// panel's default chart height from the stylesheet.
+const FIT_PLOT_H = 180;
 
 // "Nice" clock-time tick intervals for the time axis, minutes.
 const TIME_TICK_STEPS_MIN = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360];
@@ -359,6 +364,13 @@ export function ElevationPanel({
   const mTop = hasTimeAxis ? M_TOP + TIME_AXIS_H : M_TOP;
   // Top margin + bottom margin + xAxis band.
   const plotChromeH = mTop + M_BOTTOM + X_AXIS_H;
+  // Vertical scaling mode for the elevation chart.
+  //  - 'true'  : true scale — 1 m vertical equals 1 m horizontal on screen,
+  //              so a 45° terrain slope renders as a 45° line. Chart height
+  //              grows/shrinks with terrain relief.
+  //  - 'fit'   : fit to view — fixed chart height, elevation range stretched
+  //              vertically to fill it (exaggerates slope, but never tall).
+  const [aspectMode, setAspectMode] = useState<'true' | 'fit'>('true');
   // Live pixel size of the elevation chart container, used to size
   // the chart's height at true 1:1 metres-per-pixel so the curve's
   // visual slope reflects real terrain steepness.
@@ -410,11 +422,17 @@ export function ElevationPanel({
     }
     return t;
   }, [profile]);
-  // Chart container height — sized so 1 m vertical equals 1 m horizontal
-  // on screen. A 45° terrain slope therefore renders as a 45° line.
-  // No min/max clamp: flat terrain produces a sliver (correctly flat),
-  // steep terrain produces a tall chart (correctly steep).
+  // Chart container height.
+  //  - 'true' mode: sized so 1 m vertical equals 1 m horizontal on screen.
+  //    A 45° terrain slope therefore renders as a 45° line. No min/max
+  //    clamp: flat terrain produces a sliver (correctly flat), steep
+  //    terrain produces a tall chart (correctly steep).
+  //  - 'fit' mode: a fixed plot height regardless of relief; the elevation
+  //    range is stretched vertically to fill it (Recharts' YAxis handles
+  //    the scaling, and the canvas overlay derives its geometry from this
+  //    same height, so the steepness line follows automatically).
   const elevChartHeight = useMemo(() => {
+    if (aspectMode === 'fit') return FIT_PLOT_H + plotChromeH;
     if (!profile || containerWidth <= 0 || yTicks.length < 2) {
       return plotChromeH;
     }
@@ -423,7 +441,7 @@ export function ElevationPanel({
     const domainSpan = yTicks[yTicks.length - 1] - yTicks[0];
     const plotH = (plotW * domainSpan) / dist;
     return plotH + plotChromeH;
-  }, [profile, containerWidth, yTicks, plotChromeH]);
+  }, [aspectMode, profile, containerWidth, yTicks, plotChromeH]);
   // Displayed y-axis ticks — adaptive to the rendered plot height. yTicks
   // (above) always defines the domain (and the canvas-overlay geometry),
   // but on flat routes the 1:1 plot is only a sliver tall, so five 11px
@@ -721,23 +739,26 @@ export function ElevationPanel({
       <div className={styles.body}>
         <div className={styles.sectionHeader}>
           {profile ? (
-            <div className={styles.stats}>
-              <Stat label="Distance" value={fmtKm(profile.stats.distance)} />
-              <Stat
-                label="Ascent ↗"
-                value={fmtElev(profile.stats.ascent)}
-                color="#000000"
-              />
-              <Stat
-                label="Descent ↘"
-                value={fmtElev(profile.stats.descent)}
-                color="#000000"
-              />
-              <Stat
-                label="Min / Max"
-                value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
-              />
-            </div>
+            <>
+              <div className={styles.stats}>
+                <Stat label="Distance" value={fmtKm(profile.stats.distance)} />
+                <Stat
+                  label="Ascent ↗"
+                  value={fmtElev(profile.stats.ascent)}
+                  color="#000000"
+                />
+                <Stat
+                  label="Descent ↘"
+                  value={fmtElev(profile.stats.descent)}
+                  color="#000000"
+                />
+                <Stat
+                  label="Min / Max"
+                  value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
+                />
+              </div>
+              <AspectToggle mode={aspectMode} onChange={setAspectMode} />
+            </>
           ) : (
             <span className={styles.statusText}>
               {loading ? 'Loading elevations…' : error ? `Error: ${error}` : ''}
@@ -1165,6 +1186,48 @@ export function SnowPanel({
           note={retrievedNote(snow?.fetchedAt)}
         />
       </div>
+    </div>
+  );
+}
+
+// Segmented control toggling the elevation chart's vertical scaling.
+// "True scale" keeps 1:1 metres-per-pixel (real terrain steepness);
+// "Fit to view" pins a fixed height and stretches the relief to fill it.
+function AspectToggle({
+  mode,
+  onChange,
+}: {
+  mode: 'true' | 'fit';
+  onChange: (m: 'true' | 'fit') => void;
+}) {
+  return (
+    <div
+      className={styles.aspectToggle}
+      role="group"
+      aria-label="Elevation vertical scale"
+    >
+      <button
+        type="button"
+        className={`${styles.aspectToggleBtn} ${
+          mode === 'true' ? styles.aspectToggleBtnActive : ''
+        }`}
+        aria-pressed={mode === 'true'}
+        title="Show terrain at true scale — a 45° slope looks like 45°."
+        onClick={() => onChange('true')}
+      >
+        True scale
+      </button>
+      <button
+        type="button"
+        className={`${styles.aspectToggleBtn} ${
+          mode === 'fit' ? styles.aspectToggleBtnActive : ''
+        }`}
+        aria-pressed={mode === 'fit'}
+        title="Fit the profile to a fixed height (vertical scale exaggerated)."
+        onClick={() => onChange('fit')}
+      >
+        Fit to view
+      </button>
     </div>
   );
 }
