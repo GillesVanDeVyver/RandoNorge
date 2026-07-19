@@ -8,7 +8,12 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { ChevronDownIcon, MountainIcon } from './icons';
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MountainIcon,
+} from './icons';
 import styles from './SummaryPanel.module.css';
 
 interface Props {
@@ -196,7 +201,45 @@ export function SummaryPanel({ children, action, sheet = false, peek }: Props) {
         ))}
         {action && <div className={styles.tabsAction}>{action}</div>}
       </nav>
-      <div className={styles.scroll} ref={scrollRef}>
+      <div className={styles.slider}>
+        {/* Small screens: paging arrows replace the swipe gesture. The title
+            is lifted up here next to them so the whole row stays fixed — the
+            arrows sit inline to the right of the chart title and never overlap
+            the chart, while only the cards slide underneath. Hidden on
+            desktop, where the tab bar drives navigation and each section
+            carries its own heading. */}
+        {sheet && (
+          <div className={styles.pagerBar}>
+            <h2 className={styles.pagerTitle}>{cards[active]?.props.title}</h2>
+            {cards.length > 1 && (
+              <div
+                className={styles.pager}
+                role="group"
+                aria-label="Change chart"
+              >
+                <button
+                  type="button"
+                  className={styles.pagerBtn}
+                  onClick={() => goTo(active - 1)}
+                  disabled={active === 0}
+                  aria-label="Previous chart"
+                >
+                  <ChevronLeftIcon />
+                </button>
+                <button
+                  type="button"
+                  className={styles.pagerBtn}
+                  onClick={() => goTo(active + 1)}
+                  disabled={active === cards.length - 1}
+                  aria-label="Next chart"
+                >
+                  <ChevronRightIcon />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        <div className={styles.scroll} ref={scrollRef}>
         {cards.map((card, i) => (
           <section
             key={i}
@@ -220,6 +263,7 @@ export function SummaryPanel({ children, action, sheet = false, peek }: Props) {
             </div>
           </section>
         ))}
+        </div>
       </div>
     </aside>
   );

@@ -291,6 +291,87 @@
   color: var(--text-1);
 }
 
+/* Wrapper holding the fixed title/arrows bar plus the scroll strip in a
+   column, so the bar stays put while the cards slide beneath it. Fills the
+   remaining panel height like .scroll used to. */
+.slider {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fixed title + arrows row above the card strip on small screens (rendered
+   only in the mobile bottom sheet). It sits outside .scroll, so it holds its
+   place while the cards slide beneath — the arrows stay inline to the right
+   of the chart title and never overlap the chart. */
+.pagerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  flex: none;
+}
+
+.pagerTitle {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Small round chevron buttons that swap the visible chart (see the JSX). */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.pagerBtn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.pagerBtn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.pagerBtn:hover:not(:disabled) {
+  color: var(--text-1);
+  background: var(--surface-hover);
+}
+
+.pagerBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.pagerBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .headingAction {
   margin: 0 0 var(--space-4);
   display: flex;
@@ -355,7 +436,11 @@
 
   .scroll {
     flex-direction: row;
-    overflow-x: auto;
+    /* Swiping to change chart is disabled — the strip is now driven only by
+       the prev/next arrows in each section heading (goTo scrolls it
+       programmatically). `hidden` keeps it scriptable while blocking the
+       touch swipe gesture. */
+    overflow-x: hidden;
     overflow-y: hidden;
     scroll-snap-type: x mandatory;
     padding: var(--space-3) var(--space-4);
@@ -382,8 +467,9 @@
     display: none;
   }
 
+  /* The chart title is shown once in the fixed .pagerBar above the strip,
+     so the per-section heading is dropped here to avoid a duplicate. */
   .heading {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-base);
+    display: none;
   }
 }

@@ -474,4 +474,12 @@
   .brandName {
     display: none;
   }
+
+  /* On small screens, center the Fjellrute icon in the top middle
+     instead of letting it sit on the top right. */
+  .brand {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
 }
