@@ -5,6 +5,8 @@ import {
   MountainIcon,
   RouteIcon,
 } from './icons';
+import type { CSSProperties } from 'react';
+import { getSeason, OVERVIEW_PHOTOS } from '../theme/season';
 import styles from './AccountOverview.module.css';
 
 type Props = {
@@ -38,8 +40,15 @@ export function AccountOverview({
 }: Props) {
   const firstName = name.trim().split(/\s+/)[0] || name;
 
+  // Season-dependent background photo: follows the calendar, or the
+  // sticky "/summer"-style URL override (src/theme/season.ts).
+  const photo = OVERVIEW_PHOTOS[getSeason()];
+
   return (
-    <div className={styles.page}>
+    <div
+      className={styles.page}
+      style={{ '--season-photo': `url('${photo.src}')` } as CSSProperties}
+    >
       <div className={styles.scrim} aria-hidden="true" />
 
       <header className={styles.brand}>
@@ -136,15 +145,15 @@ export function AccountOverview({
         </div>
       </main>
 
-      {/* Photo licensed under the Pexels license (free for commercial
+      {/* Photos licensed under the Pexels license (free for commercial
           use, no attribution required): https://www.pexels.com/license/ */}
       <a
         className={styles.credit}
-        href="https://www.pexels.com/photo/landscape-photography-of-mountains-covered-in-snow-691668/"
+        href={photo.href}
         target="_blank"
         rel="noreferrer"
       >
-        Photo: eberhard grossgasteiger
+        Photo: {photo.credit}
       </a>
     </div>
   );

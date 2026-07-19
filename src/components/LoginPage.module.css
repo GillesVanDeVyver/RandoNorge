@@ -5,10 +5,11 @@
    of the chrome (tokens from index.css).
    ========================================================================= */
 
-/* Background photo: ski tourer skinning uphill, by Alois Lackner.
-   Source: https://www.pexels.com/photo/person-carrying-backpack-while-ski-touring-6575864/
-   License: Pexels license (free for commercial use, no attribution
-   required) — https://www.pexels.com/license/ */
+/* Background photo: season-dependent (see src/theme/season.ts) — the
+   component sets --season-photo inline; winter's ski tourer by Alois
+   Lackner is the fallback. All photos: Pexels license (free for
+   commercial use, no attribution required) —
+   https://www.pexels.com/license/ */
 .page {
   position: fixed;
   inset: 0;
@@ -16,7 +17,8 @@
   flex-direction: column;
   padding: clamp(20px, 3.5vw, 48px);
   background:
-    url('/login-backcountry.jpg') center / cover no-repeat,
+    var(--season-photo, url('/login-backcountry.jpg')) center / cover
+      no-repeat,
     #dfe7ee; /* fallback while the photo loads */
   overflow: auto;
 }

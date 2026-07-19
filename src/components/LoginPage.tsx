@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { CSSProperties, FormEvent } from 'react';
 import { authClient } from '../auth/client';
 import { checkPassword, MIN_PASSWORD_LENGTH } from '../auth/passwordPolicy';
 import {
@@ -9,6 +9,7 @@ import {
   SnowflakeIcon,
 } from './icons';
 import { TermsPage } from './TermsPage';
+import { getSeason, LOGIN_PHOTOS } from '../theme/season';
 import styles from './LoginPage.module.css';
 
 type Props = {
@@ -445,8 +446,15 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     );
   }
 
+  // Season-dependent background photo: follows the calendar, or the
+  // sticky "/summer"-style URL override (src/theme/season.ts).
+  const photo = LOGIN_PHOTOS[getSeason()];
+
   return (
-    <div className={styles.page}>
+    <div
+      className={styles.page}
+      style={{ '--season-photo': `url('${photo.src}')` } as CSSProperties}
+    >
       {/* Decorative background is on .page via CSS; scrim improves contrast. */}
       <div className={styles.scrim} aria-hidden="true" />
 
@@ -799,15 +807,15 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         </div>
       </div>
 
-      {/* Photo licensed under the Pexels license (free for commercial
+      {/* Photos licensed under the Pexels license (free for commercial
           use, no attribution required): https://www.pexels.com/license/ */}
       <a
         className={styles.credit}
-        href="https://www.pexels.com/photo/person-carrying-backpack-while-ski-touring-6575864/"
+        href={photo.href}
         target="_blank"
         rel="noreferrer"
       >
-        Photo: Alois Lackner
+        Photo: {photo.credit}
       </a>
     </div>
   );

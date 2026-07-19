@@ -10,7 +10,13 @@ import '@fontsource/inter/500.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/inter/700.css'
 import './index.css'
+import { consumeSeasonPathOverride } from './theme/season.ts'
 import { Root } from './Root.tsx'
+
+// Seasonal theme override via the URL ("/summer", "/winter/planner", …):
+// remember it for this browser session and strip the segment from the URL.
+// Must happen before <Root/> reads window.location for its routing.
+consumeSeasonPathOverride()
 
 // Dev-only GPS movement simulator: run `npm run dev` and open the app with
 // `?simulate` in the URL (e.g. http://localhost:5173/?simulate). Excluded

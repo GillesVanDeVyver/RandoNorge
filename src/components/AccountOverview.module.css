@@ -15,15 +15,17 @@
 
 /* Fixed backdrop layer — pinned to the viewport so the photo always fills
    the screen even if the page content scrolls beyond one screenful.
-   Snowy peaks rising out of fog — deliberately a different photo from
-   the login page so the signed-in hub reads as its own place. */
+   The photo is season-dependent (see src/theme/season.ts) — the component
+   sets --season-photo inline; winter's snowy peaks rising out of fog is
+   the fallback. Deliberately a different photo from the login page so
+   the signed-in hub reads as its own place. */
 .page::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   background:
-    url('/overview-peaks.jpg') center / cover no-repeat,
+    var(--season-photo, url('/overview-peaks.jpg')) center / cover no-repeat,
     #dfe7ee; /* fallback while the photo loads */
 }
 
