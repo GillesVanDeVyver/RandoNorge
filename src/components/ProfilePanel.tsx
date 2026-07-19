@@ -370,7 +370,7 @@ export function ElevationPanel({
   //              grows/shrinks with terrain relief.
   //  - 'fit'   : fit to view — fixed chart height, elevation range stretched
   //              vertically to fill it (exaggerates slope, but never tall).
-  const [aspectMode, setAspectMode] = useState<'true' | 'fit'>('true');
+  const [aspectMode, setAspectMode] = useState<'true' | 'fit'>('fit');
   // Live pixel size of the elevation chart container, used to size
   // the chart's height at true 1:1 metres-per-pixel so the curve's
   // visual slope reflects real terrain steepness.
