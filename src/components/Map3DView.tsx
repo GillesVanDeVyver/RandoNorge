@@ -16,6 +16,7 @@ import {
   SnowflakeIcon,
 } from './icons';
 import { searchPlace } from '../search/geocode';
+import { Map3DCursorReadout } from './Map3DCursorReadout';
 import styles from './Map3DView.module.css';
 
 // Same Kartverket topo tiles as the 2D map — draped over the terrain mesh.
@@ -124,6 +125,10 @@ export function Map3DView({
   const containerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // Map instance mirrored into state (in addition to the ref) so the cursor
+  // readout — which binds its own hover handlers — can re-bind once the map
+  // exists and tear down when it is removed.
+  const [glMap, setGlMap] = useState<maplibregl.Map | null>(null);
   // Current map bearing, mirrored into state so the compass needle can
   // counter-rotate and keep pointing at true north as the view turns.
   const [bearing, setBearing] = useState(0);
@@ -256,6 +261,7 @@ export function Map3DView({
     });
 
     mapRef.current = map;
+    setGlMap(map);
 
     // Map tools live in a custom glass panel (top-right, below the overlay
     // toggle) rendered in JSX so they match the 2D map's controls exactly,
@@ -537,6 +543,7 @@ export function Map3DView({
     return () => {
       cancelLiveUpdate();
       mapRef.current = null;
+      setGlMap(null);
       map.remove();
     };
     // Built once on mount: route/snow/overlay/mode are synced by the effects
@@ -738,6 +745,15 @@ export function Map3DView({
   return (
     <div ref={rootRef} className={styles.root}>
       <div ref={containerRef} className={styles.map} />
+      {/* Terrain values under the cursor for the active overlay, sampled the
+          same way as the 2D map. Hidden while drawing/erasing so it doesn't
+          chase the pen. */}
+      <Map3DCursorReadout
+        map={glMap}
+        overlay={overlay}
+        snowDate={snowDate}
+        disabled={mode !== 'idle'}
+      />
       <div className={styles.controls}>
         <div style={{ position: 'relative' }}>
           <button
