@@ -3,6 +3,7 @@ import L from 'leaflet';
 import { useMap } from 'react-leaflet';
 import type { Overlay, Route } from '../types';
 import {
+  DownloadIcon,
   FullscreenIcon,
   LayersIcon,
   LocateIcon,
@@ -22,9 +23,19 @@ interface Props {
   overlay: Overlay;
   onOverlayChange: (overlay: Overlay) => void;
   route: Route;
+  /** Whether the offline-maps panel is open. */
+  offlineOpen: boolean;
+  /** Toggle the offline-maps panel. */
+  onToggleOffline: () => void;
 }
 
-export function MapControls({ overlay, onOverlayChange, route }: Props) {
+export function MapControls({
+  overlay,
+  onOverlayChange,
+  route,
+  offlineOpen,
+  onToggleOffline,
+}: Props) {
   const map = useMap();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -220,6 +231,16 @@ export function MapControls({ overlay, onOverlayChange, route }: Props) {
             </form>
           )}
         </div>
+        <button
+          type="button"
+          className={`${styles.btn} ${offlineOpen ? styles.active : ''}`}
+          onClick={onToggleOffline}
+          title="Offline maps"
+          aria-label="Offline maps"
+          aria-pressed={offlineOpen}
+        >
+          <DownloadIcon />
+        </button>
         <div className={styles.divider} />
         {!isMobile && (
           <button

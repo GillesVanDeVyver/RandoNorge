@@ -25,6 +25,14 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('simulate'))
   import('./dev/gpsSimulator')
 }
 
+// Dev-only offline-maps tester: open the app with `?offline` (e.g.
+// http://localhost:5173/?offline) for a panel + Shift+O shortcut that simulates
+// being out of coverage — only downloaded tiles render, so offline maps can be
+// verified without a service worker or DevTools network throttling.
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('offline')) {
+  import('./dev/offlineSimulator')
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Root />

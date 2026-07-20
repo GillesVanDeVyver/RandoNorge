@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { MapContainer, TileLayer, WMSTileLayer, useMap } from 'react-leaflet';
+import { MapContainer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { LatLng, Mode, Overlay, Route } from '../types';
 import type { RouteProgress } from '../tracking/useRouteProgress';
@@ -9,6 +9,8 @@ import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
 import { MapControls } from './MapControls';
 import { NavigationLayer } from './NavigationLayer';
+import { OfflineManager } from './OfflineManager';
+import { OfflineTileLayerComponent } from '../offline/OfflineTileLayerComponent';
 import styles from './Map.module.css';
 
 // Leaflet caches the container size and only re-measures on its own resize
@@ -97,6 +99,10 @@ export function Map({
   progress = null,
   fitTo,
 }: Props) {
+  // Offline-maps panel: lets the user select a rectangle and download its
+  // tiles into IndexedDB so the map keeps working with no connectivity.
+  const [offlineOpen, setOfflineOpen] = useState(false);
+
   return (
     <MapContainer
       center={INITIAL_CENTER}
@@ -119,52 +125,35 @@ export function Map({
       preferCanvas
       className={styles.map}
     >
-      <TileLayer
-        url="https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png"
+      <OfflineTileLayerComponent
+        layerId="topo"
+        maxNativeZoom={16}
         // Credits (Kartverket, MET, NVE/Varsom, and the active overlay's
         // source) live in <MapAttribution/> — keep it in sync when layers
         // change.
         className={overlay === 'snowdepth' ? styles.grayscaleBase : undefined}
       />
       {overlay === 'steepness' && (
-        <TileLayer
-          url="https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}"
+        <OfflineTileLayerComponent
+          layerId="steepness"
           opacity={0.6}
           maxNativeZoom={16}
         />
       )}
       {overlay === 'snowdepth' && (
-        <WMSTileLayer
-          // Re-mount the layer when the date changes so the TIME query param
-          // is refreshed and stale tiles don't linger.
-          key={snowDate}
-          url="https://kart.nve.no/enterprise/services/seNorgeGrid_png/ImageServer/WMSServer"
-          layers="sd"
-          format="image/png"
-          transparent
-          version="1.1.1"
+        <OfflineTileLayerComponent
+          layerId="snowdepth"
+          // Snow depth is date-specific; the offline layer rebuilds each tile's
+          // TIME query and cache key from this date and redraws on change.
+          snowDate={snowDate}
           opacity={0.75}
-          // The seNorge ImageServer has no tile cache and renders each WMS
-          // request on the fly, so we tune Leaflet to make as few requests
-          // as possible:
-          //  - tileSize 512 + zoomOffset -1 → 4× fewer tiles per viewport
-          //    while keeping the same effective resolution.
-          //  - maxNativeZoom 9: seNorge is a 1 km grid; beyond zoom 9 the
-          //    raster is already oversampled, so we let Leaflet upscale
-          //    on the client instead of asking the server for more detail.
-          //  - updateWhenIdle: don't fire requests during panning.
-          //  - keepBuffer: hold on to a wider buffer of off-screen tiles
-          //    so they're already there when the user pans back.
-          tileSize={512}
-          zoomOffset={-1}
+          // seNorge is a 1 km grid — beyond zoom 9 the raster is oversampled,
+          // so we cap native requests there and let the client upsample.
           maxNativeZoom={9}
+          // Don't fire the un-cached WMS requests mid-pan, and hold a wider
+          // off-screen buffer so panning back is instant.
           updateWhenIdle
           keepBuffer={4}
-          crossOrigin
-          // `time` is a non-standard WMS dimension param accepted by the
-          // ArcGIS endpoint; cast because Leaflet's WMSParams type only
-          // models the standard set.
-          params={{ layers: 'sd', time: snowDate } as L.WMSParams}
         />
       )}
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
@@ -191,7 +180,15 @@ export function Map({
         overlay={overlay}
         onOverlayChange={onOverlayChange}
         route={route}
+        offlineOpen={offlineOpen}
+        onToggleOffline={() => setOfflineOpen((v) => !v)}
       />
+      {offlineOpen && (
+        <OfflineManager
+          onClose={() => setOfflineOpen(false)}
+          snowDate={snowDate}
+        />
+      )}
       <InvalidateOnResize />
       <FitToRoute route={fitTo ?? route} />
     </MapContainer>

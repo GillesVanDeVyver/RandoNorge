@@ -1,0 +1,58 @@
+/* Full-map layer that only intercepts pointer events on the box itself, so the
+   rest of the map stays pannable while the selector is open. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+}
+
+.box {
+  position: absolute;
+  pointer-events: auto;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 2px;
+  cursor: move;
+  box-shadow:
+    0 0 0 100vmax color-mix(in srgb, #0b1018 42%, transparent),
+    var(--shadow-2);
+  touch-action: none;
+}
+
+.handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: var(--surface-1);
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  box-shadow: var(--shadow-1);
+  touch-action: none;
+}
+
+/* Corners */
+.nw { left: -9px; top: -9px; cursor: nwse-resize; }
+.ne { right: -9px; top: -9px; cursor: nesw-resize; }
+.sw { left: -9px; bottom: -9px; cursor: nesw-resize; }
+.se { right: -9px; bottom: -9px; cursor: nwse-resize; }
+
+/* Edge midpoints */
+.n { left: calc(50% - 8px); top: -9px; cursor: ns-resize; }
+.s { left: calc(50% - 8px); bottom: -9px; cursor: ns-resize; }
+.w { left: -9px; top: calc(50% - 8px); cursor: ew-resize; }
+.e { right: -9px; top: calc(50% - 8px); cursor: ew-resize; }
+
+@media (pointer: coarse) {
+  .handle {
+    width: 22px;
+    height: 22px;
+  }
+  .nw, .sw, .w { left: -12px; }
+  .ne, .se, .e { right: -12px; }
+  .nw, .ne, .n { top: -12px; }
+  .sw, .se, .s { bottom: -12px; }
+  .n, .s { left: calc(50% - 11px); }
+  .w, .e { top: calc(50% - 11px); }
+}
