@@ -153,16 +153,19 @@ function useThrottledTrack(track: Route, status: TrackingStatus): Route {
 }
 
 /**
- * A route opened with a frozen forecast shows this note above the data panels:
+ * A route opened with a frozen forecast shows this note above each data panel:
  * the snow/avalanche/weather were captured when the route was saved (so a
  * shared link shows everyone the same numbers), not fetched just now. "Refresh"
- * drops the snapshot and fetches live from the APIs for the shown dates.
+ * drops the snapshot and fetches live from the APIs for the shown dates. Each
+ * chart gets its own note naming just that chart's forecast (`kind`).
  */
 function ForecastSnapshotBanner({
   createdAt,
+  kind,
   onRefresh,
 }: {
   createdAt: number;
+  kind: 'Snow' | 'Avalanche' | 'Weather';
   onRefresh: () => void;
 }) {
   const when = new Date(createdAt).toLocaleDateString([], {
@@ -188,8 +191,8 @@ function ForecastSnapshotBanner({
       }}
     >
       <span style={{ flex: 1 }}>
-        Showing saved forecast from {when}. Snow, avalanche and weather may have
-        changed since.
+        Showing forecast from the time the trip was planned, {when}. {kind}{' '}
+        forecast may have changed since
       </span>
       <button
         type="button"
@@ -335,8 +338,9 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   // Frozen snow/avalanche/weather captured when this route was saved. Present
   // when reopening a saved route or viewing a shared one; the panels then
   // render the owner's exact data (and their chosen dates) instead of fetching
-  // live. `forecastRefreshed` (the "Refresh" banner button, or any edit that
-  // invalidates the frozen data) drops the snapshot so everything goes live.
+  // live. `refreshedParts` tracks which frozen pieces the viewer has dropped
+  // to go live — each chart's "Refresh" button drops only its own piece, while
+  // an edit that invalidates the geometry drops all three at once.
   const loadedSnapshot = useMemo(
     () =>
       review
@@ -344,8 +348,36 @@ function App({ saving, review: reviewProp, publicView }: Props) {
         : (publicRoute?.forecast ?? saving?.initial?.forecast ?? null),
     [review, publicRoute, saving],
   );
-  const [forecastRefreshed, setForecastRefreshed] = useState(false);
-  const activeSnapshot = forecastRefreshed ? null : loadedSnapshot;
+  const [refreshedParts, setRefreshedParts] = useState({
+    snow: false,
+    avalanche: false,
+    weather: false,
+  });
+  // Drop one frozen piece (a chart's Refresh) or, with no argument, all of
+  // them (a geometry edit that invalidates every frozen source).
+  const refreshForecast = useCallback(
+    (part?: 'snow' | 'avalanche' | 'weather') => {
+      setRefreshedParts((prev) =>
+        part
+          ? { ...prev, [part]: true }
+          : { snow: true, avalanche: true, weather: true },
+      );
+    },
+    [],
+  );
+  // The frozen data still in force: the loaded snapshot with any refreshed
+  // piece masked to null so that piece falls through to a live fetch. A piece
+  // that's null keeps its chart's banner hidden and its panel live.
+  const activeSnapshot = useMemo(
+    () =>
+      loadedSnapshot && {
+        ...loadedSnapshot,
+        snow: refreshedParts.snow ? null : loadedSnapshot.snow,
+        avalanche: refreshedParts.avalanche ? null : loadedSnapshot.avalanche,
+        weather: refreshedParts.weather ? null : loadedSnapshot.weather,
+      },
+    [loadedSnapshot, refreshedParts],
+  );
   // Panels publish their live date/anchor selections here so a save can freeze
   // exactly what the owner is looking at.
   const forecastCapture = useRef<ForecastSelections>({
@@ -582,13 +614,17 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   // can pan/zoom while the worker is busy. Erase strokes also flow through
   // onRouteChange, so leave erase mode alone: erase commits on every
   // mouseup and we don't want to kick the user out mid-edit.
-  const handleRouteChange = useCallback((next: Route) => {
-    setRoute(next);
-    setMode((m) => (m === 'draw' ? 'idle' : m));
-    // Editing the line invalidates any frozen snapshot (its snow depths are
-    // keyed to the old geometry), so fall back to live data.
-    setForecastRefreshed(true);
-  }, []);
+  const handleRouteChange = useCallback(
+    (next: Route) => {
+      setRoute(next);
+      setMode((m) => (m === 'draw' ? 'idle' : m));
+      // Editing the line invalidates every frozen source (snow depths,
+      // avalanche points and weather anchors are all keyed to the old
+      // geometry), so drop the whole snapshot and fall back to live data.
+      refreshForecast();
+    },
+    [refreshForecast],
+  );
 
   // Block transitions into draw mode while loading. Direct setMode calls
   // from the toolbar are already gated by a disabled button, but the
@@ -1189,13 +1225,15 @@ function App({ saving, review: reviewProp, publicView }: Props) {
           )}
           {!showActualStats && (
             <SummaryCard title="Snow">
-              {/* The frozen-forecast notice sits atop the first data section
-                  (Snow) — it can't be a direct child of SummaryPanel, which
-                  introspects its children as tab/section descriptors. */}
-              {activeSnapshot && (
+              {/* The frozen-forecast notice sits atop each data section — it
+                  can't be a direct child of SummaryPanel, which introspects
+                  its children as tab/section descriptors. Each banner shows
+                  only while its own piece is still frozen. */}
+              {activeSnapshot?.snow && (
                 <ForecastSnapshotBanner
                   createdAt={activeSnapshot.createdAt}
-                  onRefresh={() => setForecastRefreshed(true)}
+                  kind="Snow"
+                  onRefresh={() => refreshForecast('snow')}
                 />
               )}
               <SnowPanel
@@ -1211,11 +1249,25 @@ function App({ saving, review: reviewProp, publicView }: Props) {
           )}
           {!showActualStats && elevation.profile && (
             <SummaryCard title="Avalanche warnings">
+              {activeSnapshot?.avalanche && (
+                <ForecastSnapshotBanner
+                  createdAt={activeSnapshot.createdAt}
+                  kind="Avalanche"
+                  onRefresh={() => refreshForecast('avalanche')}
+                />
+              )}
               <AvalancheRisk profile={elevation.profile} />
             </SummaryCard>
           )}
           {!showActualStats && elevation.profile && (
             <SummaryCard title="Weather forecast" padded={false}>
+              {activeSnapshot?.weather && (
+                <ForecastSnapshotBanner
+                  createdAt={activeSnapshot.createdAt}
+                  kind="Weather"
+                  onRefresh={() => refreshForecast('weather')}
+                />
+              )}
               <WeatherPanel profile={elevation.profile} />
             </SummaryCard>
           )}
