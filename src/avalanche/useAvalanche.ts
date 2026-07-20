@@ -29,8 +29,11 @@ const MAX_SAMPLES = 8;
 
 // Evenly spaced sample points across the whole route (all segments flattened),
 // quantized to ~100 m so adjacent samples in the same area collapse to one
-// network lookup.
-function samplePoints(profile: ProfileData): { lat: number; lng: number }[] {
+// network lookup. Exported so a saved-route snapshot can probe the exact same
+// points and freeze identical data (see forecast/snapshot.ts).
+export function samplePoints(
+  profile: ProfileData,
+): { lat: number; lng: number }[] {
   const flat: { lat: number; lng: number }[] = [];
   for (const seg of profile.segments) {
     for (const p of seg) flat.push({ lat: p.lat, lng: p.lng });
@@ -50,11 +53,42 @@ function samplePoints(profile: ProfileData): { lat: number; lng: number }[] {
   return picked;
 }
 
+/** Collapse per-point Varsom results into the distinct assessed regions the
+ *  route crosses (highest danger first) and the worst level among them. Shared
+ *  by the live hook and the snapshot builder so both aggregate identically. */
+export function aggregateWarnings(results: (AvalancheWarning | null)[]): {
+  level: number;
+  regions: AvalancheWarning[];
+  fetchedAt: number | null;
+} {
+  const byRegion = new Map<number, AvalancheWarning>();
+  for (const w of results) {
+    if (!w || w.dangerLevel <= 0) continue;
+    const prev = byRegion.get(w.regionId);
+    if (!prev || w.dangerLevel > prev.dangerLevel) byRegion.set(w.regionId, w);
+  }
+  const regions = [...byRegion.values()].sort(
+    (a, b) => b.dangerLevel - a.dangerLevel,
+  );
+  const level = regions.reduce((m, r) => Math.max(m, r.dangerLevel), 0);
+  const fetchedAt = regions.length
+    ? regions.reduce((m, r) => Math.min(m, r.fetchedAt), Infinity)
+    : Date.now();
+  return { level, regions, fetchedAt };
+}
+
 // Resolve the avalanche danger on `date` (YYYY-MM-DD) for every forecast
 // region the route passes through and surface the worst (highest) level.
+//
+// `frozen` short-circuits the network entirely: when a saved/shared route is
+// opened it carries the data captured at save time, so the panel renders the
+// owner's exact numbers. It only applies while the viewer stays on the frozen
+// date — switching days (or hitting Refresh, which passes null) falls through
+// to a live fetch.
 export function useAvalanche(
   profile: ProfileData | null,
   date: string,
+  frozen?: { level: number; regions: AvalancheWarning[]; fetchedAt: number | null } | null,
 ): AvalancheState {
   // useMemo keyed on the profile gives a stable `points` identity for the
   // effect below; the profile object itself is stable per route computation.
@@ -72,6 +106,19 @@ export function useAvalanche(
   });
 
   useEffect(() => {
+    // Frozen (saved/shared) data wins — render it without touching the network.
+    if (frozen) {
+      startTransition(() => {
+        setState({
+          level: frozen.level,
+          regions: frozen.regions,
+          loading: false,
+          error: null,
+          fetchedAt: frozen.fetchedAt,
+        });
+      });
+      return;
+    }
     if (points.length === 0) {
       startTransition(() => {
         setState({
@@ -96,21 +143,7 @@ export function useAvalanche(
     )
       .then((results) => {
         if (controller.signal.aborted) return;
-        // Dedupe by region, keeping the highest level reported for each.
-        const byRegion = new Map<number, AvalancheWarning>();
-        for (const w of results) {
-          if (!w || w.dangerLevel <= 0) continue;
-          const prev = byRegion.get(w.regionId);
-          if (!prev || w.dangerLevel > prev.dangerLevel) byRegion.set(w.regionId, w);
-        }
-        const regions = [...byRegion.values()].sort(
-          (a, b) => b.dangerLevel - a.dangerLevel,
-        );
-        const level = regions.reduce((m, r) => Math.max(m, r.dangerLevel), 0);
-        // Oldest retrieval among the shown warnings — conservative data age.
-        const fetchedAt = regions.length
-          ? regions.reduce((m, r) => Math.min(m, r.fetchedAt), Infinity)
-          : Date.now();
+        const { level, regions, fetchedAt } = aggregateWarnings(results);
         startTransition(() => {
           setState({ level, regions, loading: false, error: null, fetchedAt });
         });
@@ -130,7 +163,18 @@ export function useAvalanche(
       });
 
     return () => controller.abort();
-  }, [points, date]);
+  }, [points, date, frozen]);
 
+  // Return the frozen data straight away so opening a saved route shows the
+  // captured numbers on the first paint (no loading flash before the effect).
+  if (frozen) {
+    return {
+      level: frozen.level,
+      regions: frozen.regions,
+      loading: false,
+      error: null,
+      fetchedAt: frozen.fetchedAt,
+    };
+  }
   return state;
 }

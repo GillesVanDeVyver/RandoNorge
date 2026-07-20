@@ -10,6 +10,7 @@
 import type { LatLng, Route, TrackTimes } from '../types';
 import type { SavedRoute } from '../routes/api';
 import type { SavedTrack } from '../tracking/api';
+import { parseSnapshot } from '../forecast/snapshot';
 
 /** Public identity of an account: never includes the email address. */
 export interface Owner {
@@ -48,6 +49,7 @@ interface PublicRouteRow {
   name: string;
   description: string | null;
   geometry: string;
+  forecast?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -66,6 +68,8 @@ function toSavedRoute(row: PublicRouteRow, slug: string): SavedRoute {
     descentM: num(props.descentM),
     isShared: true,
     shareSlug: slug,
+    // The frozen snapshot lets a public viewer see exactly what the owner saw.
+    forecast: parseSnapshot(row.forecast ?? null),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

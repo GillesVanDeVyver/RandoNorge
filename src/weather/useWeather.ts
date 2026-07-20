@@ -47,7 +47,16 @@ export function weatherCandidates(
 
 // Fetch a 10-day hourly forecast from MET Norway for a chosen route anchor
 // point. The point is selected by the caller (lowest / highest).
-export function useWeather(point: WeatherPoint | null): WeatherState {
+//
+// `frozen` short-circuits the network: a saved/shared route carries the forecast
+// captured at save time so every viewer sees identical data — and, crucially,
+// so the forecast survives at all once the tour date drops off MET's ~10-day
+// window (Locationforecast has no historical mode). Hitting Refresh passes null
+// to fetch a fresh live forecast instead.
+export function useWeather(
+  point: WeatherPoint | null,
+  frozen?: { hours: WeatherHour[]; fetchedAt: number } | null,
+): WeatherState {
   const [state, setState] = useState<WeatherState>({
     hours: null,
     loading: false,
@@ -61,6 +70,17 @@ export function useWeather(point: WeatherPoint | null): WeatherState {
   const lng = point?.lng;
 
   useEffect(() => {
+    if (frozen) {
+      startTransition(() => {
+        setState({
+          hours: frozen.hours,
+          loading: false,
+          error: null,
+          fetchedAt: frozen.fetchedAt,
+        });
+      });
+      return;
+    }
     if (lat == null || lng == null) {
       startTransition(() => {
         setState({ hours: null, loading: false, error: null, fetchedAt: null });
@@ -91,7 +111,16 @@ export function useWeather(point: WeatherPoint | null): WeatherState {
       });
 
     return () => controller.abort();
-  }, [lat, lng]);
+  }, [lat, lng, frozen]);
 
+  // Frozen data on the first paint (no loading flash) when a saved route opens.
+  if (frozen) {
+    return {
+      hours: frozen.hours,
+      loading: false,
+      error: null,
+      fetchedAt: frozen.fetchedAt,
+    };
+  }
   return state;
 }

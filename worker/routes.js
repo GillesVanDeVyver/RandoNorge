@@ -31,6 +31,11 @@ import { newShareSlug, toBool } from './share.js';
 const MAX_GEOMETRY_BYTES = 512 * 1024;
 const MAX_NAME_LENGTH = 120;
 const MAX_DESCRIPTION_LENGTH = 2000;
+// Frozen snow/avalanche/weather snapshot (see migration 0004). Both weather
+// anchors' full ~10-day hourly windows plus the avalanche regions comfortably
+// fit here; the cap keeps an abusive payload out of D1. Stored opaque — the
+// client owns the shape (src/forecast/snapshot.ts) and re-validates on read.
+const MAX_FORECAST_BYTES = 512 * 1024;
 
 export async function handleRoutesApi(request, env, url) {
   const session = await getAuth(env, url.origin).api.getSession({
@@ -71,13 +76,16 @@ function methodNotAllowed(allow) {
   );
 }
 
-/** Row → API shape. The geometry string is passed through untouched. */
+/** Row → API shape. The geometry and forecast strings pass through untouched. */
 function toApiRoute(row) {
   return {
     id: row.id,
     name: row.name,
     description: row.description ?? null,
     geometry: row.geometry,
+    // Frozen forecast snapshot (JSON string) or null for routes saved before
+    // the feature. The client parses and validates it.
+    forecast: row.forecast ?? null,
     isShared: Boolean(row.isShared),
     // Only surfaced while the route is shared; a stale slug isn't a secret
     // but there's no reason to expose it once the route is private again.
@@ -89,7 +97,7 @@ function toApiRoute(row) {
 
 async function listRoutes(env, userId) {
   const { results } = await env.DB.prepare(
-    'select id, name, description, geometry, "isShared", "shareSlug", ' +
+    'select id, name, description, geometry, "forecast", "isShared", "shareSlug", ' +
       '"createdAt", "updatedAt" ' +
       'from "route" where "userId" = ? order by "updatedAt" desc',
   )
@@ -100,7 +108,7 @@ async function listRoutes(env, userId) {
 
 async function getRoute(env, userId, id) {
   const row = await env.DB.prepare(
-    'select id, name, description, geometry, "isShared", "shareSlug", ' +
+    'select id, name, description, geometry, "forecast", "isShared", "shareSlug", ' +
       '"createdAt", "updatedAt" ' +
       'from "route" where id = ? and "userId" = ?',
   )
@@ -121,14 +129,16 @@ async function createRoute(request, env, userId) {
   if (description instanceof Response) return description;
   const geometry = validateGeometry(body.geometry);
   if (geometry instanceof Response) return geometry;
+  const forecast = validateForecast(body.forecast);
+  if (forecast instanceof Response) return forecast;
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await env.DB.prepare(
-    'insert into "route" (id, "userId", name, description, geometry, "createdAt", "updatedAt") ' +
-      'values (?, ?, ?, ?, ?, ?, ?)',
+    'insert into "route" (id, "userId", name, description, geometry, "forecast", "createdAt", "updatedAt") ' +
+      'values (?, ?, ?, ?, ?, ?, ?, ?)',
   )
-    .bind(id, userId, name, description, geometry, now, now)
+    .bind(id, userId, name, description, geometry, forecast, now, now)
     .run();
   return Response.json(
     {
@@ -136,6 +146,7 @@ async function createRoute(request, env, userId) {
       name,
       description,
       geometry,
+      forecast,
       isShared: false,
       shareSlug: null,
       createdAt: now,
@@ -170,6 +181,12 @@ async function updateRoute(request, env, userId, id) {
     if (geometry instanceof Response) return geometry;
     sets.push('geometry = ?');
     binds.push(geometry);
+  }
+  if (body.forecast !== undefined) {
+    const forecast = validateForecast(body.forecast);
+    if (forecast instanceof Response) return forecast;
+    sets.push('"forecast" = ?');
+    binds.push(forecast);
   }
   if (body.isShared !== undefined) {
     const isShared = toBool(body.isShared);
@@ -262,6 +279,32 @@ function validateDescription(description) {
     );
   }
   return trimmed || null;
+}
+
+/**
+ * Validates the frozen forecast snapshot. It is stored opaque (the client owns
+ * the shape and re-validates on read), so we only enforce that it is either
+ * null/absent or a JSON object within the size cap — never junk or an oversized
+ * blob. Returns the serialized JSON string, null, or a 400 Response.
+ */
+function validateForecast(forecast) {
+  const invalid = (msg) => Response.json({ error: msg }, { status: 400 });
+  if (forecast === undefined || forecast === null) return null;
+  let value = forecast;
+  if (typeof value === 'string') {
+    if (value.length > MAX_FORECAST_BYTES) return invalid('forecast too large');
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return invalid('forecast is not valid JSON');
+    }
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return invalid('forecast must be a JSON object');
+  }
+  const serialized = JSON.stringify(value);
+  if (serialized.length > MAX_FORECAST_BYTES) return invalid('forecast too large');
+  return serialized;
 }
 
 /**

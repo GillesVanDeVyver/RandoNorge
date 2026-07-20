@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import type { AvalancheWarning } from '../avalanche/api';
 import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
+import { ForecastContext } from '../forecast/snapshot';
 import { DatePopover } from './DatePopover';
 import { AvalancheProblems } from './AvalancheProblems';
 import styles from './AvalancheRisk.module.css';
@@ -95,14 +96,34 @@ function Legend() {
 
 export function AvalancheRisk({ profile }: Props) {
   const today = useMemo(() => todayLocalYMD(), []);
+  // Frozen snapshot (saved/shared route): open on the owner's chosen date and
+  // render the captured data for it. Switching to another day falls through to
+  // a live fetch (only the chosen date was frozen).
+  const forecastCtx = useContext(ForecastContext);
+  const avalancheSnap = forecastCtx?.snapshot?.avalanche ?? null;
+  const initialDate = avalancheSnap?.date ?? today;
   // `anchor` is the day chosen in the date tool and centres the quick-select
   // window; `selected` is the day actually shown (one of the window chips).
-  const [anchor, setAnchor] = useState(today);
-  const [selected, setSelected] = useState(today);
+  const [anchor, setAnchor] = useState(initialDate);
+  const [selected, setSelected] = useState(initialDate);
+  const frozen =
+    avalancheSnap && avalancheSnap.date === selected
+      ? {
+          level: avalancheSnap.level,
+          regions: avalancheSnap.regions,
+          fetchedAt: avalancheSnap.fetchedAt,
+        }
+      : null;
   const { level, regions, loading, error, fetchedAt } = useAvalanche(
     profile,
     selected,
+    frozen,
   );
+
+  // Publish the shown date so a save captures the owner's avalanche selection.
+  useEffect(() => {
+    forecastCtx?.publish({ avalancheDate: selected });
+  }, [forecastCtx, selected]);
 
   const windowDays = useMemo(
     () => WINDOW_OFFSETS.map((off) => shiftYMD(anchor, off)),

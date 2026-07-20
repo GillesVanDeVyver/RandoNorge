@@ -1,0 +1,27 @@
+-- Migration 0004: frozen forecast snapshot on saved routes.
+--
+-- Snow, avalanche and weather data are fetched live from third-party services
+-- (seNorge, Varsom, MET Norway) while planning. But a *shared* route must show
+-- every viewer the same numbers, and the owner's chosen dates must survive even
+-- after the source drops the data:
+--
+--   * seNorge (snow) and Varsom (avalanche) are queryable by date, so a past
+--     date is reproducible — but re-fetching on every anonymous view would hit
+--     the third-party APIs (and MET's User-Agent / rate-limit rules) for each
+--     visitor.
+--   * MET Locationforecast (weather) has NO historical mode: it only serves the
+--     current ~10-day window. Once the tour date passes, the forecast the owner
+--     saw is simply gone and can never be re-fetched.
+--
+-- So when a route is saved we freeze the data actually shown — the fetched
+-- values plus the owner's selected dates and their retrieval timestamps — into
+-- this column as a JSON blob. Viewers (owner reopening, or anyone with the
+-- public link) render from the frozen copy and get byte-identical data, with a
+-- "not recent" banner offering a live refresh. "forecast" is nullable: routes
+-- saved before this feature, or saved with no computed profile, simply have no
+-- snapshot and fall back to live fetching.
+--
+-- Apply locally:  npx wrangler d1 migrations apply fjellrute-db --local
+-- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db --remote
+
+alter table "route" add column "forecast" text;

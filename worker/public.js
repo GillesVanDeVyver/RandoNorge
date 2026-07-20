@@ -50,7 +50,8 @@ const publicJson = (data) =>
 
 async function getPublicRoute(env, slug) {
   const row = await env.DB.prepare(
-    'select r.name, r.description, r.geometry, r."createdAt", r."updatedAt", ' +
+    'select r.name, r.description, r.geometry, r."forecast", ' +
+      'r."createdAt", r."updatedAt", ' +
       'u.name as "ownerName", u.username as "ownerUsername" ' +
       'from "route" r join "user" u on u.id = r."userId" ' +
       'where r."shareSlug" = ? and r."isShared" = 1',
@@ -62,6 +63,10 @@ async function getPublicRoute(env, slug) {
     name: row.name,
     description: row.description ?? null,
     geometry: row.geometry,
+    // The frozen snapshot is what lets every viewer of the link see the exact
+    // same snow/avalanche/weather data the owner saw — and preserves the
+    // weather forecast after it drops off MET's window.
+    forecast: row.forecast ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     owner: { name: row.ownerName, username: row.ownerUsername ?? null },

@@ -9,6 +9,7 @@
 // can render without re-running the elevation pipeline.
 
 import type { LatLng, Route } from '../types';
+import { parseSnapshot, type ForecastSnapshot } from '../forecast/snapshot';
 
 /** What the API stores in the `geometry` column. */
 interface RouteFeature {
@@ -42,6 +43,13 @@ export interface SavedRoute {
   isShared: boolean;
   /** The unguessable slug behind the public link, when shared (else null). */
   shareSlug: string | null;
+  /**
+   * Frozen snow/avalanche/weather data captured when the route was saved, so a
+   * reopened or shared route shows the exact same numbers (and preserves the
+   * weather forecast after it drops off MET's window). Null for routes saved
+   * before the feature or with no computed profile.
+   */
+  forecast: ForecastSnapshot | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -78,6 +86,7 @@ interface ApiRouteRow {
   name: string;
   description: string | null;
   geometry: string;
+  forecast?: string | null;
   isShared?: boolean;
   shareSlug?: string | null;
   createdAt: string;
@@ -109,6 +118,7 @@ function parseRow(row: ApiRouteRow): SavedRoute {
     descentM,
     isShared: row.isShared ?? false,
     shareSlug: row.shareSlug ?? null,
+    forecast: parseSnapshot(row.forecast ?? null),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -142,6 +152,8 @@ export async function createRoute(input: {
   description?: string;
   route: Route;
   stats: RouteStats | null;
+  /** Frozen forecast snapshot to store alongside the route (optional). */
+  forecast?: ForecastSnapshot | null;
 }): Promise<SavedRoute> {
   const row = await request<ApiRouteRow>('/api/routes', {
     method: 'POST',
@@ -149,6 +161,7 @@ export async function createRoute(input: {
       name: input.name,
       description: input.description,
       geometry: routeToFeature(input.route, input.stats),
+      forecast: input.forecast ?? null,
     }),
   });
   return parseRow(row);
@@ -161,6 +174,8 @@ export async function updateRoute(
     description?: string;
     route?: Route;
     stats?: RouteStats | null;
+    /** Frozen forecast snapshot to (re)store; null clears it. */
+    forecast?: ForecastSnapshot | null;
   },
 ): Promise<SavedRoute> {
   const body: Record<string, unknown> = {};
@@ -169,6 +184,7 @@ export async function updateRoute(
   if (input.route !== undefined) {
     body.geometry = routeToFeature(input.route, input.stats ?? null);
   }
+  if (input.forecast !== undefined) body.forecast = input.forecast;
   const row = await request<ApiRouteRow>(`/api/routes/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(body),

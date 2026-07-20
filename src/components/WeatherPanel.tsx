@@ -1,7 +1,15 @@
-import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  startTransition,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { ProfileData } from '../elevation/profile';
 import type { WeatherHour } from '../weather/api';
 import { useWeather, weatherCandidates } from '../weather/useWeather';
+import { ForecastContext } from '../forecast/snapshot';
 import { WeatherSymbol, WindArrowIcon } from './WeatherIcons';
 import { ChevronDownIcon } from './icons';
 import { SourceAttribution, NLOD } from './SourceAttribution';
@@ -72,9 +80,25 @@ function fmtPrecip(h: WeatherHour): string | null {
 
 export function WeatherPanel({ profile }: Props) {
   const candidates = useMemo(() => weatherCandidates(profile), [profile]);
-  const [locKey, setLocKey] = useState<LocationKey>('lowest');
+  // Frozen snapshot (saved/shared route) — render its data instead of fetching,
+  // and open on the anchor/day the owner had selected.
+  const forecastCtx = useContext(ForecastContext);
+  const weatherSnap = forecastCtx?.snapshot?.weather ?? null;
+  const [locKey, setLocKey] = useState<LocationKey>(
+    weatherSnap?.selectedLoc ?? 'lowest',
+  );
   const point = candidates ? candidates[locKey] : null;
-  const { hours, loading, error, fetchedAt } = useWeather(point);
+  const frozen = weatherSnap
+    ? locKey === 'lowest'
+      ? weatherSnap.lowest
+      : weatherSnap.highest
+    : null;
+  const { hours, loading, error, fetchedAt } = useWeather(point, frozen);
+
+  // Publish the current selection so a save can capture exactly what's shown.
+  useEffect(() => {
+    forecastCtx?.publish({ weatherLoc: locKey });
+  }, [forecastCtx, locKey]);
 
   const today = useMemo(() => toYMDLocal(new Date()), []);
   const grouped = useMemo(() => (hours ? groupByDay(hours) : null), [hours]);
@@ -83,7 +107,14 @@ export function WeatherPanel({ profile }: Props) {
     return [...grouped.keys()].sort();
   }, [grouped]);
 
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(
+    weatherSnap?.selectedDay ?? null,
+  );
+
+  // Keep the captured "selected day" in sync for snapshotting.
+  useEffect(() => {
+    forecastCtx?.publish({ weatherDay: selectedDay });
+  }, [forecastCtx, selectedDay]);
   useEffect(() => {
     if (!selectedDay && days.length > 0) {
       startTransition(() => {

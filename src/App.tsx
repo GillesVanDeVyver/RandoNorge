@@ -28,6 +28,11 @@ import {
 } from './components/icons';
 import { useElevation } from './elevation/useElevation';
 import { useSnow } from './snow/useSnow';
+import {
+  ForecastContext,
+  buildForecastSnapshot,
+  type ForecastSelections,
+} from './forecast/snapshot';
 import { segmentLength } from './geometry';
 import { createRoute, updateRoute, type SavedRoute } from './routes/api';
 import { createTrack, type SavedTrack } from './tracking/api';
@@ -145,6 +150,66 @@ function useThrottledTrack(track: Route, status: TrackingStatus): Route {
     return () => window.clearTimeout(id);
   }, [track, status]);
   return out;
+}
+
+/**
+ * A route opened with a frozen forecast shows this note above the data panels:
+ * the snow/avalanche/weather were captured when the route was saved (so a
+ * shared link shows everyone the same numbers), not fetched just now. "Refresh"
+ * drops the snapshot and fetches live from the APIs for the shown dates.
+ */
+function ForecastSnapshotBanner({
+  createdAt,
+  onRefresh,
+}: {
+  createdAt: number;
+  onRefresh: () => void;
+}) {
+  const when = new Date(createdAt).toLocaleDateString([], {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+  return (
+    <div
+      role="status"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        padding: '0.6rem 0.85rem',
+        marginBottom: '0.5rem',
+        borderRadius: 8,
+        background: '#fdf3d8',
+        border: '1px solid #e7cf94',
+        color: '#5c4813',
+        fontSize: '0.82rem',
+        lineHeight: 1.35,
+      }}
+    >
+      <span style={{ flex: 1 }}>
+        Showing saved forecast from {when}. Snow, avalanche and weather may have
+        changed since.
+      </span>
+      <button
+        type="button"
+        onClick={onRefresh}
+        style={{
+          flexShrink: 0,
+          padding: '0.35rem 0.7rem',
+          borderRadius: 6,
+          border: '1px solid #c9a94e',
+          background: '#fff',
+          color: '#5c4813',
+          fontSize: '0.8rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Refresh
+      </button>
+    </div>
+  );
 }
 
 interface Props {
@@ -267,7 +332,40 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   // Transient "Route saved" confirmation, mirroring the clear-undo toast.
   const [savedToast, setSavedToast] = useState(false);
   const savedToastTimer = useRef<number | null>(null);
-  const [snowDate, setSnowDate] = useState<string>(todayIso);
+  // Frozen snow/avalanche/weather captured when this route was saved. Present
+  // when reopening a saved route or viewing a shared one; the panels then
+  // render the owner's exact data (and their chosen dates) instead of fetching
+  // live. `forecastRefreshed` (the "Refresh" banner button, or any edit that
+  // invalidates the frozen data) drops the snapshot so everything goes live.
+  const loadedSnapshot = useMemo(
+    () =>
+      review
+        ? null
+        : (publicRoute?.forecast ?? saving?.initial?.forecast ?? null),
+    [review, publicRoute, saving],
+  );
+  const [forecastRefreshed, setForecastRefreshed] = useState(false);
+  const activeSnapshot = forecastRefreshed ? null : loadedSnapshot;
+  // Panels publish their live date/anchor selections here so a save can freeze
+  // exactly what the owner is looking at.
+  const forecastCapture = useRef<ForecastSelections>({
+    avalancheDate: null,
+    weatherDay: null,
+    weatherLoc: 'lowest',
+  });
+  const publishForecastSelection = useCallback(
+    (part: Partial<ForecastSelections>) => {
+      Object.assign(forecastCapture.current, part);
+    },
+    [],
+  );
+  const forecastCtxValue = useMemo(
+    () => ({ snapshot: activeSnapshot, publish: publishForecastSelection }),
+    [activeSnapshot, publishForecastSelection],
+  );
+  const [snowDate, setSnowDate] = useState<string>(
+    () => loadedSnapshot?.snow?.date ?? todayIso(),
+  );
   const [overlay, setOverlay] = useState<Overlay>('steepness');
   const [view, setView] = useState<ViewMode>('2d');
   const [termsOpen, setTermsOpen] = useState(false);
@@ -283,7 +381,13 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   // Hidden file picker behind the onboarding "import a GPS file" balloon.
   const hintImportInputRef = useRef<HTMLInputElement>(null);
   const elevation = useElevation(route);
-  const snow = useSnow(elevation.profile, snowDate);
+  // Frozen snow applies only while the shown date matches the captured one;
+  // changing the date falls through to a live lookup.
+  const frozenSnow =
+    activeSnapshot?.snow && activeSnapshot.snow.date === snowDate
+      ? activeSnapshot.snow
+      : null;
+  const snow = useSnow(elevation.profile, snowDate, frozenSnow);
   // While the elevation worker (and the follow-up snow lookup) is still
   // crunching, drawing must be locked out: re-running the pipeline on a
   // half-finished route is wasted work and was the source of the previous
@@ -481,6 +585,9 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   const handleRouteChange = useCallback((next: Route) => {
     setRoute(next);
     setMode((m) => (m === 'draw' ? 'idle' : m));
+    // Editing the line invalidates any frozen snapshot (its snow depths are
+    // keyed to the old geometry), so fall back to live data.
+    setForecastRefreshed(true);
   }, []);
 
   // Block transitions into draw mode while loading. Direct setMode calls
@@ -613,9 +720,31 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             descentM: elevation.profile.stats.descent,
           }
         : null;
+      // Freeze the snow/avalanche/weather data currently shown so every future
+      // viewer (owner or shared link) gets identical numbers — and the weather
+      // forecast survives after it drops off MET's window. Best-effort: a
+      // capture failure must never block saving the route itself.
+      let forecast = null;
+      if (elevation.profile) {
+        try {
+          forecast = await buildForecastSnapshot(
+            elevation.profile,
+            snowDate,
+            forecastCapture.current,
+          );
+        } catch {
+          forecast = null;
+        }
+      }
       const saved = savedMeta
-        ? await updateRoute(savedMeta.id, { name, description, route, stats })
-        : await createRoute({ name, description, route, stats });
+        ? await updateRoute(savedMeta.id, {
+            name,
+            description,
+            route,
+            stats,
+            forecast,
+          })
+        : await createRoute({ name, description, route, stats, forecast });
       setSavedMeta({
         id: saved.id,
         name: saved.name,
@@ -632,7 +761,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
         savedToastTimer.current = null;
       }, 4000);
     },
-    [saving, savedMeta, route, elevation.profile],
+    [saving, savedMeta, route, elevation.profile, snowDate],
   );
 
   // Auto-disable erase mode when the route becomes empty (e.g. after a clear
@@ -894,6 +1023,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
         )}
       </div>
       {(hasRoute || session) && (
+        <ForecastContext.Provider value={forecastCtxValue}>
         <SummaryPanel
           sheet={isMobile}
           peek={sheetPeek}
@@ -1059,6 +1189,15 @@ function App({ saving, review: reviewProp, publicView }: Props) {
           )}
           {!showActualStats && (
             <SummaryCard title="Snow">
+              {/* The frozen-forecast notice sits atop the first data section
+                  (Snow) — it can't be a direct child of SummaryPanel, which
+                  introspects its children as tab/section descriptors. */}
+              {activeSnapshot && (
+                <ForecastSnapshotBanner
+                  createdAt={activeSnapshot.createdAt}
+                  onRefresh={() => setForecastRefreshed(true)}
+                />
+              )}
               <SnowPanel
                 profile={elevation.profile}
                 snow={snow.snow}
@@ -1081,6 +1220,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             </SummaryCard>
           )}
         </SummaryPanel>
+        </ForecastContext.Provider>
       )}
       </div>
       {termsOpen && <TermsDialog onClose={() => setTermsOpen(false)} />}
