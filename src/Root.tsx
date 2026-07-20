@@ -7,6 +7,7 @@ import {
   RoutesListPage,
   type RouteListItem,
 } from './components/RoutesListPage.tsx';
+import { OfflineMapsPage } from './components/OfflineMapsPage.tsx';
 import { PublicView, type PublicNav } from './components/PublicView.tsx';
 import { getMyUsername } from './public/api.ts';
 import {
@@ -44,8 +45,15 @@ import { formatAscent, formatDate, formatDistance } from './routes/format.ts';
  *  - /saved      → saved routes list
  *  - /completed  → completed routes list
  *  - /completed/:id → one completed route's overview
+ *  - /offline    → downloaded offline maps (map + list)
  */
-type SignedInView = 'overview' | 'planner' | 'saved' | 'completed' | 'track';
+type SignedInView =
+  | 'overview'
+  | 'planner'
+  | 'saved'
+  | 'completed'
+  | 'track'
+  | 'offline';
 
 /** `routeId` doubles as the id of whatever the view opens: a saved route
  *  for `planner`, a recorded track for `track`. */
@@ -59,6 +67,8 @@ function navToPath({ view, routeId }: Nav): string {
       return '/saved';
     case 'completed':
       return '/completed';
+    case 'offline':
+      return '/offline';
     case 'track':
       return routeId
         ? `/completed/${encodeURIComponent(routeId)}`
@@ -76,6 +86,7 @@ function pathToNav(pathname: string): Nav {
   }
   if (pathname === '/saved') return { view: 'saved', routeId: null };
   if (pathname === '/completed') return { view: 'completed', routeId: null };
+  if (pathname === '/offline') return { view: 'offline', routeId: null };
   const trackOpened = pathname.match(/^\/completed\/([^/]+)\/?$/);
   if (trackOpened) {
     return { view: 'track', routeId: decodeURIComponent(trackOpened[1]) };
@@ -489,8 +500,12 @@ export function Root() {
             completedCount={completedItems.length}
             onOpenSavedRoutes={() => navigate('saved')}
             onOpenCompletedRoutes={() => navigate('completed')}
+            onOpenOfflineMaps={() => navigate('offline')}
             onPlanNewRoute={handlePlanNewRoute}
           />
+        )}
+        {view === 'offline' && (
+          <OfflineMapsPage onBack={() => navigate('overview')} />
         )}
         {view === 'planner' && (
           <App

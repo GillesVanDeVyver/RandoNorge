@@ -1,0 +1,344 @@
+/* =========================================================================
+   OfflineMapsPage — full-screen view reached from the account overview.
+   Left: a map showing every downloaded area as a highlighted rectangle;
+   the rest of the map is left plain. Right: a glass panel listing each
+   downloaded area with its size and layers, plus delete controls.
+   ========================================================================= */
+
+.page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  background: var(--surface-1, #0b141c);
+}
+
+/* --- Left: map -------------------------------------------------------- */
+
+.mapPane {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  background: #dfe7ee;
+}
+
+/* Floating back button over the map (top-left). */
+.backBtn {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.backBtn:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.backBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* --- Right: list panel ------------------------------------------------ */
+
+.panel {
+  position: relative;
+  flex: 0 0 380px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-6);
+  gap: var(--space-4);
+
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-left: 1px solid var(--hairline);
+  box-shadow: var(--shadow-float);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.headerIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+
+.headerIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+}
+
+.countPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 8px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.intro {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.total {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+/* --- Region list ------------------------------------------------------ */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+
+  background: rgba(20, 28, 38, 0.04);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.row:hover {
+  border-color: var(--accent);
+}
+
+.rowSelected {
+  border-color: var(--accent);
+  background: rgba(45, 212, 191, 0.1);
+}
+
+.regionName {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.regionMeta {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.regionLayers {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+/* --- Delete controls -------------------------------------------------- */
+
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  color: var(--text-3);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  transition:
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.deleteBtn:hover {
+  color: var(--danger, #e5484d);
+  border-color: var(--danger, #e5484d);
+}
+
+.deleteBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.confirmDelete,
+.confirmCancel {
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline);
+}
+
+.confirmDelete {
+  color: #fff;
+  background: var(--danger, #e5484d);
+  border-color: transparent;
+}
+
+.confirmCancel {
+  color: var(--text-2);
+  background: transparent;
+}
+
+.clearAll {
+  margin-top: auto;
+  padding: var(--space-2) var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--danger, #e5484d);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.clearAll:hover {
+  border-color: var(--danger, #e5484d);
+}
+
+/* --- Empty / unsupported states -------------------------------------- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-2);
+  color: var(--text-2);
+}
+
+.emptyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  color: var(--text-3);
+  background: rgba(20, 28, 38, 0.05);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+}
+
+.emptyIcon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.emptyTitle {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.emptyText {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* --- Smaller screens: stack map over the list ------------------------- */
+
+@media (max-width: 820px) {
+  .page {
+    flex-direction: column;
+  }
+
+  .mapPane {
+    flex: 0 0 45%;
+  }
+
+  .panel {
+    flex: 1 1 auto;
+    height: auto;
+    border-left: none;
+    border-top: 1px solid var(--hairline);
+  }
+}

@@ -2,11 +2,13 @@ import {
   ArrowRightIcon,
   BookmarkIcon,
   CircleCheckIcon,
+  DownloadIcon,
   MountainIcon,
   RouteIcon,
 } from './icons';
 import type { CSSProperties } from 'react';
 import { getSeason, OVERVIEW_PHOTOS } from '../theme/season';
+import { useOfflineRegions } from '../offline/useOfflineRegions';
 import styles from './AccountOverview.module.css';
 
 type Props = {
@@ -20,6 +22,8 @@ type Props = {
   onOpenSavedRoutes: () => void;
   /** Open the list of completed routes. */
   onOpenCompletedRoutes: () => void;
+  /** Open the downloaded offline maps page. */
+  onOpenOfflineMaps: () => void;
   /** Jump straight into the map / route planner. */
   onPlanNewRoute: () => void;
 };
@@ -36,9 +40,17 @@ export function AccountOverview({
   completedCount,
   onOpenSavedRoutes,
   onOpenCompletedRoutes,
+  onOpenOfflineMaps,
   onPlanNewRoute,
 }: Props) {
   const firstName = name.trim().split(/\s+/)[0] || name;
+
+  // Downloaded offline areas live in IndexedDB (client-side), so the count is
+  // read here directly rather than passed in like the server-backed route
+  // counts. The component remounts on each visit to the overview, so this
+  // stays current after areas are added or removed.
+  const { regions: offlineRegions } = useOfflineRegions();
+  const offlineCount = offlineRegions.length;
 
   // Season-dependent background photo: follows the calendar, or the
   // sticky "/summer"-style URL override (src/theme/season.ts).
@@ -136,6 +148,32 @@ export function AccountOverview({
               </span>
               <span className={styles.cardText}>
                 Tours you have completed — your personal summit log.
+              </span>
+            </span>
+            <span className={styles.cardArrow} aria-hidden="true">
+              <ArrowRightIcon />
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={styles.card}
+            onClick={onOpenOfflineMaps}
+          >
+            <span className={styles.cardIcon}>
+              <DownloadIcon />
+            </span>
+            <span className={styles.cardBody}>
+              <span className={styles.cardStat}>
+                <span className={`${styles.cardCount} tnum`}>
+                  {offlineCount}
+                </span>
+                <span className={styles.cardTitle}>
+                  Offline {offlineCount === 1 ? 'map' : 'maps'}
+                </span>
+              </span>
+              <span className={styles.cardText}>
+                Areas you have downloaded for use with no connectivity.
               </span>
             </span>
             <span className={styles.cardArrow} aria-hidden="true">

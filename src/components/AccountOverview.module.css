@@ -128,14 +128,14 @@
 }
 
 /* --- Action cards ---------------------------------------------------------
-   Three equal glass cards. The primary "plan new route" card carries the
-   accent so the main action is unmistakable. */
+   Four equal glass cards in a 2×2 grid. The primary "plan new route" card
+   carries the accent so the main action is unmistakable. */
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
-  width: min(980px, 100%);
+  width: min(760px, 100%);
   margin-top: clamp(32px, 4.5vh, 56px);
 }
 
