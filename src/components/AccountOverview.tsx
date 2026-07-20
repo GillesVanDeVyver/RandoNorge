@@ -2,7 +2,7 @@ import {
   ArrowRightIcon,
   BookmarkIcon,
   CircleCheckIcon,
-  DownloadIcon,
+  MapIcon,
   MountainIcon,
   RouteIcon,
 } from './icons';
@@ -161,7 +161,7 @@ export function AccountOverview({
             onClick={onOpenOfflineMaps}
           >
             <span className={styles.cardIcon}>
-              <DownloadIcon />
+              <MapIcon />
             </span>
             <span className={styles.cardBody}>
               <span className={styles.cardStat}>

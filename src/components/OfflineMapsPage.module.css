@@ -140,6 +140,44 @@
   color: var(--text-2);
 }
 
+/* Primary "download new area" action. */
+.downloadBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 42px;
+  padding: 0 var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent-contrast);
+  cursor: pointer;
+
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  transition:
+    transform var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+.downloadBtn:hover {
+  transform: translateY(-1px);
+}
+
+.downloadBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+.downloadBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
 .total {
   font-size: var(--text-xs);
   font-weight: 600;
@@ -280,6 +318,36 @@
 
 .clearAll:hover {
   border-color: var(--danger, #e5484d);
+}
+
+/* Two-step confirmation for removing every downloaded area. */
+.clearConfirm {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--danger, #e5484d);
+  border-radius: var(--radius-md);
+  background: rgba(229, 72, 77, 0.06);
+}
+
+.clearConfirmText {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--text-1);
+}
+
+.clearConfirmActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.clearConfirmActions .confirmDelete,
+.clearConfirmActions .confirmCancel {
+  flex: 1;
+  padding: var(--space-2);
+  font-size: var(--text-sm);
 }
 
 /* --- Empty / unsupported states -------------------------------------- */
