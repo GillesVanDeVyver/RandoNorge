@@ -26,6 +26,21 @@ export interface OfflineLayer {
    * the natural cap on how big a download can get.
    */
   maxNativeZoom: number;
+  /**
+   * Legal cap on how deep the *offline downloader* may copy tiles into
+   * IndexedDB, independent of `maxNativeZoom` (which still governs live
+   * display and overzoom). Defaults to `maxNativeZoom` when omitted.
+   *
+   * This exists because copying and storing tiles is a different right from
+   * displaying them live. Kartverket's terms of use state that the topo
+   * cache/WMS tiles at zoom levels 12–20 carry Geovekst-cooperation data that
+   * "must [not] be copied or used in other ways" without separate permission
+   * from the licensees — live display is fine, bulk copying to a local store
+   * is not. Until that permission is granted, topo is capped at z11 so the
+   * offline cache never persists Geovekst-restricted tiles. See
+   * docs/DATA_LICENSES.md §1 and the Kartverket permission request on file.
+   */
+  maxDownloadZoom?: number;
   /** True when tiles are tied to a date (snow depth) and the key must encode it. */
   needsDate: boolean;
   /** Full request URL for one tile. */
@@ -39,8 +54,14 @@ const topo: OfflineLayer = {
   id: 'topo',
   label: 'Topographic base map (finest detail 25 cm)',
   description: 'Kartverket topo — the main map. Essential for offline use.',
-  // Kartverket's webmercator matrix set publishes tiles to z18.
+  // Kartverket's webmercator matrix set publishes tiles to z18 — that is the
+  // ceiling for live display and overzoom.
   maxNativeZoom: 18,
+  // ...but the offline downloader is capped at z11: z12+ topo tiles contain
+  // Geovekst data that Kartverket's terms forbid copying into a local store
+  // without separate permission (see maxDownloadZoom doc above). Raise this
+  // only once written permission from Kartverket is on file.
+  maxDownloadZoom: 11,
   needsDate: false,
   tileUrl: (z, x, y) =>
     `https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/${z}/${y}/${x}.png`,

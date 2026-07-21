@@ -44,14 +44,20 @@ export interface DownloadProgress {
   bytes: number;
 }
 
-/** Effective zoom span for a layer within a plan (never above the source's native max). */
+/**
+ * Effective zoom span for a layer within a plan. Capped at the layer's
+ * download ceiling — `maxDownloadZoom` when set (a legal limit on how deep we
+ * may copy tiles to disk; e.g. topo is capped below the Geovekst-restricted
+ * z12+ range), otherwise the source's native max.
+ */
 function layerZoomRange(
   plan: DownloadPlan,
   layerId: OfflineLayerId,
 ): { min: number; max: number } {
-  const native = OFFLINE_LAYERS[layerId].maxNativeZoom;
+  const layer = OFFLINE_LAYERS[layerId];
+  const cap = layer.maxDownloadZoom ?? layer.maxNativeZoom;
   const min = Math.min(plan.minZoom ?? OVERVIEW_MIN_ZOOM, plan.maxZoom);
-  const max = Math.min(plan.maxZoom, native);
+  const max = Math.min(plan.maxZoom, cap);
   return { min, max };
 }
 
@@ -166,7 +172,11 @@ function regionTileKeys(region: RegionMeta): Set<string> {
   for (const layerId of region.layerIds) {
     const layer = OFFLINE_LAYERS[layerId as OfflineLayerId];
     if (!layer) continue;
-    const max = Math.min(region.maxZoom, layer.maxNativeZoom);
+    // Must mirror the download cap (maxDownloadZoom) so deletion enumerates
+    // exactly the tiles that were actually stored — otherwise the key sets
+    // drift and reference-counted cleanup leaves orphans or over-deletes.
+    const cap = layer.maxDownloadZoom ?? layer.maxNativeZoom;
+    const max = Math.min(region.maxZoom, cap);
     const min = Math.min(region.minZoom, max);
     for (const c of enumerateTiles(region.bounds, min, max)) {
       keys.add(layer.storageKey(c.z, c.x, c.y, { snowDate }));
