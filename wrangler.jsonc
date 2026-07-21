@@ -49,12 +49,12 @@
 			"remote": true
 		}
 	],
-	// Sender for auth emails (worker/email.js). NOTE: Resend only sends
-	// from domains verified in its dashboard — gmail.com cannot be
-	// verified, so this must be changed to an address on a verified
-	// domain before delivery will work.
+	// Sender for auth emails (worker/email.js). Resend only sends from
+	// domains verified in its dashboard. fjellrute.no must show "Verified"
+	// in Resend (SPF/DKIM/return-path DNS added to the Cloudflare .no zone)
+	// before this address can deliver — complete that before deploying.
 	"vars": {
-		"EMAIL_FROM": "Fjellrute <fjellrute@gmail.com>",
+		"EMAIL_FROM": "Fjellrute <no-reply@fjellrute.no>",
 		// Google OAuth client (project "fjellrute" in Google Cloud console).
 		// The matching GOOGLE_CLIENT_SECRET is a Worker secret; the provider
 		// stays disabled in worker/auth.js until both are present.

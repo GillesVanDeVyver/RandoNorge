@@ -95,6 +95,11 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    accounts. While the consent screen is in Google's "Testing" mode, only
    test users you list there can sign in — publish it for real users.
 
+   > **Done — 2026-07-21:** OAuth consent screen **published to production**
+   > (out of Testing mode), so any Google user can sign in. Authorized
+   > redirect URI `https://fjellrute.no/api/auth/callback/google` added to
+   > the OAuth client (`14850983815-...apps.googleusercontent.com`).
+
 6. **Deploy** as usual: `npm run build && npx wrangler deploy`.
 
 ## Local development
