@@ -9,7 +9,7 @@ import { OFFLINE_LAYER_LIST } from '../offline/layers';
 import { removeRegion } from '../offline/download';
 import { clearAllOffline } from '../offline/db';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
-import { formatBytes } from '../offline/format';
+import { formatBytes, formatResolution } from '../offline/format';
 import styles from './OfflineMapsPage.module.css';
 
 interface Props {
@@ -223,8 +223,7 @@ export function OfflineMapsPage({ onBack }: Props) {
                       >
                         <span className={styles.regionName}>{r.name}</span>
                         <span className={`${styles.regionMeta} tnum`}>
-                          z{r.minZoom}–{r.maxZoom} ·{' '}
-                          {r.tileCount.toLocaleString()} tiles ·{' '}
+                          {formatResolution(r.maxZoom)} ·{' '}
                           {formatBytes(r.bytes)}
                         </span>
                         <span className={styles.regionLayers}>

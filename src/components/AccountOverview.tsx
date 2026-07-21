@@ -173,7 +173,7 @@ export function AccountOverview({
                 </span>
               </span>
               <span className={styles.cardText}>
-                Areas you have downloaded for use with no connectivity.
+                Areas downloaded and saved on this device. These can be used when you do not have connectivity.
               </span>
             </span>
             <span className={styles.cardArrow} aria-hidden="true">

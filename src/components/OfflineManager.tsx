@@ -7,7 +7,7 @@ import { OFFLINE_LAYER_LIST } from '../offline/layers';
 import { removeRegion } from '../offline/download';
 import { useOfflineDownload } from '../offline/useOfflineDownload';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
-import { formatBytes } from '../offline/format';
+import { formatBytes, formatResolution } from '../offline/format';
 import styles from './OfflineManager.module.css';
 
 interface Props {
@@ -118,8 +118,7 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
                     <div className={styles.regionInfo}>
                       <span className={styles.regionName}>{r.name}</span>
                       <span className={styles.regionMeta}>
-                        z{r.minZoom}–{r.maxZoom} · {r.tileCount.toLocaleString()}{' '}
-                        tiles · {formatBytes(r.bytes)}
+                        {formatResolution(r.maxZoom)} · {formatBytes(r.bytes)}
                       </span>
                       <span className={styles.regionMeta}>
                         {r.layerIds

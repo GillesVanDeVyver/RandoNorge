@@ -1,6 +1,6 @@
 import { OFFLINE_LAYER_LIST, type OfflineLayerId } from '../offline/layers';
 import type { DownloadProgress } from '../offline/download';
-import { formatBytes } from '../offline/format';
+import { formatBytes, formatResolution } from '../offline/format';
 import styles from './OfflineManager.module.css';
 
 const MIN_DETAIL_ZOOM = 10;
@@ -28,8 +28,9 @@ interface Props {
 }
 
 /**
- * The download form for an offline area: layer checkboxes, a detail (max-zoom)
- * slider with a size estimate, and the name + Download button (or progress).
+ * The download form for an offline area: layer checkboxes, a detail slider
+ * (labelled as a ground resolution) with a size estimate, and the name +
+ * Download button (or progress).
  * Purely presentational — all state lives in useOfflineDownload — so both the
  * planner's OfflineManager and the offline maps page render an identical form.
  */
@@ -74,18 +75,19 @@ export function OfflineDownloadFields({
 
       <div className={styles.group}>
         <label className={styles.sliderRow}>
-          <span>Detail (max zoom): {maxZoom}</span>
+          <span>Finest detail: {formatResolution(maxZoom)}</span>
           <input
             type="range"
             min={MIN_DETAIL_ZOOM}
             max={MAX_DETAIL_ZOOM}
             value={maxZoom}
             disabled={downloading}
+            aria-label="Finest map detail (more detail means a larger download)"
             onChange={(e) => setMaxZoom(Number(e.target.value))}
           />
         </label>
         <p className={styles.estimate}>
-          ~{estTiles.toLocaleString()} tiles · ≈{formatBytes(estBytes)}
+          ≈{formatBytes(estBytes)}
           {estTiles > LARGE_TILE_WARNING && (
             <span className={styles.warn}> — large download</span>
           )}
@@ -127,9 +129,10 @@ export function OfflineDownloadFields({
           </div>
           <div className={styles.progressRow}>
             <span>
-              {progress?.completed.toLocaleString()} /{' '}
-              {progress?.total.toLocaleString()} tiles ·{' '}
-              {formatBytes(progress?.bytes ?? 0)}
+              {progress && progress.total
+                ? Math.round((progress.completed / progress.total) * 100)
+                : 0}
+              % · {formatBytes(progress?.bytes ?? 0)}
             </span>
             <button
               type="button"
