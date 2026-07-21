@@ -1,10 +1,10 @@
-import { OFFLINE_LAYER_LIST, type OfflineLayerId } from '../offline/layers';
+import { DOWNLOADABLE_LAYER_LIST, type OfflineLayerId } from '../offline/layers';
 import type { DownloadProgress } from '../offline/download';
 import { formatBytes, formatResolution } from '../offline/format';
 import styles from './OfflineManager.module.css';
 
 const MIN_DETAIL_ZOOM = 10;
-const MAX_DETAIL_ZOOM = 16;
+const MAX_DETAIL_ZOOM = 18;
 // Above this many tiles the estimate is flagged so people don't kick off a
 // multi-hundred-megabyte download by accident.
 const LARGE_TILE_WARNING = 6000;
@@ -16,7 +16,6 @@ interface Props {
   setMaxZoom: (z: number) => void;
   name: string;
   setName: (s: string) => void;
-  snowDate: string;
   progress: DownloadProgress | null;
   downloading: boolean;
   error: string | null;
@@ -41,7 +40,6 @@ export function OfflineDownloadFields({
   setMaxZoom,
   name,
   setName,
-  snowDate,
   progress,
   downloading,
   error,
@@ -55,7 +53,7 @@ export function OfflineDownloadFields({
     <>
       <fieldset className={styles.group} disabled={downloading}>
         <legend className={styles.legend}>Layers</legend>
-        {OFFLINE_LAYER_LIST.map((layer) => (
+        {DOWNLOADABLE_LAYER_LIST.map((layer) => (
           <label key={layer.id} className={styles.checkRow}>
             <input
               type="checkbox"
@@ -68,9 +66,6 @@ export function OfflineDownloadFields({
             </span>
           </label>
         ))}
-        {layerIds.includes('snowdepth') && (
-          <p className={styles.subnote}>Snow depth cached for {snowDate}.</p>
-        )}
       </fieldset>
 
       <div className={styles.group}>

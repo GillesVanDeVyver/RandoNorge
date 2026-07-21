@@ -89,7 +89,6 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
               setMaxZoom={dl.setMaxZoom}
               name={dl.name}
               setName={dl.setName}
-              snowDate={snowDate}
               progress={dl.progress}
               downloading={dl.downloading}
               error={dl.error}

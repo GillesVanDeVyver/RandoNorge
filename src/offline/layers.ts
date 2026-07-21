@@ -37,9 +37,10 @@ export interface OfflineLayer {
 // --- Kartverket topographic base map (WMTS, {z}/{y}/{x} order) --------------
 const topo: OfflineLayer = {
   id: 'topo',
-  label: 'Topographic base map',
+  label: 'Topographic base map (finest detail 25 cm)',
   description: 'Kartverket topo — the main map. Essential for offline use.',
-  maxNativeZoom: 16,
+  // Kartverket's webmercator matrix set publishes tiles to z18.
+  maxNativeZoom: 18,
   needsDate: false,
   tileUrl: (z, x, y) =>
     `https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/${z}/${y}/${x}.png`,
@@ -49,8 +50,10 @@ const topo: OfflineLayer = {
 // --- NVE steepness / runout overlay (ArcGIS tile cache, {z}/{y}/{x}) --------
 const steepness: OfflineLayer = {
   id: 'steepness',
-  label: 'Steepness',
+  label: 'Steepness (finest detail 1 m)',
   description: 'NVE bratthet med utløp — slope-angle shading for avalanche terrain.',
+  // The ArcGIS tiling scheme defines LODs to z19, but the cache is only built to
+  // maxLOD 16 (tiles above that 404), so z16 is the real ceiling for this layer.
   maxNativeZoom: 16,
   needsDate: false,
   tileUrl: (z, x, y) =>
@@ -104,3 +107,9 @@ export const OFFLINE_LAYERS: Record<OfflineLayerId, OfflineLayer> = {
 };
 
 export const OFFLINE_LAYER_LIST: OfflineLayer[] = [topo, steepness, snowdepth];
+
+// Layers offered in the download UI. Snow depth is intentionally excluded: it is
+// a date-specific 1 km overlay best used live, not stored offline. It still
+// exists in OFFLINE_LAYERS above so the live map and any previously downloaded
+// snow tiles keep working.
+export const DOWNLOADABLE_LAYER_LIST: OfflineLayer[] = [topo, steepness];

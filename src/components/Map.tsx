@@ -127,7 +127,7 @@ export function Map({
     >
       <OfflineTileLayerComponent
         layerId="topo"
-        maxNativeZoom={16}
+        maxNativeZoom={18}
         // Credits (Kartverket, MET, NVE/Varsom, and the active overlay's
         // source) live in <MapAttribution/> — keep it in sync when layers
         // change.
@@ -137,6 +137,8 @@ export function Map({
         <OfflineTileLayerComponent
           layerId="steepness"
           opacity={0.6}
+          // NVE's steepness cache only reaches z16 (tiles above 404); the
+          // client upsamples for deeper zooms.
           maxNativeZoom={16}
         />
       )}
