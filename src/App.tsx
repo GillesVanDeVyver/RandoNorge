@@ -19,6 +19,7 @@ import { Toolbar } from './components/Toolbar';
 import { WeatherPanel } from './components/WeatherPanel';
 import { AvalancheRisk } from './components/AvalancheRisk';
 import { TermsDialog } from './components/TermsDialog';
+import { DisclaimerModal } from './components/DisclaimerModal';
 import { SaveRouteDialog } from './components/SaveRouteDialog';
 import {
   BookmarkPlusIcon,
@@ -56,6 +57,68 @@ const Map3DView = lazy(() =>
 );
 
 type ViewMode = '2d' | '3d';
+
+// First-run safety disclaimer: shown once per device, then re-shown at the
+// start of each new winter season and whenever its wording is materially
+// changed (bump DISCLAIMER_VERSION). This keeps the "planning aid, not a
+// substitute for training/judgement/Varsom" framing in front of returning
+// users each season without training them to dismiss it every session — the
+// persistent Varsom link on the steepness layer carries the per-use reminder
+// in between. Persisted in localStorage; sessionStorage is a fallback when
+// localStorage is unavailable (private mode / blocked), which degrades to
+// "once per session".
+const DISCLAIMER_STORAGE_KEY = 'fjellrute.disclaimerSeen';
+const DISCLAIMER_VERSION = '1';
+
+// Ski-season token: a winter is identified by the calendar year it begins in,
+// with the rollover in mid-year (July). Nov 2026–Jun 2027 all read "2026", so
+// the disclaimer re-appears once when the next season opens rather than on the
+// calendar new year mid-winter.
+function currentSeasonToken(now = new Date()): string {
+  const y = now.getFullYear();
+  // getMonth() is 0-indexed: July == 6. Jul–Dec belong to the season starting
+  // this year; Jan–Jun belong to the season that started the previous year.
+  return String(now.getMonth() >= 6 ? y : y - 1);
+}
+
+// The value that must match a stored flag for the disclaimer to stay
+// dismissed: a mismatch (new season or bumped version) re-shows it.
+function disclaimerSignature(now?: Date): string {
+  return `v${DISCLAIMER_VERSION}:${currentSeasonToken(now)}`;
+}
+
+// Read the "seen" flag, preferring localStorage (survives sessions) and
+// falling back to sessionStorage when localStorage is blocked.
+function readDisclaimerSeen(): string | null {
+  try {
+    const persisted = window.localStorage.getItem(DISCLAIMER_STORAGE_KEY);
+    if (persisted != null) return persisted;
+  } catch {
+    // localStorage unavailable — fall through to sessionStorage.
+  }
+  try {
+    return window.sessionStorage.getItem(DISCLAIMER_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+// Record the current signature. localStorage first so it persists across
+// sessions; if that's blocked, sessionStorage at least stops it nagging for
+// the rest of this session.
+function writeDisclaimerSeen(signature: string): void {
+  try {
+    window.localStorage.setItem(DISCLAIMER_STORAGE_KEY, signature);
+    return;
+  } catch {
+    // localStorage unavailable — try sessionStorage below.
+  }
+  try {
+    window.sessionStorage.setItem(DISCLAIMER_STORAGE_KEY, signature);
+  } catch {
+    // Neither available — the disclaimer simply reappears on the next mount.
+  }
+}
 
 // Map hover dot while scrubbing the *actual* route's elevation profile —
 // matches the recorded-track orange (NavigationLayer's TRACK_COLOR), so
@@ -401,6 +464,20 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   const [overlay, setOverlay] = useState<Overlay>('steepness');
   const [view, setView] = useState<ViewMode>('2d');
   const [termsOpen, setTermsOpen] = useState(false);
+  // First-run safety disclaimer: shown in the interactive planner only (never
+  // over a read-only shared/review view), once per device and then again at
+  // the start of each new season or when its wording changes — see the
+  // signature/storage helpers above. Signed-in users and guests both see it;
+  // the guest terms gate runs first, so a guest has already passed the full
+  // terms before this lighter reminder appears.
+  const [disclaimerOpen, setDisclaimerOpen] = useState(() => {
+    if (reviewing || isPublic) return false;
+    return readDisclaimerSeen() !== disclaimerSignature();
+  });
+  const dismissDisclaimer = useCallback(() => {
+    writeDisclaimerSeen(disclaimerSignature());
+    setDisclaimerOpen(false);
+  }, []);
   // Holds the route just cleared (or replaced by an import), so the undo
   // toast can restore it. Null hides the toast. `clearMessage` lets the same
   // toast read "Route cleared" or "Previous route replaced".
@@ -1275,6 +1352,15 @@ function App({ saving, review: reviewProp, publicView }: Props) {
         </ForecastContext.Provider>
       )}
       </div>
+      {disclaimerOpen && (
+        <DisclaimerModal
+          onDismiss={dismissDisclaimer}
+          onOpenTerms={() => {
+            dismissDisclaimer();
+            setTermsOpen(true);
+          }}
+        />
+      )}
       {termsOpen && <TermsDialog onClose={() => setTermsOpen(false)} />}
       {saveOpen && (
         <SaveRouteDialog

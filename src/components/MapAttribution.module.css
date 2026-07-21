@@ -6,12 +6,22 @@
    lifts the chip above the collapsed bottom sheet's grabber strip. */
 
 /* --- Desktop: inline pill ---------------------------------------------- */
-.inline {
+/* Wrapper anchors both the (optional) Varsom CTA and the credit pill to the
+   bottom-right, stacked with the CTA on top so it can't be missed. */
+.inlineWrap {
   position: absolute;
   bottom: var(--space-2);
   right: var(--space-2);
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
   max-width: calc(100% - 140px); /* keep clear of the 2D/3D toggle */
+}
+
+.inline {
+  max-width: 100%;
   padding: 2px 10px;
 
   background: var(--surface-1);
@@ -57,6 +67,9 @@
   );
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .chip {
@@ -112,4 +125,46 @@
   font-size: var(--text-xs);
   line-height: 1.5;
   text-align: left;
+}
+
+/* --- Persistent Varsom bulletin call to action (steepness layer only) --- */
+/* Rendered above the credit pill on desktop and beside the © chip on mobile
+   so it stays visible whenever the steepness/runout layer is on. Reads as a
+   safety pointer rather than a data credit: solid glass pill, warning accent,
+   primary text weight. */
+.varsomCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 10px;
+
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--text-1);
+  text-decoration: none;
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--warning, #c2410c);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-1);
+}
+
+.varsomCta:hover {
+  text-decoration: underline;
+}
+
+.varsomCta:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.varsomIcon {
+  color: var(--warning, #c2410c);
+  font-size: 12px;
+  line-height: 1;
 }

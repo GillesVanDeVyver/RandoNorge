@@ -14,6 +14,18 @@
 // visible credit. Overlay- and view-specific credits are appended from the
 // current `overlay` / `view` props, mirroring what the native controls
 // would have accumulated from the mounted layers.
+//
+// When the steepness/runout overlay is active the plain NVE credit is
+// strengthened into a persistent, always-visible call to action pointing at
+// the official Varsom avalanche bulletin: the steepness/runout model is a
+// coarse terrain product, so anyone reading a slope off it must cross-check
+// the day's forecast. This link stays visible even on phones (where the rest
+// of the credits collapse behind the © chip), so the safety pointer is never
+// more than a glance away while that layer is on.
+//
+// TODO(i18n): the CTA copy below is English only. The whole app still needs a
+// Norwegian translation (see docs/TODO-i18n.md); fold this string into the
+// shared catalogue when that work lands.
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../types';
 import { useIsMobile } from '../useIsMobile';
@@ -105,6 +117,24 @@ export function MapAttribution({ view, overlay }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
+  // Steepness == the steepness-with-runout layer ("Bratthet med utløp").
+  // Whenever it's on we surface a persistent Varsom bulletin link — see the
+  // file header for why this lives here rather than as a separate banner.
+  const steepnessOn = overlay === 'steepness';
+  const varsomCta = steepnessOn ? (
+    <a
+      className={styles.varsomCta}
+      href="https://varsom.no/"
+      title="Read the official avalanche bulletin at varsom.no"
+      {...ext}
+    >
+      <span className={styles.varsomIcon} aria-hidden="true">
+        ⚠
+      </span>
+      Check the Varsom bulletin
+    </a>
+  ) : null;
+
   // Tapping anywhere else on the map collapses the expanded credits.
   useEffect(() => {
     if (!open) return;
@@ -119,14 +149,18 @@ export function MapAttribution({ view, overlay }: Props) {
 
   if (!isMobile) {
     return (
-      <div className={styles.inline}>
-        <Credits view={view} overlay={overlay} />
+      <div className={styles.inlineWrap}>
+        {varsomCta}
+        <div className={styles.inline}>
+          <Credits view={view} overlay={overlay} />
+        </div>
       </div>
     );
   }
 
   return (
     <div className={styles.root} ref={rootRef}>
+      {varsomCta}
       {open && (
         <div className={styles.panel} role="region" aria-label="Map data sources">
           <Credits view={view} overlay={overlay} />
