@@ -55,6 +55,20 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
      only delivers to the Resend account owner's own address (fine for
      testing).
 
+   > **Done — 2026-07-21:** `fjellrute.no` is **Verified in Resend** and auth
+   > email is live. SPF + DKIM (`resend._domainkey`) + a `send.fjellrute.no`
+   > return-path (Amazon SES MX/SPF) + a DMARC record (`_dmarc`,
+   > `v=DMARC1; p=none; rua=mailto:hei@fjellrute.no`) are all in the Cloudflare
+   > `.no` zone; mail-tester scores 10/10 and verification mail reaches the
+   > inbox. Sender is `EMAIL_FROM = "Fjellrute <no-reply@fjellrute.no>"`
+   > (`wrangler.jsonc`). `RESEND_API_KEY` is set as a Worker secret.
+   >
+   > Caveat: the DMARC `rua=` points at `hei@fjellrute.no`, which is **not set
+   > up yet** — DMARC aggregate reports sent there are silently dropped. This
+   > is harmless (policy is monitor-only `p=none`); set up that mailbox via
+   > Cloudflare Email Routing later if you want to read the reports, or drop
+   > the `rua=` part from the DMARC record.
+
 5. **Set up "Continue with Google"** (optional — the button shows an error
    until this is done, everything else keeps working):
 
