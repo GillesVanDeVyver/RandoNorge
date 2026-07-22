@@ -11,6 +11,7 @@ import { MapControls } from './MapControls';
 import { NavigationLayer } from './NavigationLayer';
 import { OfflineManager } from './OfflineManager';
 import { OfflineTileLayerComponent } from '../offline/OfflineTileLayerComponent';
+import { RegionBoundaryLayer } from '../offline/RegionBoundaryLayer';
 import styles from './Map.module.css';
 
 // Leaflet caches the container size and only re-measures on its own resize
@@ -158,6 +159,10 @@ export function Map({
           keepBuffer={4}
         />
       )}
+      {/* Outlines of downloaded regions so it's clear where full-detail
+          offline coverage ends. Drawn under the route/nav layers and kept
+          non-interactive so it never blocks drawing. */}
+      <RegionBoundaryLayer />
       <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
       {(track.length > 0 || navigating) && (
         <NavigationLayer

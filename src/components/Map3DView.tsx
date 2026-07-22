@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import type { LatLng, Mode, Overlay, Route, Segment } from '../types';
 import { simplify } from '../geometry';
 import {
+  AreaIcon,
   CompassIcon,
   FullscreenIcon,
   LocateIcon,
@@ -16,6 +17,13 @@ import {
   SnowflakeIcon,
 } from './icons';
 import { searchPlace } from '../search/geocode';
+import type { RegionMeta } from '../offline/db';
+import {
+  isRegionsVisible,
+  toggleRegionsVisible,
+  useRegionsVisible,
+} from '../offline/regionOverlayMode';
+import { useOfflineRegions } from '../offline/useOfflineRegions';
 import { Map3DCursorReadout } from './Map3DCursorReadout';
 import styles from './Map3DView.module.css';
 
@@ -62,6 +70,9 @@ const RDP_EPSILON_M = 8;
 // Keep in sync with DrawingHandler.tsx.
 const ERASER_RADIUS_PX = 32;
 const ROUTE_COLOR = '#2dd4bf'; // matches --accent (alpine/glacier teal)
+// Amber for the downloaded-region boundaries — the same colour the 2D
+// RegionBoundaryLayer uses so offline coverage reads identically in both views.
+const REGION_COLOR = '#f5a623';
 // Minimum pixel distance between accepted points while drawing — caps point
 // count by stroke length rather than duration.
 const MIN_DRAW_PX = 3;
@@ -96,6 +107,39 @@ function routeToGeoJSON(route: Route, extra?: Segment): GeoJSON.FeatureCollectio
     })),
   };
 }
+
+// Build a GeoJSON FeatureCollection of rectangle Polygons from the downloaded
+// regions so the same amber boundaries the 2D map draws (RegionBoundaryLayer)
+// also outline offline coverage in 3D. Bounds are [south, west, north, east];
+// GeoJSON polygon rings are [lng, lat] and must close back on the first point.
+function regionsToGeoJSON(regions: RegionMeta[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: regions.map((region) => {
+      const [south, west, north, east] = region.bounds;
+      return {
+        type: 'Feature',
+        properties: { id: region.id },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [west, south],
+              [east, south],
+              [east, north],
+              [west, north],
+              [west, south],
+            ],
+          ],
+        },
+      };
+    }),
+  };
+}
+
+// Poll cadence for picking up newly downloaded / deleted regions — matches
+// RegionBoundaryLayer's 2D poll so both views refresh in lockstep.
+const REGION_POLL_MS = 3000;
 
 interface Props {
   route: Route;
@@ -137,9 +181,22 @@ export function Map3DView({
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Downloaded-region boundaries: the same list and visibility flag the 2D
+  // RegionBoundaryLayer draws, shared through the pub/sub store so a single
+  // toggle drives both views.
+  const { regions, refresh } = useOfflineRegions();
+  const regionsVisible = useRegionsVisible();
+
   useEffect(() => {
     if (searchOpen) inputRef.current?.focus();
   }, [searchOpen]);
+
+  // Keep the region list fresh after a download or deletion, matching the 2D
+  // layer's cheap poll rather than wiring an event through the offline stack.
+  useEffect(() => {
+    const id = window.setInterval(() => void refresh(), REGION_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [refresh]);
 
   // Latest-value refs so the once-bound MapLibre event handlers always see
   // the current route/mode/callback without rebinding (and rebuilding) them.
@@ -148,10 +205,13 @@ export function Map3DView({
   const routeRef = useRef(route);
   const modeRef = useRef(mode);
   const onRouteChangeRef = useRef(onRouteChange);
+  // Latest region list for the once-built map to seed its regions source with.
+  const regionsRef = useRef(regions);
   useEffect(() => {
     routeRef.current = route;
     modeRef.current = mode;
     onRouteChangeRef.current = onRouteChange;
+    regionsRef.current = regions;
   });
 
   // In-progress draw stroke, eraser accumulator, and live-preview plumbing —
@@ -207,6 +267,10 @@ export function Map3DView({
             maxzoom: 16,
           },
           route: { type: 'geojson', data: routeToGeoJSON(routeRef.current) },
+          regions: {
+            type: 'geojson',
+            data: regionsToGeoJSON(regionsRef.current),
+          },
         },
         layers: [
           { id: 'basemap', type: 'raster', source: 'basemap' },
@@ -223,6 +287,33 @@ export function Map3DView({
             source: 'snow',
             layout: { visibility: overlay === 'snowdepth' ? 'visible' : 'none' },
             paint: { 'raster-opacity': 0.8 },
+          },
+          {
+            id: 'regions-fill',
+            type: 'fill',
+            source: 'regions',
+            layout: {
+              visibility: isRegionsVisible() ? 'visible' : 'none',
+            },
+            paint: {
+              'fill-color': REGION_COLOR,
+              'fill-opacity': 0.07,
+            },
+          },
+          {
+            id: 'regions-outline',
+            type: 'line',
+            source: 'regions',
+            layout: {
+              visibility: isRegionsVisible() ? 'visible' : 'none',
+              'line-cap': 'round',
+              'line-join': 'round',
+            },
+            paint: {
+              'line-color': REGION_COLOR,
+              'line-width': 3,
+              'line-dasharray': [3, 2],
+            },
           },
           {
             id: 'route',
@@ -564,6 +655,36 @@ export function Map3DView({
     else map.once('load', apply);
   }, [route]);
 
+  // Push the downloaded-region boundaries into the regions source whenever the
+  // polled list changes (new download / deletion), without rebuilding the map.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource('regions') as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (src) src.setData(regionsToGeoJSON(regions));
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('load', apply);
+  }, [regions]);
+
+  // Show/hide the region boundaries when the shared visibility flag flips.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const vis = regionsVisible ? 'visible' : 'none';
+      if (map.getLayer('regions-fill'))
+        map.setLayoutProperty('regions-fill', 'visibility', vis);
+      if (map.getLayer('regions-outline'))
+        map.setLayoutProperty('regions-outline', 'visibility', vis);
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('load', apply);
+  }, [regionsVisible]);
+
   // Re-frame the camera on the route when it changes (after the initial
   // mount), preserving the current pitch/bearing so edits don't reset the
   // tilt. Mirrors the 2D FitToRoute behavior.
@@ -799,6 +920,23 @@ export function Map3DView({
           aria-label="My location"
         >
           <LocateIcon />
+        </button>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={toggleRegionsVisible}
+          title={
+            regionsVisible ? 'Hide downloaded areas' : 'Show downloaded areas'
+          }
+          aria-label={
+            regionsVisible ? 'Hide downloaded areas' : 'Show downloaded areas'
+          }
+          aria-pressed={regionsVisible}
+          // The 3D controls' .btn has no .active state (unlike the 2D map's),
+          // so tint the icon with the accent colour when boundaries are shown.
+          style={regionsVisible ? { color: 'var(--accent)' } : undefined}
+        >
+          <AreaIcon />
         </button>
         <div className={styles.divider} />
         <button

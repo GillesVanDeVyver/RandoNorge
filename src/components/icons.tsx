@@ -181,6 +181,15 @@ export function LayersIcon() {
   );
 }
 
+// Dashed rectangle — toggles the downloaded offline-area boundaries on the map.
+export function AreaIcon() {
+  return (
+    <svg {...baseProps}>
+      <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="4 3" />
+    </svg>
+  );
+}
+
 // Plain folded map — used for the "no overlay" state (base map only).
 export function MapIcon() {
   return (

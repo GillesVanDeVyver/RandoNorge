@@ -3,6 +3,7 @@ import L from 'leaflet';
 import { useMap } from 'react-leaflet';
 import type { Overlay, Route } from '../types';
 import {
+  AreaIcon,
   FullscreenIcon,
   LayersIcon,
   LocateIcon,
@@ -15,6 +16,10 @@ import {
   SnowflakeIcon,
 } from './icons';
 import { searchPlace } from '../search/geocode';
+import {
+  toggleRegionsVisible,
+  useRegionsVisible,
+} from '../offline/regionOverlayMode';
 import { useIsMobile } from '../useIsMobile';
 import styles from './MapControls.module.css';
 
@@ -44,6 +49,7 @@ export function MapControls({
   // full screen) buttons disappear.
   const isMobile = useIsMobile();
   const [layersOpen, setLayersOpen] = useState(false);
+  const regionsVisible = useRegionsVisible();
 
   const pickOverlay = useCallback(
     (next: Overlay) => {
@@ -239,6 +245,20 @@ export function MapControls({
           aria-pressed={offlineOpen}
         >
           <MapIcon />
+        </button>
+        <button
+          type="button"
+          className={`${styles.btn} ${regionsVisible ? styles.active : ''}`}
+          onClick={toggleRegionsVisible}
+          title={
+            regionsVisible ? 'Hide downloaded areas' : 'Show downloaded areas'
+          }
+          aria-label={
+            regionsVisible ? 'Hide downloaded areas' : 'Show downloaded areas'
+          }
+          aria-pressed={regionsVisible}
+        >
+          <AreaIcon />
         </button>
         <div className={styles.divider} />
         {!isMobile && (

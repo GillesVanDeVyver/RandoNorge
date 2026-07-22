@@ -122,6 +122,31 @@ body {
   display: none !important;
 }
 
+/* Offline coverage cues -----------------------------------------------------
+   Reconstructed (overzoomed) tiles are upscaled stand-ins for detail that was
+   never downloaded. Desaturating them makes it obvious at a glance where real,
+   full-detail coverage ends and the degraded fringe begins. */
+.offline-tile--reconstructed {
+  filter: saturate(0.4) brightness(1.02);
+}
+
+/* Label pinned to each downloaded region's outline (region name + the detail
+   zoom it was cached to). Kept light so it never fights the map. */
+.offline-region-label.leaflet-tooltip {
+  background: var(--surface-2);
+  color: var(--text-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+.offline-region-label.leaflet-tooltip::before {
+  display: none; /* drop the little pointer arrow — reads cleaner as a chip */
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0.001ms !important;

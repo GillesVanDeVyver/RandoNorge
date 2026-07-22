@@ -129,11 +129,15 @@ export class OfflineTileLayer extends L.TileLayer {
     img.onload = succeed;
 
     // Last resort before blanking: rebuild this tile by upscaling the nearest
-    // cached ancestor. Returns true if it managed to draw something.
+    // cached ancestor. Returns true if it managed to draw something. Tag the
+    // tile so CSS can visually demote it (desaturated) — reconstructed tiles
+    // are blurry stand-ins, and the desaturation makes the edge of real,
+    // full-detail coverage legible instead of the user guessing from sharpness.
     const tryOverzoom = async (): Promise<boolean> => {
       const blob = await this.overzoomTile(coords).catch(() => null);
       if (!blob) return false;
       img.onerror = () => fail('overzoom render failed');
+      img.classList.add('offline-tile--reconstructed');
       showBlob(blob);
       return true;
     };
