@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Rectangle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ArrowLeftIcon, DownloadIcon, TrashIcon } from './icons';
+import { ArrowLeftIcon, MapIcon, TrashIcon } from './icons';
 import { OfflineTileLayerComponent } from '../offline/OfflineTileLayerComponent';
 import { OfflineDownloadPanel } from './OfflineDownloadPanel';
 import { OFFLINE_LAYER_LIST } from '../offline/layers';
@@ -166,7 +166,7 @@ export function OfflineMapsPage({ onBack }: Props) {
       <aside className={styles.panel}>
         <header className={styles.header}>
           <span className={styles.headerIcon}>
-            <DownloadIcon />
+            <MapIcon />
           </span>
           <h1 className={styles.title}>
             Offline maps
@@ -193,7 +193,7 @@ export function OfflineMapsPage({ onBack }: Props) {
             {regions.length === 0 ? (
               <div className={styles.empty}>
                 <span className={styles.emptyIcon}>
-                  <DownloadIcon />
+                  <MapIcon />
                 </span>
                 <h2 className={styles.emptyTitle}>No areas downloaded yet</h2>
                 <p className={styles.emptyText}>

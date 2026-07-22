@@ -3,7 +3,6 @@ import L from 'leaflet';
 import { useMap } from 'react-leaflet';
 import type { Overlay, Route } from '../types';
 import {
-  DownloadIcon,
   FullscreenIcon,
   LayersIcon,
   LocateIcon,
@@ -239,7 +238,7 @@ export function MapControls({
           aria-label="Offline maps"
           aria-pressed={offlineOpen}
         >
-          <DownloadIcon />
+          <MapIcon />
         </button>
         <div className={styles.divider} />
         {!isMobile && (
