@@ -59,7 +59,7 @@ function render() {
     ? 'Go online (Shift+O)'
     : 'Go offline (Shift+O)';
   statusEl.textContent = offline
-    ? 'Offline — only downloaded tiles render; the rest is blank.'
+    ? 'Offline — downloaded areas stay in colour; the rest turns black & white.'
     : 'Online — tiles load from network.';
 }
 

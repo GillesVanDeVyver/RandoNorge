@@ -24,11 +24,13 @@ import {
   useRegionsVisible,
 } from '../offline/regionOverlayMode';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
+import { useEffectiveOffline } from '../offline/networkMode';
 import {
   offlineTileTemplate,
   registerOfflineMapProtocol,
 } from '../offline/maplibreOffline';
 import { subscribeNetworkMode } from '../offline/networkMode';
+import { clamp, subtractRects, type Rect } from '../offline/maskGeometry';
 import { Map3DCursorReadout } from './Map3DCursorReadout';
 import styles from './Map3DView.module.css';
 
@@ -176,6 +178,9 @@ export function Map3DView({
   // toggle drives both views.
   const { regions, refresh } = useOfflineRegions();
   const regionsVisible = useRegionsVisible();
+  // Drives the offline veil: gray everything outside downloaded coverage when
+  // connectivity drops (real dead zone or the dev simulator).
+  const offline = useEffectiveOffline();
 
   useEffect(() => {
     if (searchOpen) inputRef.current?.focus();
@@ -691,6 +696,111 @@ export function Map3DView({
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
   }, [regionsVisible]);
+
+  // Offline grayscale: render everything outside downloaded coverage in black
+  // and white, the 3D twin of the 2D OfflineMaskLayer (and the ut.no read).
+  // MapLibre can't desaturate a raster only inside a polygon, so we tile the
+  // area *outside* the downloaded regions with plain grayscale backdrop-filter
+  // divs and leave the regions as untouched colour gaps.
+  //
+  // As in 2D, we can't punch holes into one big backdrop-filter div with
+  // clip-path — Chromium applies the backdrop filter to the element's whole box
+  // and ignores the clip path, greying out the downloaded areas too. So we tile
+  // the outside with real rectangles (subtractRects) instead. Each region is
+  // projected to screen (pitch/bearing turn its footprint into a trapezoid) and
+  // we use that quad's axis-aligned bounding box as the colour gap; the box
+  // fully contains the region so downloaded coverage always stays in colour.
+  const offlineRef = useRef(offline);
+  const maskUpdateRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const container = map.getCanvasContainer();
+    const wrap = document.createElement('div');
+    wrap.style.position = 'absolute';
+    wrap.style.inset = '0';
+    wrap.style.pointerEvents = 'none';
+    wrap.style.zIndex = '2'; // above the canvas, below MapLibre's controls
+    container.appendChild(wrap);
+
+    const pool: HTMLDivElement[] = [];
+    const tile = (i: number): HTMLDivElement => {
+      let el = pool[i];
+      if (!el) {
+        el = document.createElement('div');
+        el.style.position = 'absolute';
+        el.style.backdropFilter = 'grayscale(1)';
+        el.style.setProperty('-webkit-backdrop-filter', 'grayscale(1)');
+        wrap.appendChild(el);
+        pool[i] = el;
+      }
+      return el;
+    };
+
+    const update = () => {
+      if (!offlineRef.current) {
+        wrap.style.display = 'none';
+        return;
+      }
+      wrap.style.display = '';
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+
+      // Each downloaded region's projected bounding box, clamped to the
+      // viewport — these are the colour gaps.
+      const holes: Rect[] = [];
+      for (const region of regionsRef.current) {
+        // bounds are [south, west, north, east]; project each corner.
+        const [south, west, north, east] = region.bounds;
+        const corners: [number, number][] = [
+          [west, north],
+          [east, north],
+          [east, south],
+          [west, south],
+        ];
+        const pts = corners.map(([lng, lat]) => map.project([lng, lat]));
+        const x1 = clamp(Math.round(Math.min(...pts.map((p) => p.x))), 0, w);
+        const y1 = clamp(Math.round(Math.min(...pts.map((p) => p.y))), 0, h);
+        const x2 = clamp(Math.round(Math.max(...pts.map((p) => p.x))), 0, w);
+        const y2 = clamp(Math.round(Math.max(...pts.map((p) => p.y))), 0, h);
+        if (x2 > x1 && y2 > y1) holes.push([x1, y1, x2, y2]);
+      }
+
+      // Tile the viewport minus the gaps with grayscale rectangles.
+      const rects = subtractRects(w, h, holes);
+      for (let i = 0; i < rects.length; i++) {
+        const [rx1, ry1, rx2, ry2] = rects[i];
+        const t = tile(i);
+        t.style.display = '';
+        t.style.left = `${rx1}px`;
+        t.style.top = `${ry1}px`;
+        t.style.width = `${rx2 - rx1}px`;
+        t.style.height = `${ry2 - ry1}px`;
+      }
+      for (let i = rects.length; i < pool.length; i++) {
+        pool[i].style.display = 'none';
+      }
+    };
+    maskUpdateRef.current = update;
+
+    map.on('move', update);
+    map.on('resize', update);
+    if (map.isStyleLoaded()) update();
+    else map.once('load', update);
+
+    return () => {
+      map.off('move', update);
+      map.off('resize', update);
+      wrap.remove();
+    };
+  }, []);
+
+  // Redraw the grayscale clip when offline state flips or the regions change.
+  useEffect(() => {
+    offlineRef.current = offline;
+    maskUpdateRef.current();
+  }, [offline, regions]);
 
   // Re-frame the camera on the route when it changes (after the initial
   // mount), preserving the current pitch/bearing so edits don't reset the

@@ -5,15 +5,14 @@
 // leaves the user guessing how far their "good" map extends.
 //
 // Each region is drawn as a bright outline over a white casing (so it stays
-// legible on any terrain) with a small label at the top-left corner stating
-// the finest ground resolution that was downloaded. The vectors are
-// non-interactive: they must never intercept the pointer, or they'd swallow
-// the strokes the DrawingHandler needs to plan a route.
+// legible on any terrain) with a small label at the top-right corner naming
+// the area that was downloaded. The vectors are non-interactive: they must
+// never intercept the pointer, or they'd swallow the strokes the
+// DrawingHandler needs to plan a route.
 
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { useMap } from 'react-leaflet';
-import { formatResolution } from './format';
 import { useRegionsVisible } from './regionOverlayMode';
 import { useOfflineRegions } from './useOfflineRegions';
 
@@ -82,20 +81,19 @@ export function RegionBoundaryLayer() {
       group.addLayer(casing);
       group.addLayer(outline);
 
-      // Resolution label pinned to the top-left (north-west) corner rather than
-      // floating in the middle of the area. Reuses the same zoom→resolution
-      // scale the download slider shows, so the on-map figure matches what the
-      // user picked when caching the area.
+      // Area name pinned to the top-right (north-east) corner rather than
+      // floating in the middle of the area, so at a glance the user can tell
+      // which download each rectangle is.
       const label = L.tooltip({
         permanent: true,
-        direction: 'right',
+        direction: 'left',
         // Nudge in from the corner so the chip sits just inside the rectangle.
-        offset: [8, 10],
+        offset: [-8, 10],
         className: 'offline-region-label',
         interactive: false,
       })
-        .setLatLng([north, west])
-        .setContent(`Detail to ${formatResolution(region.maxZoom)}`);
+        .setLatLng([north, east])
+        .setContent(region.name);
       group.addLayer(label);
     }
   }, [regions, visible]);
