@@ -297,7 +297,25 @@ export function Map3DView({
             },
             paint: {
               'fill-color': REGION_COLOR,
-              'fill-opacity': 0.07,
+              'fill-opacity': 0.1,
+            },
+          },
+          // White casing under the amber outline — the same two-layer trick the
+          // 2D map uses so the boundary reads against both the topo drape and
+          // terrain shading, where a lone thin dashed line washes out.
+          {
+            id: 'regions-casing',
+            type: 'line',
+            source: 'regions',
+            layout: {
+              visibility: isRegionsVisible() ? 'visible' : 'none',
+              'line-cap': 'round',
+              'line-join': 'round',
+            },
+            paint: {
+              'line-color': '#ffffff',
+              'line-width': 8,
+              'line-opacity': 0.7,
             },
           },
           {
@@ -311,8 +329,8 @@ export function Map3DView({
             },
             paint: {
               'line-color': REGION_COLOR,
-              'line-width': 3,
-              'line-dasharray': [3, 2],
+              'line-width': 4,
+              'line-dasharray': [2.5, 1.5],
             },
           },
           {
@@ -676,10 +694,9 @@ export function Map3DView({
     if (!map) return;
     const apply = () => {
       const vis = regionsVisible ? 'visible' : 'none';
-      if (map.getLayer('regions-fill'))
-        map.setLayoutProperty('regions-fill', 'visibility', vis);
-      if (map.getLayer('regions-outline'))
-        map.setLayoutProperty('regions-outline', 'visibility', vis);
+      for (const id of ['regions-fill', 'regions-casing', 'regions-outline']) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+      }
     };
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
