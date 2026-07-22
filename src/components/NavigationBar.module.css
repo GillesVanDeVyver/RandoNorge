@@ -167,6 +167,48 @@
   gap: var(--space-2);
 }
 
+/* Anchors the "Hold to finish" nudge to the button without disturbing the
+   bar's flex layout. */
+.holdWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Subtle nudge shown just under the button when a press is released before
+   the hold completes. Fades / lifts in, and is inert until .holdHintShow. */
+.holdHint {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 50%;
+  transform: translate(-50%, 4px);
+  padding: 2px var(--space-2);
+  font-size: var(--text-xs, 0.75rem);
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-1, var(--shadow-2));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.holdHintShow {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .holdHint {
+    transition: opacity 160ms ease;
+    transform: translate(-50%, 0);
+  }
+}
+
 .btn:disabled,
 .btnFinish:disabled {
   opacity: 0.55;

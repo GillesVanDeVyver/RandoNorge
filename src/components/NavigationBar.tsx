@@ -11,27 +11,50 @@ import styles from './NavigationBar.module.css';
 /** How long (ms) the Finish button must be held before the tour ends. */
 const FINISH_HOLD_MS = 1200;
 
+/** How long (ms) the "Hold to finish" nudge stays up after an early release. */
+const HINT_VISIBLE_MS = 2000;
+
 /**
  * Finish button that must be pressed and held for {@link FINISH_HOLD_MS}
  * before {@link onFinish} fires. A loader bar inside the button fills up to
  * reflect hold progress; releasing early cancels and resets it. This guards
  * against an accidental tap ending a tour mid-hike.
+ *
+ * When a press is released before the hold completes, a subtle "Hold to
+ * finish" hint pops up briefly so the user learns why their tap did nothing.
  */
 function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
   const [progress, setProgress] = useState(0);
+  const [showHint, setShowHint] = useState(false);
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number>(0);
+  const hintTimerRef = useRef<number | null>(null);
 
   const stop = useCallback(() => {
+    // rafRef is still set only when the hold was in flight and hadn't reached
+    // completion — i.e. the user let go early. On completion the tick clears
+    // rafRef itself before onFinish, so a genuine finish never nudges.
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+      setShowHint(true);
+      if (hintTimerRef.current !== null) clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = window.setTimeout(
+        () => setShowHint(false),
+        HINT_VISIBLE_MS,
+      );
     }
     setProgress(0);
   }, []);
 
   const start = useCallback(() => {
     if (rafRef.current !== null) return;
+    // A fresh press supersedes any lingering nudge from the last early release.
+    setShowHint(false);
+    if (hintTimerRef.current !== null) {
+      clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
     startRef.current = performance.now();
 
     const tick = (now: number) => {
@@ -48,52 +71,66 @@ function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
     rafRef.current = requestAnimationFrame(tick);
   }, [onFinish]);
 
-  // Clean up any pending frame if the button unmounts mid-hold.
-  useEffect(() => stop, [stop]);
+  // Clean up any pending frame / hint timer if the button unmounts mid-hold.
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      if (hintTimerRef.current !== null) clearTimeout(hintTimerRef.current);
+    };
+  }, []);
 
   return (
-    <button
-      type="button"
-      className={`${styles.btnFinish} ${styles.btnHold}`}
-      onPointerDown={(e) => {
-        // Ignore secondary mouse buttons; respond to primary click / touch.
-        if (e.pointerType === 'mouse' && e.button !== 0) return;
-        // Suppress the long-press callout / text selection / synthetic mouse
-        // events that on touch devices can trigger a spurious pointercancel
-        // and kill the hold before it completes.
-        e.preventDefault();
-        e.currentTarget.setPointerCapture?.(e.pointerId);
-        start();
-      }}
-      onPointerUp={stop}
-      // No onPointerLeave: pointer capture (set above) guarantees pointerup /
-      // pointercancel are delivered here even if the finger drifts off the
-      // button, so cancelling on leave only served to break the hold on touch
-      // where a stationary press can emit a spurious leave.
-      onPointerCancel={stop}
-      onContextMenu={(e) => e.preventDefault()}
-      onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+    <span className={styles.holdWrap}>
+      <button
+        type="button"
+        className={`${styles.btnFinish} ${styles.btnHold}`}
+        onPointerDown={(e) => {
+          // Ignore secondary mouse buttons; respond to primary click / touch.
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          // Suppress the long-press callout / text selection / synthetic mouse
+          // events that on touch devices can trigger a spurious pointercancel
+          // and kill the hold before it completes.
           e.preventDefault();
+          e.currentTarget.setPointerCapture?.(e.pointerId);
           start();
-        }
-      }}
-      onKeyUp={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') stop();
-      }}
-      title="Press and hold to finish and review your tour"
-      aria-label="Press and hold to finish your tour"
-    >
+        }}
+        onPointerUp={stop}
+        // No onPointerLeave: pointer capture (set above) guarantees pointerup /
+        // pointercancel are delivered here even if the finger drifts off the
+        // button, so cancelling on leave only served to break the hold on touch
+        // where a stationary press can emit a spurious leave.
+        onPointerCancel={stop}
+        onContextMenu={(e) => e.preventDefault()}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+            e.preventDefault();
+            start();
+          }
+        }}
+        onKeyUp={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') stop();
+        }}
+        title="Press and hold to finish and review your tour"
+        aria-label="Press and hold to finish your tour"
+      >
+        <span
+          className={styles.holdFill}
+          style={{ transform: `scaleX(${progress})` }}
+          aria-hidden
+        />
+        <span className={styles.holdLabel}>
+          <FlagIcon />
+          <span>Finish</span>
+        </span>
+      </button>
       <span
-        className={styles.holdFill}
-        style={{ transform: `scaleX(${progress})` }}
-        aria-hidden
-      />
-      <span className={styles.holdLabel}>
-        <FlagIcon />
-        <span>Finish</span>
+        className={`${styles.holdHint} ${showHint ? styles.holdHintShow : ''}`}
+        role="status"
+        aria-hidden={!showHint}
+      >
+        Hold to finish
       </span>
-    </button>
+    </span>
   );
 }
 
