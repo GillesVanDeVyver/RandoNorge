@@ -1,26 +1,26 @@
-// Desaturates the map everywhere the user *can't* rely on it offline. When we
-// lose connectivity (the dev simulator or a real dead zone — see
+// Tints the map everywhere the user *can't* rely on it offline. When we lose
+// connectivity (the dev simulator or a real dead zone — see
 // isEffectivelyOffline), tiles outside a downloaded region either blank out or
 // degrade to blurry upscaled overview tiles (OfflineTileLayer's overzoom path).
 // That leaves the user guessing which part of the map is actually trustworthy.
-// This layer makes it unmistakable by rendering everything *outside* downloaded
-// coverage in black and white and leaving the downloaded areas in full colour —
-// the same read ut.no gives when you go offline outside a saved area.
+// This layer makes it unmistakable by laying a translucent gray tint over
+// everything *outside* downloaded coverage and leaving the downloaded areas
+// untinted — the same read ut.no gives when you go offline outside a saved area.
 //
 // It works by tiling the area *outside* the downloaded rectangles with plain
-// non-interactive <div>s, each carrying a `grayscale(1)` backdrop-filter, and
-// leaving the downloaded rectangles as untouched gaps that stay in full colour.
-// Because each tile is a backdrop-filter it desaturates the composited map
-// beneath it — base map and any raster overlay — without hiding anything.
+// non-interactive <div>s, each a semi-transparent gray box, and leaving the
+// downloaded rectangles as untinted gaps. The tint sits on top of the map
+// without hiding anything.
 //
-// We deliberately do NOT punch holes into one big backdrop-filter div with
-// clip-path: Chromium applies a backdrop filter to the element's whole box and
-// ignores the clip path, so the downloaded areas would grey out too. Tiling the
-// outside with real rectangles (subtractRects) sidesteps that entirely — there
-// is nothing to clip. The tiles live in their own pane between the tiles
-// (z 200) and the vector overlays (z 400), so the planned route, the amber
-// region boundaries, GPS markers, and the map controls all stay in full colour
-// on top.
+// We deliberately do NOT punch holes into one big tinted div with clip-path.
+// (Grayscale via backdrop-filter had a worse version of this: Chromium applies
+// a backdrop filter to the element's whole box and ignores the clip path.) A
+// plain background tint would clip fine, but tiling the outside with real
+// rectangles (subtractRects) keeps the two maps' code paths identical and
+// avoids any clip-path quirks — there is nothing to clip. The tiles live in
+// their own pane between the tiles (z 200) and the vector overlays (z 400), so
+// the planned route, the amber region boundaries, GPS markers, and the map
+// controls all stay untinted above it.
 //
 // Online, this draws nothing: the effect only appears while offline, so the
 // full-colour network map is never touched.
@@ -30,19 +30,17 @@ import L from 'leaflet';
 import { useMap } from 'react-leaflet';
 import { useEffectiveOffline } from './networkMode';
 import { useOfflineRegions } from './useOfflineRegions';
-import { clamp, subtractRects, type Rect } from './maskGeometry';
+import { clamp, subtractRects, MASK_TINT, type Rect } from './maskGeometry';
 
 // Poll cadence for picking up newly downloaded / deleted regions — matches
 // RegionBoundaryLayer so the holes and the outlines refresh in lockstep.
 const POLL_MS = 3000;
 
 // Dedicated pane between the tile pane (z 200) and the overlay pane (z 400) so
-// the desaturation covers the tiles but never the routes, boundaries, markers,
-// or controls, which all render above it and stay in colour.
+// the tint covers the tiles but never the routes, boundaries, markers, or
+// controls, which all render above it and stay untinted.
 const MASK_PANE = 'offlineMask';
 const MASK_PANE_Z = '350';
-
-const GRAYSCALE = 'grayscale(1)';
 
 export function OfflineMaskLayer() {
   const map = useMap();
@@ -50,7 +48,7 @@ export function OfflineMaskLayer() {
   const offline = useEffectiveOffline();
 
   // A single wrapper positioned in layer space (so it scales with the map
-  // during a zoom animation) holding a reused pool of grayscale tile divs.
+  // during a zoom animation) holding a reused pool of gray-tint tile divs.
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const poolRef = useRef<HTMLDivElement[]>([]);
   const updateRef = useRef<() => void>(() => {});
@@ -67,7 +65,7 @@ export function OfflineMaskLayer() {
   }, [refresh]);
 
   // Create the pane + overlay div once and wire it to the map's move/zoom
-  // events so the grayscale region tracks the viewport as the user pans.
+  // events so the tint tracks the viewport as the user pans.
   useEffect(() => {
     let pane = map.getPane(MASK_PANE);
     if (!pane) {
@@ -85,15 +83,13 @@ export function OfflineMaskLayer() {
     pane.appendChild(wrap);
     wrapRef.current = wrap;
 
-    // Grab (creating if needed) the i-th pooled grayscale tile div.
+    // Grab (creating if needed) the i-th pooled gray-tint tile div.
     const tile = (i: number): HTMLDivElement => {
       let el = poolRef.current[i];
       if (!el) {
         el = document.createElement('div');
         el.style.position = 'absolute';
-        el.style.backdropFilter = GRAYSCALE;
-        // Safari still needs the prefixed property.
-        el.style.setProperty('-webkit-backdrop-filter', GRAYSCALE);
+        el.style.background = MASK_TINT;
         wrap.appendChild(el);
         poolRef.current[i] = el;
       }
@@ -106,9 +102,9 @@ export function OfflineMaskLayer() {
     // pixels above-left of the viewport in *layer* space. That matters during a
     // zoom animation: Leaflet scales the whole mapPane (and every child pane
     // with it, including ours) around the zoom origin, so a viewport-sized
-    // overlay would expose un-desaturated tiles at the edges as the pane scales
-    // down. The padding keeps the grayscale covering the viewport throughout
-    // the tween, and because the tiles ride along in the same scaled coordinate
+    // overlay would expose untinted tiles at the edges as the pane scales
+    // down. The padding keeps the tint covering the viewport throughout the
+    // tween, and because the tiles ride along in the same scaled coordinate
     // space they track the downloaded regions without any per-frame work.
     const update = () => {
       const el = wrapRef.current;
@@ -129,7 +125,7 @@ export function OfflineMaskLayer() {
       el.style.height = `${h}px`;
 
       // Downloaded regions as wrapper-local rectangles (container pixels shifted
-      // by `pad`), clamped to the wrapper box — these are the colour gaps.
+      // by `pad`), clamped to the wrapper box — these are the untinted gaps.
       const holes: Rect[] = [];
       for (const region of regs) {
         // bounds are [south, west, north, east] (RegionMeta).
@@ -143,7 +139,7 @@ export function OfflineMaskLayer() {
         if (x2 > x1 && y2 > y1) holes.push([x1, y1, x2, y2]);
       }
 
-      // Tile the box minus the gaps with grayscale rectangles.
+      // Tile the box minus the gaps with gray-tint rectangles.
       const rects = subtractRects(w, h, holes);
       for (let i = 0; i < rects.length; i++) {
         const [rx1, ry1, rx2, ry2] = rects[i];
@@ -162,8 +158,8 @@ export function OfflineMaskLayer() {
 
     // During the zoom animation Leaflet scales the mapPane (and our pane with
     // it), so the padded tiles scale in lockstep and keep tracking the regions
-    // — no need to hide them (hiding caused the whole map to flash back to full
-    // colour mid-zoom). We only skip the pixel recompute while the tween runs,
+    // — no need to hide them (hiding caused the whole map to flash untinted
+    // mid-zoom). We only skip the pixel recompute while the tween runs,
     // since latLngToContainerPoint returns pre-zoom pixels then, and recompute
     // once crisply on zoomend.
     let zooming = false;

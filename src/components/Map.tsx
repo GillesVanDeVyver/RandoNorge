@@ -160,10 +160,10 @@ export function Map({
           keepBuffer={4}
         />
       )}
-      {/* Offline only: render the map in black and white everywhere outside
-          downloaded coverage so it's obvious which part is trustworthy without
-          a connection. Sits below the boundaries/route (which stay in colour)
-          and never intercepts the pointer. */}
+      {/* Offline only: lay a translucent gray tint over the map everywhere
+          outside downloaded coverage so it's obvious which part is trustworthy
+          without a connection. Sits below the boundaries/route (which stay
+          untinted) and never intercepts the pointer. */}
       <OfflineMaskLayer />
       {/* Outlines of downloaded regions so it's clear where full-detail
           offline coverage ends. Drawn under the route/nav layers and kept

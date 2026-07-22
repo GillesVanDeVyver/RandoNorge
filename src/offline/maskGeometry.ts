@@ -1,11 +1,11 @@
-// Geometry for the offline grayscale mask.
+// Geometry for the offline gray-tint mask.
 //
-// We can't punch "holes" into a `backdrop-filter` element with `clip-path`:
-// Chromium applies the backdrop filter to the element's whole box and ignores
-// the clip path (a long-standing limitation), so the downloaded regions would
-// desaturate along with everything else. Instead we cover only the *outside*
-// area with plain rectangular divs — real box geometry, nothing to clip — and
-// leave the downloaded rectangles as untouched gaps that stay in full colour.
+// Rather than punch region-shaped "holes" into one tinted div with clip-path,
+// we cover only the *outside* area with plain rectangular divs — real box
+// geometry, nothing to clip — and leave the downloaded rectangles as untinted
+// gaps. (This also dodges a Chromium quirk we hit with the earlier grayscale
+// version, where a `backdrop-filter` ignored its `clip-path` and greyed out the
+// whole box, downloaded areas included.)
 //
 // `subtractRects` turns "the w×h box minus these hole rectangles" into a set of
 // non-overlapping rectangles tiling exactly the uncovered area. It uses
@@ -14,6 +14,11 @@
 // each row so we emit as few rectangles as possible.
 
 export type Rect = [number, number, number, number]; // [x1, y1, x2, y2]
+
+// Translucent gray veil laid over the area the user can't rely on offline — a
+// light ut.no-style tint that dims the map without hiding it. Shared so the 2D
+// and 3D masks match exactly.
+export const MASK_TINT = 'rgba(110, 118, 129, 0.4)';
 
 export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;

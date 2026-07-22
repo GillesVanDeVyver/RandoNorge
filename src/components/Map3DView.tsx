@@ -30,7 +30,7 @@ import {
   registerOfflineMapProtocol,
 } from '../offline/maplibreOffline';
 import { subscribeNetworkMode } from '../offline/networkMode';
-import { clamp, subtractRects, type Rect } from '../offline/maskGeometry';
+import { clamp, subtractRects, MASK_TINT, type Rect } from '../offline/maskGeometry';
 import { Map3DCursorReadout } from './Map3DCursorReadout';
 import styles from './Map3DView.module.css';
 
@@ -697,19 +697,17 @@ export function Map3DView({
     else map.once('load', apply);
   }, [regionsVisible]);
 
-  // Offline grayscale: render everything outside downloaded coverage in black
-  // and white, the 3D twin of the 2D OfflineMaskLayer (and the ut.no read).
-  // MapLibre can't desaturate a raster only inside a polygon, so we tile the
-  // area *outside* the downloaded regions with plain grayscale backdrop-filter
-  // divs and leave the regions as untouched colour gaps.
+  // Offline gray tint: lay a translucent gray veil over everything outside
+  // downloaded coverage, the 3D twin of the 2D OfflineMaskLayer (and the ut.no
+  // read). We tile the area *outside* the downloaded regions with plain
+  // semi-transparent gray divs and leave the regions as untinted gaps.
   //
-  // As in 2D, we can't punch holes into one big backdrop-filter div with
-  // clip-path — Chromium applies the backdrop filter to the element's whole box
-  // and ignores the clip path, greying out the downloaded areas too. So we tile
-  // the outside with real rectangles (subtractRects) instead. Each region is
-  // projected to screen (pitch/bearing turn its footprint into a trapezoid) and
-  // we use that quad's axis-aligned bounding box as the colour gap; the box
-  // fully contains the region so downloaded coverage always stays in colour.
+  // As in 2D, we tile the outside with real rectangles (subtractRects) rather
+  // than punching holes into one clipped div — nothing to clip, and it keeps
+  // both maps on the same code path. Each region is projected to screen
+  // (pitch/bearing turn its footprint into a trapezoid) and we use that quad's
+  // axis-aligned bounding box as the untinted gap; the box fully contains the
+  // region so downloaded coverage always stays untinted.
   const offlineRef = useRef(offline);
   const maskUpdateRef = useRef<() => void>(() => {});
   useEffect(() => {
@@ -730,8 +728,7 @@ export function Map3DView({
       if (!el) {
         el = document.createElement('div');
         el.style.position = 'absolute';
-        el.style.backdropFilter = 'grayscale(1)';
-        el.style.setProperty('-webkit-backdrop-filter', 'grayscale(1)');
+        el.style.background = MASK_TINT;
         wrap.appendChild(el);
         pool[i] = el;
       }
@@ -748,7 +745,7 @@ export function Map3DView({
       const h = container.clientHeight;
 
       // Each downloaded region's projected bounding box, clamped to the
-      // viewport — these are the colour gaps.
+      // viewport — these are the untinted gaps.
       const holes: Rect[] = [];
       for (const region of regionsRef.current) {
         // bounds are [south, west, north, east]; project each corner.
@@ -767,7 +764,7 @@ export function Map3DView({
         if (x2 > x1 && y2 > y1) holes.push([x1, y1, x2, y2]);
       }
 
-      // Tile the viewport minus the gaps with grayscale rectangles.
+      // Tile the viewport minus the gaps with gray-tint rectangles.
       const rects = subtractRects(w, h, holes);
       for (let i = 0; i < rects.length; i++) {
         const [rx1, ry1, rx2, ry2] = rects[i];
@@ -796,7 +793,7 @@ export function Map3DView({
     };
   }, []);
 
-  // Redraw the grayscale clip when offline state flips or the regions change.
+  // Redraw the tint tiles when offline state flips or the regions change.
   useEffect(() => {
     offlineRef.current = offline;
     maskUpdateRef.current();
