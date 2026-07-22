@@ -4,6 +4,7 @@ import {
   ArrowLeftIcon,
   BookmarkIcon,
   CircleCheckIcon,
+  DownloadIcon,
   GlobeIcon,
   LinkIcon,
   LockIcon,
@@ -51,6 +52,8 @@ type Props = {
   onOpenRoute?: (id: string) => void;
   /** Delete a route (rejects on failure). Hides the trash button when absent. */
   onDeleteRoute?: (id: string) => Promise<void>;
+  /** Export a route as GPX. Hides the export button when absent. */
+  onExportRoute?: (id: string) => void;
   /**
    * Toggle a route's public/private state (rejects on failure). When
    * present, each row shows a visibility toggle and — once public — a
@@ -89,6 +92,7 @@ export function RoutesListPage({
   onPlanNewRoute,
   onOpenRoute,
   onDeleteRoute,
+  onExportRoute,
   onToggleShare,
 }: Props) {
   const copy = COPY[kind];
@@ -314,6 +318,17 @@ export function RoutesListPage({
                         </span>
                       </button>
                     </div>
+                    {onExportRoute && (
+                      <button
+                        type="button"
+                        className={styles.exportBtn}
+                        onClick={() => onExportRoute(route.id)}
+                        title="Export route as GPX"
+                        aria-label={`Export ${route.name} as GPX`}
+                      >
+                        <DownloadIcon />
+                      </button>
+                    )}
                     {onDeleteRoute &&
                       (confirmId === route.id ? (
                           <span className={styles.confirm}>

@@ -28,6 +28,8 @@ import {
   type SavedTrack,
 } from './tracking/api.ts';
 import { formatAscent, formatDate, formatDistance } from './routes/format.ts';
+import { routeToGpx, gpxFilename } from './routes/gpx.ts';
+import { downloadTextFile } from './routes/download.ts';
 
 /**
  * Signed-in navigation. Kept as simple component state (no router):
@@ -358,6 +360,22 @@ export function Root() {
     setSavedRoutes((prev) => (prev ?? []).filter((r) => r.id !== id));
   }, []);
 
+  // Export a saved route as a downloadable GPX file. Only the stored geometry
+  // is available here (no per-point elevation), so this exports coordinates
+  // only — open the route in the planner to export with elevation.
+  const handleExportRoute = useCallback(
+    (id: string) => {
+      const route = savedRoutes?.find((r) => r.id === id);
+      if (!route || route.route.length === 0) return;
+      const gpx = routeToGpx(route.route, {
+        name: route.name,
+        description: route.description,
+      });
+      downloadTextFile(gpxFilename(route.name), gpx);
+    },
+    [savedRoutes],
+  );
+
   // Flip a saved route's public/private state and fold the server's answer
   // (with a freshly minted slug on first share) back into the library so the
   // row's copy-link button appears immediately.
@@ -384,6 +402,17 @@ export function Root() {
     await deleteTrack(id);
     setCompletedTracks((prev) => (prev ?? []).filter((t) => t.id !== id));
   }, []);
+
+  // Export a completed tour's recorded track as a downloadable GPX file.
+  const handleExportTrack = useCallback(
+    (id: string) => {
+      const track = completedTracks?.find((t) => t.id === id);
+      if (!track || track.track.length === 0) return;
+      const gpx = routeToGpx(track.track, { name: track.name });
+      downloadTextFile(gpxFilename(track.name), gpx);
+    },
+    [completedTracks],
+  );
 
   const handleToggleTrackShare = useCallback(
     async (id: string, share: boolean) => {
@@ -533,6 +562,9 @@ export function Root() {
             onOpenRoute={view === 'saved' ? handleOpenRoute : handleOpenTrack}
             onDeleteRoute={
               view === 'saved' ? handleDeleteRoute : handleDeleteTrack
+            }
+            onExportRoute={
+              view === 'saved' ? handleExportRoute : handleExportTrack
             }
             onToggleShare={
               view === 'saved'

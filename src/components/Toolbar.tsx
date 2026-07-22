@@ -3,6 +3,7 @@ import type { Mode } from '../types';
 import { IMPORT_ACCEPT } from '../routes/import';
 import {
   CloseIcon,
+  DownloadIcon,
   EraserIcon,
   PencilIcon,
   TrashIcon,
@@ -22,6 +23,9 @@ interface Props {
   // Called with the chosen route file (GPX, TCX, or FIT) when the user picks
   // one to import. Omit to hide the import control entirely.
   onImport?: (file: File) => void;
+  // Called when the user asks to export the current route as GPX. Omit to hide
+  // the export control; the button is also disabled while there is no route.
+  onExport?: () => void;
   // Mobile: collapse the four tools behind a single "Edit route" button.
   // Tapping it expands the stack; picking any tool (or the close button)
   // collapses it again, so the map keeps just one control by default.
@@ -35,6 +39,7 @@ export function Toolbar({
   hasRoute,
   loading,
   onImport,
+  onExport,
   collapsible = false,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -144,6 +149,21 @@ export function Toolbar({
             hidden
           />
         </>
+      )}
+      {onExport && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => {
+            onExport();
+            collapse();
+          }}
+          title="Export route as GPX"
+          aria-label="Export route as GPX"
+          disabled={!hasRoute}
+        >
+          <DownloadIcon />
+        </button>
       )}
     </div>
   );

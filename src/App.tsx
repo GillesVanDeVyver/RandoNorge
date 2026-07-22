@@ -45,6 +45,13 @@ import {
   RouteImportError,
   IMPORT_ACCEPT,
 } from './routes/import';
+import {
+  segmentsToGpx,
+  routeToGpx,
+  gpxFilename,
+  type GpxTrackPoint,
+} from './routes/gpx';
+import { downloadTextFile } from './routes/download';
 import { formatAscent, formatDate, formatDistance } from './routes/format';
 import { useIsMobile } from './useIsMobile';
 import type { Mode, Overlay, Route } from './types';
@@ -807,6 +814,29 @@ function App({ saving, review: reviewProp, publicView }: Props) {
     [route, dismissImportError],
   );
 
+  // Export the current route as a downloadable GPX file. When the elevation
+  // pipeline has already produced a profile we export those points (they carry
+  // per-point <ele>); otherwise we fall back to the drawn coordinates. Either
+  // way each route segment becomes one <trkseg>, so a round-trip through the
+  // importer preserves the segment structure.
+  const handleExportRoute = useCallback(() => {
+    if (route.length === 0) return;
+    const name = savedMeta?.name ?? 'Route';
+    const description = savedMeta?.description ?? undefined;
+
+    const profile = elevation.profile;
+    let gpx: string;
+    if (profile && profile.segments.length > 0) {
+      const segments: GpxTrackPoint[][] = profile.segments.map((seg) =>
+        seg.map((p) => ({ lat: p.lat, lng: p.lng, ele: p.elevation })),
+      );
+      gpx = segmentsToGpx(segments, { name, description });
+    } else {
+      gpx = routeToGpx(route, { name, description });
+    }
+    downloadTextFile(gpxFilename(name), gpx);
+  }, [route, savedMeta, elevation.profile]);
+
   useEffect(() => () => {
     if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
     if (savedToastTimer.current !== null) {
@@ -981,6 +1011,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             hasRoute={hasRoute}
             loading={loading}
             onImport={handleImportFile}
+            onExport={handleExportRoute}
             collapsible={isMobile}
           />
         )}

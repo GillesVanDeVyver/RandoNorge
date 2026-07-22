@@ -109,3 +109,140 @@ export async function importGpxFile(file: File): Promise<Route> {
   const text = await file.text();
   return parseGpx(text);
 }
+
+// ---------------------------------------------------------------------------
+// Export
+//
+// The inverse of parseGpx: turn a route into a GPX 1.1 document. Routes are
+// written as a single <trk> with one <trkseg> per segment, which is exactly
+// what parseGpx prefers on the way back in — so a route exported here and
+// re-imported keeps its segment structure (eraser/recording gaps intact).
+//
+// Elevation is optional. The app discards <ele> on import (it recomputes its
+// own profile), but other tools (Garmin, Strava, komoot…) use it, so when the
+// caller has a computed profile we write <ele> for each point.
+// ---------------------------------------------------------------------------
+
+/** One exported track point. `ele` (meters) is written as <ele> when present. */
+export interface GpxTrackPoint {
+  lat: number;
+  lng: number;
+  ele?: number | null;
+}
+
+export interface GpxExportOptions {
+  /** Written to <metadata><name> and <trk><name>. Defaults to "Route". */
+  name?: string;
+  /** Written to <metadata><desc> and <trk><desc> when non-empty. */
+  description?: string | null;
+  /** Timestamp for <metadata><time>. Defaults to now. */
+  time?: Date;
+}
+
+const GPX_CREATOR = 'Fjellrute';
+
+/** Escape a string for use in XML text/attribute content. */
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/** Format a coordinate to ~1 cm precision without trailing-zero noise. */
+function coord(n: number): string {
+  return Number(n.toFixed(7)).toString();
+}
+
+/** Render one <trkpt> (with optional <ele>). */
+function trackPoint(p: GpxTrackPoint): string {
+  const ele =
+    p.ele != null && Number.isFinite(p.ele)
+      ? `<ele>${Number(p.ele.toFixed(1)).toString()}</ele>`
+      : '';
+  return (
+    `      <trkpt lat="${coord(p.lat)}" lon="${coord(p.lng)}">` +
+    `${ele}</trkpt>`
+  );
+}
+
+/**
+ * Serialize track segments into a GPX 1.1 document string. Each inner array
+ * becomes one <trkseg>; empty segments (fewer than 1 point) are skipped.
+ */
+export function segmentsToGpx(
+  segments: GpxTrackPoint[][],
+  options: GpxExportOptions = {},
+): string {
+  const name = options.name?.trim() || 'Route';
+  const desc = options.description?.trim();
+  const time = (options.time ?? new Date()).toISOString();
+
+  const meta =
+    `  <metadata>\n` +
+    `    <name>${escapeXml(name)}</name>\n` +
+    (desc ? `    <desc>${escapeXml(desc)}</desc>\n` : '') +
+    `    <time>${time}</time>\n` +
+    `  </metadata>\n`;
+
+  const trksegs = segments
+    .filter((seg) => seg.length > 0)
+    .map(
+      (seg) =>
+        `    <trkseg>\n${seg.map(trackPoint).join('\n')}\n    </trkseg>`,
+    )
+    .join('\n');
+
+  const trk =
+    `  <trk>\n` +
+    `    <name>${escapeXml(name)}</name>\n` +
+    (desc ? `    <desc>${escapeXml(desc)}</desc>\n` : '') +
+    `${trksegs}\n` +
+    `  </trk>\n`;
+
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<gpx version="1.1" creator="${escapeXml(GPX_CREATOR)}"\n` +
+    `     xmlns="http://www.topografix.com/GPX/1/1"\n` +
+    `     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n` +
+    `     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 ` +
+    `http://www.topografix.com/GPX/1/1/gpx.xsd">\n` +
+    meta +
+    trk +
+    `</gpx>\n`
+  );
+}
+
+/**
+ * Convenience: serialize a plain Route (coordinates only, no elevation) to a
+ * GPX track document.
+ */
+export function routeToGpx(route: Route, options?: GpxExportOptions): string {
+  return segmentsToGpx(
+    route.map((seg) => seg.map(([lat, lng]) => ({ lat, lng }))),
+    options,
+  );
+}
+
+/**
+ * Turn a display name into a safe ".gpx" filename, e.g. "Galdhøpiggen loop"
+ * → "galdhopiggen-loop.gpx". Falls back to "route.gpx".
+ */
+export function gpxFilename(name?: string | null): string {
+  const slug = (name ?? '')
+    .trim()
+    .toLowerCase()
+    // Norwegian letters don't decompose under NFKD (ø/æ are distinct letters,
+    // not accented o/a), so map them explicitly before stripping.
+    .replace(/ø/g, 'o')
+    .replace(/æ/g, 'ae')
+    .replace(/å/g, 'a')
+    .normalize('NFKD')
+    // Strip combining marks (accents) left by the decomposition above.
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${slug || 'route'}.gpx`;
+}
