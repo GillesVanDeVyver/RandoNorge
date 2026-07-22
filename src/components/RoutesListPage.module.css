@@ -234,8 +234,19 @@
   transition: border-color var(--dur-fast) var(--ease);
 }
 
-.routeCard:hover {
+/* Rather than lighting the whole card whenever the cursor is anywhere over
+   it (which made the two stacked controls read as a single target), the
+   border now reacts to the specific zone under the pointer: teal when the
+   route-open row is hovered, a plain stronger hairline when the sharing
+   toggle is hovered. Combined with the per-zone fills below, this makes it
+   obvious which action a click will trigger. */
+.routeCard:has(.rowAttached:hover) {
   border-color: var(--accent);
+}
+
+.routeCard:has(.visToggle:hover:not(:disabled)),
+.routeCard:has(.copyLinkBtn:hover) {
+  border-color: var(--hairline-strong);
 }
 
 .row {
@@ -277,12 +288,19 @@
   background: transparent;
   border: none;
   border-radius: 0;
+  /* Room for the accent bar that appears on hover/focus so the text never
+     shifts when the indicator comes in. */
+  box-shadow: inset 3px 0 0 transparent;
 }
 
+/* Hovering the open-route zone lights it up to solid white and draws a teal
+   bar down its leading edge, clearly reading as "open this route" and
+   distinct from the sharing toggle's tinted wash above it. */
 .rowAttached:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: #fff;
   border-color: transparent;
   transform: none;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .rowAttached:focus-visible {
@@ -365,8 +383,17 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
+/* Hovering the sharing control washes it in a soft teal tint (distinct from
+   the route zone's solid-white fill) and nudges the label/icon to the accent
+   colour, so it clearly reads as "change who can see this" rather than
+   "open the route". */
 .visToggle:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(45, 212, 191, 0.12);
+  color: var(--accent);
+}
+
+.visToggle:hover:not(:disabled) .visLabel {
+  color: var(--accent);
 }
 
 .visToggle:disabled {
@@ -417,7 +444,7 @@
 }
 
 .visTogglePublic:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(45, 212, 191, 0.12);
 }
 
 /* Copy-link button on the right of the header; only present once public.
@@ -447,7 +474,7 @@
 }
 
 .copyLinkBtn:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(45, 212, 191, 0.12);
   color: var(--accent);
 }
 
