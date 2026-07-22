@@ -1,4 +1,9 @@
-import { DOWNLOADABLE_LAYER_LIST, type OfflineLayerId } from '../offline/layers';
+import {
+  DOWNLOADABLE_LAYER_LIST,
+  effectiveDownloadZoom,
+  type OfflineLayer,
+  type OfflineLayerId,
+} from '../offline/layers';
 import type { DownloadProgress } from '../offline/download';
 import { formatBytes, formatResolution } from '../offline/format';
 import styles from './OfflineManager.module.css';
@@ -49,23 +54,39 @@ export function OfflineDownloadFields({
   onDownload,
   onCancel,
 }: Props) {
+  // When the detail slider asks for finer tiles than a layer can be stored at
+  // offline, say so plainly under that layer — otherwise "finest detail"
+  // over-promises. Topo is capped by Kartverket licensing (z12+ Geovekst tiles
+  // may be shown live but not copied to disk); the other layers are capped by
+  // their own source resolution. Returns null when the slider is within range.
+  const offlineCapNote = (layer: OfflineLayer): string | null => {
+    const effZoom = effectiveDownloadZoom(layer, maxZoom);
+    if (effZoom >= maxZoom) return null;
+    return `Stored offline at ${formatResolution(effZoom)} max`;
+  };
+
   return (
     <>
       <fieldset className={styles.group} disabled={downloading}>
         <legend className={styles.legend}>Layers</legend>
-        {DOWNLOADABLE_LAYER_LIST.map((layer) => (
-          <label key={layer.id} className={styles.checkRow}>
-            <input
-              type="checkbox"
-              checked={layerIds.includes(layer.id)}
-              onChange={() => toggleLayer(layer.id)}
-            />
-            <span className={styles.checkText}>
-              <span className={styles.checkLabel}>{layer.label}</span>
-              <span className={styles.checkDesc}>{layer.description}</span>
-            </span>
-          </label>
-        ))}
+        {DOWNLOADABLE_LAYER_LIST.map((layer) => {
+          const selected = layerIds.includes(layer.id);
+          const capNote = selected ? offlineCapNote(layer) : null;
+          return (
+            <label key={layer.id} className={styles.checkRow}>
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => toggleLayer(layer.id)}
+              />
+              <span className={styles.checkText}>
+                <span className={styles.checkLabel}>{layer.label}</span>
+                <span className={styles.checkDesc}>{layer.description}</span>
+                {capNote && <span className={styles.checkCap}>{capNote}</span>}
+              </span>
+            </label>
+          );
+        })}
       </fieldset>
 
       <div className={styles.group}>

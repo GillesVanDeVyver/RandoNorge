@@ -130,6 +130,16 @@
   line-height: 1.35;
 }
 
+/* Per-layer honesty note: shown under a selected layer when the detail slider
+   asks for more than that layer can actually be stored at offline (e.g. topo's
+   Kartverket licensing cap), so "finest detail" never over-promises. */
+.checkCap {
+  font-size: var(--text-xs);
+  color: var(--warning, #d97706);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .sliderRow {
   display: flex;
   flex-direction: column;

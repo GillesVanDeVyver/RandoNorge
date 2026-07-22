@@ -24,39 +24,29 @@ import {
   useRegionsVisible,
 } from '../offline/regionOverlayMode';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
+import {
+  offlineTileTemplate,
+  registerOfflineMapProtocol,
+} from '../offline/maplibreOffline';
+import { subscribeNetworkMode } from '../offline/networkMode';
 import { Map3DCursorReadout } from './Map3DCursorReadout';
 import styles from './Map3DView.module.css';
 
-// Same Kartverket topo tiles as the 2D map — draped over the terrain mesh.
-const KARTVERKET_TILES =
-  'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png';
-// Terrain DEM tiles (Terrarium encoding), served by our Worker at
-// /terrain-dem/* (worker/terrain.js): self-generated tiles from Kartverket's
-// 1 m national LiDAR DTM (NDH) out of R2 where coverage exists, falling back
-// to the AWS Open Data Terrarium set (ArcticDEM 5 m above 60°N, coarser
-// sources further south) everywhere else. Both encodings are identical, so
-// the mesh seamlessly sharpens as regions are generated. Tiles top out at
-// z15; MapLibre overzooms beyond that. Absolute URL because MapLibre does
-// not reliably resolve relative tile templates.
-const TERRAIN_DEM_TILES = `${location.origin}/terrain-dem/{z}/{x}/{y}.png`;
+// Register the offline tile protocol so the raster sources below can read
+// downloaded tiles from IndexedDB first (and fall back to the network when
+// online), the same way the 2D map's OfflineTileLayer does. Idempotent.
+registerOfflineMapProtocol();
 
-// NVE seNorge snow-depth grid (the same `sd` layer the 2D map drapes for the
-// "snow depth" overlay), requested as a WebMercator WMS image so MapLibre can
-// drape it over the terrain mesh. The grid is colored by depth, so the result
-// is snow rendered directly from snow depth data: bare ground where the grid
-// is empty, deepening blue where the snowpack is thickest. `{bbox-epsg-3857}`
-// is substituted by MapLibre per tile; `time` selects the date.
-const snowTilesUrl = (date: string) =>
-  'https://kart.nve.no/enterprise/services/seNorgeGrid_png/ImageServer/WMSServer' +
-  '?service=WMS&request=GetMap&version=1.1.1&layers=sd&styles=' +
-  '&format=image/png&transparent=true&width=256&height=256' +
-  `&srs=EPSG:3857&bbox={bbox-epsg-3857}&time=${date}`;
-
-// NVE Bratthet_med_utlop_2024 — the same avalanche-terrain steepness layer the
-// 2D map uses: slope angle banded by color with modeled runout zones. Served
-// as WebMercator WMTS tiles, draped over the terrain mesh.
-const STEEPNESS_TILES =
-  'https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}';
+// Every tile source below — the Kartverket topo base map, the NVE seNorge snow
+// depth and Bratthet_med_utlop_2024 steepness overlays, and the Terrarium
+// terrain-DEM mesh — is served through the shared offline tile protocol
+// (offlineTileTemplate) rather than a straight source URL, so each renders from
+// the IndexedDB cache when its area has been downloaded and keeps working with
+// no connectivity, exactly like the 2D map. The real source URLs (including the
+// same-origin /terrain-dem Worker route) live in the shared layer descriptors
+// (offline/layers.ts) that also drive the downloader, keeping requests and
+// cache keys in lockstep. Terrain is optional to download: if its tiles aren't
+// cached, the mesh flattens offline and the draped map still works.
 
 // Vertical exaggeration of the terrain mesh. 1.0 is true-to-life; a small
 // bump makes ridgelines and couloirs read more clearly without looking fake.
@@ -243,26 +233,26 @@ export function Map3DView({
           // keep it in sync when sources change here.
           basemap: {
             type: 'raster',
-            tiles: [KARTVERKET_TILES],
+            tiles: [offlineTileTemplate('topo')],
             tileSize: 256,
             maxzoom: 18,
           },
           terrain: {
             type: 'raster-dem',
-            tiles: [TERRAIN_DEM_TILES],
+            tiles: [offlineTileTemplate('terrain')],
             tileSize: 256,
             encoding: 'terrarium',
             maxzoom: 15,
           },
           snow: {
             type: 'raster',
-            tiles: [snowTilesUrl(snowDate)],
+            tiles: [offlineTileTemplate('snowdepth', snowDate)],
             tileSize: 256,
             maxzoom: 9,
           },
           steepness: {
             type: 'raster',
-            tiles: [STEEPNESS_TILES],
+            tiles: [offlineTileTemplate('steepness')],
             tileSize: 256,
             maxzoom: 16,
           },
@@ -739,10 +729,37 @@ export function Map3DView({
       const src = map.getSource('snow') as
         | maplibregl.RasterTileSource
         | undefined;
-      src?.setTiles([snowTilesUrl(snowDate)]);
+      src?.setTiles([offlineTileTemplate('snowdepth', snowDate)]);
     };
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
+  }, [snowDate]);
+
+  // React to the offline/online flag flipping (the dev offline simulator).
+  // Unlike the 2D map — whose OfflineTileLayer subscribes to networkMode and
+  // redraws — MapLibre caches whatever tiles it last fetched and has no idea
+  // the source should be re-evaluated, so after toggling offline it keeps
+  // showing the online tiles until a pan/zoom forces new requests. Re-setting
+  // each source's tile template forces an immediate reload through the offline
+  // protocol, so the 3D view honours the toggle right away and offline testing
+  // reflects reality. (Same setTiles mechanism the snow-date effect above uses.)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const refresh = () => {
+      if (!map.isStyleLoaded()) return;
+      const reset = (id: string, template: string) => {
+        const src = map.getSource(id) as
+          | maplibregl.RasterTileSource
+          | undefined;
+        src?.setTiles([template]);
+      };
+      reset('basemap', offlineTileTemplate('topo'));
+      reset('terrain', offlineTileTemplate('terrain'));
+      reset('steepness', offlineTileTemplate('steepness'));
+      reset('snow', offlineTileTemplate('snowdepth', snowDate));
+    };
+    return subscribeNetworkMode(refresh);
   }, [snowDate]);
 
   // Toggle map interactions and cursor based on draw/erase/idle mode, mirroring

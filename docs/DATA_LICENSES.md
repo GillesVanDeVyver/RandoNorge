@@ -46,7 +46,19 @@ ToS/info dialog).
   separate permission** from post@kartverket.no. Displaying tiles live in the
   client, as we do, is fine. Do not add server-side tile prefetch/mirroring
   for z12+ without asking Kartverket first.
-- Action item satisfied: we only display tiles client-side; no bulk download.
+- **Offline caching of z12+ topo tiles is a form of "copying" this data and
+  is therefore currently disallowed.** The offline downloader caps topo at
+  z11 (`maxDownloadZoom: 11` in `src/offline/layers.ts`) so no Geovekst-
+  restricted tile is ever persisted to a user's device. This is why a
+  downloaded topo area looks crisp online but blurs when you zoom in close
+  offline (most visible in the 3D view) — it is a licensing limit, not a bug.
+- **Permission request status: PENDING — under handling by Kartverket.** A
+  request to cache z12+ topo tiles offline has been submitted to
+  post@kartverket.no and is awaiting their decision. Until written permission
+  is on file, the z11 cap stays. Once granted, raise `maxDownloadZoom` on the
+  topo layer (one line) and note the grant reference here.
+- Action item satisfied: we only display tiles client-side; no bulk download,
+  and offline caching is capped at the licence-safe z11 pending the request above.
 
 Links:
 - Terms of use: https://www.kartverket.no/en/api-and-data/terms-of-use
@@ -187,6 +199,11 @@ Links:
 
 ## Open action items
 
+- Kartverket permission request (submitted, **pending — under handling**):
+  we have asked Kartverket (post@kartverket.no) for permission to cache z12+
+  topo tiles offline. Until it is granted, the offline downloader stays capped
+  at z11 (`src/offline/layers.ts`, `maxDownloadZoom: 11`). When the reply
+  arrives, record the outcome here and, if approved, raise the cap.
 - If traffic grows, ask Kartverket about a service agreement before any
   server-side tile caching of z12+ (Geovekst restriction).
 - Nice-to-have: switch the Worker's fixed-TTL edge cache for `/metno-api` to

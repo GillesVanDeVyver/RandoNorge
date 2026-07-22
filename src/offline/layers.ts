@@ -9,7 +9,7 @@
 
 import { tileBBox3857 } from './tileMath';
 
-export type OfflineLayerId = 'topo' | 'steepness' | 'snowdepth';
+export type OfflineLayerId = 'topo' | 'steepness' | 'snowdepth' | 'terrain';
 
 export interface TileUrlOpts {
   /** Snapshot date (YYYY-MM-DD) — only meaningful for the snow-depth layer. */
@@ -37,12 +37,25 @@ export interface OfflineLayer {
    * "must [not] be copied or used in other ways" without separate permission
    * from the licensees — live display is fine, bulk copying to a local store
    * is not. Until that permission is granted, topo is capped at z11 so the
-   * offline cache never persists Geovekst-restricted tiles. See
-   * docs/DATA_LICENSES.md §1 and the Kartverket permission request on file.
+   * offline cache never persists Geovekst-restricted tiles.
+   *
+   * A permission request to cache z12+ offline has been submitted to Kartverket
+   * (post@kartverket.no) and is PENDING — under handling. Raise this cap only
+   * once written permission is on file. See docs/DATA_LICENSES.md §1.
    */
   maxDownloadZoom?: number;
   /** True when tiles are tied to a date (snow depth) and the key must encode it. */
   needsDate: boolean;
+  /**
+   * True when a tile stores *encoded data* rather than a picture — currently
+   * only the Terrarium-encoded terrain DEM, whose RGB channels pack an
+   * elevation, not a colour. Overzoom reconstruction must upsample these with
+   * nearest-neighbour sampling: bilinear smoothing would blend the encoded
+   * bytes and invent garbage elevations (a spike at every 256 m contour where
+   * the green channel wraps). Omitted/false for ordinary raster imagery, which
+   * is smoothed for a cleaner blur.
+   */
+  encoded?: boolean;
   /** Full request URL for one tile. */
   tileUrl: (z: number, x: number, y: number, opts?: TileUrlOpts) => string;
   /** Stable IndexedDB key for one tile. */
@@ -59,8 +72,9 @@ const topo: OfflineLayer = {
   maxNativeZoom: 18,
   // ...but the offline downloader is capped at z11: z12+ topo tiles contain
   // Geovekst data that Kartverket's terms forbid copying into a local store
-  // without separate permission (see maxDownloadZoom doc above). Raise this
-  // only once written permission from Kartverket is on file.
+  // without separate permission (see maxDownloadZoom doc above). A permission
+  // request is pending with Kartverket (under handling); raise this only once
+  // that written permission is on file.
   maxDownloadZoom: 11,
   needsDate: false,
   tileUrl: (z, x, y) =>
@@ -121,16 +135,63 @@ const snowdepth: OfflineLayer = {
     `snowdepth/${opts?.snowDate ?? 'latest'}/${z}/${x}/${y}`,
 };
 
+// --- Terrain elevation mesh (Terrarium-encoded DEM, {z}/{x}/{y}) ------------
+// The 3D view drapes the map over a terrain mesh built from these elevation
+// tiles, served same-origin by our Worker (worker/terrain.js): Kartverket's
+// 1 m national LiDAR DTM (NDH, CC BY 4.0) out of R2 where generated, falling
+// back to the AWS Open Data Terrarium set elsewhere. Unlike the picture layers
+// this stores *encoded* data (see `encoded` above), and it only matters for the
+// 3D map — downloading it is what makes offline 3D show real relief instead of
+// flat ground.
+const terrain: OfflineLayer = {
+  id: 'terrain',
+  label: '3D terrain relief (finest detail 2 m)',
+  description:
+    'Kartverket LiDAR elevation mesh. Only used by the 3D map — adds real relief offline.',
+  // Both terrain sources top out at z15 (~2.4 m/px at 60°N); the mesh is
+  // overzoomed beyond that. No maxDownloadZoom cap: the DEM is openly licensed
+  // (CC BY 4.0 / AWS Open Data), so unlike topo it may be cached in full.
+  maxNativeZoom: 15,
+  needsDate: false,
+  encoded: true,
+  // Absolute (same-origin) URL: the Worker route lives at /terrain-dem/*.
+  tileUrl: (z, x, y) => `${location.origin}/terrain-dem/${z}/${x}/${y}.png`,
+  storageKey: (z, x, y) => `terrain/${z}/${x}/${y}`,
+};
+
+/**
+ * The deepest zoom the *offline downloader* will actually persist for a layer,
+ * given the finest zoom the user asked for. Clamped by the layer's download
+ * ceiling: `maxDownloadZoom` when set (a legal cap on copying tiles to disk —
+ * e.g. topo stops at z11 below the Geovekst-restricted z12+ range), otherwise
+ * the source's native max. When the slider asks for more detail than this,
+ * the extra is silently dropped, so the UI uses this to tell the truth about
+ * what a layer will really store offline.
+ */
+export function effectiveDownloadZoom(
+  layer: OfflineLayer,
+  requestedZoom: number,
+): number {
+  return Math.min(requestedZoom, layer.maxDownloadZoom ?? layer.maxNativeZoom);
+}
+
 export const OFFLINE_LAYERS: Record<OfflineLayerId, OfflineLayer> = {
   topo,
   steepness,
   snowdepth,
+  terrain,
 };
 
-export const OFFLINE_LAYER_LIST: OfflineLayer[] = [topo, steepness, snowdepth];
+export const OFFLINE_LAYER_LIST: OfflineLayer[] = [
+  topo,
+  steepness,
+  snowdepth,
+  terrain,
+];
 
 // Layers offered in the download UI. Snow depth is intentionally excluded: it is
 // a date-specific 1 km overlay best used live, not stored offline. It still
 // exists in OFFLINE_LAYERS above so the live map and any previously downloaded
-// snow tiles keep working.
-export const DOWNLOADABLE_LAYER_LIST: OfflineLayer[] = [topo, steepness];
+// snow tiles keep working. Terrain is included so users can opt into offline 3D
+// relief and choose its detail like any other layer.
+export const DOWNLOADABLE_LAYER_LIST: OfflineLayer[] = [topo, steepness, terrain];

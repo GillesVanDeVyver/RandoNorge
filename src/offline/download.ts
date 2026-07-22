@@ -11,7 +11,11 @@ import {
   putTile,
   type RegionMeta,
 } from './db';
-import { OFFLINE_LAYERS, type OfflineLayerId } from './layers';
+import {
+  OFFLINE_LAYERS,
+  effectiveDownloadZoom,
+  type OfflineLayerId,
+} from './layers';
 import {
   countTiles,
   enumerateTiles,
@@ -55,9 +59,8 @@ function layerZoomRange(
   layerId: OfflineLayerId,
 ): { min: number; max: number } {
   const layer = OFFLINE_LAYERS[layerId];
-  const cap = layer.maxDownloadZoom ?? layer.maxNativeZoom;
   const min = Math.min(plan.minZoom ?? OVERVIEW_MIN_ZOOM, plan.maxZoom);
-  const max = Math.min(plan.maxZoom, cap);
+  const max = effectiveDownloadZoom(layer, plan.maxZoom);
   return { min, max };
 }
 
