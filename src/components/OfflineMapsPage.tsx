@@ -187,7 +187,7 @@ export function OfflineMapsPage({ onBack }: Props) {
               onClick={() => setDownloadOpen(true)}
               disabled={downloadOpen}
             >
-              Select new area to download
+              Select an area to download on this device
             </button>
 
             {regions.length === 0 ? (
@@ -197,9 +197,10 @@ export function OfflineMapsPage({ onBack }: Props) {
                 </span>
                 <h2 className={styles.emptyTitle}>No areas downloaded yet</h2>
                 <p className={styles.emptyText}>
-                  Use “Select new area to download” to save part of the map for
-                  use with no connectivity. It works just like saving an area
-                  while planning a route.
+                  Use “Select an area to download on this device” to save part
+                  of the map for use with no connectivity. It works just like
+                  saving an area while planning a route. Downloaded maps stay on
+                  this device only. They do not sync to your other devices.
                 </p>
               </div>
             ) : (

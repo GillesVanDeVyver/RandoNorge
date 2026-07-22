@@ -169,7 +169,7 @@ export function AccountOverview({
                   {offlineCount}
                 </span>
                 <span className={styles.cardTitle}>
-                  Offline {offlineCount === 1 ? 'map' : 'maps'}
+                  Offline {offlineCount === 1 ? 'map' : 'maps'} on this device
                 </span>
               </span>
               <span className={styles.cardText}>

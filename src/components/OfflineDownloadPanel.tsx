@@ -67,6 +67,12 @@ export function OfflineDownloadPanel({
           offline, then pick the layers and detail below.
         </p>
 
+        <p className={styles.subnote}>
+          Downloaded maps are saved on this device only — they won’t appear on
+          your other devices, and they’re removed if you clear this
+          browser’s data.
+        </p>
+
         <OfflineDownloadFields
           layerIds={dl.layerIds}
           toggleLayer={dl.toggleLayer}

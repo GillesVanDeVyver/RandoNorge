@@ -105,7 +105,7 @@ export function OfflineDownloadFields({
             onClick={onDownload}
             disabled={!canDownload}
           >
-            Download
+            Download on this device
           </button>
         </div>
       ) : (
