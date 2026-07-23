@@ -68,4 +68,4 @@ Thank you very much for your help — and for the excellent open map data.
 Med vennlig hilsen,
 Gilles
 SonoFit
-gilles@sonofit.no
+contact@fjellrute.no

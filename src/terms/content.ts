@@ -157,7 +157,7 @@ export const TERMS: Record<TermsLang, TermsText> = {
             'presented for acceptance again. Continued use of the ' +
             'service after changes take effect constitutes acceptance of ' +
             'the updated terms. Questions can be sent to ' +
-            'tryggve@sonofit.no.',
+            'contact@fjellrute.no.',
         ],
       },
       {
@@ -293,7 +293,7 @@ export const TERMS: Record<TermsLang, TermsText> = {
             'versjon. Vesentlige endringer vil bli lagt frem for ny ' +
             'aksept. Fortsatt bruk av tjenesten etter at endringer har ' +
             'trådt i kraft, regnes som aksept av de oppdaterte ' +
-            'vilkårene. Spørsmål kan sendes til tryggve@sonofit.no.',
+            'vilkårene. Spørsmål kan sendes til contact@fjellrute.no.',
         ],
       },
       {

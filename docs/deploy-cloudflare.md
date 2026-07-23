@@ -50,7 +50,7 @@ returns JSON — that proves the proxy path works end to end.
 ## Things to keep correct over time
 
 - `worker/proxy.js` contains the `User-Agent` sent to MET
-  (`fjellrute/0.1 tryggve@sonofit.no`). MET's terms require it to identify
+  (`fjellrute/0.1 contact@fjellrute.no`). MET's terms require it to identify
   the app and include a working contact — update it if the contact changes,
   and bump the version when releasing.
 - Cache lifetimes are defined in `worker/index.js`: MET 30 min, seNorge

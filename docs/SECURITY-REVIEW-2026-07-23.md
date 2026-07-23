@@ -10,24 +10,26 @@ The application is in good shape. No live secrets are committed anywhere — not
 
 The findings below are almost all defense-in-depth improvements rather than active holes. The two worth prioritizing are the complete absence of HTTP security headers (medium) and the weak, per-isolate rate limiting on the auth endpoints (medium). One privacy item — a personal email address hardcoded as the API User-Agent — is also worth changing.
 
+**Current status (updated 2026-07-23):** all eight findings have been remediated in code, the working tree is clean — the personal email has been removed from every current file (finding 5) and the DPA page is no longer tracked (finding 8) — and the hardened Worker has been **deployed** (`npx wrangler deploy`, version `4d9cec8b-7335-4c87-a5b1-bcb06e87b2b0`). All that is left is the post-deploy smoke check (confirm the security headers respond and the 2D/3D maps still load under the new CSP — see "Deploy checklist"). Two items remain in the public repo's committed git history (the old personal email, and the expired `xsrf_token` from the DPA page); after review these were accepted and documented rather than rewritten out of history — see "Residual exposure — git history" below. Per-finding status is shown in the table below and detailed under "Remediation applied."
+
 ## Answering the direct questions
 
-**Are there any secrets public that should be private?** No live secrets are exposed. `.dev.vars` is correctly git-ignored and is not tracked. `wrangler.jsonc` contains only non-secret values (the `EMAIL_FROM` address, the Google OAuth **client ID**, and the D1 `database_id`) — all of these are safe to commit, since the client ID is public by design and the database ID is useless without your Cloudflare account credentials. The real secrets (`BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`) are all kept as Worker secrets and never appear in the tree. A scan of the full git history and of `dist/` turned up nothing. There are two soft "exposure" items noted below (a personal email in the User-Agent, and a saved authenticated Google web page committed under `docs/dpa/`), but neither is a credential.
+**Are there any secrets public that should be private?** No live secrets are exposed. `.dev.vars` is correctly git-ignored and is not tracked. `wrangler.jsonc` contains only non-secret values (the `EMAIL_FROM` address, the Google OAuth **client ID**, and the D1 `database_id`) — all of these are safe to commit, since the client ID is public by design and the database ID is useless without your Cloudflare account credentials. The real secrets (`BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`) are all kept as Worker secrets and never appear in the tree. A scan of the full git history and of `dist/` turned up nothing. There were two soft "exposure" items noted below (a personal email in the User-Agent, and a saved authenticated Google web page committed under `docs/dpa/`), but neither is a credential. Both have since been cleaned out of the working tree; both still exist in the committed git history and, after review, were accepted there rather than rewritten (see "Residual exposure — git history").
 
 **Are there any other vulnerabilities?** Nothing critical. No SQL injection (all queries use bound parameters), no IDOR (ownership is enforced in the `WHERE` clause on every authenticated read/write/delete), no XSS sink in production code, and no XXE (XML is parsed with the browser's `DOMParser`, which does not resolve external entities). The issues found are the header/rate-limiting/hardening items listed below.
 
 ## Findings
 
-| # | Severity | Finding |
-|---|----------|---------|
-| 1 | Medium | No HTTP security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) on any response |
-| 2 | Medium | Auth rate limiting is per-isolate in-memory; weak against distributed brute force. `/api/account-exists` has no rate limit at all |
-| 3 | Low-Med | Deliberate account enumeration via `/api/account-exists` (unauthenticated, unthrottled) |
-| 4 | Low | PBKDF2 iteration count (100,000) is below current OWASP guidance (600,000 for PBKDF2-HMAC-SHA256) |
-| 5 | Low | Personal email `tryggve@sonofit.no` hardcoded as the upstream API User-Agent |
-| 6 | Low | Auth emails build HTML by string interpolation without escaping |
-| 7 | Low | `worker/proxy.js` is an open, cacheable GET proxy to three fixed hosts |
-| 8 | Low | Saved, authenticated Google Cloud web page (with an `xsrf_token`) committed under `docs/dpa/` |
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| 1 | Medium | No HTTP security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) on any response | Fixed (deployed) |
+| 2 | Medium | Auth rate limiting is per-isolate in-memory; weak against distributed brute force. `/api/account-exists` has no rate limit at all | Fixed (deployed) |
+| 3 | Low-Med | Deliberate account enumeration via `/api/account-exists` (unauthenticated, unthrottled) | Fixed (deployed) |
+| 4 | Low | PBKDF2 iteration count (100,000) is below current OWASP guidance (600,000 for PBKDF2-HMAC-SHA256) | Fixed (deployed) |
+| 5 | Low | A personal email address hardcoded as the upstream API User-Agent (and repeated across docs, the privacy page and the terms) | Fixed in working tree; still in git history (accepted) |
+| 6 | Low | Auth emails build HTML by string interpolation without escaping | Fixed (deployed) |
+| 7 | Low | `worker/proxy.js` is an open, cacheable GET proxy to three fixed hosts | Fixed (deployed) |
+| 8 | Low | Saved, authenticated Google Cloud web page (with an `xsrf_token`) committed under `docs/dpa/` | Untracked + git-ignored; token still in git history (accepted) |
 
 ### 1. Missing HTTP security headers (Medium)
 
@@ -53,7 +55,7 @@ Fix (if you want to close it): remove the distinct message and show a single "wr
 
 ### 5. Personal email as User-Agent (Low / privacy)
 
-`worker/proxy.js` hardcodes `USER_AGENT = 'fjellrute/0.1 tryggve@sonofit.no'`. MET's terms do require a contactable identifier, but a personal address is sent to every upstream (MET, NVE) and is visible in the repo and the deployed Worker. Prefer a role address such as `contact@fjellrute.no` or `no-reply@fjellrute.no`.
+`worker/proxy.js` hardcodes a personal email address in `USER_AGENT` (`fjellrute/0.1 <personal-address>`). MET's terms do require a contactable identifier, but a personal address is sent to every upstream (MET, NVE) and is visible in the repo and the deployed Worker. The same address is also used across `docs/`, `public/privacy.html` and `src/terms/*` as the published contact. Prefer a role address such as `contact@fjellrute.no` or `no-reply@fjellrute.no`.
 
 ### 6. Unescaped HTML in auth emails (Low)
 
@@ -83,16 +85,25 @@ Parameterized queries throughout (no SQL injection surface). Ownership enforced 
 
 ## Remediation applied — 2026-07-23
 
-All eight findings have been fixed in code. The D1 migration has already been applied to the **remote** database (see status below); the only remaining step is `npx wrangler deploy`.
+All eight findings have been fixed in code. The D1 migration has been applied to the **remote** database (see status below) and the Worker has been **deployed** (version `4d9cec8b-7335-4c87-a5b1-bcb06e87b2b0`); only the post-deploy smoke check remains.
 
 1. **Security headers (1) — fixed.** New `worker/securityHeaders.js` sets a tuned CSP, HSTS (2y, preload), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Cross-Origin-Opener-Policy`, and a `Permissions-Policy`. `worker/index.js` now routes every response through a single `withSecurityHeaders()` wrapper. The CSP is scoped to the exact origins the app uses (Kartverket/NVE/OSM tiles, Geonorge fetches, MapLibre blob workers + WASM); extend `img-src`/`connect-src` there if a new host is added.
 2. **Auth rate limiting (2) — fixed.** `worker/auth.js` now uses `storage: 'database'` (shared D1 store) instead of per-isolate memory, with stricter per-route caps: sign-in 5/5min, sign-up 10/hr, forget-password 5/hr, reset-password 10/hr, plus a 100/min global default. It also sets `advanced.ipAddress.ipAddressHeaders = ['cf-connecting-ip', 'x-forwarded-for']` so the limiter buckets per real client IP — without this, Better Auth on Workers cannot resolve an IP and falls back to a single shared per-path bucket (which both fails to isolate an attacker and would lock all users out together).
 3. **`/api/account-exists` (3) — fixed.** New `worker/rateLimit.js` adds a D1-backed per-IP fixed-window limiter (20 requests / 5 min), returning `429` with `Retry-After`. The upsert was tested for correct increment/reset behaviour.
 4. **PBKDF2 (4) — fixed.** `worker/password.js` iterations raised 100,000 → 600,000 (OWASP). Existing hashes still verify at their stored count and upgrade on next password change. Verified correct/wrong/malformed behaviour.
-5. **User-Agent (5) — fixed.** `worker/proxy.js` now sends `contact@fjellrute.no` instead of a personal address. (Make sure that mailbox exists/forwards.)
+5. **User-Agent (5) — fixed.** `worker/proxy.js` now sends `contact@fjellrute.no` instead of a personal address. The personal address was also removed from every other place it appeared in the working tree — `docs/DATA_LICENSES.md`, `docs/deploy-cloudflare.md`, `docs/kartverket-tile-cache-permission-request.md`, `public/privacy.html`, `src/terms/content.ts` and `src/terms/privacy.ts` — all now use the `contact@fjellrute.no` role address. (Make sure that mailbox exists/forwards; it is now both the upstream User-Agent contact and the user-facing privacy/terms contact.)
 6. **Email HTML escaping (6) — fixed.** `worker/email.js` escapes all interpolated values and validates the action link is http(s) (else `#`).
 7. **Open proxy (7) — fixed.** Each proxy route now has an `allow` path prefix; requests outside it get `404`, so the proxy can't relay arbitrary upstream paths.
-8. **Committed DPA page (8) — fixed.** `docs/dpa/` untracked (`git rm --cached`) and added to `.gitignore`; local copies kept. Note: the token still exists in prior git history — rewrite history (e.g. `git filter-repo`) only if that repo is or will be shared.
+8. **Committed DPA page (8) — fixed.** `docs/dpa/` untracked (`git rm --cached`) and added to `.gitignore`; local copies kept. Note: the token still exists in prior git history — see the residual-exposure note below.
+
+### Residual exposure — git history (accepted, not remediated)
+
+The working tree is now clean, but two items still exist in the **committed git history** of the public GitHub repo (`github.com/GillesVanDeVyver/RandoNorge`). After review the decision was to **leave history as-is and document the risk** rather than rewrite it:
+
+- **The old personal contact email address** (finding 5). Removed from every current file, but it remains in older commits (e.g. `615b8a5`, `7fa7cf1`, and several docs/attribution commits). Low sensitivity — it is a contact address, not a credential.
+- **The saved Google Cloud DPA page and its `xsrf_token`** (finding 8). The page is no longer tracked, but it is still reachable in history (`615b8a5`, `7fa7cf1`). XSRF tokens are session-scoped and expire, so the value is not a usable credential.
+
+Neither is a live secret, so this is a hygiene/privacy item rather than an active hole. If the exposure ever needs to be closed (for example before wider publication), purge both from history with `git filter-repo` (or the BFG) and force-push — note this rewrites shared history, so any clones/forks must be re-cloned, and the old commit hashes will change. Because the repo is already public, treat both values as already-disclosed regardless.
 
 ### Verified during `npm run dev`
 
@@ -111,14 +122,24 @@ Migration 0005 has been applied to the remote database, confirmed present:
 
 ### Deploy checklist
 
-Migration already applied to remote D1 (above). Remaining:
+Migration applied to remote D1 (above) and the Worker is **deployed** — done 2026-07-23:
 
-    npx wrangler deploy
+    $ npx wrangler deploy
+    ...
+    Deployed fjellrute triggers
+      https://fjellrute.gillesvandevyver1.workers.dev
+      schedule: 47 3 * * *
+    Current Version ID: 4d9cec8b-7335-4c87-a5b1-bcb06e87b2b0
 
 For a fresh environment (or the local dev DB), the migration still needs to be run there:
 
     npx wrangler d1 migrations apply fjellrute-db --remote   # creates rateLimit + app_rate_limit tables
 
-After deploying, confirm headers with `curl -sI https://fjellrute.no | grep -iE 'content-security|strict-transport|x-frame'` and load the 2D + 3D map once to confirm the CSP doesn't block any tile/data host.
+Post-deploy smoke check (still to do): confirm the headers respond and the CSP doesn't block any tile/data host —
+
+    curl -sI https://fjellrute.no | grep -iE 'content-security|strict-transport|x-frame'
+    # (or the workers.dev URL above if the custom domain isn't wired up yet)
+
+then load the 2D + 3D map once in a browser and watch the console for any CSP violations (a blocked tile/data host shows up as a `Refused to connect`/`Refused to load` error — add it to `img-src`/`connect-src` in `worker/securityHeaders.js` if so).
 
 Note: in pure local dev there may be no `cf-connecting-ip` header, so Better Auth still uses a shared bucket locally — expected, and it resolves once deployed behind Cloudflare.

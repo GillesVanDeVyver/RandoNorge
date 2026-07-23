@@ -77,7 +77,7 @@ Endpoint used: `https://api.met.no/weatherapi/locationforecast/2.0/compact`
 
 - **Identifying User-Agent is mandatory**, with app/domain name and contact
   info; anonymous clients "risk being blocked without warning."
-  ✅ Our Worker stamps `fjellrute/0.1 tryggve@sonofit.no` (`worker/proxy.js:16`).
+  ✅ Our Worker stamps `fjellrute/0.1 contact@fjellrute.no` (`worker/proxy.js:16`).
   Note: the Vite dev proxy uses a different UA (`vite.config.ts:48`) — both are
   compliant in form.
 - **Rate limit: 20 requests/second per application, total** (not per end

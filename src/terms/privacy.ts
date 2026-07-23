@@ -44,7 +44,7 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
         body: [
           'Fjellrute is the data controller for the personal data ' +
             'described here. Contact for all privacy matters: ' +
-            'tryggve@sonofit.no.',
+            'contact@fjellrute.no.',
         ],
       },
       {
@@ -138,7 +138,7 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'stored as standard GeoJSON), and you can object to ' +
             'processing based on legitimate interest. Routes and tracks ' +
             'can be deleted directly in the app; for account deletion or ' +
-            'any other request, email tryggve@sonofit.no and it will be ' +
+            'any other request, email contact@fjellrute.no and it will be ' +
             'handled within a month, as the GDPR requires.',
           'If you believe we handle your data unlawfully, you have the ' +
             'right to complain to the Norwegian Data Protection ' +
@@ -177,7 +177,7 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
         body: [
           'Fjellrute er behandlingsansvarlig for personopplysningene som ' +
             'beskrives her. Kontakt for alle personvernspørsmål: ' +
-            'tryggve@sonofit.no.',
+            'contact@fjellrute.no.',
         ],
       },
       {
@@ -270,7 +270,7 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'mot behandling basert på berettiget interesse. Ruter og ' +
             'spor kan slettes direkte i appen; for sletting av konto ' +
             'eller andre henvendelser, send e-post til ' +
-            'tryggve@sonofit.no, så håndteres det innen en måned, slik ' +
+            'contact@fjellrute.no, så håndteres det innen en måned, slik ' +
             'GDPR krever.',
           'Mener du at vi behandler opplysningene dine ulovlig, har du ' +
             'rett til å klage til Datatilsynet (datatilsynet.no).',
