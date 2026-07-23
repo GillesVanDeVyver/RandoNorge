@@ -14,10 +14,12 @@ import styles from './AccountOverview.module.css';
 type Props = {
   /** Display name of the signed-in user (falls back to email in Root). */
   name: string;
-  /** Number of routes in the user's library. Placeholder until wired up. */
-  savedCount: number;
-  /** Number of finished tours. Placeholder until wired up. */
-  completedCount: number;
+  /** Number of routes in the user's library, or null while the first
+   *  fetch is still pending (renders a "loading" label instead of "0"). */
+  savedCount: number | null;
+  /** Number of finished tours, or null while still loading (same as
+   *  savedCount — avoids flashing "0" for users who do have tours). */
+  completedCount: number | null;
   /** Open the list of saved routes. */
   onOpenSavedRoutes: () => void;
   /** Open the list of completed routes. */
@@ -49,8 +51,11 @@ export function AccountOverview({
   // read here directly rather than passed in like the server-backed route
   // counts. The component remounts on each visit to the overview, so this
   // stays current after areas are added or removed.
-  const { regions: offlineRegions } = useOfflineRegions();
-  const offlineCount = offlineRegions.length;
+  const { regions: offlineRegions, loading: offlineLoading } =
+    useOfflineRegions();
+  // Null while IndexedDB is still being read, so the card shows a
+  // "loading" label rather than momentarily flashing "0 offline maps".
+  const offlineCount = offlineLoading ? null : offlineRegions.length;
 
   // Season-dependent background photo: follows the calendar, or the
   // sticky "/summer"-style URL override (src/theme/season.ts).
@@ -111,14 +116,20 @@ export function AccountOverview({
               <BookmarkIcon />
             </span>
             <span className={styles.cardBody}>
-              <span className={styles.cardStat}>
-                <span className={`${styles.cardCount} tnum`}>
-                  {savedCount}
-                </span>
+              {savedCount === null ? (
                 <span className={styles.cardTitle}>
-                  Saved {savedCount === 1 ? 'route' : 'routes'}
+                  Loading your saved routes…
                 </span>
-              </span>
+              ) : (
+                <span className={styles.cardStat}>
+                  <span className={`${styles.cardCount} tnum`}>
+                    {savedCount}
+                  </span>
+                  <span className={styles.cardTitle}>
+                    Saved {savedCount === 1 ? 'route' : 'routes'}
+                  </span>
+                </span>
+              )}
               <span className={styles.cardText}>
                 Your route library — revisit, review and refine planned
                 tours.
@@ -138,14 +149,20 @@ export function AccountOverview({
               <CircleCheckIcon />
             </span>
             <span className={styles.cardBody}>
-              <span className={styles.cardStat}>
-                <span className={`${styles.cardCount} tnum`}>
-                  {completedCount}
-                </span>
+              {completedCount === null ? (
                 <span className={styles.cardTitle}>
-                  Completed {completedCount === 1 ? 'route' : 'routes'}
+                  Loading your completed routes…
                 </span>
-              </span>
+              ) : (
+                <span className={styles.cardStat}>
+                  <span className={`${styles.cardCount} tnum`}>
+                    {completedCount}
+                  </span>
+                  <span className={styles.cardTitle}>
+                    Completed {completedCount === 1 ? 'route' : 'routes'}
+                  </span>
+                </span>
+              )}
               <span className={styles.cardText}>
                 Tours you have completed — your personal summit log.
               </span>
@@ -164,14 +181,20 @@ export function AccountOverview({
               <MapIcon />
             </span>
             <span className={styles.cardBody}>
-              <span className={styles.cardStat}>
-                <span className={`${styles.cardCount} tnum`}>
-                  {offlineCount}
-                </span>
+              {offlineCount === null ? (
                 <span className={styles.cardTitle}>
-                  Offline {offlineCount === 1 ? 'map' : 'maps'} on this device
+                  Loading your saved offline maps…
                 </span>
-              </span>
+              ) : (
+                <span className={styles.cardStat}>
+                  <span className={`${styles.cardCount} tnum`}>
+                    {offlineCount}
+                  </span>
+                  <span className={styles.cardTitle}>
+                    Offline {offlineCount === 1 ? 'map' : 'maps'} on this device
+                  </span>
+                </span>
+              )}
               <span className={styles.cardText}>
                 Areas downloaded and saved on this device. These can be used when you do not have connectivity.
               </span>

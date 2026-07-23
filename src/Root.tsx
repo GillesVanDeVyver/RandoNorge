@@ -525,8 +525,10 @@ export function Root() {
         {view === 'overview' && (
           <AccountOverview
             name={name}
-            savedCount={savedItems.length}
-            completedCount={completedItems.length}
+            savedCount={savedRoutes === null ? null : savedItems.length}
+            completedCount={
+              completedTracks === null ? null : completedItems.length
+            }
             onOpenSavedRoutes={() => navigate('saved')}
             onOpenCompletedRoutes={() => navigate('completed')}
             onOpenOfflineMaps={() => navigate('offline')}
@@ -557,6 +559,11 @@ export function Root() {
           <RoutesListPage
             kind={view === 'saved' ? 'saved' : 'completed'}
             routes={view === 'saved' ? savedItems : completedItems}
+            loading={
+              view === 'saved'
+                ? savedRoutes === null
+                : completedTracks === null
+            }
             onBack={() => navigate('overview')}
             onPlanNewRoute={handlePlanNewRoute}
             onOpenRoute={view === 'saved' ? handleOpenRoute : handleOpenTrack}

@@ -44,6 +44,13 @@ type Props = {
   /** Which library this page shows; adjusts titles and empty states. */
   kind: 'saved' | 'completed';
   routes: RouteListItem[];
+  /**
+   * True while the library's first fetch is still pending. Shows a
+   * "loading" state instead of the empty state, so a user who does have
+   * routes never sees "No saved routes yet" flash before their list
+   * arrives (mirrors the account overview's loading labels).
+   */
+  loading?: boolean;
   /** Back to the account overview. */
   onBack: () => void;
   /** Jump into the planner (empty-state call to action). */
@@ -66,6 +73,7 @@ const COPY = {
   saved: {
     title: 'Saved routes',
     intro: 'Your route library. Open a tour to review or refine it.',
+    loadingText: 'Loading your saved routes…',
     emptyTitle: 'No saved routes yet',
     emptyText:
       'Routes you plan and save will appear here, ready to revisit before heading out.',
@@ -73,6 +81,7 @@ const COPY = {
   completed: {
     title: 'Completed routes',
     intro: 'Your personal summit log — every tour you have finished.',
+    loadingText: 'Loading your completed routes…',
     emptyTitle: 'No completed routes yet',
     emptyText:
       'Once you mark a tour as completed it will show up here, building your season history.',
@@ -88,6 +97,7 @@ const COPY = {
 export function RoutesListPage({
   kind,
   routes,
+  loading = false,
   onBack,
   onPlanNewRoute,
   onOpenRoute,
@@ -179,15 +189,23 @@ export function RoutesListPage({
             <div className={styles.panelHeading}>
               <h1 className={styles.title}>
                 {copy.title}
-                <span className={`${styles.countPill} tnum`}>
-                  {routes.length}
+                <span
+                  className={`${styles.countPill} tnum`}
+                  aria-hidden={loading}
+                >
+                  {loading ? '…' : routes.length}
                 </span>
               </h1>
               <p className={styles.intro}>{copy.intro}</p>
             </div>
           </header>
 
-          {routes.length === 0 ? (
+          {loading ? (
+            <div className={styles.empty}>
+              <span className={styles.spinner} aria-hidden="true" />
+              <h2 className={styles.emptyTitle}>{copy.loadingText}</h2>
+            </div>
+          ) : routes.length === 0 ? (
             <div className={styles.empty}>
               <span className={styles.emptyIcon}>
                 <RouteIcon />
