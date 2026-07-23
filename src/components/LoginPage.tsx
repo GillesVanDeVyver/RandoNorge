@@ -38,6 +38,14 @@ type CardMode = 'login' | 'signup' | 'verify' | 'forgot' | 'reset';
  */
 type PendingAction = 'signup' | 'google-signup';
 
+/**
+ * Which sign-up input a validation problem belongs to, so the message can
+ * sit directly under that field instead of only in the shared error box.
+ */
+type SignupField = 'username' | 'email' | 'password' | 'confirm';
+
+type FieldErrors = Partial<Record<SignupField, string>>;
+
 /** Reads one-shot query params left by emailed links, then cleans the URL. */
 function consumeAuthParams() {
   const params = new URLSearchParams(window.location.search);
@@ -155,6 +163,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   // True after a sign-up attempt with an already-registered email —
   // shows the inline "Go to login" button.
   const [emailTaken, setEmailTaken] = useState(false);
+  // Validation problems tied to a specific sign-up field, rendered beneath
+  // that input. The shared `error` box above is kept for messages that
+  // can't be pinned to one field (e.g. ambiguous server responses).
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   // Seconds left before the verification email may be re-sent again.
   // Seeded from the persisted deadline so reloading doesn't skip the wait.
   const [resendCooldown, setResendCooldown] = useState(
@@ -202,7 +214,18 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setUsername('');
     setWrongPassword(false);
     setEmailTaken(false);
+    setFieldErrors({});
   };
+
+  // Clears the inline error on a field as soon as the user edits it, so a
+  // stale message doesn't linger under an input they're actively fixing.
+  const clearFieldError = (field: SignupField) =>
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -280,20 +303,16 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     e.preventDefault();
     setError(null);
     setEmailTaken(false);
+    // Collect every problem in one pass so all bad fields are flagged at
+    // once, rather than making the user fix and resubmit one at a time.
+    const next: FieldErrors = {};
     const handle = checkUsername(username);
-    if (!handle.ok) {
-      setError(handle.error);
-      return;
-    }
+    if (!handle.ok) next.username = handle.error;
     const check = checkPassword(password);
-    if (!check.ok) {
-      setError(check.error);
-      return;
-    }
-    if (password !== confirm) {
-      setError('The passwords do not match.');
-      return;
-    }
+    if (!check.ok) next.password = check.error;
+    if (password !== confirm) next.confirm = 'The passwords do not match.';
+    setFieldErrors(next);
+    if (Object.keys(next).length > 0) return;
     setPendingAction('signup');
   };
 
@@ -312,7 +331,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       });
       if (res.ok && Boolean((await res.json()).exists)) {
         setBusy(false);
-        setError('An account for this email already exists.');
+        setFieldErrors({
+          email: 'An account for this email already exists.',
+        });
         setEmailTaken(true);
         return;
       }
@@ -690,12 +711,28 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                       spellCheck={false}
                       placeholder="your public handle"
                       required
+                      aria-invalid={fieldErrors.username ? true : undefined}
+                      aria-describedby={
+                        fieldErrors.username ? 'signup-username-error' : undefined
+                      }
                       value={username}
-                      onChange={(e) => setUsername(e.target.value)}
+                      onChange={(e) => {
+                        setUsername(e.target.value);
+                        clearFieldError('username');
+                      }}
                     />
-                    <span className={styles.hint}>
-                      Your public profile lives at /u/{username.trim().toLowerCase() || 'username'}
-                    </span>
+                    {fieldErrors.username ? (
+                      <span
+                        id="signup-username-error"
+                        className={styles.fieldError}
+                      >
+                        {fieldErrors.username}
+                      </span>
+                    ) : (
+                      <span className={styles.hint}>
+                        Your public profile lives at /u/{username.trim().toLowerCase() || 'username'}
+                      </span>
+                    )}
                   </label>
                 )}
 
@@ -708,9 +745,37 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                     autoComplete="email"
                     placeholder="you@example.com"
                     required
+                    aria-invalid={
+                      mode === 'signup' && fieldErrors.email ? true : undefined
+                    }
+                    aria-describedby={
+                      mode === 'signup' && fieldErrors.email
+                        ? 'signup-email-error'
+                        : undefined
+                    }
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      clearFieldError('email');
+                    }}
                   />
+                  {mode === 'signup' && fieldErrors.email && (
+                    <span id="signup-email-error" className={styles.fieldError}>
+                      {fieldErrors.email}
+                      {emailTaken && (
+                        <>
+                          {' '}
+                          <button
+                            type="button"
+                            className={styles.errorLink}
+                            onClick={() => switchMode('login')}
+                          >
+                            Go to login
+                          </button>
+                        </>
+                      )}
+                    </span>
+                  )}
                 </label>
 
                 <label className={styles.field}>
@@ -728,9 +793,30 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                         : '••••••••'
                     }
                     required
+                    aria-invalid={
+                      mode === 'signup' && fieldErrors.password
+                        ? true
+                        : undefined
+                    }
+                    aria-describedby={
+                      mode === 'signup' && fieldErrors.password
+                        ? 'signup-password-error'
+                        : undefined
+                    }
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      clearFieldError('password');
+                    }}
                   />
+                  {mode === 'signup' && fieldErrors.password && (
+                    <span
+                      id="signup-password-error"
+                      className={styles.fieldError}
+                    >
+                      {fieldErrors.password}
+                    </span>
+                  )}
                 </label>
 
                 {mode === 'signup' && strength?.ok && (
@@ -749,30 +835,29 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                       autoComplete="new-password"
                       placeholder="••••••••"
                       required
+                      aria-invalid={fieldErrors.confirm ? true : undefined}
+                      aria-describedby={
+                        fieldErrors.confirm ? 'signup-confirm-error' : undefined
+                      }
                       value={confirm}
-                      onChange={(e) => setConfirm(e.target.value)}
+                      onChange={(e) => {
+                        setConfirm(e.target.value);
+                        clearFieldError('confirm');
+                      }}
                     />
+                    {fieldErrors.confirm && (
+                      <span
+                        id="signup-confirm-error"
+                        className={styles.fieldError}
+                      >
+                        {fieldErrors.confirm}
+                      </span>
+                    )}
                   </label>
                 )}
 
                 {notice && <p className={styles.notice}>{notice}</p>}
-                {error && (
-                  <p className={styles.error}>
-                    {error}
-                    {mode === 'signup' && emailTaken && (
-                      <>
-                        {' '}
-                        <button
-                          type="button"
-                          className={styles.errorLink}
-                          onClick={() => switchMode('login')}
-                        >
-                          Go to login
-                        </button>
-                      </>
-                    )}
-                  </p>
-                )}
+                {error && <p className={styles.error}>{error}</p>}
 
                 {mode === 'login' && wrongPassword && (
                   <button

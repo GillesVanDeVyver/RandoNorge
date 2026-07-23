@@ -250,6 +250,15 @@
   word-break: break-all;
 }
 
+/* Validation message pinned directly under the field it belongs to, so the
+   user sees which input to fix (not just a generic message up top). */
+.fieldError {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  color: #8a1f2d;
+}
+
 /* Small text-only action, e.g. "Forgot password?" / "Back to log in". */
 .linkBtn {
   align-self: center;
@@ -320,6 +329,17 @@
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Red border on a field flagged by validation, so the problem input stands
+   out at a glance. Focus still wins (rule above) once the user tabs in. */
+.input[aria-invalid='true'] {
+  border-color: #d64554;
+}
+
+.input[aria-invalid='true']:focus {
+  border-color: #d64554;
+  box-shadow: 0 0 0 3px rgba(214, 69, 84, 0.25);
 }
 
 .primaryBtn {
