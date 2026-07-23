@@ -926,6 +926,12 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   // a collapsible edit toolbar, and consolidated map controls.
   const isMobile = useIsMobile();
 
+  // The 2D/3D view toggle shows while planning (no session), and also when the
+  // owner reviews their own completed tour — so a finished route can be draped
+  // over the terrain in 3D. It stays hidden during a live recording session
+  // and on shared/public views (which are 2D-only).
+  const allowViewToggle = !session || (reviewing && !isPublic);
+
   // One-line summary for the sheet's collapsed grabber strip.
   const sheetPeek =
     showActualStats && !trackHasLine
@@ -970,10 +976,11 @@ function App({ saving, review: reviewProp, publicView }: Props) {
               overlay={overlay}
               onOverlayChange={setOverlay}
               snowDate={snowDate}
+              track={displayTrack}
             />
           </Suspense>
         )}
-        {!session && (
+        {allowViewToggle && (
         <div className={styles.viewToggle} role="group" aria-label="Map view">
           <button
             type="button"

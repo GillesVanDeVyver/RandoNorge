@@ -62,6 +62,14 @@ const RDP_EPSILON_M = 8;
 // Keep in sync with DrawingHandler.tsx.
 const ERASER_RADIUS_PX = 32;
 const ROUTE_COLOR = '#2dd4bf'; // matches --accent (alpine/glacier teal)
+// Travelled-track styling, mirroring the 2D NavigationLayer: a warm orange
+// line over a white halo so the recorded tour reads clearly against the teal
+// plan and the terrain drape when reviewing a completed route in 3D.
+const TRACK_COLOR = '#f97316';
+const TRACK_WIDTH = 4;
+const TRACK_HALO_COLOR = '#ffffff';
+const TRACK_HALO_WIDTH = TRACK_WIDTH + 3;
+const TRACK_HALO_OPACITY = 0.9;
 // Amber for the downloaded-region boundaries — the same colour the 2D
 // RegionBoundaryLayer uses so offline coverage reads identically in both views.
 const REGION_COLOR = '#f5a623';
@@ -140,6 +148,11 @@ interface Props {
   onOverlayChange: (overlay: Overlay) => void;
   mode: Mode;
   onRouteChange: (route: Route) => void;
+  /** The travelled track drawn on top of the plan — set when reviewing a
+   *  completed tour in 3D. Rendered orange with a white halo, matching the
+   *  2D NavigationLayer; the initial camera frames the plan and track
+   *  together. */
+  track?: Route;
 }
 
 // Embedded MapLibre GL view that drapes the Kartverket topo map over a
@@ -157,6 +170,7 @@ export function Map3DView({
   onOverlayChange,
   mode,
   onRouteChange,
+  track = [],
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -200,12 +214,16 @@ export function Map3DView({
   const routeRef = useRef(route);
   const modeRef = useRef(mode);
   const onRouteChangeRef = useRef(onRouteChange);
+  // Latest travelled track (review mode) for the once-built map to seed its
+  // track source with — kept fresh alongside the route.
+  const trackRef = useRef(track);
   // Latest region list for the once-built map to seed its regions source with.
   const regionsRef = useRef(regions);
   useEffect(() => {
     routeRef.current = route;
     modeRef.current = mode;
     onRouteChangeRef.current = onRouteChange;
+    trackRef.current = track;
     regionsRef.current = regions;
   });
 
@@ -262,6 +280,7 @@ export function Map3DView({
             maxzoom: 16,
           },
           route: { type: 'geojson', data: routeToGeoJSON(routeRef.current) },
+          track: { type: 'geojson', data: routeToGeoJSON(trackRef.current) },
           regions: {
             type: 'geojson',
             data: regionsToGeoJSON(regionsRef.current),
@@ -336,6 +355,29 @@ export function Map3DView({
             paint: {
               'line-color': ROUTE_COLOR,
               'line-width': 4,
+            },
+          },
+          // Travelled track (review mode): white halo beneath, orange line on
+          // top, drawn above the plan so the recorded tour stays visible.
+          {
+            id: 'track-halo',
+            type: 'line',
+            source: 'track',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': TRACK_HALO_COLOR,
+              'line-width': TRACK_HALO_WIDTH,
+              'line-opacity': TRACK_HALO_OPACITY,
+            },
+          },
+          {
+            id: 'track',
+            type: 'line',
+            source: 'track',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': TRACK_COLOR,
+              'line-width': TRACK_WIDTH,
             },
           },
         ],
@@ -625,9 +667,12 @@ export function Map3DView({
     map.on('rotate', () => setBearing(map.getBearing()));
 
     map.on('load', () => {
-      // Frame the camera on the route with a tilted, slightly rotated view.
+      // Frame the camera on the route (and the travelled track, when reviewing
+      // a completed tour) with a tilted, slightly rotated view.
       const pts: [number, number][] = [];
       for (const seg of routeRef.current)
+        for (const [lat, lng] of seg) pts.push([lng, lat]);
+      for (const seg of trackRef.current)
         for (const [lat, lng] of seg) pts.push([lng, lat]);
       if (pts.length >= 2) {
         const bounds = pts.reduce(
@@ -667,6 +712,19 @@ export function Map3DView({
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
   }, [route]);
+
+  // Push the travelled track into its source (review mode) without rebuilding
+  // the map — mirrors the route effect above.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource('track') as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(routeToGeoJSON(track));
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('load', apply);
+  }, [track]);
 
   // Push the downloaded-region boundaries into the regions source whenever the
   // polled list changes (new download / deletion), without rebuilding the map.
@@ -811,6 +869,7 @@ export function Map3DView({
     }
     const pts: [number, number][] = [];
     for (const seg of route) for (const [lat, lng] of seg) pts.push([lng, lat]);
+    for (const seg of track) for (const [lat, lng] of seg) pts.push([lng, lat]);
     if (pts.length < 2) return;
     const fit = () => {
       const bounds = pts.reduce(
@@ -826,7 +885,7 @@ export function Map3DView({
     };
     if (map.isStyleLoaded()) fit();
     else map.once('load', fit);
-  }, [route]);
+  }, [route, track]);
 
   // Refresh the snow grid tiles when the date changes (no rebuild).
   useEffect(() => {
