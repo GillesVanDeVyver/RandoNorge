@@ -13,6 +13,8 @@ import {
   TrashIcon,
 } from './icons';
 import { RouteThumbnail } from './RouteThumbnail';
+import { translate } from '../i18n/locale.ts';
+import { useT } from '../i18n/index.ts';
 import styles from './RoutesListPage.module.css';
 
 /** One row in the route library (preformatted display strings). */
@@ -69,24 +71,47 @@ type Props = {
   onToggleShare?: (id: string, share: boolean) => Promise<void>;
 };
 
-const COPY = {
-  saved: {
-    title: 'Saved routes',
-    intro: 'Your route library. Open a tour to review or refine it.',
-    loadingText: 'Loading your saved routes…',
-    emptyTitle: 'No saved routes yet',
-    emptyText:
-      'Routes you plan and save will appear here, ready to revisit before heading out.',
-  },
-  completed: {
-    title: 'Completed routes',
-    intro: 'Your personal summit log — every tour you have finished.',
-    loadingText: 'Loading your completed routes…',
-    emptyTitle: 'No completed routes yet',
-    emptyText:
+// Built at call-time (not module load) so the active locale is read on each
+// render — the parent re-renders on language change via useT().
+function copyFor(kind: 'saved' | 'completed') {
+  if (kind === 'saved') {
+    return {
+      title: translate('Lagrede ruter', 'Saved routes'),
+      intro: translate(
+        'Rutebiblioteket ditt. Åpne en tur for å se på eller finpusse den.',
+        'Your route library. Open a tour to review or refine it.',
+      ),
+      loadingText: translate(
+        'Laster de lagrede rutene dine …',
+        'Loading your saved routes…',
+      ),
+      emptyTitle: translate('Ingen lagrede ruter ennå', 'No saved routes yet'),
+      emptyText: translate(
+        'Ruter du planlegger og lagrer, vises her – klare til å ses over før du drar ut.',
+        'Routes you plan and save will appear here, ready to revisit before heading out.',
+      ),
+    };
+  }
+  return {
+    title: translate('Fullførte ruter', 'Completed routes'),
+    intro: translate(
+      'Din personlige topplogg – hver tur du har fullført.',
+      'Your personal summit log — every tour you have finished.',
+    ),
+    loadingText: translate(
+      'Laster de fullførte rutene dine …',
+      'Loading your completed routes…',
+    ),
+    emptyTitle: translate(
+      'Ingen fullførte ruter ennå',
+      'No completed routes yet',
+    ),
+    emptyText: translate(
+      'Når du markerer en tur som fullført, dukker den opp her og bygger sesonghistorikken din.',
       'Once you mark a tour as completed it will show up here, building your season history.',
-  },
-} as const;
+    ),
+  };
+}
 
 /**
  * Full-page list of the user's routes (saved or completed), reached from
@@ -105,7 +130,8 @@ export function RoutesListPage({
   onExportRoute,
   onToggleShare,
 }: Props) {
-  const copy = COPY[kind];
+  const t = useT();
+  const copy = copyFor(kind);
   // Two-step delete: the trash button arms a per-row inline confirmation
   // instead of a blocking confirm() dialog (same philosophy as the
   // planner's undo toast). Any error is shown above the list.
@@ -126,7 +152,9 @@ export function RoutesListPage({
       setConfirmId(null);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Could not delete the route',
+        err instanceof Error
+          ? err.message
+          : t('Kunne ikke slette ruta', 'Could not delete the route'),
       );
     } finally {
       setDeletingId(null);
@@ -141,7 +169,9 @@ export function RoutesListPage({
       await onToggleShare(id, share);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Could not update sharing',
+        err instanceof Error
+          ? err.message
+          : t('Kunne ikke oppdatere deling', 'Could not update sharing'),
       );
     } finally {
       setSharingId(null);
@@ -159,7 +189,12 @@ export function RoutesListPage({
     } catch {
       // Clipboard blocked (insecure context / permissions): surface the
       // link so the user can copy it by hand.
-      setError(`Copy failed — the link is ${url}`);
+      setError(
+        t(
+          `Kopiering mislyktes – lenken er ${url}`,
+          `Copy failed — the link is ${url}`,
+        ),
+      );
     }
   };
 
@@ -170,7 +205,7 @@ export function RoutesListPage({
       <header className={styles.topBar}>
         <button type="button" className={styles.backBtn} onClick={onBack}>
           <ArrowLeftIcon />
-          Overview
+          {t('Oversikt', 'Overview')}
         </button>
         <span className={styles.brand}>
           <span className={styles.brandIcon}>
@@ -217,7 +252,7 @@ export function RoutesListPage({
                 className={styles.primaryBtn}
                 onClick={onPlanNewRoute}
               >
-                Plan a new route
+                {t('Planlegg en ny rute', 'Plan a new route')}
               </button>
             </div>
           ) : (
@@ -245,22 +280,36 @@ export function RoutesListPage({
                             aria-pressed={route.isShared}
                             aria-label={
                               route.isShared
-                                ? `${route.name} is public; make private`
-                                : `${route.name} is private; make public`
+                                ? t(
+                                    `${route.name} er offentlig; gjør privat`,
+                                    `${route.name} is public; make private`,
+                                  )
+                                : t(
+                                    `${route.name} er privat; gjør offentlig`,
+                                    `${route.name} is private; make public`,
+                                  )
                             }
                           >
                             <span className={styles.visIcon}>
                               {route.isShared ? <GlobeIcon /> : <LockIcon />}
                             </span>
                             <span className={styles.visLabel}>
-                              {route.isShared ? 'Public' : 'Private'}
+                              {route.isShared
+                                ? t('Offentlig', 'Public')
+                                : t('Privat', 'Private')}
                             </span>
                             <span className={styles.visHint}>
                               {sharingId === route.id
-                                ? 'Updating…'
+                                ? t('Oppdaterer …', 'Updating…')
                                 : route.isShared
-                                  ? 'Anyone with the link can view — click to make private'
-                                  : 'Only you can see this — click to make public'}
+                                  ? t(
+                                      'Alle med lenken kan se den – klikk for å gjøre privat',
+                                      'Anyone with the link can view — click to make private',
+                                    )
+                                  : t(
+                                      'Bare du kan se denne – klikk for å gjøre offentlig',
+                                      'Only you can see this — click to make public',
+                                    )}
                             </span>
                           </button>
                           {route.isShared && route.shareUrl && (
@@ -274,7 +323,10 @@ export function RoutesListPage({
                               onClick={() =>
                                 handleCopyLink(route.id, route.shareUrl!)
                               }
-                              aria-label={`Copy public link to ${route.name}`}
+                              aria-label={t(
+                                `Kopier offentlig lenke til ${route.name}`,
+                                `Copy public link to ${route.name}`,
+                              )}
                             >
                               {copiedId === route.id ? (
                                 <CircleCheckIcon />
@@ -282,7 +334,9 @@ export function RoutesListPage({
                                 <LinkIcon />
                               )}
                               <span>
-                                {copiedId === route.id ? 'Copied' : 'Copy link'}
+                                {copiedId === route.id
+                                  ? t('Kopiert', 'Copied')
+                                  : t('Kopier lenke', 'Copy link')}
                               </span>
                             </button>
                           )}
@@ -306,7 +360,9 @@ export function RoutesListPage({
                             >
                               ·
                             </span>
-                            <span className="tnum">{route.ascent} ascent</span>
+                            <span className="tnum">
+                              {route.ascent} {t('stigning', 'ascent')}
+                            </span>
                             {route.descent && (
                               <>
                                 <span
@@ -316,7 +372,7 @@ export function RoutesListPage({
                                   ·
                                 </span>
                                 <span className="tnum">
-                                  {route.descent} descent
+                                  {route.descent} {t('nedstigning', 'descent')}
                                 </span>
                               </>
                             )}
@@ -341,8 +397,11 @@ export function RoutesListPage({
                         type="button"
                         className={styles.exportBtn}
                         onClick={() => onExportRoute(route.id)}
-                        title="Export route as GPX"
-                        aria-label={`Export ${route.name} as GPX`}
+                        title={t('Eksporter rute som GPX', 'Export route as GPX')}
+                        aria-label={t(
+                          `Eksporter ${route.name} som GPX`,
+                          `Export ${route.name} as GPX`,
+                        )}
                       >
                         <DownloadIcon />
                       </button>
@@ -356,7 +415,9 @@ export function RoutesListPage({
                               onClick={() => handleDelete(route.id)}
                               disabled={deletingId === route.id}
                             >
-                              {deletingId === route.id ? 'Deleting…' : 'Delete'}
+                              {deletingId === route.id
+                                ? t('Sletter …', 'Deleting…')
+                                : t('Slett', 'Delete')}
                             </button>
                             <button
                               type="button"
@@ -364,7 +425,7 @@ export function RoutesListPage({
                               onClick={() => setConfirmId(null)}
                               disabled={deletingId === route.id}
                             >
-                              Cancel
+                              {t('Avbryt', 'Cancel')}
                             </button>
                           </span>
                         ) : (
@@ -372,8 +433,11 @@ export function RoutesListPage({
                             type="button"
                             className={styles.deleteBtn}
                             onClick={() => setConfirmId(route.id)}
-                            title="Delete route"
-                            aria-label={`Delete ${route.name}`}
+                            title={t('Slett rute', 'Delete route')}
+                            aria-label={t(
+                              `Slett ${route.name}`,
+                              `Delete ${route.name}`,
+                            )}
                           >
                             <TrashIcon />
                           </button>

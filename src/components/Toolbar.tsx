@@ -9,6 +9,7 @@ import {
   TrashIcon,
   UploadIcon,
 } from './icons';
+import { useT } from '../i18n/index.ts';
 import styles from './Toolbar.module.css';
 
 interface Props {
@@ -42,6 +43,7 @@ export function Toolbar({
   onExport,
   collapsible = false,
 }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -73,8 +75,8 @@ export function Toolbar({
           type="button"
           className={`${styles.btn} ${mode !== 'idle' ? styles.active : ''}`}
           onClick={() => setOpen(true)}
-          title="Edit route"
-          aria-label="Edit route"
+          title={t('Rediger rute', 'Edit route')}
+          aria-label={t('Rediger rute', 'Edit route')}
           aria-expanded={false}
         >
           <ActiveIcon />
@@ -90,8 +92,8 @@ export function Toolbar({
           type="button"
           className={styles.btn}
           onClick={() => setOpen(false)}
-          title="Hide editing tools"
-          aria-label="Hide editing tools"
+          title={t('Skjul redigeringsverktøy', 'Hide editing tools')}
+          aria-label={t('Skjul redigeringsverktøy', 'Hide editing tools')}
           aria-expanded
         >
           <CloseIcon />
@@ -101,8 +103,12 @@ export function Toolbar({
         type="button"
         className={`${styles.btn} ${mode === 'draw' ? styles.active : ''}`}
         onClick={() => toggle('draw')}
-        title={loading ? 'Loading route data…' : 'Draw route (freehand)'}
-        aria-label="Draw"
+        title={
+          loading
+            ? t('Laster rutedata …', 'Loading route data…')
+            : t('Tegn rute (frihånd)', 'Draw route (freehand)')
+        }
+        aria-label={t('Tegn', 'Draw')}
         disabled={loading}
       >
         <PencilIcon />
@@ -111,8 +117,8 @@ export function Toolbar({
         type="button"
         className={`${styles.btn} ${mode === 'erase' ? styles.active : ''}`}
         onClick={() => toggle('erase')}
-        title="Erase parts of the route"
-        aria-label="Erase"
+        title={t('Slett deler av ruta', 'Erase parts of the route')}
+        aria-label={t('Slett', 'Erase')}
         disabled={!hasRoute}
       >
         <EraserIcon />
@@ -124,8 +130,8 @@ export function Toolbar({
           onClear();
           collapse();
         }}
-        title="Clear the entire route"
-        aria-label="Clear all"
+        title={t('Fjern hele ruta', 'Clear the entire route')}
+        aria-label={t('Fjern alt', 'Clear all')}
         disabled={!hasRoute}
       >
         <TrashIcon />
@@ -136,8 +142,8 @@ export function Toolbar({
             type="button"
             className={styles.btn}
             onClick={() => fileInputRef.current?.click()}
-            title="Import a GPX, TCX, or FIT file"
-            aria-label="Import route file"
+            title={t('Importer en GPX-, TCX- eller FIT-fil', 'Import a GPX, TCX, or FIT file')}
+            aria-label={t('Importer rutefil', 'Import route file')}
           >
             <UploadIcon />
           </button>
@@ -158,8 +164,8 @@ export function Toolbar({
             onExport();
             collapse();
           }}
-          title="Export route as GPX"
-          aria-label="Export route as GPX"
+          title={t('Eksporter rute som GPX', 'Export route as GPX')}
+          aria-label={t('Eksporter rute som GPX', 'Export route as GPX')}
           disabled={!hasRoute}
         >
           <DownloadIcon />

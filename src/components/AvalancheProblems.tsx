@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { AvalancheProblem } from '../avalanche/api';
+import { translate } from '../i18n/locale.ts';
+import { useT } from '../i18n/index.ts';
 import styles from './AvalancheProblems.module.css';
 // Official EAWS avalanche-problem pictograms (the same five icons Varsom and
 // other European warning services use). Bundled locally so they render
@@ -23,9 +25,12 @@ interface Props {
 // Compass aspects, clockwise from north, matching the order of the bits in
 // Varsom's ValidExpositions string ("11000111" → N, NE, SW, W, NW).
 const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const DIRS_NO = ['N', 'NØ', 'Ø', 'SØ', 'S', 'SV', 'V', 'NV'];
 
 function aspectList(expositions: string): string[] {
-  return DIRS.filter((_, i) => expositions[i] === '1');
+  return DIRS.map((d, i) => translate(DIRS_NO[i], d)).filter(
+    (_, i) => expositions[i] === '1',
+  );
 }
 
 // Varsom encodes the danger band with two height lines and a "fill" code that
@@ -34,13 +39,19 @@ function elevationText(p: AvalancheProblem): string | null {
   const { exposedHeight1: h1, exposedHeight2: h2, exposedHeightFill: fill } = p;
   switch (fill) {
     case 1:
-      return `Above ${h1} m`;
+      return translate(`Over ${h1} moh.`, `Above ${h1} m`);
     case 2:
-      return `Below ${h1} m`;
+      return translate(`Under ${h1} moh.`, `Below ${h1} m`);
     case 3:
-      return `Above ${h1} m and below ${h2} m`;
+      return translate(
+        `Over ${h1} moh. og under ${h2} moh.`,
+        `Above ${h1} m and below ${h2} m`,
+      );
     case 4:
-      return `Between ${h2} m and ${h1} m`;
+      return translate(
+        `Mellom ${h2} moh. og ${h1} moh.`,
+        `Between ${h2} m and ${h1} m`,
+      );
     default:
       return null; // all elevations / not specified
   }
@@ -109,12 +120,15 @@ function Fact({ label, value }: { label: string; value: string | null }) {
 }
 
 export function AvalancheProblems({ problems, regionName }: Props) {
+  const t = useT();
   // Collapsed by default; clicking a problem reveals its details.
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   if (problems.length === 0) return null;
 
-  const heading = `Avalanche problems${regionName ? ` for ${regionName}` : ''}`;
+  const heading = regionName
+    ? t(`Skredproblemer for ${regionName}`, `Avalanche problems for ${regionName}`)
+    : t('Skredproblemer', 'Avalanche problems');
 
   return (
     <div className={styles.section}>
@@ -148,14 +162,14 @@ export function AvalancheProblems({ problems, regionName }: Props) {
                   {p.summary && <p className={styles.summary}>{p.summary}</p>}
                   <dl className={styles.facts}>
                     <Fact
-                      label="Aspects"
+                      label={t('Himmelretninger', 'Aspects')}
                       value={aspects.length ? aspects.join(', ') : null}
                     />
-                    <Fact label="Elevation" value={elevationText(p)} />
-                    <Fact label="Likelihood" value={p.probability} />
-                    <Fact label="Trigger" value={p.sensitivity} />
-                    <Fact label="Avalanche size" value={p.size} />
-                    <Fact label="Distribution" value={p.distribution} />
+                    <Fact label={t('Høyde', 'Elevation')} value={elevationText(p)} />
+                    <Fact label={t('Sannsynlighet', 'Likelihood')} value={p.probability} />
+                    <Fact label={t('Utløser', 'Trigger')} value={p.sensitivity} />
+                    <Fact label={t('Skredstørrelse', 'Avalanche size')} value={p.size} />
+                    <Fact label={t('Utbredelse', 'Distribution')} value={p.distribution} />
                   </dl>
                 </div>
               )}
@@ -164,7 +178,7 @@ export function AvalancheProblems({ problems, regionName }: Props) {
         })}
       </ul>
       <p className={styles.moreInfo}>
-        More info at{' '}
+        {t('Mer info på ', 'More info at ')}
         <a href={VARSOM_PROBLEMS_URL} target="_blank" rel="noopener noreferrer">
           varsom.no
         </a>

@@ -9,6 +9,7 @@ import type { LatLng, Route } from '../types';
 import { splitRouteAtDistance } from '../geometry';
 import type { RouteProgress } from '../tracking/useRouteProgress';
 import { LocateIcon } from './icons';
+import { useT } from '../i18n/index.ts';
 import styles from './NavigationLayer.module.css';
 
 // The travelled line: warm orange so it reads clearly against the teal
@@ -56,6 +57,7 @@ export function NavigationLayer({
   plannedRoute = [],
   progress = null,
 }: Props) {
+  const t = useT();
   const map = useMap();
   const [follow, setFollow] = useState(true);
   // First fix of a session gets a real setView (zoom in to street level);
@@ -192,11 +194,11 @@ export function NavigationLayer({
           type="button"
           className={styles.recenter}
           onClick={() => setFollow(true)}
-          title="Re-center on your position"
-          aria-label="Re-center on your position"
+          title={t('Sentrer på posisjonen din', 'Re-center on your position')}
+          aria-label={t('Sentrer på posisjonen din', 'Re-center on your position')}
         >
           <LocateIcon />
-          <span>Re-center</span>
+          <span>{t('Sentrer', 'Re-center')}</span>
         </button>
       )}
     </>

@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { translate } from '../i18n/locale.ts';
+import { useT } from '../i18n/index.ts';
 import styles from './DatePopover.module.css';
 
 // Custom date picker shared by the snow-depth and avalanche-risk panels.
@@ -11,9 +13,13 @@ import styles from './DatePopover.module.css';
 // onChange is fired exclusively when the user clicks a day cell.
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const fmtYMD = (y: number, m: number, d: number) => `${y}-${pad2(m)}-${pad2(d)}`;
-const fmtMDY = (s: string) => {
+// Norwegian shows day-first (DD.MM.YYYY); English keeps MM/DD/YYYY.
+const fmtDisplayDate = (s: string) => {
   const { y, m, d } = parseYMD(s);
-  return `${pad2(m)}/${pad2(d)}/${y}`;
+  return translate(
+    `${pad2(d)}.${pad2(m)}.${y}`,
+    `${pad2(m)}/${pad2(d)}/${y}`,
+  );
 };
 function parseYMD(s: string): { y: number; m: number; d: number } {
   const [y, m, d] = s.split('-').map(Number);
@@ -26,11 +32,16 @@ function daysInMonth(y: number, m: number) {
 function firstDowMon(y: number, m: number) {
   return (new Date(y, m - 1, 1).getDay() + 6) % 7;
 }
-const MONTH_NAMES = [
+const MONTH_NAMES_EN = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
-const DOW_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+const MONTH_NAMES_NO = [
+  'Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Desember',
+];
+const DOW_NAMES_EN = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+const DOW_NAMES_NO = ['Ma', 'Ti', 'On', 'To', 'Fr', 'Lø', 'Sø'];
 
 export function DatePopover({
   value,
@@ -41,6 +52,7 @@ export function DatePopover({
   max?: string;
   onChange: (v: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const initial = useMemo(() => parseYMD(value), [value]);
   const [view, setView] = useState<{ y: number; m: number }>({
@@ -99,8 +111,9 @@ export function DatePopover({
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (wrapRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target) || popRef.current?.contains(target))
+        return;
       setOpen(false);
     };
     document.addEventListener('mousedown', onDown);
@@ -128,7 +141,7 @@ export function DatePopover({
         className={styles.dateInput}
         onClick={() => setOpen((o) => !o)}
       >
-        {fmtMDY(value)}
+        {fmtDisplayDate(value)}
       </button>
       {open &&
         createPortal(
@@ -147,26 +160,27 @@ export function DatePopover({
               type="button"
               className={styles.popNav}
               onClick={prevMonth}
-              aria-label="Previous month"
+              aria-label={t('Forrige måned', 'Previous month')}
             >
               ‹
             </button>
             <span className={styles.popTitle}>
-              {MONTH_NAMES[view.m - 1]} {view.y}
+              {translate(MONTH_NAMES_NO[view.m - 1], MONTH_NAMES_EN[view.m - 1])}{' '}
+              {view.y}
             </span>
             <button
               type="button"
               className={styles.popNav}
               onClick={nextMonth}
-              aria-label="Next month"
+              aria-label={t('Neste måned', 'Next month')}
             >
               ›
             </button>
           </div>
           <div className={styles.popDows}>
-            {DOW_NAMES.map((d) => (
+            {DOW_NAMES_EN.map((d, i) => (
               <div key={d} className={styles.popDow}>
-                {d}
+                {translate(DOW_NAMES_NO[i], d)}
               </div>
             ))}
           </div>

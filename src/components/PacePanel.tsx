@@ -6,6 +6,7 @@
 // Finish.
 
 import { formatDuration, formatPace, formatSpeed } from '../routes/format';
+import { useT } from '../i18n/index.ts';
 import styles from './PacePanel.module.css';
 
 interface Props {
@@ -31,6 +32,7 @@ export function PacePanel({
   maxSpeedMps,
   waiting,
 }: Props) {
+  const t = useT();
   // Average over the whole active recording (pauses excluded, stops
   // included) vs. average over the time actually spent moving.
   const avgSpeedMps =
@@ -41,19 +43,22 @@ export function PacePanel({
   if (waiting) {
     return (
       <p className={styles.empty}>
-        Waiting for GPS — your pace stats appear here as you move.
+        {t(
+          'Venter på GPS – tempostatistikken din vises her etter hvert som du beveger deg.',
+          'Waiting for GPS — your pace stats appear here as you move.',
+        )}
       </p>
     );
   }
 
   return (
     <div className={styles.grid}>
-      <Stat label="Time elapsed" value={formatDuration(elapsedMs)} />
-      <Stat label="Time in motion" value={formatDuration(movingMs)} />
-      <Stat label="Avg speed" value={formatSpeed(avgSpeedMps)} />
-      <Stat label="Avg moving speed" value={formatSpeed(movingSpeedMps)} />
-      <Stat label="Max speed" value={formatSpeed(maxSpeedMps)} />
-      <Stat label="Pace" value={formatPace(movingSpeedMps)} />
+      <Stat label={t('Medgått tid', 'Time elapsed')} value={formatDuration(elapsedMs)} />
+      <Stat label={t('Tid i bevegelse', 'Time in motion')} value={formatDuration(movingMs)} />
+      <Stat label={t('Snittfart', 'Avg speed')} value={formatSpeed(avgSpeedMps)} />
+      <Stat label={t('Snittfart i bevegelse', 'Avg moving speed')} value={formatSpeed(movingSpeedMps)} />
+      <Stat label={t('Maksfart', 'Max speed')} value={formatSpeed(maxSpeedMps)} />
+      <Stat label={t('Tempo', 'Pace')} value={formatPace(movingSpeedMps)} />
     </div>
   );
 }

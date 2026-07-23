@@ -54,6 +54,8 @@ import {
 import { downloadTextFile } from './routes/download';
 import { formatAscent, formatDate, formatDistance } from './routes/format';
 import { useIsMobile } from './useIsMobile';
+import { useT } from './i18n/index.ts';
+import { translate } from './i18n/locale.ts';
 import type { Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
@@ -238,11 +240,18 @@ function ForecastSnapshotBanner({
   kind: 'Snow' | 'Avalanche' | 'Weather';
   onRefresh: () => void;
 }) {
+  const t = useT();
   const when = new Date(createdAt).toLocaleDateString([], {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   });
+  const kindLabel =
+    kind === 'Snow'
+      ? t('Snøvarselet', 'The snow forecast')
+      : kind === 'Avalanche'
+        ? t('Skredvarselet', 'The avalanche forecast')
+        : t('Værvarselet', 'The weather forecast');
   return (
     <div
       role="status"
@@ -261,8 +270,12 @@ function ForecastSnapshotBanner({
       }}
     >
       <span style={{ flex: 1 }}>
-        Showing forecast from the time the trip was planned, {when}. {kind}{' '}
-        forecast may have changed since
+        {t(
+          'Viser varsel fra tidspunktet turen ble planlagt, ',
+          'Showing forecast from the time the trip was planned, ',
+        )}
+        {when}. {kindLabel}{' '}
+        {t('kan ha endret seg siden', 'may have changed since')}
       </span>
       <button
         type="button"
@@ -279,7 +292,7 @@ function ForecastSnapshotBanner({
           cursor: 'pointer',
         }}
       >
-        Refresh
+        {t('Oppdater', 'Refresh')}
       </button>
     </div>
   );
@@ -344,6 +357,7 @@ interface Props {
 }
 
 function App({ saving, review: reviewProp, publicView }: Props) {
+  const t = useT();
   const [mode, setMode] = useState<Mode>('idle');
   // Stable for the lifetime of this planner instance: Root remounts the
   // planner (via `key`) whenever a different library route is opened.
@@ -489,7 +503,9 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   // toast can restore it. Null hides the toast. `clearMessage` lets the same
   // toast read "Route cleared" or "Previous route replaced".
   const [clearedRoute, setClearedRoute] = useState<Route | null>(null);
-  const [clearMessage, setClearMessage] = useState('Route cleared');
+  const [clearMessage, setClearMessage] = useState(() =>
+    translate('Ruta er fjernet', 'Route cleared'),
+  );
   const toastTimer = useRef<number | null>(null);
   // Transient error toast for a failed GPX import.
   const [importError, setImportError] = useState<string | null>(null);
@@ -668,17 +684,22 @@ function App({ saving, review: reviewProp, publicView }: Props) {
       tracking.reset();
       setStatsView('planned');
       showNotice(
-        'Activity saved to your completed routes',
+        translate(
+          'Aktivitet lagret blant dine fullførte ruter',
+          'Activity saved to your completed routes',
+        ),
         saving.onGoToCompleted
           ? {
-              label: 'View completed routes',
+              label: translate('Vis fullførte ruter', 'View completed routes'),
               onAction: saving.onGoToCompleted,
             }
           : undefined,
       );
     } catch (err) {
       showNotice(
-        err instanceof Error ? err.message : 'Saving the activity failed.',
+        err instanceof Error
+          ? err.message
+          : translate('Lagring av aktiviteten mislyktes.', 'Saving the activity failed.'),
       );
     } finally {
       setTrackSaving(false);
@@ -745,7 +766,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   // toast for a few seconds instead of a blocking confirm() dialog.
   const handleClear = useCallback(() => {
     if (route.length === 0) return;
-    setClearMessage('Route cleared');
+    setClearMessage(translate('Ruta er fjernet', 'Route cleared'));
     setClearedRoute(route);
     setRoute([]);
     setMode('idle');
@@ -780,7 +801,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
         const imported = await importRouteFile(file);
         dismissImportError();
         if (route.length > 0) {
-          setClearMessage('Previous route replaced');
+          setClearMessage(translate('Forrige rute erstattet', 'Previous route replaced'));
           setClearedRoute(route);
           if (toastTimer.current !== null) {
             window.clearTimeout(toastTimer.current);
@@ -800,7 +821,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
         const message =
           err instanceof RouteImportError
             ? err.message
-            : "This file couldn't be imported.";
+            : translate('Denne filen kunne ikke importeres.', "This file couldn't be imported.");
         setImportError(message);
         if (importErrorTimer.current !== null) {
           window.clearTimeout(importErrorTimer.current);
@@ -821,7 +842,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   // importer preserves the segment structure.
   const handleExportRoute = useCallback(() => {
     if (route.length === 0) return;
-    const name = savedMeta?.name ?? 'Route';
+    const name = savedMeta?.name ?? translate('Rute', 'Route');
     const description = savedMeta?.description ?? undefined;
 
     const profile = elevation.profile;
@@ -936,15 +957,15 @@ function App({ saving, review: reviewProp, publicView }: Props) {
   const sheetPeek =
     showActualStats && !trackHasLine
       ? reviewing
-        ? 'No GPS data recorded'
-        : 'Waiting for GPS…'
+        ? t('Ingen GPS-data registrert', 'No GPS data recorded')
+        : t('Venter på GPS …', 'Waiting for GPS…')
       : activeElevation.profile
         ? `${formatDistance(activeElevation.profile.stats.distance)} · ` +
-          `${formatAscent(activeElevation.profile.stats.ascent)} ascent · ` +
-          `${formatAscent(activeElevation.profile.stats.descent)} descent`
+          `${formatAscent(activeElevation.profile.stats.ascent)} ${t('stigning', 'ascent')} · ` +
+          `${formatAscent(activeElevation.profile.stats.descent)} ${t('fall', 'descent')}`
         : activeElevation.loading
-          ? 'Calculating route stats…'
-          : 'Route details';
+          ? t('Beregner rutestatistikk …', 'Calculating route stats…')
+          : t('Rutedetaljer', 'Route details');
 
   return (
     <div
@@ -981,7 +1002,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
           </Suspense>
         )}
         {allowViewToggle && (
-        <div className={styles.viewToggle} role="group" aria-label="Map view">
+        <div className={styles.viewToggle} role="group" aria-label={t('Kartvisning', 'Map view')}>
           <button
             type="button"
             className={view === '2d' ? styles.viewActive : ''}
@@ -1004,8 +1025,8 @@ function App({ saving, review: reviewProp, publicView }: Props) {
           type="button"
           className={styles.infoBtn}
           onClick={() => setTermsOpen(true)}
-          aria-label="About and terms of service"
-          title="About and terms of service"
+          aria-label={t('Om og vilkår for bruk', 'About and terms of service')}
+          title={t('Om og vilkår for bruk', 'About and terms of service')}
         >
           ⓘ
         </button>
@@ -1028,7 +1049,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             finishedAt={review.track.finishedAt}
             onBack={review.onBack}
             owner={isPublic ? publicView.ownerName : undefined}
-            backLabel={isPublic ? 'Back to profile' : undefined}
+            backLabel={isPublic ? t('Tilbake til profil', 'Back to profile') : undefined}
           />
         )}
         {publicRouteOnly && publicRoute && (
@@ -1036,7 +1057,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             name={publicRoute.name}
             onBack={publicView.onBack}
             owner={publicView.ownerName}
-            backLabel="Back to profile"
+            backLabel={t('Tilbake til profil', 'Back to profile')}
           />
         )}
         {navSession && tracking.status !== 'idle' && (
@@ -1048,9 +1069,15 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             canSave={Boolean(saving) && trackHasLine}
             cantSaveReason={
               !saving
-                ? 'Sign in to save this activity to your completed routes.'
+                ? t(
+                    'Logg inn for å lagre denne aktiviteten blant dine fullførte ruter.',
+                    'Sign in to save this activity to your completed routes.',
+                  )
                 : !trackHasLine
-                  ? 'Not enough GPS data was recorded to save this activity.'
+                  ? t(
+                      'Det ble ikke registrert nok GPS-data til å lagre denne aktiviteten.',
+                      'Not enough GPS data was recorded to save this activity.',
+                    )
                   : undefined
             }
             saving={trackSaving}
@@ -1070,22 +1097,24 @@ function App({ saving, review: reviewProp, publicView }: Props) {
               type="button"
               className={styles.hint}
               onClick={() => handleModeChange('draw')}
-              aria-label="Start drawing a route"
+              aria-label={t('Begynn å tegne en rute', 'Start drawing a route')}
             >
               <PencilIcon />
               <span>
-                <strong>Draw a route</strong> to start
+                <strong>{t('Tegn en rute', 'Draw a route')}</strong>{' '}
+                {t('for å starte', 'to start')}
               </span>
             </button>
             <button
               type="button"
               className={styles.hintImport}
               onClick={() => hintImportInputRef.current?.click()}
-              aria-label="Import a GPS file"
+              aria-label={t('Importer en GPS-fil', 'Import a GPS file')}
             >
               <UploadIcon />
               <span>
-                You can also <strong>import a GPS file</strong>
+                {t('Du kan også ', 'You can also ')}
+                <strong>{t('importere en GPS-fil', 'import a GPS file')}</strong>
               </span>
             </button>
             <input
@@ -1104,15 +1133,18 @@ function App({ saving, review: reviewProp, publicView }: Props) {
         )}
         {showHint && view === '3d' && (
           <div className={styles.hintControls}>
-            Left-click + drag to move
+            {t('Venstreklikk + dra for å flytte', 'Left-click + drag to move')}
             <br />
-            Right-click + drag to rotate & tilt
+            {t(
+              'Høyreklikk + dra for å rotere og vippe',
+              'Right-click + drag to rotate & tilt',
+            )}
           </div>
         )}
         {clearedRoute && (
           <Toast
             message={clearMessage}
-            actionLabel="Undo"
+            actionLabel={t('Angre', 'Undo')}
             onAction={handleUndo}
             onDismiss={dismissToast}
           />
@@ -1152,8 +1184,8 @@ function App({ saving, review: reviewProp, publicView }: Props) {
         )}
         {savedToast && !clearedRoute && (
           <Toast
-            message="Route saved to your library"
-            actionLabel="Go to library"
+            message={t('Ruta er lagret i biblioteket ditt', 'Route saved to your library')}
+            actionLabel={t('Gå til bibliotek', 'Go to library')}
             actionIcon={null}
             onAction={() => {
               if (savedToastTimer.current !== null) {
@@ -1184,7 +1216,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
                 <div
                   className={styles.statsToggle}
                   role="group"
-                  aria-label="Statistics source"
+                  aria-label={t('Statistikkilde', 'Statistics source')}
                 >
                   <button
                     type="button"
@@ -1192,7 +1224,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
                     onClick={() => setStatsView('planned')}
                     aria-pressed={statsView === 'planned'}
                   >
-                    Planned route
+                    {t('Planlagt rute', 'Planned route')}
                   </button>
                   <button
                     type="button"
@@ -1200,7 +1232,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
                     onClick={() => setStatsView('actual')}
                     aria-pressed={statsView === 'actual'}
                   >
-                    Actual route
+                    {t('Faktisk rute', 'Actual route')}
                   </button>
                 </div>
               )}
@@ -1209,10 +1241,13 @@ function App({ saving, review: reviewProp, publicView }: Props) {
                   type="button"
                   className={styles.startNavBtn}
                   onClick={handleStartNavigation}
-                  title="Follow this route and record where you actually go"
+                  title={t(
+                    'Følg denne ruta og registrer hvor du faktisk går',
+                    'Follow this route and record where you actually go',
+                  )}
                 >
                   <PlayIcon />
-                  <span>Start route</span>
+                  <span>{t('Start rute', 'Start route')}</span>
                 </button>
               )}
               {/* Guest mode: no `saving` prop, so a recorded activity can't be
@@ -1223,7 +1258,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
               {!saving && hasRoute && tracking.status === 'idle' && view === '2d' && !session && (
                 <span
                   className={styles.startNavBtnLockWrap}
-                  title="Create an account to start a route"
+                  title={t('Opprett en konto for å starte en rute', 'Create an account to start a route')}
                 >
                   <button
                     type="button"
@@ -1232,7 +1267,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
                     aria-disabled="true"
                   >
                     <PlayIcon />
-                    <span>Start route</span>
+                    <span>{t('Start rute', 'Start route')}</span>
                   </button>
                 </span>
               )}
@@ -1244,19 +1279,19 @@ function App({ saving, review: reviewProp, publicView }: Props) {
                   disabled={loading}
                   title={
                     loading
-                      ? 'Loading route data…'
+                      ? t('Laster rutedata …', 'Loading route data…')
                       : savedMeta
-                        ? 'Save your changes to this route'
-                        : 'Save this route to your library'
+                        ? t('Lagre endringene i denne ruta', 'Save your changes to this route')
+                        : t('Lagre denne ruta i biblioteket ditt', 'Save this route to your library')
                   }
                 >
                   <BookmarkPlusIcon />
                   <span>
                     {loading
-                      ? 'Loading…'
+                      ? t('Laster …', 'Loading…')
                       : savedMeta
-                        ? 'Save changes'
-                        : 'Save route'}
+                        ? t('Lagre endringer', 'Save changes')
+                        : t('Lagre rute', 'Save route')}
                   </span>
                 </button>
               )}
@@ -1268,7 +1303,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
               {!saving && !session && (
                 <span
                   className={styles.saveBtnLockWrap}
-                  title="Create an account to save routes"
+                  title={t('Opprett en konto for å lagre ruter', 'Create an account to save routes')}
                 >
                   <button
                     type="button"
@@ -1277,21 +1312,25 @@ function App({ saving, review: reviewProp, publicView }: Props) {
                     aria-disabled="true"
                   >
                     <BookmarkPlusIcon />
-                    <span>Save route</span>
+                    <span>{t('Lagre rute', 'Save route')}</span>
                   </button>
                 </span>
               )}
             </>
           }
         >
-          <SummaryCard title="Elevation">
+          <SummaryCard title={t('Høyde', 'Elevation')}>
             {showActualStats && !trackHasLine ? (
               <p className={styles.statsEmpty}>
                 {reviewing
-                  ? 'This tour has no drawable GPS line, so its profile ' +
-                    "can't be shown."
-                  : "Waiting for GPS — your actual route's stats appear " +
-                    'here as you move.'}
+                  ? t(
+                      'Denne turen har ingen tegnbar GPS-linje, så profilen kan ikke vises.',
+                      "This tour has no drawable GPS line, so its profile can't be shown.",
+                    )
+                  : t(
+                      'Venter på GPS – statistikken for den faktiske ruta di vises her etter hvert som du beveger deg.',
+                      "Waiting for GPS — your actual route's stats appear here as you move.",
+                    )}
               </p>
             ) : (
               <ElevationPanel
@@ -1317,7 +1356,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             )}
           </SummaryCard>
           {showActualStats && (
-            <SummaryCard title="Pace">
+            <SummaryCard title={t('Tempo', 'Pace')}>
               <PacePanel
                 // In a review the saved stats stand in for the live
                 // session's; tracks saved before the moving/max-speed
@@ -1339,7 +1378,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             </SummaryCard>
           )}
           {!showActualStats && (
-            <SummaryCard title="Snow">
+            <SummaryCard title={t('Snø', 'Snow')}>
               {/* The frozen-forecast notice sits atop each data section — it
                   can't be a direct child of SummaryPanel, which introspects
                   its children as tab/section descriptors. Each banner shows
@@ -1363,7 +1402,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             </SummaryCard>
           )}
           {!showActualStats && elevation.profile && (
-            <SummaryCard title="Avalanche warnings">
+            <SummaryCard title={t('Skredvarsler', 'Avalanche warnings')}>
               {activeSnapshot?.avalanche && (
                 <ForecastSnapshotBanner
                   createdAt={activeSnapshot.createdAt}
@@ -1375,7 +1414,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             </SummaryCard>
           )}
           {!showActualStats && elevation.profile && (
-            <SummaryCard title="Weather forecast" padded={false}>
+            <SummaryCard title={t('Værvarsel', 'Weather forecast')} padded={false}>
               {activeSnapshot?.weather && (
                 <ForecastSnapshotBanner
                   createdAt={activeSnapshot.createdAt}
@@ -1408,7 +1447,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
           statsLabel={
             elevation.profile
               ? `${formatDistance(elevation.profile.stats.distance)} · ` +
-                `${formatAscent(elevation.profile.stats.ascent)} ascent`
+                `${formatAscent(elevation.profile.stats.ascent)} ${t('stigning', 'ascent')}`
               : null
           }
           onSave={handleSaveRoute}

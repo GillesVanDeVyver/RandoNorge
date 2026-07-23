@@ -1,6 +1,7 @@
 // Shared formatting helpers for the offline-maps feature. Kept in one place so
 // the download form, the planner's manager panel and the offline maps page all
 // render sizes identically.
+import { translate } from '../i18n/locale.ts';
 
 /** Human-readable byte size, e.g. "742 B", "18 KB", "124.3 MB". */
 export function formatBytes(bytes: number): string {
@@ -26,7 +27,18 @@ export function metresPerPixel(zoom: number): number {
  * "≈1 m per pixel", "≈8.1 m per pixel", "≈65 m per pixel". */
 export function formatResolution(zoom: number): string {
   const m = metresPerPixel(zoom);
-  if (m >= 10) return `≈${Math.round(m)} m per pixel`;
-  if (m >= 1) return `≈${m.toFixed(1)} m per pixel`;
-  return `≈${Math.round(m * 100)} cm per pixel`;
+  if (m >= 10)
+    return translate(
+      `≈${Math.round(m)} m per piksel`,
+      `≈${Math.round(m)} m per pixel`,
+    );
+  if (m >= 1)
+    return translate(
+      `≈${m.toFixed(1)} m per piksel`,
+      `≈${m.toFixed(1)} m per pixel`,
+    );
+  return translate(
+    `≈${Math.round(m * 100)} cm per piksel`,
+    `≈${Math.round(m * 100)} cm per pixel`,
+  );
 }

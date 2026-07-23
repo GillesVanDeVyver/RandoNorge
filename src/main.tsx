@@ -12,6 +12,11 @@ import '@fontsource/inter/700.css'
 import './index.css'
 import { consumeSeasonPathOverride } from './theme/season.ts'
 import { Root } from './Root.tsx'
+import { getLocale } from './i18n/index.ts'
+
+// Reflect the persisted UI language (default Norwegian) on the <html> tag so
+// screen readers and the browser use the correct language from first paint.
+document.documentElement.lang = getLocale() === 'no' ? 'nb' : 'en'
 
 // Seasonal theme override via the URL ("/summer", "/winter/planner", …):
 // remember it for this browser session and strip the segment from the URL.

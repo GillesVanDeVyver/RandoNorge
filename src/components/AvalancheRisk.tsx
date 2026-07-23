@@ -5,6 +5,8 @@ import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
 import { ForecastContext } from '../forecast/snapshot';
 import { DatePopover } from './DatePopover';
 import { AvalancheProblems } from './AvalancheProblems';
+import { translate } from '../i18n/locale.ts';
+import { useT } from '../i18n/index.ts';
 import styles from './AvalancheRisk.module.css';
 
 interface Props {
@@ -25,37 +27,58 @@ function shiftYMD(ymd: string, days: number): string {
   return toYMD(date);
 }
 
-const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DOW_SHORT_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_SHORT_NO = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'];
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_NO = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
 
 // "Yesterday" / "Today" / "Tomorrow" for the immediate neighbours of the
 // real calendar day, otherwise the short weekday name.
 function dayLabel(ymd: string, todayYMD: string): string {
-  if (ymd === todayYMD) return 'Today';
-  if (ymd === shiftYMD(todayYMD, 1)) return 'Tomorrow';
-  if (ymd === shiftYMD(todayYMD, -1)) return 'Yesterday';
+  if (ymd === todayYMD) return translate('I dag', 'Today');
+  if (ymd === shiftYMD(todayYMD, 1)) return translate('I morgen', 'Tomorrow');
+  if (ymd === shiftYMD(todayYMD, -1)) return translate('I går', 'Yesterday');
   const [y, m, d] = ymd.split('-').map(Number);
-  return DOW_SHORT[new Date(y, m - 1, d).getDay()];
+  const dow = new Date(y, m - 1, d).getDay();
+  return translate(DOW_SHORT_NO[dow], DOW_SHORT_EN[dow]);
 }
 function dayDate(ymd: string): string {
   const [, m, d] = ymd.split('-').map(Number);
-  return `${MONTHS[m - 1]} ${d}`;
+  return translate(`${d}. ${MONTHS_NO[m - 1]}`, `${MONTHS_EN[m - 1]} ${d}`);
 }
 
 // EAWS / Varsom danger levels, translated from the Norwegian "snøskredfare"
 // scale shown on senorge.no. Colours mirror the senorge legend.
 interface LevelInfo {
-  label: string; // English translation
   color: string; // badge background
   onColor: string; // text on the badge
 }
 const LEVELS: Record<number, LevelInfo> = {
-  1: { label: 'Low avalanche danger', color: '#6dbe45', onColor: '#0a2a06' },
-  2: { label: 'Moderate avalanche danger', color: '#f4d63f', onColor: '#3a3000' },
-  3: { label: 'Considerable avalanche danger', color: '#f0922f', onColor: '#3a1e00' },
-  4: { label: 'High avalanche danger', color: '#e23c34', onColor: '#ffffff' },
-  5: { label: 'Very high avalanche danger', color: '#3a464e', onColor: '#ffffff' },
+  1: { color: '#6dbe45', onColor: '#0a2a06' },
+  2: { color: '#f4d63f', onColor: '#3a3000' },
+  3: { color: '#f0922f', onColor: '#3a1e00' },
+  4: { color: '#e23c34', onColor: '#ffffff' },
+  5: { color: '#3a464e', onColor: '#ffffff' },
 };
+
+// Localized danger-level label. Level 0 (or unknown) is the "not assessed"
+// state used by the legend and the no-forecast row.
+function levelLabel(level: number): string {
+  switch (level) {
+    case 1:
+      return translate('Liten skredfare', 'Low avalanche danger');
+    case 2:
+      return translate('Moderat skredfare', 'Moderate avalanche danger');
+    case 3:
+      return translate('Betydelig skredfare', 'Considerable avalanche danger');
+    case 4:
+      return translate('Stor skredfare', 'High avalanche danger');
+    case 5:
+      return translate('Meget stor skredfare', 'Very high avalanche danger');
+    default:
+      return translate('Ikke vurdert', 'Not assessed');
+  }
+}
 
 // Full danger scale, including the "not rated" state, for the reference
 // legend shown beneath the route's current risk.
@@ -85,7 +108,7 @@ function Legend() {
               {symbol}
             </span>
             <span className={styles.legendLabel}>
-              {info ? info.label : 'Not assessed'}
+              {levelLabel(level)}
             </span>
           </div>
         );
@@ -95,6 +118,7 @@ function Legend() {
 }
 
 export function AvalancheRisk({ profile }: Props) {
+  const t = useT();
   const today = useMemo(() => todayLocalYMD(), []);
   // Frozen snapshot (saved/shared route): open on the owner's chosen date and
   // render the captured data for it. Switching to another day falls through to
@@ -138,10 +162,10 @@ export function AvalancheRisk({ profile }: Props) {
   const dateControls = (
     <div className={styles.controls}>
       <div className={styles.dateField}>
-        <span className={styles.dateLabel}>Forecast day</span>
+        <span className={styles.dateLabel}>{t('Varseldag', 'Forecast day')}</span>
         <DatePopover value={anchor} onChange={pickAnchor} />
       </div>
-      <div className={styles.dayBar} role="tablist" aria-label="Forecast day">
+      <div className={styles.dayBar} role="tablist" aria-label={t('Varseldag', 'Forecast day')}>
         {windowDays.map((ymd) => {
           const active = ymd === selected;
           return (
@@ -164,9 +188,9 @@ export function AvalancheRisk({ profile }: Props) {
 
   let current: React.ReactNode;
   if (error && level === 0 && regions.length === 0) {
-    current = <div className={styles.status}>Avalanche risk unavailable</div>;
+    current = <div className={styles.status}>{t('Skredfare utilgjengelig', 'Avalanche risk unavailable')}</div>;
   } else if (loading && level === 0) {
-    current = <div className={styles.status}>Loading avalanche risk…</div>;
+    current = <div className={styles.status}>{t('Laster skredfare …', 'Loading avalanche risk…')}</div>;
   } else if (level === 0) {
     // No assessed region along the route — typically outside the winter
     // forecasting season. Mirrors senorge's "Ikke vurdert" state.
@@ -176,9 +200,9 @@ export function AvalancheRisk({ profile }: Props) {
           ?
         </div>
         <div className={styles.info}>
-          <span className={styles.label}>Not assessed</span>
+          <span className={styles.label}>{t('Ikke vurdert', 'Not assessed')}</span>
           <span className={styles.regions}>
-            No avalanche warning for this area
+            {t('Ingen skredvarsel for dette området', 'No avalanche warning for this area')}
           </span>
         </div>
       </div>
@@ -203,17 +227,20 @@ export function AvalancheRisk({ profile }: Props) {
       <p className={styles.attribution}>
         {fetchedAt != null && Number.isFinite(fetchedAt) && (
           <>
-            Forecast retrieved{' '}
+            {t('Varsel hentet ', 'Forecast retrieved ')}
             {new Date(fetchedAt).toLocaleString([], {
               day: 'numeric',
               month: 'short',
               hour: '2-digit',
               minute: '2-digit',
             })}
-            . Always check the latest bulletin before heading out.{' '}
+            {t(
+              '. Sjekk alltid det nyeste varselet før du drar ut. ',
+              '. Always check the latest bulletin before heading out. ',
+            )}
           </>
         )}
-        Avalanche forecast ©{' '}
+        {t('Skredvarsel ©', 'Avalanche forecast ©')}{' '}
         <a
           href="https://www.varsom.no/"
           target="_blank"
@@ -221,7 +248,7 @@ export function AvalancheRisk({ profile }: Props) {
         >
           NVE / Varsom.no
         </a>
-        , licensed under{' '}
+        {t(', lisensiert under ', ', licensed under ')}
         <a
           href="https://data.norge.no/nlod/en/2.0"
           target="_blank"
@@ -229,7 +256,7 @@ export function AvalancheRisk({ profile }: Props) {
         >
           NLOD
         </a>
-        . Data provided “as is”.
+        {t('. Data leveres «som de er».', '. Data provided “as is”.')}
       </p>
     </div>
   );
@@ -239,6 +266,7 @@ export function AvalancheRisk({ profile }: Props) {
 // forecaster's headline advisory (MainText), and the avalanche problems
 // Varsom identified for it, with a link to the full bulletin on varsom.no.
 function RegionReport({ region }: { region: AvalancheWarning }) {
+  const t = useT();
   const info = LEVELS[region.dangerLevel];
   const varsomUrl = `https://www.varsom.no/snoskredvarsling/varsel/${encodeURIComponent(region.regionName)}/`;
   return (
@@ -247,12 +275,15 @@ function RegionReport({ region }: { region: AvalancheWarning }) {
         <div
           className={styles.badge}
           style={{ background: info.color, color: info.onColor }}
-          aria-label={`Avalanche danger level ${region.dangerLevel} of 5`}
+          aria-label={t(
+            `Skredfaregrad ${region.dangerLevel} av 5`,
+            `Avalanche danger level ${region.dangerLevel} of 5`,
+          )}
         >
           {region.dangerLevel}
         </div>
         <div className={styles.info}>
-          <span className={styles.label}>{info.label}</span>
+          <span className={styles.label}>{levelLabel(region.dangerLevel)}</span>
           <span className={styles.regions}>{region.regionName}</span>
         </div>
       </div>
@@ -268,7 +299,10 @@ function RegionReport({ region }: { region: AvalancheWarning }) {
         target="_blank"
         rel="noopener noreferrer"
       >
-        Full bulletin for {region.regionName} on varsom.no →
+        {t(
+          `Fullstendig varsel for ${region.regionName} på varsom.no →`,
+          `Full bulletin for ${region.regionName} on varsom.no →`,
+        )}
       </a>
     </div>
   );

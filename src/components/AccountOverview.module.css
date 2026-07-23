@@ -56,6 +56,10 @@
   gap: var(--space-2);
 }
 
+.language {
+  margin-left: auto;
+}
+
 .brandIcon {
   display: inline-flex;
   align-items: center;

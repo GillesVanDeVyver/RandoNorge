@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { TERMS, TERMS_VERSION, type TermsLang } from '../terms/content';
 import { PRIVACY, PRIVACY_VERSION } from '../terms/privacy';
+import { useLocale } from '../i18n/index.ts';
 import styles from './TermsDialog.module.css';
 
 // In-app reference view of the terms of use and the privacy policy, shown
@@ -14,7 +15,10 @@ interface Props {
 }
 
 export function TermsDialog({ onClose }: Props) {
-  const [lang, setLang] = useState<TermsLang>('en');
+  // Language follows the app-wide locale so the terms match the rest of the
+  // UI and the NO/EN toggle here stays in sync with the global switcher.
+  const { locale, setLocale } = useLocale();
+  const lang: TermsLang = locale;
   const [doc, setDoc] = useState<'terms' | 'privacy'>('terms');
   const panelRef = useRef<HTMLDivElement>(null);
   const t = TERMS[lang];
@@ -60,12 +64,12 @@ export function TermsDialog({ onClose }: Props) {
           <div
             className={styles.langToggle}
             role="group"
-            aria-label="Language"
+            aria-label={lang === 'en' ? 'Language' : 'Språk'}
           >
             <button
               type="button"
               className={lang === 'en' ? styles.langActive : ''}
-              onClick={() => setLang('en')}
+              onClick={() => setLocale('en')}
               aria-pressed={lang === 'en'}
             >
               EN
@@ -73,7 +77,7 @@ export function TermsDialog({ onClose }: Props) {
             <button
               type="button"
               className={lang === 'no' ? styles.langActive : ''}
-              onClick={() => setLang('no')}
+              onClick={() => setLocale('no')}
               aria-pressed={lang === 'no'}
             >
               NO

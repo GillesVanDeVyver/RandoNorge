@@ -1,0 +1,70 @@
+.switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.option {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.75);
+  background: transparent;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.option:hover {
+  color: #fff;
+}
+
+.option:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.optionActive {
+  background: rgba(255, 255, 255, 0.92);
+  color: #12241a;
+}
+
+.optionActive:hover {
+  color: #12241a;
+}
+
+/* Light variant for use on pale/solid backgrounds (e.g. settings panels). */
+.light {
+  background: rgba(18, 36, 26, 0.06);
+  border-color: rgba(18, 36, 26, 0.12);
+}
+
+.light .option {
+  color: rgba(18, 36, 26, 0.6);
+}
+
+.light .option:hover {
+  color: #12241a;
+}
+
+.light .optionActive {
+  background: #12241a;
+  color: #fff;
+}
+
+.light .optionActive:hover {
+  color: #fff;
+}

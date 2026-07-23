@@ -23,6 +23,8 @@ import {
 import { formatPace, formatSpeed } from '../routes/format';
 import { DatePopover } from './DatePopover';
 import { SourceAttribution, NLOD, CC_BY_4 } from './SourceAttribution';
+import { translate } from '../i18n/locale.ts';
+import { useT } from '../i18n/index.ts';
 import styles from './ProfilePanel.module.css';
 
 interface ElevationProps {
@@ -72,7 +74,7 @@ function retrievedNote(fetchedAt: number | null | undefined) {
   if (fetchedAt == null || !Number.isFinite(fetchedAt)) return undefined;
   return (
     <>
-      Data retrieved{' '}
+      {translate('Data hentet ', 'Data retrieved ')}
       {new Date(fetchedAt).toLocaleString([], {
         day: 'numeric',
         month: 'short',
@@ -359,6 +361,7 @@ export function ElevationPanel({
   timing = null,
   hoverColor,
 }: ElevationProps) {
+  const t = useT();
   // A usable timing curve grows the clock-time axis band along the top.
   const hasTimeAxis = timing !== null && timing.timesMs.length >= 2;
   const mTop = hasTimeAxis ? M_TOP + TIME_AXIS_H : M_TOP;
@@ -633,12 +636,12 @@ export function ElevationPanel({
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
       let lastLabelRight = -Infinity;
-      for (const t of niceTimeTicks(t0, t1)) {
-        const d = distanceAtTime(timing, t);
+      for (const tick of niceTimeTicks(t0, t1)) {
+        const d = distanceAtTime(timing, tick);
         if (d === null) continue;
         const x = px(Math.min(d, xMax));
         if (x < plotLeft - 0.5 || x > plotRight + 0.5) continue;
-        const label = fmtClock(t);
+        const label = fmtClock(tick);
         const w = ctx.measureText(label).width;
         // Skip labels that would collide with the previous one.
         if (x - w / 2 < lastLabelRight + 6) continue;
@@ -741,19 +744,19 @@ export function ElevationPanel({
           {profile ? (
             <>
               <div className={styles.stats}>
-                <Stat label="Distance" value={fmtKm(profile.stats.distance)} />
+                <Stat label={t('Distanse', 'Distance')} value={fmtKm(profile.stats.distance)} />
                 <Stat
-                  label="Ascent ↗"
+                  label={t('Stigning ↗', 'Ascent ↗')}
                   value={fmtElev(profile.stats.ascent)}
                   color="#000000"
                 />
                 <Stat
-                  label="Descent ↘"
+                  label={t('Nedstigning ↘', 'Descent ↘')}
                   value={fmtElev(profile.stats.descent)}
                   color="#000000"
                 />
                 <Stat
-                  label="Min / Max"
+                  label={t('Min / Maks', 'Min / Max')}
                   value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
                 />
               </div>
@@ -761,7 +764,7 @@ export function ElevationPanel({
             </>
           ) : (
             <span className={styles.statusText}>
-              {loading ? 'Loading elevations…' : error ? `Error: ${error}` : ''}
+              {loading ? t('Laster høydedata …', 'Loading elevations…') : error ? `${t('Feil', 'Error')}: ${error}` : ''}
             </span>
           )}
         </div>
@@ -771,10 +774,10 @@ export function ElevationPanel({
           style={{ height: elevChartHeight, width: '100%' }}
         >
             {loading && !profile && (
-              <div className={styles.overlay}>Loading elevations…</div>
+              <div className={styles.overlay}>{t('Laster høydedata …', 'Loading elevations…')}</div>
             )}
             {error && !profile && (
-              <div className={styles.overlay}>Elevation unavailable</div>
+              <div className={styles.overlay}>{t('Høydedata utilgjengelig', 'Elevation unavailable')}</div>
             )}
             {profile && containerWidth > 0 && (
               <>
@@ -846,15 +849,15 @@ export function ElevationPanel({
                         : '–';
                       const rows = [
                         { text: `${Math.round(p.elevation)} m` },
-                        { text: `Steepness ${slope}`, muted: true },
+                        { text: `${t('Bratthet', 'Steepness')} ${slope}`, muted: true },
                       ];
                       // Recorded-track timing: when you were here, and how
                       // fast you were moving at that moment.
                       if (hasTimeAxis && timing) {
-                        const t = timeAtDistance(timing, p.distance);
+                        const tm = timeAtDistance(timing, p.distance);
                         const sp = speedAtDistance(timing, p.distance);
-                        if (t !== null) {
-                          rows.splice(1, 0, { text: `At ${fmtClock(t)}` });
+                        if (tm !== null) {
+                          rows.splice(1, 0, { text: `${t('Kl.', 'At')} ${fmtClock(tm)}` });
                         }
                         if (sp !== null) {
                           rows.push({
@@ -865,7 +868,7 @@ export function ElevationPanel({
                       }
                       if (p.runoutLevel === RUNOUT_UNKNOWN) {
                         rows.push({
-                          text: 'Runout data unavailable',
+                          text: t('Utløpsdata utilgjengelig', 'Runout data unavailable'),
                           muted: true,
                         });
                       }
@@ -923,17 +926,32 @@ export function ElevationPanel({
         {(runoutUnknown || slopeUnknown) && (
           <div className={styles.dataWarning} role="alert">
             {runoutUnknown && slopeUnknown
-              ? 'Steepness and avalanche runout data could not be fully loaded.'
+              ? t(
+                  'Data for bratthet og skredutløp kunne ikke lastes helt inn.',
+                  'Steepness and avalanche runout data could not be fully loaded.',
+                )
               : runoutUnknown
-                ? 'Avalanche runout data could not be loaded.'
-                : 'Steepness data could not be fully loaded.'}{' '}
-            Dashed sections of the profile line are{' '}
-            <strong>unverified</strong> — do not treat them as flat or safe
-            terrain.
+                ? t(
+                    'Data for skredutløp kunne ikke lastes inn.',
+                    'Avalanche runout data could not be loaded.',
+                  )
+                : t(
+                    'Data for bratthet kunne ikke lastes helt inn.',
+                    'Steepness data could not be fully loaded.',
+                  )}{' '}
+            {t(
+              'Stiplede deler av profillinja er ',
+              'Dashed sections of the profile line are ',
+            )}
+            <strong>{t('uverifiserte', 'unverified')}</strong>
+            {t(
+              ' – ikke behandle dem som flatt eller trygt terreng.',
+              ' — do not treat them as flat or safe terrain.',
+            )}
           </div>
         )}
         <SourceAttribution
-          what="Elevation data"
+          what={t('Høydedata', 'Elevation data')}
           source={{ label: 'Kartverket', href: 'https://www.kartverket.no/' }}
           license={CC_BY_4}
           note={retrievedNote(profile?.fetchedAt)}
@@ -952,6 +970,7 @@ export function SnowPanel({
   onDateChange,
   progressM = null,
 }: SnowProps) {
+  const t = useT();
   const chartData = useMemo(
     () => (profile ? flattenForChart(profile, snow) : []),
     [profile, snow],
@@ -991,16 +1010,16 @@ export function SnowPanel({
       <div className={styles.body}>
         <div className={`${styles.sectionHeader} ${styles.sectionHeaderRight}`}>
           <div className={styles.dateField}>
-            <span className={styles.statLabel}>Snow date</span>
+            <span className={styles.statLabel}>{t('Snødato', 'Snow date')}</span>
             <DatePopover value={date} max={today} onChange={onDateChange} />
           </div>
         </div>
         <div className={styles.chart}>
           {loading && !snow && profile && (
-            <div className={styles.overlay}>Loading snow depth…</div>
+            <div className={styles.overlay}>{t('Laster snødybde …', 'Loading snow depth…')}</div>
           )}
           {error && !snow && profile && (
-            <div className={styles.overlay}>Snow data unavailable</div>
+            <div className={styles.overlay}>{t('Snødata utilgjengelig', 'Snow data unavailable')}</div>
           )}
           {profile && (
             <ResponsiveContainer width="100%" height="100%">
@@ -1113,7 +1132,7 @@ export function SnowPanel({
                     return (
                       <ChartTooltip
                         label={fmtKm(label as number)}
-                        rows={[{ text: `Snow ${snowStr}` }]}
+                        rows={[{ text: `${t('Snø', 'Snow')} ${snowStr}` }]}
                       />
                     );
                   }}
@@ -1180,7 +1199,7 @@ export function SnowPanel({
           )}
         </div>
         <SourceAttribution
-          what="Snow depth"
+          what={t('Snødybde', 'Snow depth')}
           source={{ label: 'NVE / seNorge.no', href: 'https://www.senorge.no/' }}
           license={NLOD}
           note={retrievedNote(snow?.fetchedAt)}
@@ -1200,11 +1219,12 @@ function AspectToggle({
   mode: 'true' | 'fit';
   onChange: (m: 'true' | 'fit') => void;
 }) {
+  const t = useT();
   return (
     <div
       className={styles.aspectToggle}
       role="group"
-      aria-label="Elevation vertical scale"
+      aria-label={t('Vertikal høydeskala', 'Elevation vertical scale')}
     >
       <button
         type="button"
@@ -1212,10 +1232,13 @@ function AspectToggle({
           mode === 'true' ? styles.aspectToggleBtnActive : ''
         }`}
         aria-pressed={mode === 'true'}
-        title="Show terrain at true scale — a 45° slope looks like 45°."
+        title={t(
+          'Vis terrenget i riktig målestokk – en 45°-helning ser ut som 45°.',
+          'Show terrain at true scale — a 45° slope looks like 45°.',
+        )}
         onClick={() => onChange('true')}
       >
-        True scale
+        {t('Riktig skala', 'True scale')}
       </button>
       <button
         type="button"
@@ -1223,10 +1246,13 @@ function AspectToggle({
           mode === 'fit' ? styles.aspectToggleBtnActive : ''
         }`}
         aria-pressed={mode === 'fit'}
-        title="Fit the profile to a fixed height (vertical scale exaggerated)."
+        title={t(
+          'Tilpass profilen til en fast høyde (vertikal skala overdrevet).',
+          'Fit the profile to a fixed height (vertical scale exaggerated).',
+        )}
         onClick={() => onChange('fit')}
       >
-        Fit to view
+        {t('Tilpass', 'Fit to view')}
       </button>
     </div>
   );

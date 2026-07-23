@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MountainIcon } from './icons';
 import { TERMS, TERMS_VERSION, type TermsLang } from '../terms/content';
 import { PRIVACY, PRIVACY_VERSION } from '../terms/privacy';
+import { useLocale } from '../i18n/index.ts';
 import styles from './TermsPage.module.css';
 
 // Re-exported for callers that record which version was accepted. The terms
@@ -28,7 +29,10 @@ type Props = {
  * accept button covers both, as its label states.
  */
 export function TermsPage({ onAccept, onDecline }: Props) {
-  const [lang, setLang] = useState<TermsLang>('en');
+  // Language follows the app-wide locale so the gate matches the rest of the
+  // UI and the NO/EN toggle here stays in sync with the global switcher.
+  const { locale, setLocale } = useLocale();
+  const lang: TermsLang = locale;
   const [doc, setDoc] = useState<'terms' | 'privacy'>('terms');
   const t = TERMS[lang];
   const p = PRIVACY[lang];
@@ -57,13 +61,13 @@ export function TermsPage({ onAccept, onDecline }: Props) {
           <div
             className={styles.langToggle}
             role="group"
-            aria-label="Language"
+            aria-label={lang === 'en' ? 'Language' : 'Språk'}
           >
             <button
               type="button"
               className={styles.langBtn}
               data-active={lang === 'en' || undefined}
-              onClick={() => setLang('en')}
+              onClick={() => setLocale('en')}
             >
               EN
             </button>
@@ -71,7 +75,7 @@ export function TermsPage({ onAccept, onDecline }: Props) {
               type="button"
               className={styles.langBtn}
               data-active={lang === 'no' || undefined}
-              onClick={() => setLang('no')}
+              onClick={() => setLocale('no')}
             >
               NO
             </button>

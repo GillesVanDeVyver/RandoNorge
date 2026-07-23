@@ -13,6 +13,8 @@ import { ForecastContext } from '../forecast/snapshot';
 import { WeatherSymbol, WindArrowIcon } from './WeatherIcons';
 import { ChevronDownIcon } from './icons';
 import { SourceAttribution, NLOD } from './SourceAttribution';
+import { translate } from '../i18n/locale.ts';
+import { useT } from '../i18n/index.ts';
 import styles from './WeatherPanel.module.css';
 
 interface Props {
@@ -21,31 +23,37 @@ interface Props {
 
 type LocationKey = 'lowest' | 'highest';
 const LOC_KEYS: LocationKey[] = ['lowest', 'highest'];
-const LOC_LABELS: Record<LocationKey, string> = {
-  lowest: 'Lowest point',
-  highest: 'Highest point',
-};
+function locLabel(k: LocationKey): string {
+  return k === 'lowest'
+    ? translate('Laveste punkt', 'Lowest point')
+    : translate('Høyeste punkt', 'Highest point');
+}
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const toYMDLocal = (d: Date) =>
   `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_SHORT_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_SHORT_NO = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'];
 
 // Date label for the day-selector chips. "Today" / "Tomorrow" for the first
 // two days, then short weekday name for the rest.
 function dayLabel(d: Date, todayYMD: string): string {
   const ymd = toYMDLocal(d);
-  if (ymd === todayYMD) return 'Today';
+  if (ymd === todayYMD) return translate('I dag', 'Today');
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  if (ymd === toYMDLocal(tomorrow)) return 'Tomorrow';
-  return DOW_SHORT[d.getDay()];
+  if (ymd === toYMDLocal(tomorrow)) return translate('I morgen', 'Tomorrow');
+  return translate(DOW_SHORT_NO[d.getDay()], DOW_SHORT_EN[d.getDay()]);
 }
 
-// Short date suffix, e.g. "Jun 21".
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Short date suffix, e.g. "Jun 21" (English) / "21. jun" (Norwegian).
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_NO = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
 function dayDate(d: Date): string {
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  return translate(
+    `${d.getDate()}. ${MONTHS_NO[d.getMonth()]}`,
+    `${MONTHS_EN[d.getMonth()]} ${d.getDate()}`,
+  );
 }
 
 // Group the forecast timeseries by the local calendar day so each chip
@@ -79,6 +87,7 @@ function fmtPrecip(h: WeatherHour): string | null {
 }
 
 export function WeatherPanel({ profile }: Props) {
+  const t = useT();
   const candidates = useMemo(() => weatherCandidates(profile), [profile]);
   // Frozen snapshot (saved/shared route) — render its data instead of fetching,
   // and open on the anchor/day the owner had selected.
@@ -161,7 +170,7 @@ export function WeatherPanel({ profile }: Props) {
       <div
         className={styles.locSwitch}
         role="radiogroup"
-        aria-label="Forecast location"
+        aria-label={t('Værsted', 'Forecast location')}
       >
       {LOC_KEYS.map((k) => {
         const c = candidates[k];
@@ -175,7 +184,7 @@ export function WeatherPanel({ profile }: Props) {
             className={`${styles.locOption} ${active ? styles.locOptionActive : ''}`}
             onClick={() => setLocKey(k)}
           >
-            <span className={styles.locLabel}>{LOC_LABELS[k]}</span>
+            <span className={styles.locLabel}>{locLabel(k)}</span>
             <span className={styles.locElev}>{Math.round(c.elevation)} m</span>
           </button>
         );
@@ -194,14 +203,14 @@ export function WeatherPanel({ profile }: Props) {
   if (error && !hours) {
     return (
       <div className={styles.panel}>
-        {topRow(<div className={styles.status}>Weather unavailable</div>)}
+        {topRow(<div className={styles.status}>{t('Vær utilgjengelig', 'Weather unavailable')}</div>)}
       </div>
     );
   }
   if ((loading && !hours) || !hours || days.length === 0) {
     return (
       <div className={styles.panel}>
-        {topRow(<div className={styles.status}>Loading forecast…</div>)}
+        {topRow(<div className={styles.status}>{t('Laster værvarsel …', 'Loading forecast…')}</div>)}
       </div>
     );
   }
@@ -209,7 +218,7 @@ export function WeatherPanel({ profile }: Props) {
   return (
     <div className={styles.panel}>
       {topRow(
-        <div className={styles.dayBar} role="tablist" aria-label="Forecast day">
+        <div className={styles.dayBar} role="tablist" aria-label={t('Værdag', 'Forecast day')}>
         {days.map((ymd) => {
           // ymd is a local-date string; parse it back as a local Date so the
           // day-of-week label doesn't drift across timezones.
@@ -234,16 +243,16 @@ export function WeatherPanel({ profile }: Props) {
       )}
       <div className={styles.tableWrap}>
         <div className={styles.header}>
-          <span>Time</span>
-          <span>Sky</span>
-          <span>Temp.</span>
-          <span>Precip. mm</span>
-          <span>Wind m/s</span>
+          <span>{t('Tid', 'Time')}</span>
+          <span>{t('Himmel', 'Sky')}</span>
+          <span>{t('Temp.', 'Temp.')}</span>
+          <span>{t('Nedbør mm', 'Precip. mm')}</span>
+          <span>{t('Vind m/s', 'Wind m/s')}</span>
         </div>
         <div className={styles.scroll} ref={scrollRef}>
           {rows.map((h) => {
-            const t = new Date(h.time);
-            const hh = pad2(t.getHours());
+            const dt = new Date(h.time);
+            const hh = pad2(dt.getHours());
             const precip = fmtPrecip(h);
             const cold = h.temperature <= 0;
             // wind_from_direction is the bearing the wind is coming FROM.
@@ -290,13 +299,13 @@ export function WeatherPanel({ profile }: Props) {
       </div>
       <div className={styles.attributionWrap}>
       <SourceAttribution
-        what="Weather forecast"
+        what={t('Værvarsel', 'Weather forecast')}
         source={{ label: 'MET Norway', href: 'https://www.met.no/en' }}
         license={NLOD}
         note={
           fetchedAt != null && (
             <>
-              Forecast retrieved{' '}
+              {t('Varsel hentet ', 'Forecast retrieved ')}
               {new Date(fetchedAt).toLocaleString([], {
                 day: 'numeric',
                 month: 'short',

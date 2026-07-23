@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDate, formatDistance } from '../routes/format';
 import { ArrowLeftIcon, FlagIcon, PauseIcon, PlayIcon } from './icons';
+import { useT } from '../i18n/index.ts';
 import styles from './NavigationBar.module.css';
 
 /** How long (ms) the Finish button must be held before the tour ends. */
@@ -24,6 +25,7 @@ const HINT_VISIBLE_MS = 2000;
  * finish" hint pops up briefly so the user learns why their tap did nothing.
  */
 function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
+  const t = useT();
   const [progress, setProgress] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const rafRef = useRef<number | null>(null);
@@ -110,8 +112,14 @@ function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
         onKeyUp={(e) => {
           if (e.key === 'Enter' || e.key === ' ') stop();
         }}
-        title="Press and hold to finish and review your tour"
-        aria-label="Press and hold to finish your tour"
+        title={t(
+          'Trykk og hold for å avslutte og gjennomgå turen',
+          'Press and hold to finish and review your tour',
+        )}
+        aria-label={t(
+          'Trykk og hold for å avslutte turen',
+          'Press and hold to finish your tour',
+        )}
       >
         <span
           className={styles.holdFill}
@@ -120,7 +128,7 @@ function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
         />
         <span className={styles.holdLabel}>
           <FlagIcon />
-          <span>Finish</span>
+          <span>{t('Avslutt', 'Finish')}</span>
         </span>
       </button>
       <span
@@ -128,7 +136,7 @@ function HoldToFinishButton({ onFinish }: { onFinish: () => void }) {
         role="status"
         aria-hidden={!showHint}
       >
-        Hold to finish
+        {t('Hold for å avslutte', 'Hold to finish')}
       </span>
     </span>
   );
@@ -179,6 +187,7 @@ export function NavigationBar({
   onSave,
   onDiscard,
 }: Props) {
+  const t = useT();
   return (
     <div className={styles.wrap}>
       <div className={styles.bar} role="status">
@@ -194,13 +203,13 @@ export function NavigationBar({
               <span className={styles.statValue}>
                 {formatElapsed(elapsedMs)}
               </span>
-              <span className={styles.statLabel}>time</span>
+              <span className={styles.statLabel}>{t('tid', 'time')}</span>
             </span>
             <span className={styles.stat}>
               <span className={styles.statValue}>
                 {formatDistance(distanceM)}
               </span>
-              <span className={styles.statLabel}>travelled</span>
+              <span className={styles.statLabel}>{t('tilbakelagt', 'travelled')}</span>
             </span>
             <span className={styles.divider} aria-hidden />
             {status === 'recording' ? (
@@ -208,20 +217,20 @@ export function NavigationBar({
                 type="button"
                 className={styles.btn}
                 onClick={onPause}
-                title="Pause recording"
+                title={t('Sett opptak på pause', 'Pause recording')}
               >
                 <PauseIcon />
-                <span>Pause</span>
+                <span>{t('Pause', 'Pause')}</span>
               </button>
             ) : (
               <button
                 type="button"
                 className={styles.btn}
                 onClick={onResume}
-                title="Resume recording"
+                title={t('Fortsett opptak', 'Resume recording')}
               >
                 <PlayIcon />
-                <span>Resume</span>
+                <span>{t('Fortsett', 'Resume')}</span>
               </button>
             )}
             <HoldToFinishButton onFinish={onFinish} />
@@ -232,13 +241,13 @@ export function NavigationBar({
               <span className={styles.statValue}>
                 {formatElapsed(elapsedMs)}
               </span>
-              <span className={styles.statLabel}>time</span>
+              <span className={styles.statLabel}>{t('tid', 'time')}</span>
             </span>
             <span className={styles.stat}>
               <span className={styles.statValue}>
                 {formatDistance(distanceM)}
               </span>
-              <span className={styles.statLabel}>travelled</span>
+              <span className={styles.statLabel}>{t('tilbakelagt', 'travelled')}</span>
             </span>
             <span className={styles.divider} aria-hidden />
             <button
@@ -247,7 +256,7 @@ export function NavigationBar({
               onClick={onDiscard}
               disabled={saving}
             >
-              <span>Discard</span>
+              <span>{t('Forkast', 'Discard')}</span>
             </button>
             {canSave && (
               <button
@@ -255,10 +264,17 @@ export function NavigationBar({
                 className={styles.btnFinish}
                 onClick={onSave}
                 disabled={saving}
-                title="Save this tour to your completed routes"
+                title={t(
+                  'Lagre denne turen blant dine fullførte ruter',
+                  'Save this tour to your completed routes',
+                )}
               >
                 <FlagIcon />
-                <span>{saving ? 'Saving…' : 'Save activity'}</span>
+                <span>
+                  {saving
+                    ? t('Lagrer …', 'Saving…')
+                    : t('Lagre aktivitet', 'Save activity')}
+                </span>
               </button>
             )}
           </>
@@ -298,23 +314,25 @@ export function ReviewNavigationBar({
   finishedAt,
   onBack,
   owner,
-  backLabel = 'Back',
+  backLabel,
 }: ReviewProps) {
+  const t = useT();
+  const label = backLabel ?? t('Tilbake', 'Back');
   return (
     <div className={styles.wrap}>
       <button
         type="button"
         className={`${styles.btn} ${styles.backChip}`}
         onClick={onBack}
-        title={backLabel}
+        title={label}
       >
         <ArrowLeftIcon />
-        <span>{backLabel}</span>
+        <span>{label}</span>
       </button>
       <div className={styles.note}>
         {name}
-        {finishedAt ? ` · Completed ${formatDate(finishedAt)}` : ''}
-        {owner ? ` · by ${owner}` : ''}
+        {finishedAt ? ` · ${t('Fullført', 'Completed')} ${formatDate(finishedAt)}` : ''}
+        {owner ? ` · ${t('av', 'by')} ${owner}` : ''}
       </div>
     </div>
   );

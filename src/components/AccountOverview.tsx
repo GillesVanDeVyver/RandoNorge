@@ -9,6 +9,8 @@ import {
 import type { CSSProperties } from 'react';
 import { getSeason, OVERVIEW_PHOTOS } from '../theme/season';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
+import { useT } from '../i18n/index.ts';
+import { LanguageSwitcher } from './LanguageSwitcher.tsx';
 import styles from './AccountOverview.module.css';
 
 type Props = {
@@ -45,6 +47,7 @@ export function AccountOverview({
   onOpenOfflineMaps,
   onPlanNewRoute,
 }: Props) {
+  const t = useT();
   const firstName = name.trim() || name;
 
   // Downloaded offline areas live in IndexedDB (client-side), so the count is
@@ -73,16 +76,17 @@ export function AccountOverview({
           <MountainIcon />
         </span>
         <span className={styles.brandName}>Fjellrute</span>
+        <LanguageSwitcher className={styles.language} />
       </header>
 
       <main className={styles.content}>
-        <p className={styles.eyebrow}>Account overview</p>
+        <p className={styles.eyebrow}>{t('Kontooversikt', 'Account overview')}</p>
         <h1 className={styles.greeting}>
-          Welcome back, {firstName}
+          {t('Velkommen tilbake', 'Welcome back')}, {firstName}
           <span className={styles.greetingDot}>.</span>
         </h1>
         <p className={styles.subtitle}>
-          Where to next?
+          {t('Hvor går turen nå?', 'Where to next?')}
         </p>
 
         <div className={styles.grid}>
@@ -96,10 +100,14 @@ export function AccountOverview({
               <RouteIcon />
             </span>
             <span className={styles.cardBody}>
-              <span className={styles.cardTitle}>Plan new route</span>
+              <span className={styles.cardTitle}>
+                {t('Planlegg ny rute', 'Plan new route')}
+              </span>
               <span className={styles.cardText}>
-                Draw a tour and explore the terrain, snow and avalanche
-                information along your route.
+                {t(
+                  'Tegn en tur og utforsk terreng, snø- og skredinformasjon langs ruta.',
+                  'Draw a tour and explore the terrain, snow and avalanche information along your route.',
+                )}
               </span>
             </span>
             <span className={styles.cardArrow} aria-hidden="true">
@@ -118,7 +126,7 @@ export function AccountOverview({
             <span className={styles.cardBody}>
               {savedCount === null ? (
                 <span className={styles.cardTitle}>
-                  Loading your saved routes…
+                  {t('Laster lagrede ruter …', 'Loading your saved routes…')}
                 </span>
               ) : (
                 <span className={styles.cardStat}>
@@ -126,13 +134,18 @@ export function AccountOverview({
                     {savedCount}
                   </span>
                   <span className={styles.cardTitle}>
-                    Saved {savedCount === 1 ? 'route' : 'routes'}
+                    {t(
+                      savedCount === 1 ? 'Lagret rute' : 'Lagrede ruter',
+                      savedCount === 1 ? 'Saved route' : 'Saved routes',
+                    )}
                   </span>
                 </span>
               )}
               <span className={styles.cardText}>
-                Your route library — revisit, review and refine planned
-                tours.
+                {t(
+                  'Rutebiblioteket ditt — se igjen, gjennomgå og finjustér planlagte turer.',
+                  'Your route library — revisit, review and refine planned tours.',
+                )}
               </span>
             </span>
             <span className={styles.cardArrow} aria-hidden="true">
@@ -151,7 +164,10 @@ export function AccountOverview({
             <span className={styles.cardBody}>
               {completedCount === null ? (
                 <span className={styles.cardTitle}>
-                  Loading your completed routes…
+                  {t(
+                    'Laster fullførte ruter …',
+                    'Loading your completed routes…',
+                  )}
                 </span>
               ) : (
                 <span className={styles.cardStat}>
@@ -159,12 +175,18 @@ export function AccountOverview({
                     {completedCount}
                   </span>
                   <span className={styles.cardTitle}>
-                    Completed {completedCount === 1 ? 'route' : 'routes'}
+                    {t(
+                      completedCount === 1 ? 'Fullført rute' : 'Fullførte ruter',
+                      completedCount === 1 ? 'Completed route' : 'Completed routes',
+                    )}
                   </span>
                 </span>
               )}
               <span className={styles.cardText}>
-                Tours you have completed — your personal summit log.
+                {t(
+                  'Turer du har fullført — din personlige toppbok.',
+                  'Tours you have completed — your personal summit log.',
+                )}
               </span>
             </span>
             <span className={styles.cardArrow} aria-hidden="true">
@@ -183,7 +205,10 @@ export function AccountOverview({
             <span className={styles.cardBody}>
               {offlineCount === null ? (
                 <span className={styles.cardTitle}>
-                  Loading your saved offline maps…
+                  {t(
+                    'Laster lagrede offline-kart …',
+                    'Loading your saved offline maps…',
+                  )}
                 </span>
               ) : (
                 <span className={styles.cardStat}>
@@ -191,12 +216,22 @@ export function AccountOverview({
                     {offlineCount}
                   </span>
                   <span className={styles.cardTitle}>
-                    Offline {offlineCount === 1 ? 'map' : 'maps'} on this device
+                    {t(
+                      offlineCount === 1
+                        ? 'Offline-kart på denne enheten'
+                        : 'Offline-kart på denne enheten',
+                      offlineCount === 1
+                        ? 'Offline map on this device'
+                        : 'Offline maps on this device',
+                    )}
                   </span>
                 </span>
               )}
               <span className={styles.cardText}>
-                Areas downloaded and saved on this device. These can be used when you do not have connectivity.
+                {t(
+                  'Områder som er lastet ned og lagret på denne enheten. Disse kan brukes når du ikke har dekning.',
+                  'Areas downloaded and saved on this device. These can be used when you do not have connectivity.',
+                )}
               </span>
             </span>
             <span className={styles.cardArrow} aria-hidden="true">
@@ -214,7 +249,7 @@ export function AccountOverview({
         target="_blank"
         rel="noreferrer"
       >
-        Photo: {photo.credit}
+        {t('Foto', 'Photo')}: {photo.credit}
       </a>
     </div>
   );

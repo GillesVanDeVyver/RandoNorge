@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { authClient } from '../auth/client';
+import { useT } from '../i18n/index.ts';
+import { LanguageSwitcher } from './LanguageSwitcher.tsx';
 import styles from './AccountChip.module.css';
 
 type Props = {
@@ -33,6 +35,7 @@ export function AccountChip({
   onViewProfile,
   onOverview,
 }: Props) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -87,7 +90,7 @@ export function AccountChip({
                 onViewProfile();
               }}
             >
-              View public profile
+              {t('Vis offentlig profil', 'View public profile')}
             </button>
           )}
           {onOverview && (
@@ -100,9 +103,15 @@ export function AccountChip({
                 onOverview();
               }}
             >
-              Account overview
+              {t('Kontooversikt', 'Account overview')}
             </button>
           )}
+          <div className={styles.language}>
+            <span className={styles.languageLabel}>
+              {t('Språk', 'Language')}
+            </span>
+            <LanguageSwitcher variant="light" />
+          </div>
           <button
             type="button"
             className={styles.signOutBtn}
@@ -113,7 +122,7 @@ export function AccountChip({
               void authClient.signOut();
             }}
           >
-            Log out
+            {t('Logg ut', 'Log out')}
           </button>
         </div>
       )}

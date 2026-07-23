@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Route } from '../types';
 import { RouteIcon } from './icons';
+import { useT } from '../i18n/index.ts';
 import styles from './RouteThumbnail.module.css';
 
 // Same tile sources as the planner map (Map.tsx). The steepness overlay is
@@ -174,6 +175,7 @@ type Props = {
  * while there is no drawable geometry (unparseable row, single point, …).
  */
 export function RouteThumbnail({ route }: Props) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const points = route ? route.reduce((n, seg) => n + seg.length, 0) : 0;
   const drawable = Boolean(route && points >= 2);
@@ -201,7 +203,10 @@ export function RouteThumbnail({ route }: Props) {
       ref={canvasRef}
       className={styles.thumb}
       role="img"
-      aria-label="Route overview on steepness map, north up"
+      aria-label={t(
+        'Ruteoversikt på bratthetskart, nord opp',
+        'Route overview on steepness map, north up',
+      )}
     />
   );
 }

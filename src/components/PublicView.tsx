@@ -11,6 +11,8 @@ import {
   type PublicRoute,
   type PublicTrack,
 } from '../public/api';
+import { translate } from '../i18n/locale.ts';
+import { useT } from '../i18n/index.ts';
 import listStyles from './RoutesListPage.module.css';
 
 /** Which public page the URL points at. Shared routes/tours carry the
@@ -90,6 +92,7 @@ export function PublicView({
   onOpenTrack,
   onExit,
 }: Props) {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
 
   // Refetch whenever the target changes (slug/username). Keyed on the
@@ -107,7 +110,9 @@ export function PublicView({
       done({
         status: 'error',
         message:
-          err instanceof Error ? err.message : 'Something went wrong.',
+          err instanceof Error
+            ? err.message
+            : translate('Noe gikk galt.', 'Something went wrong.'),
       });
     };
 
@@ -129,7 +134,7 @@ export function PublicView({
     };
   }, [nav.kind, key]);
 
-  const homeLabel = signedIn ? 'Overview' : 'Home';
+  const homeLabel = signedIn ? t('Oversikt', 'Overview') : t('Hjem', 'Home');
 
   if (state.status === 'loading') {
     return (
@@ -138,7 +143,7 @@ export function PublicView({
           <span className={listStyles.emptyIcon}>
             <RouteIcon />
           </span>
-          <h2 className={listStyles.emptyTitle}>Loading…</h2>
+          <h2 className={listStyles.emptyTitle}>{t('Laster …', 'Loading…')}</h2>
         </div>
       </Shell>
     );
@@ -151,9 +156,12 @@ export function PublicView({
           <span className={listStyles.emptyIcon}>
             <RouteIcon />
           </span>
-          <h2 className={listStyles.emptyTitle}>Not found</h2>
+          <h2 className={listStyles.emptyTitle}>{t('Ikke funnet', 'Not found')}</h2>
           <p className={listStyles.emptyText}>
-            This link is private or no longer exists.
+            {t(
+              'Denne lenken er privat eller finnes ikke lenger.',
+              'This link is private or no longer exists.',
+            )}
           </p>
         </div>
       </Shell>
@@ -167,7 +175,9 @@ export function PublicView({
           <span className={listStyles.emptyIcon}>
             <RouteIcon />
           </span>
-          <h2 className={listStyles.emptyTitle}>Couldn’t load this page</h2>
+          <h2 className={listStyles.emptyTitle}>
+            {t('Kunne ikke laste denne siden', 'Couldn’t load this page')}
+          </h2>
           <p className={listStyles.emptyText}>{state.message}</p>
         </div>
       </Shell>

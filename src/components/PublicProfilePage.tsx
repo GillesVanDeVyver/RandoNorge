@@ -10,6 +10,8 @@ import {
   RouteIcon,
 } from './icons';
 import { RouteThumbnail } from './RouteThumbnail';
+import { translate } from '../i18n/locale.ts';
+import { useT } from '../i18n/index.ts';
 import listStyles from './RoutesListPage.module.css';
 import styles from './PublicProfilePage.module.css';
 
@@ -65,7 +67,9 @@ function Row({
                 <span className={listStyles.rowDivider} aria-hidden="true">
                   ·
                 </span>
-                <span className="tnum">{formatAscent(ascentM)} ascent</span>
+                <span className="tnum">
+                  {formatAscent(ascentM)} {translate('stigning', 'ascent')}
+                </span>
               </>
             )}
             {descentM !== null && (
@@ -73,7 +77,9 @@ function Row({
                 <span className={listStyles.rowDivider} aria-hidden="true">
                   ·
                 </span>
-                <span className="tnum">{formatAscent(descentM)} descent</span>
+                <span className="tnum">
+                  {formatAscent(descentM)} {translate('nedstigning', 'descent')}
+                </span>
               </>
             )}
             <span className={listStyles.rowDivider} aria-hidden="true">
@@ -103,10 +109,12 @@ export function PublicProfilePage({
   onOpenRoute,
   onOpenTrack,
   onBack,
-  backLabel = 'Back',
+  backLabel,
 }: Props) {
+  const t = useT();
   const initial = (owner.name.trim()[0] || '?').toUpperCase();
   const total = routes.length + tracks.length;
+  const back = backLabel ?? t('Tilbake', 'Back');
 
   return (
     <div className={listStyles.page}>
@@ -115,7 +123,7 @@ export function PublicProfilePage({
       <header className={listStyles.topBar}>
         <button type="button" className={listStyles.backBtn} onClick={onBack}>
           <ArrowLeftIcon />
-          {backLabel}
+          {back}
         </button>
         <span className={listStyles.brand}>
           <span className={listStyles.brandIcon}>
@@ -144,9 +152,14 @@ export function PublicProfilePage({
               <span className={listStyles.emptyIcon}>
                 <RouteIcon />
               </span>
-              <h2 className={listStyles.emptyTitle}>Nothing shared yet</h2>
+              <h2 className={listStyles.emptyTitle}>
+                {t('Ingenting delt ennå', 'Nothing shared yet')}
+              </h2>
               <p className={listStyles.emptyText}>
-                {owner.name} hasn’t made any routes or tours public.
+                {t(
+                  `${owner.name} har ikke gjort noen ruter eller turer offentlige.`,
+                  `${owner.name} hasn’t made any routes or tours public.`,
+                )}
               </p>
             </div>
           ) : (
@@ -157,14 +170,16 @@ export function PublicProfilePage({
                     <BookmarkIcon />
                   </span>
                   <h2 className={styles.sectionTitle}>
-                    Saved routes
+                    {t('Lagrede ruter', 'Saved routes')}
                     <span className={`${styles.sectionCount} tnum`}>
                       {routes.length}
                     </span>
                   </h2>
                 </div>
                 {routes.length === 0 ? (
-                  <p className={styles.sectionEmpty}>No public routes.</p>
+                  <p className={styles.sectionEmpty}>
+                    {t('Ingen offentlige ruter.', 'No public routes.')}
+                  </p>
                 ) : (
                   <ul className={listStyles.list}>
                     {routes.map((r) => (
@@ -190,26 +205,28 @@ export function PublicProfilePage({
                     <CircleCheckIcon />
                   </span>
                   <h2 className={styles.sectionTitle}>
-                    Completed routes
+                    {t('Fullførte ruter', 'Completed routes')}
                     <span className={`${styles.sectionCount} tnum`}>
                       {tracks.length}
                     </span>
                   </h2>
                 </div>
                 {tracks.length === 0 ? (
-                  <p className={styles.sectionEmpty}>No public tours.</p>
+                  <p className={styles.sectionEmpty}>
+                    {t('Ingen offentlige turer.', 'No public tours.')}
+                  </p>
                 ) : (
                   <ul className={listStyles.list}>
-                    {tracks.map((t) => (
+                    {tracks.map((tr) => (
                       <Row
-                        key={t.id}
-                        route={t.track}
-                        name={t.name}
-                        distanceM={t.distanceM}
-                        ascentM={t.ascentM}
-                        descentM={t.descentM}
-                        date={formatDate(t.finishedAt)}
-                        onOpen={() => onOpenTrack(t.id)}
+                        key={tr.id}
+                        route={tr.track}
+                        name={tr.name}
+                        distanceM={tr.distanceM}
+                        ascentM={tr.ascentM}
+                        descentM={tr.descentM}
+                        date={formatDate(tr.finishedAt)}
+                        onOpen={() => onOpenTrack(tr.id)}
                       />
                     ))}
                   </ul>

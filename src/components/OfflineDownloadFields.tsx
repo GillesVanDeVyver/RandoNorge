@@ -6,6 +6,7 @@ import {
 } from '../offline/layers';
 import type { DownloadProgress } from '../offline/download';
 import { formatBytes, formatResolution } from '../offline/format';
+import { useT } from '../i18n/index.ts';
 import styles from './OfflineManager.module.css';
 
 const MIN_DETAIL_ZOOM = 10;
@@ -54,6 +55,7 @@ export function OfflineDownloadFields({
   onDownload,
   onCancel,
 }: Props) {
+  const t = useT();
   // When the detail slider asks for finer tiles than a layer can be stored at
   // offline, say so plainly under that layer — otherwise "finest detail"
   // over-promises. Topo is capped by Kartverket licensing (z12+ Geovekst tiles
@@ -62,13 +64,16 @@ export function OfflineDownloadFields({
   const offlineCapNote = (layer: OfflineLayer): string | null => {
     const effZoom = effectiveDownloadZoom(layer, maxZoom);
     if (effZoom >= maxZoom) return null;
-    return `Stored offline at ${formatResolution(effZoom)} max`;
+    return t(
+      `Lagres offline med maks ${formatResolution(effZoom)}`,
+      `Stored offline at ${formatResolution(effZoom)} max`,
+    );
   };
 
   return (
     <>
       <fieldset className={styles.group} disabled={downloading}>
-        <legend className={styles.legend}>Layers</legend>
+        <legend className={styles.legend}>{t('Lag', 'Layers')}</legend>
         {DOWNLOADABLE_LAYER_LIST.map((layer) => {
           const selected = layerIds.includes(layer.id);
           const capNote = selected ? offlineCapNote(layer) : null;
@@ -80,8 +85,8 @@ export function OfflineDownloadFields({
                 onChange={() => toggleLayer(layer.id)}
               />
               <span className={styles.checkText}>
-                <span className={styles.checkLabel}>{layer.label}</span>
-                <span className={styles.checkDesc}>{layer.description}</span>
+                <span className={styles.checkLabel}>{layer.label()}</span>
+                <span className={styles.checkDesc}>{layer.description()}</span>
                 {capNote && <span className={styles.checkCap}>{capNote}</span>}
               </span>
             </label>
@@ -91,21 +96,26 @@ export function OfflineDownloadFields({
 
       <div className={styles.group}>
         <label className={styles.sliderRow}>
-          <span>Finest detail: {formatResolution(maxZoom)}</span>
+          <span>
+            {t('Fineste detalj', 'Finest detail')}: {formatResolution(maxZoom)}
+          </span>
           <input
             type="range"
             min={MIN_DETAIL_ZOOM}
             max={MAX_DETAIL_ZOOM}
             value={maxZoom}
             disabled={downloading}
-            aria-label="Finest map detail (more detail means a larger download)"
+            aria-label={t(
+              'Fineste kartdetalj (mer detalj betyr større nedlasting)',
+              'Finest map detail (more detail means a larger download)',
+            )}
             onChange={(e) => setMaxZoom(Number(e.target.value))}
           />
         </label>
         <p className={styles.estimate}>
           ≈{formatBytes(estBytes)}
           {estTiles > LARGE_TILE_WARNING && (
-            <span className={styles.warn}> — large download</span>
+            <span className={styles.warn}> — {t('stor nedlasting', 'large download')}</span>
           )}
         </p>
       </div>
@@ -117,7 +127,7 @@ export function OfflineDownloadFields({
             className={styles.nameInput}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Area name (optional)"
+            placeholder={t('Områdenavn (valgfritt)', 'Area name (optional)')}
             maxLength={60}
           />
           <button
@@ -126,7 +136,7 @@ export function OfflineDownloadFields({
             onClick={onDownload}
             disabled={!canDownload}
           >
-            Download on this device
+            {t('Last ned på denne enheten', 'Download on this device')}
           </button>
         </div>
       ) : (
@@ -155,7 +165,7 @@ export function OfflineDownloadFields({
               className={styles.secondary}
               onClick={onCancel}
             >
-              Cancel
+              {t('Avbryt', 'Cancel')}
             </button>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { RegionSelector } from './RegionSelector';
 import { OfflineDownloadFields } from './OfflineDownloadFields';
 import { CloseIcon } from './icons';
 import { useOfflineDownload } from '../offline/useOfflineDownload';
+import { useT } from '../i18n/index.ts';
 import styles from './OfflineManager.module.css';
 
 interface Props {
@@ -29,6 +30,7 @@ export function OfflineDownloadPanel({
   onClose,
   onDownloaded,
 }: Props) {
+  const t = useT();
   const dl = useOfflineDownload({ snowDate, regionCount, onDownloaded });
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -48,29 +50,34 @@ export function OfflineDownloadPanel({
         className={styles.panel}
         ref={panelRef}
         role="dialog"
-        aria-label="Download offline area"
+        aria-label={t('Last ned offline-område', 'Download offline area')}
       >
         <div className={styles.header}>
-          <h2 className={styles.title}>Download area</h2>
+          <h2 className={styles.title}>
+            {t('Last ned område', 'Download area')}
+          </h2>
           <button
             type="button"
             className={styles.iconBtn}
             onClick={onClose}
-            aria-label="Close download panel"
+            aria-label={t('Lukk nedlastingspanel', 'Close download panel')}
           >
             <CloseIcon />
           </button>
         </div>
 
         <p className={styles.hint}>
-          Drag the rectangle on the map to cover the area you want available
-          offline, then pick the layers and detail below.
+          {t(
+            'Dra rektangelet på kartet slik at det dekker området du vil ha tilgjengelig offline, og velg deretter lag og detaljnivå nedenfor.',
+            'Drag the rectangle on the map to cover the area you want available offline, then pick the layers and detail below.',
+          )}
         </p>
 
         <p className={styles.subnote}>
-          Downloaded maps are saved on this device only — they won’t appear on
-          your other devices, and they’re removed if you clear this
-          browser’s data.
+          {t(
+            'Nedlastede kart lagres kun på denne enheten – de vises ikke på de andre enhetene dine, og de fjernes hvis du sletter dataene til denne nettleseren.',
+            'Downloaded maps are saved on this device only — they won’t appear on your other devices, and they’re removed if you clear this browser’s data.',
+          )}
         </p>
 
         <OfflineDownloadFields

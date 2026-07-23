@@ -32,6 +32,7 @@ import {
 import { subscribeNetworkMode } from '../offline/networkMode';
 import { clamp, subtractRects, MASK_TINT, type Rect } from '../offline/maskGeometry';
 import { Map3DCursorReadout } from './Map3DCursorReadout';
+import { useT } from '../i18n/index.ts';
 import styles from './Map3DView.module.css';
 
 // Register the offline tile protocol so the raster sources below can read
@@ -172,6 +173,7 @@ export function Map3DView({
   onRouteChange,
   track = [],
 }: Props) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -1105,12 +1107,16 @@ export function Map3DView({
   // state the two buttons offer both layers directly.
   const nextOverlay: Overlay = overlay === 'steepness' ? 'snowdepth' : 'steepness';
   const overlayLabel =
-    overlay === 'steepness' ? 'Show snow depth' : 'Show steepness';
+    overlay === 'steepness'
+      ? t('Vis snødybde', 'Show snow depth')
+      : t('Vis bratthet', 'Show steepness');
   const overlayIcon =
     overlay === 'steepness' ? <SnowflakeIcon /> : <MountainIcon />;
   const visibilityTarget: Overlay = overlay === 'none' ? 'snowdepth' : 'none';
   const visibilityLabel =
-    overlay === 'none' ? 'Show snow depth' : 'Hide overlay';
+    overlay === 'none'
+      ? t('Vis snødybde', 'Show snow depth')
+      : t('Skjul lag', 'Hide overlay');
   const visibilityIcon = overlay === 'none' ? <SnowflakeIcon /> : <MapIcon />;
 
   return (
@@ -1131,8 +1137,8 @@ export function Map3DView({
             type="button"
             className={styles.btn}
             onClick={() => setSearchOpen((v) => !v)}
-            title="Search"
-            aria-label="Search"
+            title={t('Søk', 'Search')}
+            aria-label={t('Søk', 'Search')}
           >
             <SearchIcon />
           </button>
@@ -1147,7 +1153,7 @@ export function Map3DView({
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setSearchOpen(false);
                 }}
-                placeholder="Search place..."
+                placeholder={t('Søk etter sted …', 'Search place...')}
               />
             </form>
           )}
@@ -1157,8 +1163,8 @@ export function Map3DView({
           type="button"
           className={styles.btn}
           onClick={handleFullscreen}
-          title="Fullscreen"
-          aria-label="Fullscreen"
+          title={t('Fullskjerm', 'Fullscreen')}
+          aria-label={t('Fullskjerm', 'Fullscreen')}
         >
           <FullscreenIcon />
         </button>
@@ -1166,8 +1172,8 @@ export function Map3DView({
           type="button"
           className={styles.btn}
           onClick={handleLocate}
-          title="My location"
-          aria-label="My location"
+          title={t('Min posisjon', 'My location')}
+          aria-label={t('Min posisjon', 'My location')}
         >
           <LocateIcon />
         </button>
@@ -1176,10 +1182,14 @@ export function Map3DView({
           className={styles.btn}
           onClick={toggleRegionsVisible}
           title={
-            regionsVisible ? 'Hide downloaded areas' : 'Show downloaded areas'
+            regionsVisible
+              ? t('Skjul nedlastede områder', 'Hide downloaded areas')
+              : t('Vis nedlastede områder', 'Show downloaded areas')
           }
           aria-label={
-            regionsVisible ? 'Hide downloaded areas' : 'Show downloaded areas'
+            regionsVisible
+              ? t('Skjul nedlastede områder', 'Hide downloaded areas')
+              : t('Vis nedlastede områder', 'Show downloaded areas')
           }
           aria-pressed={regionsVisible}
           // The 3D controls' .btn has no .active state (unlike the 2D map's),
@@ -1193,8 +1203,8 @@ export function Map3DView({
           type="button"
           className={styles.btn}
           onClick={() => mapRef.current?.zoomIn()}
-          title="Zoom in"
-          aria-label="Zoom in"
+          title={t('Zoom inn', 'Zoom in')}
+          aria-label={t('Zoom inn', 'Zoom in')}
         >
           <PlusIcon />
         </button>
@@ -1202,8 +1212,8 @@ export function Map3DView({
           type="button"
           className={styles.btn}
           onClick={() => mapRef.current?.zoomOut()}
-          title="Zoom out"
-          aria-label="Zoom out"
+          title={t('Zoom ut', 'Zoom out')}
+          aria-label={t('Zoom ut', 'Zoom out')}
         >
           <MinusIcon />
         </button>
@@ -1214,8 +1224,8 @@ export function Map3DView({
               type="button"
               className={styles.btn}
               onClick={handleZoomToRoute}
-              title="Zoom to route"
-              aria-label="Zoom to route"
+              title={t('Zoom til rute', 'Zoom to route')}
+              aria-label={t('Zoom til rute', 'Zoom to route')}
             >
               <RouteIcon />
             </button>
@@ -1226,8 +1236,8 @@ export function Map3DView({
           type="button"
           className={styles.btn}
           onClick={() => mapRef.current?.resetNorth()}
-          title="Reset bearing to north"
-          aria-label="Reset bearing to north"
+          title={t('Tilbakestill retning mot nord', 'Reset bearing to north')}
+          aria-label={t('Tilbakestill retning mot nord', 'Reset bearing to north')}
         >
           <span
             className={styles.compass}

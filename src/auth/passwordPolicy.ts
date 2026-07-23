@@ -4,6 +4,8 @@
 // the length limits (worker/auth.js); this module exists for instant
 // feedback in the sign-up form.
 
+import { translate } from '../i18n/locale.ts';
+
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 128;
 
@@ -32,19 +34,28 @@ export function checkPassword(password: string): PasswordCheck {
   if (password.length < MIN_PASSWORD_LENGTH) {
     return {
       ok: false,
-      error: `Use at least ${MIN_PASSWORD_LENGTH} characters.`,
+      error: translate(
+        `Bruk minst ${MIN_PASSWORD_LENGTH} tegn.`,
+        `Use at least ${MIN_PASSWORD_LENGTH} characters.`,
+      ),
     };
   }
   if (password.length > MAX_PASSWORD_LENGTH) {
     return {
       ok: false,
-      error: `Use at most ${MAX_PASSWORD_LENGTH} characters.`,
+      error: translate(
+        `Bruk høyst ${MAX_PASSWORD_LENGTH} tegn.`,
+        `Use at most ${MAX_PASSWORD_LENGTH} characters.`,
+      ),
     };
   }
   if (COMMON_PASSWORDS.has(password.toLowerCase())) {
     return {
       ok: false,
-      error: 'That password is too common. Pick something less guessable.',
+      error: translate(
+        'Dette passordet er for vanlig. Velg noe som er vanskeligere å gjette.',
+        'That password is too common. Pick something less guessable.',
+      ),
     };
   }
   // Rough strength hint: reward length and character variety. Purely

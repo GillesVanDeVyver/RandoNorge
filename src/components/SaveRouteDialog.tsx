@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useT } from '../i18n/index.ts';
 import styles from './SaveRouteDialog.module.css';
 
 interface Props {
@@ -29,6 +30,7 @@ export function SaveRouteDialog({
   onSave,
   onClose,
 }: Props) {
+  const t = useT();
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [busy, setBusy] = useState(false);
@@ -61,7 +63,11 @@ export function SaveRouteDialog({
     try {
       await onSave(trimmed, description.trim());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save the route');
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Kunne ikke lagre ruta', 'Could not save the route'),
+      );
       setBusy(false);
     }
   };
@@ -77,13 +83,19 @@ export function SaveRouteDialog({
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label={isUpdate ? 'Save changes to route' : 'Save route'}
+        aria-label={
+          isUpdate
+            ? t('Lagre endringer i ruta', 'Save changes to route')
+            : t('Lagre rute', 'Save route')
+        }
         onSubmit={handleSubmit}
       >
         <header className={styles.header}>
           <div className={styles.heading}>
             <h2 className={styles.title}>
-              {isUpdate ? 'Save changes' : 'Save route'}
+              {isUpdate
+                ? t('Lagre endringer', 'Save changes')
+                : t('Lagre rute', 'Save route')}
             </h2>
             {statsLabel && <p className={`${styles.stats} tnum`}>{statsLabel}</p>}
           </div>
@@ -92,7 +104,7 @@ export function SaveRouteDialog({
             className={styles.close}
             onClick={onClose}
             disabled={busy}
-            aria-label="Close"
+            aria-label={t('Lukk', 'Close')}
           >
             ×
           </button>
@@ -100,7 +112,7 @@ export function SaveRouteDialog({
 
         <div className={styles.body}>
           <label className={styles.label} htmlFor="save-route-name">
-            Name
+            {t('Navn', 'Name')}
           </label>
           <input
             ref={nameRef}
@@ -109,21 +121,27 @@ export function SaveRouteDialog({
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Storebjørn from Krossbu"
+            placeholder={t('f.eks. Storebjørn fra Krossbu', 'e.g. Storebjørn from Krossbu')}
             maxLength={120}
             required
             disabled={busy}
           />
 
           <label className={styles.label} htmlFor="save-route-description">
-            Notes <span className={styles.optional}>(optional)</span>
+            {t('Notater', 'Notes')}{' '}
+            <span className={styles.optional}>
+              {t('(valgfritt)', '(optional)')}
+            </span>
           </label>
           <textarea
             id="save-route-description"
             className={styles.textarea}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Conditions, plan B, things to remember…"
+            placeholder={t(
+              'Forhold, plan B, ting å huske …',
+              'Conditions, plan B, things to remember…',
+            )}
             rows={3}
             maxLength={2000}
             disabled={busy}
@@ -143,14 +161,18 @@ export function SaveRouteDialog({
             onClick={onClose}
             disabled={busy}
           >
-            Cancel
+            {t('Avbryt', 'Cancel')}
           </button>
           <button
             type="submit"
             className={styles.primaryBtn}
             disabled={busy || !name.trim()}
           >
-            {busy ? 'Saving…' : isUpdate ? 'Save changes' : 'Save route'}
+            {busy
+              ? t('Lagrer …', 'Saving…')
+              : isUpdate
+                ? t('Lagre endringer', 'Save changes')
+                : t('Lagre rute', 'Save route')}
           </button>
         </footer>
       </form>

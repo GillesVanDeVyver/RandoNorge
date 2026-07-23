@@ -8,6 +8,7 @@
 // If the URL scheme ever changes, changing it here fixes both at once.
 
 import { tileBBox3857 } from './tileMath';
+import { translate } from '../i18n/locale.ts';
 
 export type OfflineLayerId = 'topo' | 'steepness' | 'snowdepth' | 'terrain';
 
@@ -18,8 +19,10 @@ export interface TileUrlOpts {
 
 export interface OfflineLayer {
   id: OfflineLayerId;
-  label: string;
-  description: string;
+  /** Localized display name — evaluated per call so it tracks the active locale. */
+  label: () => string;
+  /** Localized one-line description — evaluated per call for the same reason. */
+  description: () => string;
   /**
    * Highest zoom the source actually renders. We never download or request
    * beyond this; the map upsamples these tiles for deeper zooms instead. Also
@@ -65,8 +68,16 @@ export interface OfflineLayer {
 // --- Kartverket topographic base map (WMTS, {z}/{y}/{x} order) --------------
 const topo: OfflineLayer = {
   id: 'topo',
-  label: 'Topographic base map (finest detail 25 cm)',
-  description: 'Kartverket topo — the main map. Essential for offline use.',
+  label: () =>
+    translate(
+      'Topografisk grunnkart (fineste detalj 25 cm)',
+      'Topographic base map (finest detail 25 cm)',
+    ),
+  description: () =>
+    translate(
+      'Kartverket topo – hovedkartet. Nødvendig for offline-bruk.',
+      'Kartverket topo — the main map. Essential for offline use.',
+    ),
   // Kartverket's webmercator matrix set publishes tiles to z18 — that is the
   // ceiling for live display and overzoom.
   maxNativeZoom: 18,
@@ -85,8 +96,12 @@ const topo: OfflineLayer = {
 // --- NVE steepness / runout overlay (ArcGIS tile cache, {z}/{y}/{x}) --------
 const steepness: OfflineLayer = {
   id: 'steepness',
-  label: 'Steepness (finest detail 1 m)',
-  description: 'NVE bratthet med utløp — slope-angle shading for avalanche terrain.',
+  label: () => translate('Bratthet (fineste detalj 1 m)', 'Steepness (finest detail 1 m)'),
+  description: () =>
+    translate(
+      'NVE bratthet med utløp – hellingsgradering for skredterreng.',
+      'NVE bratthet med utløp — slope-angle shading for avalanche terrain.',
+    ),
   // The ArcGIS tiling scheme defines LODs to z19, but the cache is only built to
   // maxLOD 16 (tiles above that 404), so z16 is the real ceiling for this layer.
   maxNativeZoom: 16,
@@ -106,9 +121,12 @@ const SNOW_WMS_BASE =
 
 const snowdepth: OfflineLayer = {
   id: 'snowdepth',
-  label: 'Snow depth',
-  description:
-    'seNorge snow depth for a chosen date. Only that day’s snapshot is stored.',
+  label: () => translate('Snødybde', 'Snow depth'),
+  description: () =>
+    translate(
+      'seNorge snødybde for en valgt dato. Bare det døgnets øyeblikksbilde lagres.',
+      'seNorge snow depth for a chosen date. Only that day’s snapshot is stored.',
+    ),
   // seNorge is a 1 km grid — beyond zoom 9 it is already oversampled, so we
   // cap the cache there and let the client upscale, matching the live layer.
   maxNativeZoom: 9,
@@ -145,9 +163,13 @@ const snowdepth: OfflineLayer = {
 // flat ground.
 const terrain: OfflineLayer = {
   id: 'terrain',
-  label: '3D terrain relief (finest detail 2 m)',
-  description:
-    'Kartverket LiDAR elevation mesh. Only used by the 3D map — adds real relief offline.',
+  label: () =>
+    translate('3D-terrengrelieff (fineste detalj 2 m)', '3D terrain relief (finest detail 2 m)'),
+  description: () =>
+    translate(
+      'Kartverket LiDAR-høydemodell. Brukes bare av 3D-kartet – gir ekte relieff offline.',
+      'Kartverket LiDAR elevation mesh. Only used by the 3D map — adds real relief offline.',
+    ),
   // Both terrain sources top out at z15 (~2.4 m/px at 60°N); the mesh is
   // overzoomed beyond that. No maxDownloadZoom cap: the DEM is openly licensed
   // (CC BY 4.0 / AWS Open Data), so unlike topo it may be cached in full.

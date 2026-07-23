@@ -9,6 +9,7 @@ import {
   SkipForwardIcon,
   SnowflakeIcon,
 } from './icons';
+import { useT } from '../i18n/index.ts';
 import styles from './SnowDateBar.module.css';
 
 interface Props {
@@ -37,6 +38,7 @@ function shiftYears(date: string, years: number): string {
 }
 
 export function SnowDateBar({ date, onDateChange }: Props) {
+  const t = useT();
   const today = toYMD(new Date());
   const set = (next: string) => onDateChange(next > today ? today : next);
   const isToday = date === today;
@@ -47,24 +49,24 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         <SnowflakeIcon />
       </span>
       <NavButton
-        label="Year"
-        title="Previous year"
+        label={t('År', 'Year')}
+        title={t('Forrige år', 'Previous year')}
         onClick={() => set(shiftYears(date, -1))}
         secondary
       >
         <SkipBackIcon />
       </NavButton>
       <NavButton
-        label="Week"
-        title="Previous week"
+        label={t('Uke', 'Week')}
+        title={t('Forrige uke', 'Previous week')}
         onClick={() => set(shiftDays(date, -7))}
         secondary
       >
         <ChevronsLeftIcon />
       </NavButton>
       <NavButton
-        label="Day"
-        title="Previous day"
+        label={t('Dag', 'Day')}
+        title={t('Forrige dag', 'Previous day')}
         onClick={() => set(shiftDays(date, -1))}
       >
         <ChevronLeftIcon />
@@ -79,16 +81,16 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         }}
       />
       <NavButton
-        label="Day"
-        title="Next day"
+        label={t('Dag', 'Day')}
+        title={t('Neste dag', 'Next day')}
         onClick={() => set(shiftDays(date, 1))}
         disabled={isToday}
       >
         <ChevronRightIcon />
       </NavButton>
       <NavButton
-        label="Week"
-        title="Next week"
+        label={t('Uke', 'Week')}
+        title={t('Neste uke', 'Next week')}
         onClick={() => set(shiftDays(date, 7))}
         disabled={isToday}
         secondary
@@ -96,8 +98,8 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         <ChevronsRightIcon />
       </NavButton>
       <NavButton
-        label="Year"
-        title="Next year"
+        label={t('År', 'Year')}
+        title={t('Neste år', 'Next year')}
         onClick={() => set(shiftYears(date, 1))}
         disabled={isToday}
         secondary
@@ -105,8 +107,8 @@ export function SnowDateBar({ date, onDateChange }: Props) {
         <SkipForwardIcon />
       </NavButton>
       <NavButton
-        label="Now"
-        title="Jump to today"
+        label={t('Nå', 'Now')}
+        title={t('Hopp til i dag', 'Jump to today')}
         onClick={() => set(today)}
         disabled={isToday}
         accent

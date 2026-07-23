@@ -14,6 +14,7 @@ import {
   ChevronRightIcon,
   MountainIcon,
 } from './icons';
+import { useT } from '../i18n/index.ts';
 import styles from './SummaryPanel.module.css';
 
 interface Props {
@@ -42,6 +43,7 @@ const isHorizontal = (root: HTMLElement) =>
 // keeps the active tab in sync as the user scrolls. Add more <SummaryCard>s
 // and they each become a tab + section.
 export function SummaryPanel({ children, action, sheet = false, peek }: Props) {
+  const t = useT();
   const cards = Children.toArray(children).filter(
     (child): child is ReactElement<CardProps> => isValidElement(child),
   );
@@ -163,7 +165,9 @@ export function SummaryPanel({ children, action, sheet = false, peek }: Props) {
           onTouchEnd={handleGrabberTouchEnd}
           aria-expanded={expanded}
           aria-label={
-            expanded ? 'Collapse route details' : 'Expand route details'
+            expanded
+              ? t('Skjul rutedetaljer', 'Collapse route details')
+              : t('Vis rutedetaljer', 'Expand route details')
           }
         >
           <span className={styles.handle} aria-hidden />
@@ -185,9 +189,9 @@ export function SummaryPanel({ children, action, sheet = false, peek }: Props) {
           </span>
           <span className={styles.brandName}>Fjellrute</span>
         </div>
-        <span className={styles.railTitle}>Route overview</span>
+        <span className={styles.railTitle}>{t('Ruteoversikt', 'Route overview')}</span>
       </header>
-      <nav className={styles.tabs} aria-label="Route summary sections">
+      <nav className={styles.tabs} aria-label={t('Ruteoppsummering', 'Route summary sections')}>
         {cards.map((card, i) => (
           <button
             key={i}
@@ -215,14 +219,14 @@ export function SummaryPanel({ children, action, sheet = false, peek }: Props) {
               <div
                 className={styles.pager}
                 role="group"
-                aria-label="Change chart"
+                aria-label={t('Bytt diagram', 'Change chart')}
               >
                 <button
                   type="button"
                   className={styles.pagerBtn}
                   onClick={() => goTo(active - 1)}
                   disabled={active === 0}
-                  aria-label="Previous chart"
+                  aria-label={t('Forrige diagram', 'Previous chart')}
                 >
                   <ChevronLeftIcon />
                 </button>
@@ -231,7 +235,7 @@ export function SummaryPanel({ children, action, sheet = false, peek }: Props) {
                   className={styles.pagerBtn}
                   onClick={() => goTo(active + 1)}
                   disabled={active === cards.length - 1}
-                  aria-label="Next chart"
+                  aria-label={t('Neste diagram', 'Next chart')}
                 >
                   <ChevronRightIcon />
                 </button>

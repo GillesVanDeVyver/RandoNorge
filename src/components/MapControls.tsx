@@ -21,6 +21,7 @@ import {
   useRegionsVisible,
 } from '../offline/regionOverlayMode';
 import { useIsMobile } from '../useIsMobile';
+import { useT } from '../i18n/index.ts';
 import styles from './MapControls.module.css';
 
 interface Props {
@@ -40,6 +41,7 @@ export function MapControls({
   offlineOpen,
   onToggleOffline,
 }: Props) {
+  const t = useT();
   const map = useMap();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -128,10 +130,14 @@ export function MapControls({
   }, [overlay, onOverlayChange]);
 
   const overlayLabel =
-    overlay === 'steepness' ? 'Show snow depth' : 'Show steepness';
+    overlay === 'steepness'
+      ? t('Vis snødybde', 'Show snow depth')
+      : t('Vis bratthet', 'Show steepness');
 
   const visibilityLabel =
-    overlay === 'none' ? 'Show snow depth' : 'Hide overlay';
+    overlay === 'none'
+      ? t('Vis snødybde', 'Show snow depth')
+      : t('Skjul kartlag', 'Hide overlay');
 
   return (
     <>
@@ -168,8 +174,8 @@ export function MapControls({
               type="button"
               className={`${styles.btn} ${overlay !== 'none' ? styles.active : ''}`}
               onClick={() => setLayersOpen((v) => !v)}
-              title="Map layers"
-              aria-label="Map layers"
+              title={t('Kartlag', 'Map layers')}
+              aria-label={t('Kartlag', 'Map layers')}
               aria-expanded={layersOpen}
             >
               <LayersIcon />
@@ -184,7 +190,7 @@ export function MapControls({
                   onClick={() => pickOverlay('steepness')}
                 >
                   <MountainIcon />
-                  <span>Steepness</span>
+                  <span>{t('Bratthet', 'Steepness')}</span>
                 </button>
                 <button
                   type="button"
@@ -194,7 +200,7 @@ export function MapControls({
                   onClick={() => pickOverlay('snowdepth')}
                 >
                   <SnowflakeIcon />
-                  <span>Snow depth</span>
+                  <span>{t('Snødybde', 'Snow depth')}</span>
                 </button>
                 <button
                   type="button"
@@ -204,7 +210,7 @@ export function MapControls({
                   onClick={() => pickOverlay('none')}
                 >
                   <MapIcon />
-                  <span>Map only</span>
+                  <span>{t('Bare kart', 'Map only')}</span>
                 </button>
               </div>
             )}
@@ -215,8 +221,8 @@ export function MapControls({
             type="button"
             className={styles.btn}
             onClick={() => setSearchOpen((v) => !v)}
-            title="Search"
-            aria-label="Search"
+            title={t('Søk', 'Search')}
+            aria-label={t('Søk', 'Search')}
           >
             <SearchIcon />
           </button>
@@ -231,7 +237,7 @@ export function MapControls({
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setSearchOpen(false);
                 }}
-                placeholder="Search place..."
+                placeholder={t('Søk etter sted …', 'Search place...')}
               />
             </form>
           )}
@@ -240,8 +246,8 @@ export function MapControls({
           type="button"
           className={`${styles.btn} ${offlineOpen ? styles.active : ''}`}
           onClick={onToggleOffline}
-          title="Offline maps"
-          aria-label="Offline maps"
+          title={t('Offline-kart', 'Offline maps')}
+          aria-label={t('Offline-kart', 'Offline maps')}
           aria-pressed={offlineOpen}
         >
           <MapIcon />
@@ -251,10 +257,14 @@ export function MapControls({
           className={`${styles.btn} ${regionsVisible ? styles.active : ''}`}
           onClick={toggleRegionsVisible}
           title={
-            regionsVisible ? 'Hide downloaded areas' : 'Show downloaded areas'
+            regionsVisible
+              ? t('Skjul nedlastede områder', 'Hide downloaded areas')
+              : t('Vis nedlastede områder', 'Show downloaded areas')
           }
           aria-label={
-            regionsVisible ? 'Hide downloaded areas' : 'Show downloaded areas'
+            regionsVisible
+              ? t('Skjul nedlastede områder', 'Hide downloaded areas')
+              : t('Vis nedlastede områder', 'Show downloaded areas')
           }
           aria-pressed={regionsVisible}
         >
@@ -266,8 +276,8 @@ export function MapControls({
             type="button"
             className={styles.btn}
             onClick={handleFullscreen}
-            title="Fullscreen"
-            aria-label="Fullscreen"
+            title={t('Fullskjerm', 'Fullscreen')}
+            aria-label={t('Fullskjerm', 'Fullscreen')}
           >
             <FullscreenIcon />
           </button>
@@ -276,8 +286,8 @@ export function MapControls({
           type="button"
           className={styles.btn}
           onClick={handleLocate}
-          title="My location"
-          aria-label="My location"
+          title={t('Min posisjon', 'My location')}
+          aria-label={t('Min posisjon', 'My location')}
         >
           <LocateIcon />
         </button>
@@ -288,8 +298,8 @@ export function MapControls({
               type="button"
               className={styles.btn}
               onClick={handleZoomIn}
-              title="Zoom in"
-              aria-label="Zoom in"
+              title={t('Zoom inn', 'Zoom in')}
+              aria-label={t('Zoom inn', 'Zoom in')}
             >
               <PlusIcon />
             </button>
@@ -297,8 +307,8 @@ export function MapControls({
               type="button"
               className={styles.btn}
               onClick={handleZoomOut}
-              title="Zoom out"
-              aria-label="Zoom out"
+              title={t('Zoom ut', 'Zoom out')}
+              aria-label={t('Zoom ut', 'Zoom out')}
             >
               <MinusIcon />
             </button>
@@ -311,8 +321,8 @@ export function MapControls({
               type="button"
               className={styles.btn}
               onClick={handleZoomToRoute}
-              title="Zoom to route"
-              aria-label="Zoom to route"
+              title={t('Zoom til rute', 'Zoom to route')}
+              aria-label={t('Zoom til rute', 'Zoom to route')}
             >
               <RouteIcon />
             </button>

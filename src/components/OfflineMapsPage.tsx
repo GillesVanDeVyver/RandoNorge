@@ -10,6 +10,7 @@ import { removeRegion } from '../offline/download';
 import { clearAllOffline } from '../offline/db';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
 import { formatBytes, formatResolution } from '../offline/format';
+import { useT } from '../i18n/index.ts';
 import styles from './OfflineMapsPage.module.css';
 
 interface Props {
@@ -54,6 +55,7 @@ function FitToBounds({ bounds }: { bounds: L.LatLngBounds | null }) {
  * Selecting a row frames that area on the map.
  */
 export function OfflineMapsPage({ onBack }: Props) {
+  const t = useT();
   const { regions, supported, refresh } = useOfflineRegions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -118,7 +120,7 @@ export function OfflineMapsPage({ onBack }: Props) {
         {!downloadOpen && (
           <button type="button" className={styles.backBtn} onClick={onBack}>
             <ArrowLeftIcon />
-            Overview
+            {t('Oversikt', 'Overview')}
           </button>
         )}
         <MapContainer
@@ -169,15 +171,17 @@ export function OfflineMapsPage({ onBack }: Props) {
             <MapIcon />
           </span>
           <h1 className={styles.title}>
-            Offline maps
+            {t('Offline-kart', 'Offline maps')}
             <span className={`${styles.countPill} tnum`}>{regions.length}</span>
           </h1>
         </header>
 
         {supported === false ? (
           <p className={styles.intro}>
-            Offline storage isn’t available in this browser (it may be in
-            private mode). Downloaded maps need IndexedDB.
+            {t(
+              'Offline-lagring er ikke tilgjengelig i denne nettleseren (den kan være i privat modus). Nedlastede kart trenger IndexedDB.',
+              'Offline storage isn’t available in this browser (it may be in private mode). Downloaded maps need IndexedDB.',
+            )}
           </p>
         ) : (
           <>
@@ -187,7 +191,10 @@ export function OfflineMapsPage({ onBack }: Props) {
               onClick={() => setDownloadOpen(true)}
               disabled={downloadOpen}
             >
-              Select an area to download on this device
+              {t(
+                'Velg et område å laste ned på denne enheten',
+                'Select an area to download on this device',
+              )}
             </button>
 
             {regions.length === 0 ? (
@@ -195,20 +202,23 @@ export function OfflineMapsPage({ onBack }: Props) {
                 <span className={styles.emptyIcon}>
                   <MapIcon />
                 </span>
-                <h2 className={styles.emptyTitle}>No areas downloaded yet</h2>
+                <h2 className={styles.emptyTitle}>
+                  {t('Ingen områder lastet ned ennå', 'No areas downloaded yet')}
+                </h2>
                 <p className={styles.emptyText}>
-                  Use “Select an area to download on this device” to save part
-                  of the map for use with no connectivity. It works just like
-                  saving an area while planning a route. Downloaded maps stay on
-                  this device only. They do not sync to your other devices.
+                  {t(
+                    'Bruk «Velg et område å laste ned på denne enheten» for å lagre en del av kartet til bruk uten nett. Det fungerer akkurat som å lagre et område mens du planlegger en rute. Nedlastede kart blir kun værende på denne enheten. De synkroniseres ikke til de andre enhetene dine.',
+                    'Use “Select an area to download on this device” to save part of the map for use with no connectivity. It works just like saving an area while planning a route. Downloaded maps stay on this device only. They do not sync to your other devices.',
+                  )}
                 </p>
               </div>
             ) : (
               <>
                 <p className={styles.intro}>
-                  {regions.length} {regions.length === 1 ? 'map' : 'maps'},{' '}
+                  {regions.length}{' '}
+                  {t('kart', regions.length === 1 ? 'map' : 'maps')},{' '}
                   <span className={styles.total}>
-                    {formatBytes(totalBytes)} total.
+                    {formatBytes(totalBytes)} {t('totalt', 'total')}.
                   </span>
                 </p>
 
@@ -232,7 +242,7 @@ export function OfflineMapsPage({ onBack }: Props) {
                             .map(
                               (id) =>
                                 OFFLINE_LAYER_LIST.find((l) => l.id === id)
-                                  ?.label ?? id,
+                                  ?.label() ?? id,
                             )
                             .join(', ')}
                         </span>
@@ -245,7 +255,9 @@ export function OfflineMapsPage({ onBack }: Props) {
                             onClick={() => handleDelete(r.id)}
                             disabled={busyId === r.id}
                           >
-                            {busyId === r.id ? 'Deleting…' : 'Delete'}
+                            {busyId === r.id
+                              ? t('Sletter …', 'Deleting…')
+                              : t('Slett', 'Delete')}
                           </button>
                           <button
                             type="button"
@@ -253,7 +265,7 @@ export function OfflineMapsPage({ onBack }: Props) {
                             onClick={() => setConfirmId(null)}
                             disabled={busyId === r.id}
                           >
-                            Cancel
+                            {t('Avbryt', 'Cancel')}
                           </button>
                         </span>
                       ) : (
@@ -261,8 +273,8 @@ export function OfflineMapsPage({ onBack }: Props) {
                           type="button"
                           className={styles.deleteBtn}
                           onClick={() => setConfirmId(r.id)}
-                          title={`Delete ${r.name}`}
-                          aria-label={`Delete ${r.name}`}
+                          title={t(`Slett ${r.name}`, `Delete ${r.name}`)}
+                          aria-label={t(`Slett ${r.name}`, `Delete ${r.name}`)}
                         >
                           <TrashIcon />
                         </button>
@@ -275,8 +287,10 @@ export function OfflineMapsPage({ onBack }: Props) {
                   (clearArmed ? (
                     <div className={styles.clearConfirm}>
                       <span className={styles.clearConfirmText}>
-                        Remove all {regions.length} offline maps? This can’t be
-                        undone.
+                        {t(
+                          `Fjerne alle ${regions.length} offline-kart? Dette kan ikke angres.`,
+                          `Remove all ${regions.length} offline maps? This can’t be undone.`,
+                        )}
                       </span>
                       <div className={styles.clearConfirmActions}>
                         <button
@@ -284,14 +298,14 @@ export function OfflineMapsPage({ onBack }: Props) {
                           className={styles.confirmDelete}
                           onClick={handleClearAll}
                         >
-                          Remove all
+                          {t('Fjern alle', 'Remove all')}
                         </button>
                         <button
                           type="button"
                           className={styles.confirmCancel}
                           onClick={() => setClearArmed(false)}
                         >
-                          Cancel
+                          {t('Avbryt', 'Cancel')}
                         </button>
                       </div>
                     </div>
@@ -301,7 +315,7 @@ export function OfflineMapsPage({ onBack }: Props) {
                       className={styles.clearAll}
                       onClick={() => setClearArmed(true)}
                     >
-                      Remove all offline maps
+                      {t('Fjern alle offline-kart', 'Remove all offline maps')}
                     </button>
                   ))}
               </>

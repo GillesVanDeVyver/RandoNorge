@@ -4,6 +4,8 @@
 // conservative, URL-safe shape. This module exists for instant feedback in
 // the sign-up form; the worker validates independently and owns uniqueness.
 
+import { translate } from '../i18n/locale.ts';
+
 export const MIN_USERNAME_LENGTH = 3;
 export const MAX_USERNAME_LENGTH = 30;
 
@@ -31,18 +33,26 @@ export function checkUsername(raw: string): UsernameCheck {
   ) {
     return {
       ok: false,
-      error: `Username must be ${MIN_USERNAME_LENGTH}–${MAX_USERNAME_LENGTH} characters.`,
+      error: translate(
+        `Brukernavnet må være ${MIN_USERNAME_LENGTH}–${MAX_USERNAME_LENGTH} tegn.`,
+        `Username must be ${MIN_USERNAME_LENGTH}–${MAX_USERNAME_LENGTH} characters.`,
+      ),
     };
   }
   if (!USERNAME_RE.test(username)) {
     return {
       ok: false,
-      error:
+      error: translate(
+        'Bruk bokstaver, tall, bindestrek og understrek; start og slutt med en bokstav eller et tall.',
         'Use letters, numbers, hyphens and underscores; start and end with a letter or number.',
+      ),
     };
   }
   if (RESERVED.has(username)) {
-    return { ok: false, error: 'That username is reserved.' };
+    return {
+      ok: false,
+      error: translate('Dette brukernavnet er reservert.', 'That username is reserved.'),
+    };
   }
   return { ok: true, username };
 }

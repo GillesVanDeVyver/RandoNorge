@@ -11,6 +11,9 @@ import {
 } from './icons';
 import { TermsPage } from './TermsPage';
 import { getSeason, LOGIN_PHOTOS } from '../theme/season';
+import { useT } from '../i18n/index.ts';
+import { translate } from '../i18n/locale.ts';
+import { LanguageSwitcher } from './LanguageSwitcher.tsx';
 import styles from './LoginPage.module.css';
 
 type Props = {
@@ -46,6 +49,21 @@ type SignupField = 'username' | 'email' | 'password' | 'confirm';
 
 type FieldErrors = Partial<Record<SignupField, string>>;
 
+/** Localised label for a password-strength level. */
+function passwordStrengthLabel(
+  strength: 'fair' | 'good' | 'strong',
+  t: (no: string, en: string) => string,
+): string {
+  switch (strength) {
+    case 'strong':
+      return t('sterkt', 'strong');
+    case 'good':
+      return t('godt', 'good');
+    default:
+      return t('greit', 'fair');
+  }
+}
+
 /** Reads one-shot query params left by emailed links, then cleans the URL. */
 function consumeAuthParams() {
   const params = new URLSearchParams(window.location.search);
@@ -71,8 +89,11 @@ const authLink = consumeAuthParams();
  */
 export const PENDING_VERIFICATION_KEY = 'fjellrute:pending-verification-email';
 
-const SIGNUP_SUCCESS_NOTICE =
-  'Account created! An activation link is on its way to your inbox.';
+const signupSuccessNotice = () =>
+  translate(
+    'Konto opprettet! En aktiveringslenke er på vei til innboksen din.',
+    'Account created! An activation link is on its way to your inbox.',
+  );
 
 /** How long (seconds) the "Resend email" button stays locked after a send. */
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -121,15 +142,28 @@ function readPendingVerificationEmail(): string | null {
 
 const linkErrorMessage = (code: string) =>
   code === 'invalid_token' || code === 'token_expired'
-    ? 'That link has expired or was already used. Log in to receive a new one.'
+    ? translate(
+        'Lenken er utløpt eller allerede brukt. Logg inn for å få en ny.',
+        'That link has expired or was already used. Log in to receive a new one.',
+      )
     : code === 'account_not_linked'
-      ? 'An account with this email already exists but its address was ' +
-        'never confirmed, so it can\u2019t be linked to Google yet. Log in ' +
-        'with your password to receive a new confirmation email, then try ' +
-        'Google again.'
-      : 'Something went wrong with that link. Please try again.';
+      ? translate(
+          'Det finnes allerede en konto med denne e-posten, men adressen ' +
+            'ble aldri bekreftet, så den kan ikke kobles til Google ennå. ' +
+            'Logg inn med passordet ditt for å få en ny bekreftelses-e-post, ' +
+            'og prøv Google igjen.',
+          'An account with this email already exists but its address was ' +
+            'never confirmed, so it can\u2019t be linked to Google yet. Log in ' +
+            'with your password to receive a new confirmation email, then try ' +
+            'Google again.',
+        )
+      : translate(
+          'Noe gikk galt med lenken. Prøv igjen.',
+          'Something went wrong with that link. Please try again.',
+        );
 
 export function LoginPage({ onContinueAsGuest }: Props) {
+  const t = useT();
   // Read inside initializers (not at module load) so a remount right after
   // sign-up restores the "check your inbox" confirmation.
   const [mode, setMode] = useState<CardMode>(() =>
@@ -154,7 +188,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   );
   const [notice, setNotice] = useState<string | null>(() =>
     !authLink.token && readPendingVerificationEmail()
-      ? SIGNUP_SUCCESS_NOTICE
+      ? signupSuccessNotice()
       : null,
   );
   // True after a failed login where the account exists but the password
@@ -264,15 +298,26 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       }
       setBusy(false);
       if (exists) {
-        setError('Wrong password.');
+        setError(translate('Feil passord.', 'Wrong password.'));
         setWrongPassword(true);
       } else {
-        setError('No account found for this email address.');
+        setError(
+          translate(
+            'Fant ingen konto for denne e-postadressen.',
+            'No account found for this email address.',
+          ),
+        );
       }
       return;
     }
     setBusy(false);
-    setError(err.message ?? 'Could not log in. Please try again.');
+    setError(
+      err.message ??
+        translate(
+          'Kunne ikke logge inn. Prøv igjen.',
+          'Could not log in. Please try again.',
+        ),
+    );
   };
 
   // OAuth with Google. On success the browser is redirected to Google and
@@ -292,7 +337,13 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     });
     if (err) {
       setBusy(false);
-      setError(err.message ?? 'Could not sign in with Google. Please try again.');
+      setError(
+        err.message ??
+          translate(
+            'Kunne ikke logge inn med Google. Prøv igjen.',
+            'Could not sign in with Google. Please try again.',
+          ),
+      );
     }
   };
 
@@ -310,7 +361,11 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     if (!handle.ok) next.username = handle.error;
     const check = checkPassword(password);
     if (!check.ok) next.password = check.error;
-    if (password !== confirm) next.confirm = 'The passwords do not match.';
+    if (password !== confirm)
+      next.confirm = translate(
+        'Passordene er ikke like.',
+        'The passwords do not match.',
+      );
     setFieldErrors(next);
     if (Object.keys(next).length > 0) return;
     setPendingAction('signup');
@@ -332,7 +387,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       if (res.ok && Boolean((await res.json()).exists)) {
         setBusy(false);
         setFieldErrors({
-          email: 'An account for this email already exists.',
+          email: translate(
+            'Det finnes allerede en konto for denne e-posten.',
+            'An account for this email already exists.',
+          ),
         });
         setEmailTaken(true);
         return;
@@ -359,8 +417,14 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       setError(
         err.message ??
           (err.status === 422
-            ? 'An account with this email already exists. Try logging in.'
-            : 'Could not create the account. Please try again.'),
+            ? translate(
+                'Det finnes allerede en konto med denne e-posten. Prøv å logge inn.',
+                'An account with this email already exists. Try logging in.',
+              )
+            : translate(
+                'Kunne ikke opprette kontoen. Prøv igjen.',
+                'Could not create the account. Please try again.',
+              )),
       );
     } else {
       // Survive the remount Root triggers while the session refetches:
@@ -371,7 +435,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         // Storage unavailable — the in-memory state below still covers
         // the case where the component stays mounted.
       }
-      setNotice(SIGNUP_SUCCESS_NOTICE);
+      setNotice(signupSuccessNotice());
       setMode('verify');
     }
   };
@@ -394,10 +458,19 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     });
     setBusy(false);
     if (err) {
-      setError(err.message ?? 'Could not resend the email.');
+      setError(
+        err.message ??
+          translate(
+            'Kunne ikke sende e-posten på nytt.',
+            'Could not resend the email.',
+          ),
+      );
     } else {
       setNotice(
-        'Verification email sent again. Check your inbox (and your spam folder).',
+        translate(
+          'Bekreftelses-e-post sendt på nytt. Sjekk innboksen (og søppelpost-mappen).',
+          'Verification email sent again. Check your inbox (and your spam folder).',
+        ),
       );
       persistResendDeadline();
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
@@ -416,10 +489,19 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setBusy(false);
     setWrongPassword(false);
     if (err) {
-      setError(err.message ?? 'Could not send the reset email.');
+      setError(
+        err.message ??
+          translate(
+            'Kunne ikke sende e-post for tilbakestilling.',
+            'Could not send the reset email.',
+          ),
+      );
     } else {
       setNotice(
-        'Password reset link sent. Check your inbox (and your spam folder).',
+        translate(
+          'Lenke for tilbakestilling av passord sendt. Sjekk innboksen (og søppelpost-mappen).',
+          'Password reset link sent. Check your inbox (and your spam folder).',
+        ),
       );
     }
   };
@@ -434,10 +516,19 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     });
     setBusy(false);
     if (err) {
-      setError(err.message ?? 'Could not send the reset email.');
+      setError(
+        err.message ??
+          translate(
+            'Kunne ikke sende e-post for tilbakestilling.',
+            'Could not send the reset email.',
+          ),
+      );
     } else {
       setNotice(
-        'If an account exists for that address, a reset link is on its way. Check your inbox and your spam folder.',
+        translate(
+          'Hvis det finnes en konto for adressen, er en lenke for tilbakestilling på vei. Sjekk innboksen og søppelpost-mappen.',
+          'If an account exists for that address, a reset link is on its way. Check your inbox and your spam folder.',
+        ),
       );
     }
   };
@@ -451,7 +542,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       return;
     }
     if (password !== confirm) {
-      setError('The passwords do not match.');
+      setError(
+        translate('Passordene er ikke like.', 'The passwords do not match.'),
+      );
       return;
     }
     if (!resetToken) return;
@@ -464,11 +557,19 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     if (err) {
       setError(
         err.message ??
-          'Could not reset the password. The link may have expired.',
+          translate(
+            'Kunne ikke tilbakestille passordet. Lenken kan ha utløpt.',
+            'Could not reset the password. The link may have expired.',
+          ),
       );
     } else {
       switchMode('login');
-      setNotice('Password updated. Log in with your new password.');
+      setNotice(
+        translate(
+          'Passordet er oppdatert. Logg inn med det nye passordet.',
+          'Password updated. Log in with your new password.',
+        ),
+      );
     }
   };
 
@@ -500,31 +601,35 @@ export function LoginPage({ onContinueAsGuest }: Props) {
           <MountainIcon />
         </span>
         <span className={styles.brandName}>Fjellrute</span>
+        <LanguageSwitcher className={styles.language} />
       </header>
 
       <div className={styles.content}>
         <section className={styles.hero}>
           <h1 className={styles.headline}>
-            Read
+            {t('Les', 'Read')}
             <br />
-            the mountain<span className={styles.headlineDot}>.</span>
+            {t('fjellet', 'the mountain')}
+            <span className={styles.headlineDot}>.</span>
           </h1>
           <p className={styles.tagline}>
-            Everything you need to plan your tour: terrain, snow and
-            avalanche information in one place.
+            {t(
+              'Alt du trenger for å planlegge turen: terreng, snø- og skredinformasjon på ett sted.',
+              'Everything you need to plan your tour: terrain, snow and avalanche information in one place.',
+            )}
           </p>
           <ul className={styles.chips}>
             <li className={styles.chip}>
               <RouteIcon />
-              Route drawing
+              {t('Rutetegning', 'Route drawing')}
             </li>
             <li className={styles.chip}>
               <SnowflakeIcon />
-              Snow depth
+              {t('Snødybde', 'Snow depth')}
             </li>
             <li className={styles.chip}>
               <MountainIcon />
-              Steepness &amp; avalanche risk
+              {t('Bratthet og skredfare', 'Steepness & avalanche risk')}
             </li>
           </ul>
         </section>
@@ -532,12 +637,16 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         <div className={styles.card}>
           {mode === 'verify' ? (
             <>
-              <h2 className={styles.cardTitle}>Check your inbox</h2>
+              <h2 className={styles.cardTitle}>
+                {t('Sjekk innboksen din', 'Check your inbox')}
+              </h2>
               <p className={styles.cardText}>
-                We sent a confirmation link to{' '}
-                <strong>{email || 'your email address'}</strong>. Click it
-                to activate your account. If you can&apos;t find it, check
-                your spam folder.
+                {t('Vi sendte en bekreftelseslenke til', 'We sent a confirmation link to')}{' '}
+                <strong>{email || t('e-postadressen din', 'your email address')}</strong>
+                {t(
+                  '. Klikk på den for å aktivere kontoen din. Finner du den ikke, sjekk søppelpost-mappen.',
+                  '. Click it to activate your account. If you can\u2019t find it, check your spam folder.',
+                )}
               </p>
               {notice && <p className={styles.notice}>{notice}</p>}
               {error && <p className={styles.error}>{error}</p>}
@@ -548,17 +657,17 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 disabled={busy || !email || resendCooldown > 0}
               >
                 {busy ? (
-                  'Sending…'
+                  t('Sender …', 'Sending…')
                 ) : resendCooldown > 0 ? (
                   <>
-                    Resend available in{' '}
+                    {t('Kan sendes på nytt om', 'Resend available in')}{' '}
                     <span className={styles.cooldownDigits}>
                       {resendCooldown}
                     </span>
                     s
                   </>
                 ) : (
-                  'Resend email'
+                  t('Send e-post på nytt', 'Resend email')
                 )}
               </button>
               <button
@@ -566,21 +675,23 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 className={styles.linkBtn}
                 onClick={() => switchMode('login')}
               >
-                Back to log in
+                {t('Tilbake til innlogging', 'Back to log in')}
               </button>
             </>
           ) : mode === 'forgot' ? (
             <>
-              <h2 className={styles.cardTitle}>Reset password</h2>
+              <h2 className={styles.cardTitle}>
+                {t('Tilbakestill passord', 'Reset password')}
+              </h2>
               <form className={styles.form} onSubmit={handleForgot}>
                 <label className={styles.field}>
-                  <span className={styles.label}>Email</span>
+                  <span className={styles.label}>{t('E-post', 'Email')}</span>
                   <input
                     className={styles.input}
                     type="email"
                     name="email"
                     autoComplete="email"
-                    placeholder="you@example.com"
+                    placeholder="deg@eksempel.no"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -593,7 +704,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                   className={styles.primaryBtn}
                   disabled={busy}
                 >
-                  {busy ? 'Sending…' : 'Send reset link'}
+                  {busy
+                    ? t('Sender …', 'Sending…')
+                    : t('Send lenke for tilbakestilling', 'Send reset link')}
                 </button>
               </form>
               <button
@@ -601,21 +714,28 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 className={styles.linkBtn}
                 onClick={() => switchMode('login')}
               >
-                Back to log in
+                {t('Tilbake til innlogging', 'Back to log in')}
               </button>
             </>
           ) : mode === 'reset' ? (
             <>
-              <h2 className={styles.cardTitle}>Choose a new password</h2>
+              <h2 className={styles.cardTitle}>
+                {t('Velg et nytt passord', 'Choose a new password')}
+              </h2>
               <form className={styles.form} onSubmit={handleReset}>
                 <label className={styles.field}>
-                  <span className={styles.label}>New password</span>
+                  <span className={styles.label}>
+                    {t('Nytt passord', 'New password')}
+                  </span>
                   <input
                     className={styles.input}
                     type="password"
                     name="new-password"
                     autoComplete="new-password"
-                    placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                    placeholder={t(
+                      `Minst ${MIN_PASSWORD_LENGTH} tegn`,
+                      `At least ${MIN_PASSWORD_LENGTH} characters`,
+                    )}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -623,11 +743,14 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 </label>
                 {strength?.ok && (
                   <p className={styles.strength} data-level={strength.strength}>
-                    Password strength: {strength.strength}
+                    {t('Passordstyrke', 'Password strength')}:{' '}
+                    {passwordStrengthLabel(strength.strength, t)}
                   </p>
                 )}
                 <label className={styles.field}>
-                  <span className={styles.label}>Repeat password</span>
+                  <span className={styles.label}>
+                    {t('Gjenta passord', 'Repeat password')}
+                  </span>
                   <input
                     className={styles.input}
                     type="password"
@@ -645,7 +768,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                   className={styles.primaryBtn}
                   disabled={busy}
                 >
-                  {busy ? 'Saving…' : 'Save new password'}
+                  {busy
+                    ? t('Lagrer …', 'Saving…')
+                    : t('Lagre nytt passord', 'Save new password')}
                 </button>
               </form>
             </>
@@ -655,7 +780,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                   says "Log in", so a heading would just repeat it. Sign-up
                   keeps its title as a clear signal the mode switched. */}
               {mode === 'signup' && (
-                <h2 className={styles.cardTitle}>Create account</h2>
+                <h2 className={styles.cardTitle}>
+                  {t('Opprett konto', 'Create account')}
+                </h2>
               )}
 
               <button
@@ -672,12 +799,12 @@ export function LoginPage({ onContinueAsGuest }: Props) {
               >
                 <GoogleIcon className={styles.googleIcon} />
                 {mode === 'signup'
-                  ? 'Sign up with Google'
-                  : 'Continue with Google'}
+                  ? t('Registrer deg med Google', 'Sign up with Google')
+                  : t('Fortsett med Google', 'Continue with Google')}
               </button>
 
               <div className={styles.divider}>
-                <span>or</span>
+                <span>{t('eller', 'or')}</span>
               </div>
 
               <form
@@ -686,13 +813,15 @@ export function LoginPage({ onContinueAsGuest }: Props) {
               >
                 {mode === 'signup' && (
                   <label className={styles.field}>
-                    <span className={styles.label}>First name</span>
+                    <span className={styles.label}>
+                      {t('Fornavn', 'First name')}
+                    </span>
                     <input
                       className={styles.input}
                       type="text"
                       name="first-name"
                       autoComplete="given-name"
-                      placeholder="Your first name"
+                      placeholder={t('Fornavnet ditt', 'Your first name')}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
@@ -701,7 +830,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
 
                 {mode === 'signup' && (
                   <label className={styles.field}>
-                    <span className={styles.label}>Username</span>
+                    <span className={styles.label}>
+                      {t('Brukernavn', 'Username')}
+                    </span>
                     <input
                       className={styles.input}
                       type="text"
@@ -710,7 +841,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
-                      placeholder="your public handle"
+                      placeholder={t('ditt offentlige brukernavn', 'your public handle')}
                       required
                       aria-invalid={fieldErrors.username ? true : undefined}
                       aria-describedby={
@@ -731,20 +862,24 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                       </span>
                     ) : (
                       <span className={styles.hint}>
-                        Your public profile lives at /u/{username.trim().toLowerCase() || 'username'}
+                        {t(
+                          'Din offentlige profil finnes på',
+                          'Your public profile lives at',
+                        )}{' '}
+                        /u/{username.trim().toLowerCase() || 'username'}
                       </span>
                     )}
                   </label>
                 )}
 
                 <label className={styles.field}>
-                  <span className={styles.label}>Email</span>
+                  <span className={styles.label}>{t('E-post', 'Email')}</span>
                   <input
                     className={styles.input}
                     type="email"
                     name="email"
                     autoComplete="email"
-                    placeholder="you@example.com"
+                    placeholder="deg@eksempel.no"
                     required
                     aria-invalid={
                       mode === 'signup' && fieldErrors.email ? true : undefined
@@ -771,7 +906,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                             className={styles.errorLink}
                             onClick={() => switchMode('login')}
                           >
-                            Go to login
+                            {t('Gå til innlogging', 'Go to login')}
                           </button>
                         </>
                       )}
@@ -780,7 +915,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 </label>
 
                 <label className={styles.field}>
-                  <span className={styles.label}>Password</span>
+                  <span className={styles.label}>{t('Passord', 'Password')}</span>
                   <input
                     className={styles.input}
                     type="password"
@@ -790,7 +925,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                     }
                     placeholder={
                       mode === 'signup'
-                        ? `At least ${MIN_PASSWORD_LENGTH} characters`
+                        ? t(
+                            `Minst ${MIN_PASSWORD_LENGTH} tegn`,
+                            `At least ${MIN_PASSWORD_LENGTH} characters`,
+                          )
                         : '••••••••'
                     }
                     required
@@ -822,13 +960,16 @@ export function LoginPage({ onContinueAsGuest }: Props) {
 
                 {mode === 'signup' && strength?.ok && (
                   <p className={styles.strength} data-level={strength.strength}>
-                    Password strength: {strength.strength}
+                    {t('Passordstyrke', 'Password strength')}:{' '}
+                    {passwordStrengthLabel(strength.strength, t)}
                   </p>
                 )}
 
                 {mode === 'signup' && (
                   <label className={styles.field}>
-                    <span className={styles.label}>Repeat password</span>
+                    <span className={styles.label}>
+                      {t('Gjenta passord', 'Repeat password')}
+                    </span>
                     <input
                       className={styles.input}
                       type="password"
@@ -867,7 +1008,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                     onClick={handleQuickReset}
                     disabled={busy}
                   >
-                    {busy ? 'Sending…' : 'Reset password'}
+                    {busy
+                      ? t('Sender …', 'Sending…')
+                      : t('Tilbakestill passord', 'Reset password')}
                   </button>
                 )}
 
@@ -877,10 +1020,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                   disabled={busy}
                 >
                   {busy
-                    ? 'One moment…'
+                    ? t('Et øyeblikk …', 'One moment…')
                     : mode === 'signup'
-                      ? 'Create account'
-                      : 'Log in'}
+                      ? t('Opprett konto', 'Create account')
+                      : t('Logg inn', 'Log in')}
                 </button>
 
                 {mode === 'login' && (
@@ -889,7 +1032,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                     className={styles.linkBtn}
                     onClick={() => switchMode('forgot')}
                   >
-                    Forgot password?
+                    {t('Glemt passord?', 'Forgot password?')}
                   </button>
                 )}
               </form>
@@ -897,8 +1040,8 @@ export function LoginPage({ onContinueAsGuest }: Props) {
               <div className={styles.signupRow}>
                 <span>
                   {mode === 'signup'
-                    ? 'Already have an account?'
-                    : 'No account yet?'}
+                    ? t('Har du allerede en konto?', 'Already have an account?')
+                    : t('Ingen konto ennå?', 'No account yet?')}
                 </span>
                 <button
                   type="button"
@@ -907,12 +1050,14 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                     switchMode(mode === 'signup' ? 'login' : 'signup')
                   }
                 >
-                  {mode === 'signup' ? 'Log in' : 'Sign up'}
+                  {mode === 'signup'
+                    ? t('Logg inn', 'Log in')
+                    : t('Registrer deg', 'Sign up')}
                 </button>
               </div>
 
               <div className={styles.divider}>
-                <span>or</span>
+                <span>{t('eller', 'or')}</span>
               </div>
 
               <button
@@ -923,7 +1068,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 // hands over.
                 onClick={onContinueAsGuest}
               >
-                Continue as guest
+                {t('Fortsett som gjest', 'Continue as guest')}
               </button>
             </>
           )}
@@ -938,7 +1083,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         target="_blank"
         rel="noreferrer"
       >
-        Photo: {photo.credit}
+        {t('Foto', 'Photo')}: {photo.credit}
       </a>
     </div>
   );

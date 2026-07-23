@@ -8,6 +8,7 @@ import { removeRegion } from '../offline/download';
 import { useOfflineDownload } from '../offline/useOfflineDownload';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
 import { formatBytes, formatResolution } from '../offline/format';
+import { useT } from '../i18n/index.ts';
 import styles from './OfflineManager.module.css';
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
+  const t = useT();
   const { regions, supported, refresh } = useOfflineRegions();
 
   const onDownloaded = useCallback(async () => {
@@ -57,14 +59,19 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
   return (
     <>
       <RegionSelector bounds={dl.bounds} onChange={dl.setBounds} />
-      <div className={styles.panel} ref={panelRef} role="dialog" aria-label="Offline maps">
+      <div
+        className={styles.panel}
+        ref={panelRef}
+        role="dialog"
+        aria-label={t('Offline-kart', 'Offline maps')}
+      >
         <div className={styles.header}>
-          <h2 className={styles.title}>Offline maps</h2>
+          <h2 className={styles.title}>{t('Offline-kart', 'Offline maps')}</h2>
           <button
             type="button"
             className={styles.iconBtn}
             onClick={onClose}
-            aria-label="Close offline maps"
+            aria-label={t('Lukk offline-kart', 'Close offline maps')}
           >
             <CloseIcon />
           </button>
@@ -72,14 +79,18 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
 
         {supported === false ? (
           <p className={styles.note}>
-            Offline storage isn’t available in this browser (it may be in
-            private mode). Downloaded maps need IndexedDB.
+            {t(
+              'Offline-lagring er ikke tilgjengelig i denne nettleseren (den kan være i privat modus). Nedlastede kart trenger IndexedDB.',
+              'Offline storage isn’t available in this browser (it may be in private mode). Downloaded maps need IndexedDB.',
+            )}
           </p>
         ) : (
           <>
             <p className={styles.hint}>
-              Drag the rectangle on the map to cover the area you want available
-              offline, then pick the layers and detail below.
+              {t(
+                'Dra rektangelet på kartet slik at det dekker området du vil ha tilgjengelig offline, og velg deretter lag og detaljnivå nedenfor.',
+                'Drag the rectangle on the map to cover the area you want available offline, then pick the layers and detail below.',
+              )}
             </p>
 
             <OfflineDownloadFields
@@ -102,14 +113,18 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
             <div className={styles.divider} />
 
             <div className={styles.savedHeader}>
-              <h3 className={styles.subtitle}>Downloaded areas</h3>
+              <h3 className={styles.subtitle}>
+                {t('Nedlastede områder', 'Downloaded areas')}
+              </h3>
               {regions.length > 0 && (
                 <span className={styles.total}>{formatBytes(totalBytes)}</span>
               )}
             </div>
 
             {regions.length === 0 ? (
-              <p className={styles.note}>No areas downloaded yet.</p>
+              <p className={styles.note}>
+                {t('Ingen områder lastet ned ennå.', 'No areas downloaded yet.')}
+              </p>
             ) : (
               <ul className={styles.regionList}>
                 {regions.map((r) => (
@@ -123,7 +138,7 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
                         {r.layerIds
                           .map(
                             (id) =>
-                              OFFLINE_LAYER_LIST.find((l) => l.id === id)?.label ??
+                              OFFLINE_LAYER_LIST.find((l) => l.id === id)?.label() ??
                               id,
                           )
                           .join(', ')}
@@ -133,7 +148,7 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
                       type="button"
                       className={styles.iconBtn}
                       onClick={() => handleDelete(r.id)}
-                      aria-label={`Delete ${r.name}`}
+                      aria-label={t(`Slett ${r.name}`, `Delete ${r.name}`)}
                     >
                       <TrashIcon />
                     </button>
