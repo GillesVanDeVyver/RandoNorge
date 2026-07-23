@@ -434,6 +434,25 @@ export function Map3DView({
     mapRef.current = map;
     setGlMap(map);
 
+    // MapLibre measures the container exactly once, when the map is
+    // constructed, and sizes the WebGL drawing buffer to whatever it reads
+    // then. Map3DView is lazy-loaded and mounted the instant the view flips
+    // to 3D, so the container occasionally hasn't reached its final laid-out
+    // size yet (the flex map pane is still settling / the chunk resolved
+    // mid-layout). When that happens the canvas is created against a stale or
+    // zero-height box and paints blank — until the user toggles back to 2D and
+    // in again, which remounts after layout has settled. That intermittent
+    // "sometimes blank, fixed by toggling" behaviour is the tell-tale race.
+    //
+    // Mirror the 2D map's InvalidateOnResize ResizeObserver: watch the
+    // container and re-fit the GL canvas with map.resize() the moment its real
+    // dimensions land, so the first paint always matches the pane. A one-shot
+    // rAF resize covers the case where the size is already correct but the
+    // buffer was built a frame too early.
+    const initialResize = requestAnimationFrame(() => map.resize());
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(container);
+
     // Map tools live in a custom glass panel (top-right, below the overlay
     // toggle) rendered in JSX so they match the 2D map's controls exactly,
     // rather than MapLibre's default NavigationControl widget.
@@ -692,6 +711,10 @@ export function Map3DView({
     map.on('rotate', () => setBearing(map.getBearing()));
 
     map.on('load', () => {
+      // Once the style is up, force one more resize so the initial fitBounds
+      // below is computed against the true container size rather than whatever
+      // the map was constructed with.
+      map.resize();
       // Frame the camera on the route (and the travelled track, when reviewing
       // a completed tour) with a tilted, slightly rotated view.
       const pts: [number, number][] = [];
@@ -716,6 +739,8 @@ export function Map3DView({
 
     return () => {
       cancelLiveUpdate();
+      cancelAnimationFrame(initialResize);
+      resizeObserver.disconnect();
       mapRef.current = null;
       setGlMap(null);
       map.remove();
