@@ -43,23 +43,55 @@ export async function sendEmail(env, { to, subject, html, text }) {
   }
 }
 
+/** Escape a value for interpolation into HTML (text or double-quoted
+ *  attribute). Auth email fields are mostly internal, but `body` carries the
+ *  user's own email address, so escaping keeps any HTML-significant character
+ *  in an address from breaking out of the markup. */
+const escapeHtml = (value) =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/** Only allow http(s) action links; anything else (e.g. a javascript: URI)
+ *  collapses to '#' so a malformed/hostile URL can't become an executable
+ *  link. The value is then still HTML-escaped for the attribute. */
+const safeUrl = (url) => {
+  try {
+    const parsed = new URL(String(url));
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+      ? parsed.href
+      : '#';
+  } catch {
+    return '#';
+  }
+};
+
 /** Simple branded wrapper shared by all auth emails. */
 export function emailTemplate({ heading, body, actionUrl, actionLabel }) {
+  // Plain-text part is not markup, so it uses the raw values.
   const text = `${heading}\n\n${body}\n\n${actionLabel}: ${actionUrl}\n`;
+  const url = safeUrl(actionUrl);
+  const hHeading = escapeHtml(heading);
+  const hBody = escapeHtml(body);
+  const hLabel = escapeHtml(actionLabel);
+  const hUrl = escapeHtml(url);
   const html = `<!doctype html>
 <html>
   <body style="margin:0;padding:24px;background:#eef2f6;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#16232e;">
     <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px;">
       <div style="font-size:18px;font-weight:700;margin-bottom:16px;">Fjellrute</div>
-      <h1 style="font-size:20px;margin:0 0 12px;">${heading}</h1>
-      <p style="font-size:15px;line-height:1.55;margin:0 0 24px;">${body}</p>
-      <a href="${actionUrl}"
+      <h1 style="font-size:20px;margin:0 0 12px;">${hHeading}</h1>
+      <p style="font-size:15px;line-height:1.55;margin:0 0 24px;">${hBody}</p>
+      <a href="${hUrl}"
          style="display:inline-block;padding:12px 22px;background:#1f6feb;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:600;">
-        ${actionLabel}
+        ${hLabel}
       </a>
       <p style="font-size:12px;color:#6b7a88;margin:24px 0 0;">
         If the button doesn't work, copy this link into your browser:<br>
-        <span style="word-break:break-all;">${actionUrl}</span>
+        <span style="word-break:break-all;">${hUrl}</span>
       </p>
     </div>
   </body>

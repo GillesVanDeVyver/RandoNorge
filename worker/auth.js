@@ -162,9 +162,36 @@ export function getAuth(env, origin) {
       },
     },
 
-    // In-memory rate limiting (per isolate) against credential stuffing;
-    // enabled explicitly because "production" detection differs on Workers.
-    rateLimit: { enabled: true },
+    // Resolve the caller's real IP from Cloudflare's trusted CF-Connecting-IP
+    // header so the rate limiter buckets per client. Without this Better Auth
+    // can't find an IP on Workers and falls back to ONE shared per-path bucket
+    // — which both fails to isolate an attacker and would lock every user out
+    // together once the shared count is hit.
+    advanced: {
+      ipAddress: {
+        ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'],
+      },
+    },
+
+    // Rate limiting against credential stuffing / brute force, backed by the
+    // shared D1 "rateLimit" table (migration 0005) rather than the default
+    // per-isolate memory store: Cloudflare spreads requests across many
+    // short-lived isolates, so an in-memory counter only sees one isolate's
+    // slice of traffic and barely throttles a distributed attack. Sensitive
+    // flows get stricter per-route caps on top of the global default.
+    rateLimit: {
+      enabled: true,
+      storage: 'database',
+      modelName: 'rateLimit',
+      window: 60,
+      max: 100,
+      customRules: {
+        '/sign-in/email': { window: 300, max: 5 },
+        '/sign-up/email': { window: 3600, max: 10 },
+        '/forget-password': { window: 3600, max: 5 },
+        '/reset-password': { window: 3600, max: 10 },
+      },
+    },
   });
 
   cached = { origin, auth };

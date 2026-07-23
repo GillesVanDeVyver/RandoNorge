@@ -8,10 +8,18 @@
 // code, keeping CPU time within the free-plan budget.
 //
 // Stored format (all parameters travel with the hash, so ITERATIONS can
-// be raised later without breaking existing accounts):
+// be raised without breaking existing accounts — an old hash still verifies
+// at whatever count it was written with):
 //   pbkdf2-sha256$<iterations>$<salt base64>$<derived key base64>
+//
+// ITERATIONS follows the current OWASP guidance for PBKDF2-HMAC-SHA256
+// (600,000). Native WebCrypto runs this in a few ms of CPU; if it ever
+// pushes a sign-up over the plan's CPU budget, that's a signal to move to
+// the paid Workers plan (50 ms) rather than to weaken the hash. Existing
+// 100k-iteration hashes keep verifying and are upgraded the next time the
+// user changes their password.
 
-const ITERATIONS = 100_000;
+const ITERATIONS = 600_000;
 const KEY_BYTES = 32;
 const SALT_BYTES = 16;
 

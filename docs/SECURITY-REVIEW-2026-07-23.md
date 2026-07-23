@@ -78,3 +78,47 @@ Parameterized queries throughout (no SQL injection surface). Ownership enforced 
 3. Swap the personal User-Agent for a role address (finding 5).
 4. Raise PBKDF2 iterations and re-hash on login (finding 4).
 5. Escape email template values; tidy the committed DPA page (findings 6, 8).
+
+---
+
+## Remediation applied — 2026-07-23
+
+All eight findings have been fixed in code. The D1 migration has already been applied to the **remote** database (see status below); the only remaining step is `npx wrangler deploy`.
+
+1. **Security headers (1) — fixed.** New `worker/securityHeaders.js` sets a tuned CSP, HSTS (2y, preload), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Cross-Origin-Opener-Policy`, and a `Permissions-Policy`. `worker/index.js` now routes every response through a single `withSecurityHeaders()` wrapper. The CSP is scoped to the exact origins the app uses (Kartverket/NVE/OSM tiles, Geonorge fetches, MapLibre blob workers + WASM); extend `img-src`/`connect-src` there if a new host is added.
+2. **Auth rate limiting (2) — fixed.** `worker/auth.js` now uses `storage: 'database'` (shared D1 store) instead of per-isolate memory, with stricter per-route caps: sign-in 5/5min, sign-up 10/hr, forget-password 5/hr, reset-password 10/hr, plus a 100/min global default. It also sets `advanced.ipAddress.ipAddressHeaders = ['cf-connecting-ip', 'x-forwarded-for']` so the limiter buckets per real client IP — without this, Better Auth on Workers cannot resolve an IP and falls back to a single shared per-path bucket (which both fails to isolate an attacker and would lock all users out together).
+3. **`/api/account-exists` (3) — fixed.** New `worker/rateLimit.js` adds a D1-backed per-IP fixed-window limiter (20 requests / 5 min), returning `429` with `Retry-After`. The upsert was tested for correct increment/reset behaviour.
+4. **PBKDF2 (4) — fixed.** `worker/password.js` iterations raised 100,000 → 600,000 (OWASP). Existing hashes still verify at their stored count and upgrade on next password change. Verified correct/wrong/malformed behaviour.
+5. **User-Agent (5) — fixed.** `worker/proxy.js` now sends `contact@fjellrute.no` instead of a personal address. (Make sure that mailbox exists/forwards.)
+6. **Email HTML escaping (6) — fixed.** `worker/email.js` escapes all interpolated values and validates the action link is http(s) (else `#`).
+7. **Open proxy (7) — fixed.** Each proxy route now has an `allow` path prefix; requests outside it get `404`, so the proxy can't relay arbitrary upstream paths.
+8. **Committed DPA page (8) — fixed.** `docs/dpa/` untracked (`git rm --cached`) and added to `.gitignore`; local copies kept. Note: the token still exists in prior git history — rewrite history (e.g. `git filter-repo`) only if that repo is or will be shared.
+
+### Verified during `npm run dev`
+
+Running the app against the remote D1 surfaced two issues that only appear at runtime, both now fixed:
+
+- Enabling the database-backed limiter before migration 0005 was applied made every `/api/auth/*` call fail (`D1_ERROR: no such table: rateLimit`, HTTP 500). Resolved by applying the migration (below).
+- Better Auth logged `Rate limiting could not determine a client IP and is falling back to a single shared per-path bucket`. Resolved by the `advanced.ipAddress` config in finding 2.
+
+Migration 0005 has been applied to the remote database, confirmed present:
+
+    $ npx wrangler d1 execute fjellrute-db --remote \
+        --command "select name from sqlite_master where type='table'"
+    ... rateLimit, app_rate_limit ...   # both present
+    # rateLimit columns: id TEXT, key TEXT, count INTEGER, lastRequest INTEGER
+    #   (matches the Better Auth schema)
+
+### Deploy checklist
+
+Migration already applied to remote D1 (above). Remaining:
+
+    npx wrangler deploy
+
+For a fresh environment (or the local dev DB), the migration still needs to be run there:
+
+    npx wrangler d1 migrations apply fjellrute-db --remote   # creates rateLimit + app_rate_limit tables
+
+After deploying, confirm headers with `curl -sI https://fjellrute.no | grep -iE 'content-security|strict-transport|x-frame'` and load the 2D + 3D map once to confirm the CSP doesn't block any tile/data host.
+
+Note: in pure local dev there may be no `cf-connecting-ip` header, so Better Auth still uses a shared bucket locally — expected, and it resolves once deployed behind Cloudflare.

@@ -19,17 +19,57 @@ import { handleTracksApi } from './tracks.js';
 import { handlePublicApi } from './public.js';
 import { handleUsernameApi } from './username.js';
 import { handleTerrainTile } from './terrain.js';
+import { withSecurityHeaders } from './securityHeaders.js';
+import { rateLimit, clientIp } from './rateLimit.js';
 
 const ROUTES = [
-  { prefix: '/metno-api', upstream: 'https://api.met.no', ttl: 1800 },
-  { prefix: '/gts-api', upstream: 'https://gts.nve.no/api', ttl: 21600 },
-  { prefix: '/varsom-api', upstream: 'https://api01.nve.no', ttl: 3600 },
+  // `allow` pins each proxy to the exact upstream path prefix the app uses,
+  // so these routes can't be abused as an open relay / cache-filler against
+  // the whole upstream host. Extend a list if the app calls a new path.
+  {
+    prefix: '/metno-api',
+    upstream: 'https://api.met.no',
+    ttl: 1800,
+    allow: ['/weatherapi/locationforecast/'],
+  },
+  {
+    prefix: '/gts-api',
+    upstream: 'https://gts.nve.no/api',
+    ttl: 21600,
+    allow: ['/GridTimeSeries'],
+  },
+  {
+    prefix: '/varsom-api',
+    upstream: 'https://api01.nve.no',
+    ttl: 3600,
+    allow: ['/hydrology/forecast/avalanche/'],
+  },
 ];
 
 export default {
   async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const { pathname } = url;
+    // Every response leaves through this one wrapper, so the security headers
+    // (worker/securityHeaders.js) are applied uniformly to the API, the
+    // proxies, terrain tiles and the served SPA alike.
+    const response = await handleRequest(request, env, ctx);
+    return withSecurityHeaders(response);
+  },
+
+  // Daily data-retention cleanup (cron in wrangler.jsonc). GDPR storage
+  // limitation (art. 5(1)(e)): expired session rows contain the user's IP
+  // address and user agent and must not accumulate forever, and expired
+  // verification tokens have no purpose after their expiry. Better Auth
+  // expires sessions logically but does not purge the rows from D1, so we
+  // do it here. The privacy policy (src/terms/privacy.ts §5) promises this
+  // cleanup — keep both in sync.
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(purgeExpiredRows(env));
+  },
+};
+
+async function handleRequest(request, env, ctx) {
+  const url = new URL(request.url);
+  const { pathname } = url;
 
     // Authentication (Better Auth): sign-up, sign-in, sign-out, session,
     // email verification and password reset all live under /api/auth/*.
@@ -40,8 +80,23 @@ export default {
     // Tells the login form whether an account exists for an email address,
     // so it can show "user not found" vs "wrong password" after a failed
     // sign-in (Better Auth itself deliberately returns the same 401 for
-    // both). Note: this makes account enumeration possible by design.
+    // both). This makes account enumeration possible by design, so it is
+    // rate limited per IP (worker/rateLimit.js) to stop it being scripted
+    // into a bulk membership check against a list of addresses.
     if (pathname === '/api/account-exists' && request.method === 'POST') {
+      const { allowed, resetAt } = await rateLimit(
+        env,
+        `account-exists:${clientIp(request)}`,
+        20,
+        300,
+      );
+      if (!allowed) {
+        const retryAfter = Math.max(1, Math.ceil((resetAt - Date.now()) / 1000));
+        return Response.json(
+          { error: 'too many requests' },
+          { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+        );
+      }
       return accountExists(request, env);
     }
 
@@ -75,28 +130,16 @@ export default {
       if (res) return res;
     }
 
-    for (const { prefix, upstream, ttl } of ROUTES) {
+    for (const { prefix, upstream, ttl, allow } of ROUTES) {
       if (pathname === prefix || pathname.startsWith(prefix + '/')) {
-        return proxyGet(request, ctx, prefix, upstream, ttl);
+        return proxyGet(request, ctx, prefix, upstream, ttl, allow);
       }
     }
 
     // Everything else falls through to the static app (SPA handling is
     // configured in wrangler.jsonc).
     return env.ASSETS.fetch(request);
-  },
-
-  // Daily data-retention cleanup (cron in wrangler.jsonc). GDPR storage
-  // limitation (art. 5(1)(e)): expired session rows contain the user's IP
-  // address and user agent and must not accumulate forever, and expired
-  // verification tokens have no purpose after their expiry. Better Auth
-  // expires sessions logically but does not purge the rows from D1, so we
-  // do it here. The privacy policy (src/terms/privacy.ts §5) promises this
-  // cleanup — keep both in sync.
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(purgeExpiredRows(env));
-  },
-};
+}
 
 /**
  * Delete expired "session" and "verification" rows. Better Auth's kysely
