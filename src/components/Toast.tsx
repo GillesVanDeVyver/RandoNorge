@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { UndoIcon } from './icons';
+import { useT } from '../i18n/index.ts';
 import styles from './Toast.module.css';
 
 interface Props {
@@ -22,6 +23,7 @@ export function Toast({
   onAction,
   onDismiss,
 }: Props) {
+  const t = useT();
   return (
     <div className={styles.toast} role="status">
       <span className={styles.message}>{message}</span>
@@ -35,7 +37,7 @@ export function Toast({
         type="button"
         className={styles.dismiss}
         onClick={onDismiss}
-        aria-label="Dismiss"
+        aria-label={t('Lukk', 'Dismiss')}
       >
         ×
       </button>

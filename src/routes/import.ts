@@ -4,6 +4,7 @@
 // safe to show the user directly.
 
 import type { Route } from '../types';
+import { translate } from '../i18n/locale.ts';
 import { RouteImportError } from './errors';
 import { parseGpx } from './gpx';
 import { parseTcx } from './tcx';
@@ -36,7 +37,10 @@ export async function importRouteFile(file: File): Promise<Route> {
       return parseFit(await file.arrayBuffer());
     default:
       throw new RouteImportError(
-        'Unsupported file type — please choose a GPX, TCX, or FIT file.',
+        translate(
+          'Filtypen støttes ikke – velg en GPX-, TCX- eller FIT-fil.',
+          'Unsupported file type — please choose a GPX, TCX, or FIT file.',
+        ),
       );
   }
 }

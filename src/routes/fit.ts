@@ -21,6 +21,7 @@
 
 import { simplify } from '../geometry';
 import type { LatLng, Route } from '../types';
+import { translate } from '../i18n/locale.ts';
 import { RouteImportError } from './errors';
 
 // Match the drawn-route / GPX simplification tolerance (see geometry/index.ts).
@@ -71,7 +72,12 @@ export function parseFit(buffer: ArrayBuffer): Route {
   const view = new DataView(buffer);
 
   if (buffer.byteLength < 14) {
-    throw new RouteImportError("This doesn't look like a FIT file.");
+    throw new RouteImportError(
+      translate(
+        'Dette ser ikke ut som en FIT-fil.',
+        "This doesn't look like a FIT file.",
+      ),
+    );
   }
 
   const headerSize = view.getUint8(0);
@@ -83,7 +89,12 @@ export function parseFit(buffer: ArrayBuffer): Route {
     view.getUint8(11),
   );
   if (marker !== '.FIT' || headerSize < 12) {
-    throw new RouteImportError("This doesn't look like a FIT file.");
+    throw new RouteImportError(
+      translate(
+        'Dette ser ikke ut som en FIT-fil.',
+        "This doesn't look like a FIT file.",
+      ),
+    );
   }
 
   // Records live between the header and the trailing 2-byte CRC. Clamp to the
@@ -117,12 +128,20 @@ export function parseFit(buffer: ArrayBuffer): Route {
   } catch (err) {
     if (err instanceof RouteImportError) throw err;
     // A DataView range error means we ran off the end of a truncated file.
-    throw new RouteImportError("This FIT file appears to be truncated or corrupted.");
+    throw new RouteImportError(
+      translate(
+        'Denne FIT-fila ser ut til å være avkortet eller ødelagt.',
+        'This FIT file appears to be truncated or corrupted.',
+      ),
+    );
   }
 
   if (points.length < 2) {
     throw new RouteImportError(
-      'No track with at least two GPS points was found in this file.',
+      translate(
+        'Fant ingen spor med minst to GPS-punkter i denne fila.',
+        'No track with at least two GPS points was found in this file.',
+      ),
     );
   }
 
@@ -176,7 +195,12 @@ function readDataRecord(
 ): number {
   const def = defs.get(localType);
   if (!def) {
-    throw new RouteImportError("This FIT file appears to be corrupted.");
+    throw new RouteImportError(
+      translate(
+        'Denne FIT-fila ser ut til å være ødelagt.',
+        'This FIT file appears to be corrupted.',
+      ),
+    );
   }
 
   let lat: number | null = null;

@@ -20,6 +20,7 @@
 
 import { simplify } from '../geometry';
 import type { LatLng, Route, Segment } from '../types';
+import { translate } from '../i18n/locale.ts';
 import { RouteImportError } from './errors';
 
 // Match the drawn-route simplification tolerance (see geometry/index.ts).
@@ -67,16 +68,31 @@ export function parseGpx(text: string): Route {
   try {
     doc = new DOMParser().parseFromString(text, 'application/xml');
   } catch {
-    throw new RouteImportError("This file couldn't be read as GPX.");
+    throw new RouteImportError(
+      translate(
+        'Denne fila kunne ikke leses som GPX.',
+        "This file couldn't be read as GPX.",
+      ),
+    );
   }
 
   // DOMParser reports malformed XML as a <parsererror> node rather than
   // throwing, so check for it explicitly.
   if (doc.querySelector('parsererror')) {
-    throw new RouteImportError("This file isn't valid XML — it may be corrupted.");
+    throw new RouteImportError(
+      translate(
+        'Denne fila er ikke gyldig XML – den kan være ødelagt.',
+        "This file isn't valid XML — it may be corrupted.",
+      ),
+    );
   }
   if (doc.documentElement?.nodeName.toLowerCase() !== 'gpx') {
-    throw new RouteImportError("This doesn't look like a GPX file.");
+    throw new RouteImportError(
+      translate(
+        'Dette ser ikke ut som en GPX-fil.',
+        "This doesn't look like a GPX file.",
+      ),
+    );
   }
 
   const route: Route = [];
@@ -97,7 +113,10 @@ export function parseGpx(text: string): Route {
 
   if (route.length === 0) {
     throw new RouteImportError(
-      'No track or route with at least two points was found in this file.',
+      translate(
+        'Fant ingen spor eller rute med minst to punkter i denne fila.',
+        'No track or route with at least two points was found in this file.',
+      ),
     );
   }
 

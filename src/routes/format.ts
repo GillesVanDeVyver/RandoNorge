@@ -1,6 +1,8 @@
 // Display formatting for saved-route metadata. Matches the preformatted
 // examples the list UI was designed around: "12.4 km", "1 240 m",
-// "12 Mar 2026".
+// "12 Mar 2026" (English) / "12. mar. 2026" (Norwegian).
+
+import { getLocale } from '../i18n/locale.ts';
 
 /** Meters → "12.4 km" (one decimal; "—" when unknown). */
 export function formatDistance(distanceM: number | null): string {
@@ -47,11 +49,14 @@ export function formatPace(mps: number | null): string {
   return `${m}:${s.toString().padStart(2, '0')} min/km`;
 }
 
-/** ISO timestamp → "12 Mar 2026" ("—" when unparseable). */
+/** ISO timestamp → "12 Mar 2026" (en) / "12. mar. 2026" (no) ("—" when
+ *  unparseable). Uses the active locale so saved-route dates read naturally
+ *  in either language. */
 export function formatDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('en-GB', {
+  const bcp47 = getLocale() === 'no' ? 'nb-NO' : 'en-GB';
+  return date.toLocaleDateString(bcp47, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

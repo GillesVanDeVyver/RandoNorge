@@ -4,6 +4,7 @@
 //   - NVE seNorge (GridTimeSeries snow depth): NLOD 2.0
 //   - Kartverket (høydedata elevation API): CC BY 4.0
 // The avalanche panel carries its own equivalent line (see AvalancheRisk).
+import { useT } from '../i18n/index.ts';
 import styles from './SourceAttribution.module.css';
 
 interface SourceLink {
@@ -24,6 +25,7 @@ interface Props {
 const ext = { target: '_blank', rel: 'noopener noreferrer' } as const;
 
 export function SourceAttribution({ what, source, license, note }: Props) {
+  const t = useT();
   return (
     <p className={styles.attribution}>
       {note}
@@ -31,11 +33,11 @@ export function SourceAttribution({ what, source, license, note }: Props) {
       <a href={source.href} {...ext}>
         {source.label}
       </a>
-      , licensed under{' '}
+      {t(', lisensiert under ', ', licensed under ')}
       <a href={license.href} {...ext}>
         {license.label}
       </a>
-      . Data provided “as is”.
+      {t('. Data leveres «som de er».', '. Data provided “as is”.')}
     </p>
   );
 }

@@ -11,6 +11,7 @@ import type { LatLng, Route, TrackTimes } from '../types';
 import type { SavedRoute } from '../routes/api';
 import type { SavedTrack } from '../tracking/api';
 import { parseSnapshot } from '../forecast/snapshot';
+import { translate } from '../i18n/locale.ts';
 
 /** Public identity of an account: never includes the email address. */
 export interface Owner {
@@ -122,7 +123,10 @@ async function get<T>(path: string): Promise<T> {
   const res = await fetch(path);
   if (res.status === 404) throw new NotFoundError();
   if (!res.ok) {
-    let message = `Request failed (${res.status})`;
+    let message = translate(
+      `Forespørselen mislyktes (${res.status})`,
+      `Request failed (${res.status})`,
+    );
     try {
       const data = (await res.json()) as { error?: string };
       if (data.error) message = data.error;
@@ -224,6 +228,13 @@ export async function setMyUsername(username: string): Promise<string> {
     username?: string;
     error?: string;
   };
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok)
+    throw new Error(
+      data.error ||
+        translate(
+          `Forespørselen mislyktes (${res.status})`,
+          `Request failed (${res.status})`,
+        ),
+    );
   return data.username ?? username;
 }

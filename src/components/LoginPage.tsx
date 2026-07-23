@@ -691,7 +691,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                     type="email"
                     name="email"
                     autoComplete="email"
-                    placeholder="deg@eksempel.no"
+                    placeholder={t('deg@eksempel.no', 'you@example.com')}
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -879,7 +879,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                     type="email"
                     name="email"
                     autoComplete="email"
-                    placeholder="deg@eksempel.no"
+                    placeholder={t('deg@eksempel.no', 'you@example.com')}
                     required
                     aria-invalid={
                       mode === 'signup' && fieldErrors.email ? true : undefined

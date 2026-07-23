@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useT } from '../i18n/index.ts';
 import styles from './DisclaimerModal.module.css';
 
 // First-run safety disclaimer, shown once per session before planning. It is
@@ -10,10 +11,9 @@ import styles from './DisclaimerModal.module.css';
 // acceptance. The wording deliberately mirrors §1 and §3 of the Terms of Use
 // (src/terms/content.ts) so the two can never appear to contradict each other.
 //
-// TODO(i18n): English only for now. The whole app still needs a Norwegian
-// translation (see docs/TODO-i18n.md). When that lands, this copy should move
-// into the shared string catalogue and follow the EN/NO language toggle the
-// terms already use.
+// Copy follows the app-wide locale via useT, so it matches the rest of the
+// UI and the terms gate. The wording still mirrors §1 and §3 of the Terms of
+// Use in both languages.
 
 interface Props {
   /** The user acknowledged the disclaimer (or dismissed it). */
@@ -23,6 +23,7 @@ interface Props {
 }
 
 export function DisclaimerModal({ onDismiss, onOpenTerms }: Props) {
+  const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -61,19 +62,22 @@ export function DisclaimerModal({ onDismiss, onOpenTerms }: Props) {
         tabIndex={-1}
       >
         <h2 id="disclaimer-title" className={styles.title}>
-          Plan carefully — then trust the terrain
+          {t('Planlegg nøye – stol så på terrenget', 'Plan carefully — then trust the terrain')}
         </h2>
         <div id="disclaimer-body" className={styles.body}>
           <p className={styles.lead}>
-            Fjellrute is a <strong>planning aid</strong> — not a substitute for
-            avalanche training, your own judgement, or the official Varsom
-            avalanche bulletin.
+            {t('Fjellrute er et ', 'Fjellrute is a ')}
+            <strong>{t('planleggingsverktøy', 'planning aid')}</strong>
+            {t(
+              ' – ikke en erstatning for skredopplæring, dine egne vurderinger eller det offisielle snøskredvarselet fra Varsom.',
+              ' — not a substitute for avalanche training, your own judgement, or the official Varsom avalanche bulletin.',
+            )}
           </p>
           <p className={styles.paragraph}>
-            Maps, steepness and runout models, snow, weather and avalanche data
-            are estimates and forecasts. They can be wrong or out of date: real
-            slopes can be steeper, and avalanches can run further than the map
-            shows. You can see the full regional bulletin at{' '}
+            {t(
+              'Kart, bratthets- og utløpsmodeller, snø-, vær- og skreddata er estimater og prognoser. De kan være feil eller utdaterte: virkelige heng kan være brattere, og skred kan gå lenger enn kartet viser. Du kan se hele det regionale varselet på ',
+              'Maps, steepness and runout models, snow, weather and avalanche data are estimates and forecasts. They can be wrong or out of date: real slopes can be steeper, and avalanches can run further than the map shows. You can see the full regional bulletin at ',
+            )}
             <a
               href="https://varsom.no/"
               target="_blank"
@@ -81,8 +85,10 @@ export function DisclaimerModal({ onDismiss, onOpenTerms }: Props) {
             >
               varsom.no
             </a>
-            . If what you see in the terrain disagrees with the app, trust the
-            terrain.
+            {t(
+              '. Stemmer ikke terrenget med appen, stol på terrenget.',
+              '. If what you see in the terrain disagrees with the app, trust the terrain.',
+            )}
           </p>
         </div>
         <div className={styles.actions}>
@@ -91,7 +97,7 @@ export function DisclaimerModal({ onDismiss, onOpenTerms }: Props) {
             className={styles.linkBtn}
             onClick={onOpenTerms}
           >
-            Read the full terms
+            {t('Les de fullstendige vilkårene', 'Read the full terms')}
           </button>
           <button
             ref={buttonRef}
@@ -99,7 +105,7 @@ export function DisclaimerModal({ onDismiss, onOpenTerms }: Props) {
             className={styles.acceptBtn}
             onClick={onDismiss}
           >
-            I understand
+            {t('Jeg forstår', 'I understand')}
           </button>
         </div>
       </div>

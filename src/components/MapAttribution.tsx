@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../types';
 import { useIsMobile } from '../useIsMobile';
+import { useT } from '../i18n/index.ts';
 import styles from './MapAttribution.module.css';
 
 const ext = { target: '_blank', rel: 'noopener noreferrer' } as const;
@@ -27,6 +28,7 @@ interface Props {
 }
 
 function Credits({ view, overlay }: Props) {
+  const t = useT();
   return (
     <>
       <span className={styles.item}>
@@ -48,14 +50,14 @@ function Credits({ view, overlay }: Props) {
         (CC BY 4.0)
       </span>
       <span className={styles.item}>
-        Vær:{' '}
+        {t('Vær:', 'Weather:')}{' '}
         <a href="https://www.met.no/" {...ext}>
           MET Norway
         </a>{' '}
         (CC BY 4.0)
       </span>
       <span className={styles.item}>
-        Snøskredvarsel:{' '}
+        {t('Snøskredvarsel:', 'Avalanche forecast:')}{' '}
         <a href="https://varsom.no/" {...ext}>
           NVE / Varsom
         </a>{' '}
@@ -65,7 +67,7 @@ function Credits({ view, overlay }: Props) {
         <span className={styles.item}>
           {/* /terrain-dem serves Kartverket NDH-derived tiles from R2 with
               AWS Terrarium fallback (worker/terrain.js) — credit both. */}
-          Terrain ©{' '}
+          {t('Terreng', 'Terrain')} ©{' '}
           <a href="https://hoydedata.no/" {...ext}>
             Kartverket
           </a>{' '}
@@ -77,7 +79,7 @@ function Credits({ view, overlay }: Props) {
       )}
       {overlay === 'steepness' && (
         <span className={styles.item}>
-          Bratthet med utløp ©{' '}
+          {t('Bratthet med utløp', 'Steepness with runout')} ©{' '}
           <a href="https://www.nve.no/" {...ext}>
             NVE
           </a>
@@ -85,7 +87,7 @@ function Credits({ view, overlay }: Props) {
       )}
       {overlay === 'snowdepth' && (
         <span className={styles.item}>
-          Snødybde ©{' '}
+          {t('Snødybde', 'Snow depth')} ©{' '}
           <a href="https://www.nve.no/" {...ext}>
             NVE
           </a>{' '}
@@ -101,6 +103,7 @@ function Credits({ view, overlay }: Props) {
 }
 
 export function MapAttribution({ view, overlay }: Props) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -128,7 +131,11 @@ export function MapAttribution({ view, overlay }: Props) {
   return (
     <div className={styles.root} ref={rootRef}>
       {open && (
-        <div className={styles.panel} role="region" aria-label="Map data sources">
+        <div
+          className={styles.panel}
+          role="region"
+          aria-label={t('Datakilder for kart', 'Map data sources')}
+        >
           <Credits view={view} overlay={overlay} />
         </div>
       )}
@@ -137,8 +144,8 @@ export function MapAttribution({ view, overlay }: Props) {
         className={styles.chip}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-label="Map data sources"
-        title="Map data sources"
+        aria-label={t('Datakilder for kart', 'Map data sources')}
+        title={t('Datakilder for kart', 'Map data sources')}
       >
         ©
       </button>

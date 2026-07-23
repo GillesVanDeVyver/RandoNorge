@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LatLng, Route, TrackTimes } from '../types';
 import { haversine } from '../geometry';
+import { translate } from '../i18n/locale.ts';
 
 export type TrackingStatus = 'idle' | 'recording' | 'paused' | 'finished';
 
@@ -70,13 +71,25 @@ export interface Tracking {
 function geoErrorMessage(err: GeolocationPositionError): string {
   switch (err.code) {
     case err.PERMISSION_DENIED:
-      return 'Location access was denied. Allow location to record your route.';
+      return translate(
+        'Posisjonstilgang ble avslått. Tillat posisjon for å registrere ruta.',
+        'Location access was denied. Allow location to record your route.',
+      );
     case err.POSITION_UNAVAILABLE:
-      return 'Your position is currently unavailable.';
+      return translate(
+        'Posisjonen din er utilgjengelig for øyeblikket.',
+        'Your position is currently unavailable.',
+      );
     case err.TIMEOUT:
-      return 'Getting your position timed out.';
+      return translate(
+        'Det tok for lang tid å hente posisjonen din.',
+        'Getting your position timed out.',
+      );
     default:
-      return 'Could not get your position.';
+      return translate(
+        'Kunne ikke hente posisjonen din.',
+        'Could not get your position.',
+      );
   }
 }
 
@@ -124,7 +137,12 @@ export function useTracking(): Tracking {
 
   const startWatch = useCallback(() => {
     if (!('geolocation' in navigator)) {
-      setError('Geolocation is not supported by this browser.');
+      setError(
+        translate(
+          'Geolokalisering støttes ikke av denne nettleseren.',
+          'Geolocation is not supported by this browser.',
+        ),
+      );
       return;
     }
     watchIdRef.current = navigator.geolocation.watchPosition(

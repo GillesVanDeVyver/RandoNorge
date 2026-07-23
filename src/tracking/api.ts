@@ -14,6 +14,7 @@
 // simply have no `times` — reviews degrade to distance-only scrubbing.
 
 import type { LatLng, Route, TrackTimes } from '../types';
+import { translate } from '../i18n/locale.ts';
 
 export interface TrackStats {
   distanceM: number | null;
@@ -192,7 +193,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
   });
   if (!res.ok) {
-    let message = `Request failed (${res.status})`;
+    let message = translate(
+      `Forespørselen mislyktes (${res.status})`,
+      `Request failed (${res.status})`,
+    );
     try {
       const data = (await res.json()) as { error?: string };
       if (data.error) message = data.error;
