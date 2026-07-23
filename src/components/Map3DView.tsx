@@ -246,6 +246,25 @@ export function Map3DView({
     const container = containerRef.current;
     if (!container) return;
 
+    // Frame the camera on the route (and the travelled track, in review mode)
+    // *before* the map is built, so the 3D view opens already zoomed to the
+    // route. Passing `bounds`/`fitBoundsOptions` to the constructor sets the
+    // initial camera directly — the whole-of-Norway `center`/`zoom` fallback is
+    // only used when there's no route yet. This avoids painting the zoomed-out
+    // view first and then snapping in on `load`.
+    const framePts: [number, number][] = [];
+    for (const seg of routeRef.current)
+      for (const [lat, lng] of seg) framePts.push([lng, lat]);
+    for (const seg of trackRef.current)
+      for (const [lat, lng] of seg) framePts.push([lng, lat]);
+    const initialBounds =
+      framePts.length >= 2
+        ? framePts.reduce(
+            (b, p) => b.extend(p),
+            new maplibregl.LngLatBounds(framePts[0], framePts[0]),
+          )
+        : null;
+
     const map = new maplibregl.Map({
       container,
       style: {
@@ -391,9 +410,15 @@ export function Map3DView({
           'fog-ground-blend': 0.4,
         },
       },
-      center: [13, 65],
-      zoom: 5,
-      pitch: 62,
+      // With a route present, start framed on it (tilted + slightly rotated,
+      // matching the `load` fit below); otherwise fall back to the whole-of-
+      // Norway overview.
+      ...(initialBounds
+        ? {
+            bounds: initialBounds,
+            fitBoundsOptions: { padding: 80, pitch: 62, bearing: -20 },
+          }
+        : { center: [13, 65] as [number, number], zoom: 5, pitch: 62 }),
       maxPitch: 85,
       // Attribution is rendered by the shared <MapAttribution/> component
       // (App.tsx): always-visible pill on desktop, collapsible © chip on
