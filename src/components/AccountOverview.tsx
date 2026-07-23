@@ -43,7 +43,7 @@ export function AccountOverview({
   onOpenOfflineMaps,
   onPlanNewRoute,
 }: Props) {
-  const firstName = name.trim().split(/\s+/)[0] || name;
+  const firstName = name.trim() || name;
 
   // Downloaded offline areas live in IndexedDB (client-side), so the count is
   // read here directly rather than passed in like the server-backed route

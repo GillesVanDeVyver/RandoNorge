@@ -341,9 +341,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       // Lookup failed — fall through to the normal sign-up attempt.
     }
     const { error: err } = await authClient.signUp.email({
-      // The form asks for a first name only; keep just the first word in
-      // case someone types more, and fall back to the email's local part.
-      name: name.trim().split(/\s+/)[0] || email.split('@')[0],
+      // The form asks for a first name; keep it in full (compound first
+      // names like "Anne Marie" are common) and fall back to the email's
+      // local part when nothing is entered.
+      name: name.trim() || email.split('@')[0],
       email,
       password,
       // The chosen public handle (normalized); the worker validates it and
