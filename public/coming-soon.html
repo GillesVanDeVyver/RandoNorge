@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="nb">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b1018" />
+    <meta name="robots" content="noindex" />
+    <title>Fjellrute — snart her</title>
+    <!--
+      Public "coming soon" landing served at the site root while the app is in
+      closed alpha (worker/index.js serves this for "/"). Testers go straight
+      to /alpha/, which loads the real app. Standalone + self-contained on
+      purpose: no bundler, no Google Fonts (same privacy stance as the app),
+      so it renders instantly and independently of the SPA build.
+
+      The seasonal background photo mirrors the login page — same files in
+      public/, same season-by-month logic (src/theme/season.ts) and the same
+      scrim/typography (src/components/LoginPage.module.css). Keep in sync if
+      the login look changes.
+    -->
+    <style>
+      :root {
+        --accent: #2dd4bf;
+        --accent-contrast: #04241f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        font-family:
+          'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          Helvetica, Arial, sans-serif;
+      }
+      .page {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        padding: clamp(20px, 3.5vw, 48px);
+        /* Season photo set on <html data-photo> by the inline script below;
+           the CSS var falls back to the winter shot while it resolves. */
+        background:
+          var(--season-photo, url('/login-backcountry.jpg')) center / cover
+            no-repeat,
+          #dfe7ee;
+        overflow: auto;
+      }
+      /* Left-weighted gradient scrim, identical to the login page, so the
+         headline always sits on a calm, readable area. */
+      .scrim {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(
+            100deg,
+            rgba(8, 18, 28, 0.62) 0%,
+            rgba(8, 18, 28, 0.38) 38%,
+            rgba(8, 18, 28, 0.05) 68%
+          ),
+          linear-gradient(
+            to top,
+            rgba(8, 18, 28, 0.35) 0%,
+            rgba(8, 18, 28, 0) 22%
+          );
+      }
+      .brand {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .brandIcon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--accent-contrast);
+        box-shadow: 0 6px 16px rgba(8, 18, 28, 0.28);
+      }
+      .brandIcon svg {
+        width: 22px;
+        height: 22px;
+      }
+      .brandName {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: #fff;
+        text-shadow: 0 1px 8px rgba(8, 18, 28, 0.45);
+      }
+      .content {
+        position: relative;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        padding-block: 24px;
+      }
+      .hero {
+        max-width: 620px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 14px;
+        margin: 0 0 22px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.92);
+        background: rgba(10, 22, 32, 0.38);
+        -webkit-backdrop-filter: blur(10px) saturate(130%);
+        backdrop-filter: blur(10px) saturate(130%);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 999px;
+      }
+      .badge .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.25);
+      }
+      .headline {
+        margin: 0;
+        font-size: clamp(44px, 5.2vw, 76px);
+        line-height: 1.02;
+        font-weight: 800;
+        letter-spacing: -0.035em;
+        color: #fff;
+        text-shadow: 0 2px 24px rgba(8, 18, 28, 0.45);
+        text-wrap: balance;
+      }
+      .headline .accentDot {
+        color: var(--accent);
+      }
+      .tagline {
+        margin: 22px 0 0;
+        max-width: 46ch;
+        font-size: clamp(15px, 1.15vw, 17px);
+        line-height: 1.55;
+        color: rgba(255, 255, 255, 0.86);
+        text-shadow: 0 1px 12px rgba(8, 18, 28, 0.5);
+      }
+      /* Photographer credit, bottom-right — matches the login page's respect
+         for the Pexels license (attribution not required, but given). */
+      .credit {
+        position: absolute;
+        right: clamp(16px, 3vw, 40px);
+        bottom: clamp(12px, 2.5vw, 28px);
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.7);
+        text-shadow: 0 1px 6px rgba(8, 18, 28, 0.6);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="scrim" aria-hidden="true"></div>
+
+      <header class="brand">
+        <span class="brandIcon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <g
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M1.5 20 L6.5 8.5 L9.5 12.5 L13 5.5 L17.5 17 L19.5 14.5 L22.5 20 Z" />
+              <path
+                d="M18.5 19.9 C 13 19 10.5 16.5 12 13.8 C 13 11.9 12.9 9.6 12.95 7.8"
+                stroke-width="1.8"
+              />
+            </g>
+          </svg>
+        </span>
+        <span class="brandName">Fjellrute</span>
+      </header>
+
+      <div class="content">
+        <section class="hero">
+          <span class="badge"
+            ><span class="dot" aria-hidden="true"></span
+            ><span data-i18n="badge">Kommer snart</span></span
+          >
+          <h1 class="headline">
+            <span data-i18n="line1">Les</span><br /><span data-i18n="line2"
+              >fjellet</span
+            ><span class="accentDot">.</span>
+          </h1>
+          <p class="tagline" data-i18n="tagline">
+            Fjellrute åpner snart — alt du trenger for å planlegge turen:
+            terreng, snø- og skredinformasjon på ett sted.
+          </p>
+        </section>
+      </div>
+
+      <div class="credit" data-credit>Foto: Alois Lackner</div>
+    </div>
+
+    <script>
+      // Season by month, mirroring seasonFromDate() in src/theme/season.ts:
+      // Mar–May spring, Jun–Aug summer, Sep–Nov fall, Dec–Feb winter.
+      (function () {
+        var PHOTOS = {
+          spring: { src: '/login-spring.jpg', credit: 'Andrei Tanase' },
+          summer: { src: '/login-summer.jpg', credit: 'Andrei Tanase' },
+          fall: { src: '/login-fall.jpg', credit: 'Anastassiya Golovko' },
+          winter: { src: '/login-backcountry.jpg', credit: 'Alois Lackner' },
+        };
+        var m = new Date().getMonth();
+        var season =
+          m >= 2 && m <= 4
+            ? 'spring'
+            : m >= 5 && m <= 7
+              ? 'summer'
+              : m >= 8 && m <= 10
+                ? 'fall'
+                : 'winter';
+        var photo = PHOTOS[season];
+        var page = document.querySelector('.page');
+        if (page) page.style.setProperty('--season-photo', "url('" + photo.src + "')");
+        var credit = document.querySelector('[data-credit]');
+
+        // Language: Norwegian by default (the app's default), English for
+        // clearly non-Norwegian browsers. No persistence needed here.
+        var lang = (navigator.language || 'nb').toLowerCase();
+        var en = !(lang.indexOf('nb') === 0 || lang.indexOf('nn') === 0 || lang.indexOf('no') === 0);
+        var COPY = {
+          badge: en ? 'Coming soon' : 'Kommer snart',
+          line1: en ? 'Read' : 'Les',
+          line2: en ? 'the mountain' : 'fjellet',
+          tagline: en
+            ? 'Fjellrute is launching soon — everything you need to plan your tour: terrain, snow and avalanche information in one place.'
+            : 'Fjellrute åpner snart — alt du trenger for å planlegge turen: terreng, snø- og skredinformasjon på ett sted.',
+        };
+        document.documentElement.lang = en ? 'en' : 'nb';
+        Object.keys(COPY).forEach(function (key) {
+          var el = document.querySelector('[data-i18n="' + key + '"]');
+          if (el) el.textContent = COPY[key];
+        });
+        if (credit)
+          credit.textContent =
+            (en ? 'Photo: ' : 'Foto: ') + photo.credit;
+      })();
+    </script>
+  </body>
+</html>
