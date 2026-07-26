@@ -235,6 +235,20 @@ async function gatedEmailSignUp(request, env, url, ctx) {
       { status: 403 },
     );
 
+  // Any failure talking to D1 while gating (e.g. the invite_code table hasn't
+  // been migrated on this database yet) must surface as a clean, localizable
+  // error — not a raw text/plain 500, which the client can't parse and so
+  // shows as the useless generic "could not create the account". 503 keeps it
+  // distinct from a real sign-up failure and signals "try again later".
+  const unavailable = () =>
+    Response.json(
+      {
+        message: 'Sign-ups are temporarily unavailable. Please try again shortly.',
+        code: 'SIGNUP_UNAVAILABLE',
+      },
+      { status: 503 },
+    );
+
   // Throttle per IP. An invalid code is rejected here *before* it reaches
   // Better Auth, so Better Auth's own sign-up limiter never sees guessing
   // attempts — this is what stops a code being brute-forced. The cap is loose
@@ -270,7 +284,13 @@ async function gatedEmailSignUp(request, env, url, ctx) {
   }
 
   const code = normalizeInviteCode(body?.inviteCode);
-  const check = await validateInviteCode(env, code);
+  let check;
+  try {
+    check = await validateInviteCode(env, code);
+  } catch (err) {
+    console.error('invite validation failed', err);
+    return unavailable();
+  }
   if (!check.ok) return denied(check.reason);
 
   // Forward to Better Auth without the extra field.
@@ -284,7 +304,13 @@ async function gatedEmailSignUp(request, env, url, ctx) {
   // them with waitUntil.
   if (authResponse.ok) {
     const email = typeof body?.email === 'string' ? body.email : '';
-    ctx.waitUntil(redeemInviteCode(env, code, email));
+    // The account is already created; if the bookkeeping write fails, log it
+    // but never let it reject unhandled — the user's sign-up still succeeded.
+    ctx.waitUntil(
+      redeemInviteCode(env, code, email).catch((err) =>
+        console.error('invite redemption failed', err),
+      ),
+    );
   }
   return authResponse;
 }

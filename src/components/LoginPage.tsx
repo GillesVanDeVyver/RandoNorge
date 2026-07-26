@@ -443,6 +443,18 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         });
         return;
       }
+      // 503 is the gate failing to reach its database (e.g. the invite table
+      // isn't migrated yet). Show a localized "try again later" rather than the
+      // English worker text or the misleading generic account-creation error.
+      if (err.status === 503) {
+        setError(
+          translate(
+            'Registrering er midlertidig utilgjengelig. Prøv igjen om litt.',
+            'Sign-ups are temporarily unavailable. Please try again shortly.',
+          ),
+        );
+        return;
+      }
       // 422 covers both a duplicate email and a taken/invalid handle; the
       // worker's message (e.g. "that username is taken") is the specific one.
       setError(
@@ -645,8 +657,8 @@ export function LoginPage({ onContinueAsGuest }: Props) {
           </h1>
           <p className={styles.tagline}>
             {t(
-              'Alt du trenger for å planlegge turen: terreng, snø- og skredinformasjon på ett sted.',
-              'Everything you need to plan your tour: terrain, snow and avalanche information in one place.',
+              'Alt du trenger for å planlegge turen: terreng, snø-, vær- og skredinformasjon på ett sted.',
+              'Everything you need to plan your tour: terrain, snow, weather and avalanche information in one place.',
             )}
           </p>
           <ul className={styles.chips}>

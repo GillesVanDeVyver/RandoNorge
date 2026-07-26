@@ -45,8 +45,8 @@ Generate codes and the SQL to insert them with the helper script (prints the
 codes to the terminal and the SQL to stdout):
 
 ```sh
-# One single-use codes for the first testers:
-node scripts/invite/create-invite.mjs --count 1 --note "batch-1" > /tmp/codes.sql
+# One single-use codes for the first testers, 7 days:
+node scripts/invite/create-invite.mjs --count 1 --days 7 --note "batch-1" > /tmp/codes.sql
 
 # Apply to production (drop --remote + use --local for a dev DB):
 npx wrangler d1 execute fjellrute-db --remote --file /tmp/codes.sql
