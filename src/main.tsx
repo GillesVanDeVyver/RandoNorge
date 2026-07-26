@@ -12,6 +12,7 @@ import '@fontsource/inter/700.css'
 import './index.css'
 import { consumeSeasonPathOverride } from './theme/season.ts'
 import { Root } from './Root.tsx'
+import { ErrorBoundary } from './ErrorBoundary.tsx'
 import { getLocale } from './i18n/index.ts'
 
 // Reflect the persisted UI language (default Norwegian) on the <html> tag so
@@ -40,6 +41,8 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has('offline')) 
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Root />
+    <ErrorBoundary>
+      <Root />
+    </ErrorBoundary>
   </StrictMode>,
 )

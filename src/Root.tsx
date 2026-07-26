@@ -130,6 +130,48 @@ function pathToPublic(pathname: string): PublicNav | null {
   return null;
 }
 
+/**
+ * Shown while the initial session check is in flight. Renders nothing for a
+ * short grace period so signed-in users (whose check is a fast same-origin
+ * call) never see a flash, then a centred spinner if it's taking longer —
+ * e.g. a cold Worker / D1 first request. This replaces a bare `return null`,
+ * which left the whole page blank with no sign of life whenever that call was
+ * slow or stalled.
+ */
+function SessionLoading() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setShow(true), 500);
+    return () => clearTimeout(timer);
+  }, []);
+  if (!show) return null;
+  return (
+    <div
+      role="status"
+      aria-label="Loading"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0b1018',
+      }}
+    >
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          border: '3px solid rgba(255,255,255,0.22)',
+          borderTopColor: '#2dd4bf',
+          animation: 'app-spin 0.8s linear infinite',
+        }}
+      />
+    </div>
+  );
+}
+
 function publicToPath(nav: PublicNav): string {
   const user = encodeURIComponent(nav.username);
   switch (nav.kind) {
@@ -510,7 +552,7 @@ export function Root() {
     );
   }
 
-  if (isPending) return null;
+  if (isPending) return <SessionLoading />;
 
   if (session) {
     const name = session.user.name || session.user.email;

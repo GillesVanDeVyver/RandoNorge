@@ -78,8 +78,15 @@
 		// root matches; /alpha/ and every other route still fall through to the
 		// SPA. Drop this entry (and the matching block in the Worker) to make
 		// the app public again.
+		//
+		// "/assets/*" runs the Worker for every content-hashed build asset so
+		// it can turn a *missing* bundle (a stale index.html from a previous
+		// deploy) into a real 404 instead of the SPA fallback's index.html —
+		// which the browser would otherwise try to execute as JS, blanking the
+		// page. See the matching /assets/ block in worker/index.js.
 		"run_worker_first": [
 			"/",
+			"/assets/*",
 			"/api/*",
 			"/metno-api/*",
 			"/gts-api/*",

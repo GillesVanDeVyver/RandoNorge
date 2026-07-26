@@ -90,6 +90,14 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* App-wide spinner (session-check gate in Root, error/loading fallbacks).
+   Kept global so it works before any component-scoped CSS module loads. */
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Shared glass-panel primitive — used by every floating cluster. */
 .glass-panel {
   background: var(--surface-1);
