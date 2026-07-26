@@ -26,14 +26,27 @@ export async function sendEmail(env, { to, subject, html, text }) {
   // verified domain for real users.
   const from = env.EMAIL_FROM || 'Fjellrute <onboarding@resend.dev>';
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from, to, subject, html, text }),
-  });
+  // Sign-up awaits this send (email verification is required), so a stalled
+  // Resend request would hang the whole sign-up response indefinitely — the
+  // form sits spinning and the request never completes. Bound the call so a
+  // slow/unreachable provider fails fast and loudly (logged below) instead of
+  // freezing sign-up. 10s is generous for a healthy Resend API.
+  let res;
+  try {
+    res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from, to, subject, html, text }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (err) {
+    // AbortError (timeout) or a network/DNS/TLS failure reaching Resend.
+    console.error(`Resend request failed: ${err?.name || 'Error'}: ${err?.message || err}`);
+    throw new Error('Failed to send email');
+  }
 
   if (!res.ok) {
     // Surface the failure in logs but don't leak provider details to the
