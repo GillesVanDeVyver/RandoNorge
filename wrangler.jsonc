@@ -72,7 +72,14 @@
 		// Worker ever runs — the Worker must win for these paths, otherwise
 		// the frontend receives HTML where it expected JSON (empty snow
 		// data, "weather unavailable").
+		// "/" is here so the Worker intercepts the site root and serves the
+		// closed-alpha "coming soon" page (worker/index.js) instead of the SPA
+		// index.html the assets fallback would otherwise return. Only the exact
+		// root matches; /alpha/ and every other route still fall through to the
+		// SPA. Drop this entry (and the matching block in the Worker) to make
+		// the app public again.
 		"run_worker_first": [
+			"/",
 			"/api/*",
 			"/metno-api/*",
 			"/gts-api/*",

@@ -3,7 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "pnpm@10.11.1",
+  "engines": {
+    "pnpm": ">=10",
+    "npm": "please-use-pnpm",
+    "yarn": "please-use-pnpm"
+  },
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
     "dev": "concurrently -n vite,worker -c cyan,yellow \"vite\" \"wrangler dev\"",
     "dev:frontend": "vite",
     "dev:worker": "wrangler dev",

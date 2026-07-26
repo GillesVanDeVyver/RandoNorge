@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# This project uses pnpm only. Never commit an npm/yarn lockfile —
+# mixing package managers causes lockfile drift and phantom-dependency build failures.
+package-lock.json
+yarn.lock
+
 # Wrangler local state (the config itself, wrangler.jsonc, IS committed)
 .wrangler
 

@@ -76,6 +76,26 @@ async function handleRequest(request, env, ctx) {
   const url = new URL(request.url);
   const { pathname } = url;
 
+    // Closed-alpha public face: a bare visit to the site root shows the
+    // static "coming soon" page (public/coming-soon.html) instead of the
+    // app's login screen. The real app stays reachable for testers at
+    // /alpha/ and via its own deep links / public share URLs (/u/…), which
+    // still fall through to the SPA below — this only changes what the
+    // domain root itself serves. Requires "/" in run_worker_first
+    // (wrangler.jsonc) so the Worker beats the assets SPA fallback here.
+    // Remove this block (and the "/" entry) to make the app public again.
+    if (pathname === '/') {
+      const landing = await env.ASSETS.fetch(
+        new Request(new URL('/coming-soon.html', url)),
+      );
+      // Serve it as the 200 response for "/" (ASSETS would otherwise answer
+      // the bare path with the SPA's index.html via not_found_handling).
+      return new Response(landing.body, {
+        status: 200,
+        headers: landing.headers,
+      });
+    }
+
     // Closed-alpha gate: email/password sign-up must carry a valid invite
     // code (migration 0006, worker/invite.js). We check the code here and
     // only forward the request to Better Auth's real sign-up flow when it
