@@ -24,9 +24,13 @@
 }
 
 /* Left-weighted gradient scrim so the headline and card always sit on a
-   calm, readable area regardless of what the photo does underneath. */
+   calm, readable area regardless of what the photo does underneath.
+   Fixed (not absolute) so it spans the whole viewport like the photo:
+   .page is a scroll container, and an absolute inset:0 child would only
+   cover the first viewport height, leaving a hard "shade ends here" line
+   once the card is tall enough to scroll (e.g. the sign-up form). */
 .scrim {
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: none;
   background:

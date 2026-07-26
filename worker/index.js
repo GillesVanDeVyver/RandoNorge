@@ -289,11 +289,22 @@ async function gatedEmailSignUp(request, env, url, ctx) {
   return authResponse;
 }
 
-/** Clone a request with a replaced JSON body (method/headers/URL kept). */
+/**
+ * Clone a request with a replaced JSON body. The original Content-Length must
+ * NOT be carried over: we replace the body (the inviteCode field is stripped,
+ * so it's shorter), and a stale, too-large Content-Length makes the runtime
+ * wait for bytes that never arrive — Better Auth's request.json() then hangs
+ * and the sign-up never returns (the form sits on "one moment…"). Dropping it
+ * lets the runtime set the correct length; Origin, Cookie, Content-Type and
+ * the CF-* headers Better Auth needs (trusted origin, client IP) are kept.
+ */
 function rebuildJsonRequest(request, bodyText) {
+  const headers = new Headers(request.headers);
+  headers.delete('content-length');
+  headers.delete('content-encoding');
   return new Request(request.url, {
     method: request.method,
-    headers: request.headers,
+    headers,
     body: bodyText,
   });
 }
