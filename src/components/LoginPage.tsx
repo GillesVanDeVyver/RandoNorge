@@ -45,7 +45,12 @@ type PendingAction = 'signup' | 'google-signup';
  * Which sign-up input a validation problem belongs to, so the message can
  * sit directly under that field instead of only in the shared error box.
  */
-type SignupField = 'username' | 'email' | 'password' | 'confirm';
+type SignupField =
+  | 'inviteCode'
+  | 'username'
+  | 'email'
+  | 'password'
+  | 'confirm';
 
 type FieldErrors = Partial<Record<SignupField, string>>;
 
@@ -174,6 +179,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         : 'login',
   );
   const [name, setName] = useState('');
+  // Closed-alpha access code; the worker checks it before Better Auth runs
+  // (worker/invite.js). Only required while the invite gate is in place.
+  const [inviteCode, setInviteCode] = useState('');
   // Public handle chosen at sign-up; becomes the /u/<username> profile URL.
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState(
@@ -246,6 +254,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setPassword('');
     setConfirm('');
     setUsername('');
+    setInviteCode('');
     setWrongPassword(false);
     setEmailTaken(false);
     setFieldErrors({});
@@ -357,6 +366,11 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     // Collect every problem in one pass so all bad fields are flagged at
     // once, rather than making the user fix and resubmit one at a time.
     const next: FieldErrors = {};
+    if (!inviteCode.trim())
+      next.inviteCode = translate(
+        'Du trenger en invitasjonskode for å bli med i alfaen.',
+        'You need an invite code to join the alpha.',
+      );
     const handle = checkUsername(username);
     if (!handle.ok) next.username = handle.error;
     const check = checkPassword(password);
@@ -408,10 +422,27 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       // The chosen public handle (normalized); the worker validates it and
       // guarantees uniqueness before the account row is written.
       username: username.trim().toLowerCase(),
+      // Closed-alpha gate: the worker checks this before Better Auth runs and
+      // rejects with 403 if it isn't valid (worker/index.js gatedEmailSignUp).
+      inviteCode: inviteCode.trim(),
       callbackURL: '/',
-    } as Parameters<typeof authClient.signUp.email>[0] & { username: string });
+    } as Parameters<typeof authClient.signUp.email>[0] & {
+      username: string;
+      inviteCode: string;
+    });
     setBusy(false);
     if (err) {
+      // 403 is the invite gate rejecting the code; point the message straight
+      // at the invite field rather than the shared error box.
+      if (err.status === 403) {
+        setFieldErrors({
+          inviteCode: translate(
+            'Ugyldig invitasjonskode.',
+            'That invite code is not valid.',
+          ),
+        });
+        return;
+      }
       // 422 covers both a duplicate email and a taken/invalid handle; the
       // worker's message (e.g. "that username is taken") is the specific one.
       setError(
@@ -811,6 +842,51 @@ export function LoginPage({ onContinueAsGuest }: Props) {
                 className={styles.form}
                 onSubmit={mode === 'signup' ? handleSignup : handleLogin}
               >
+                {mode === 'signup' && (
+                  <label className={styles.field}>
+                    <span className={styles.label}>
+                      {t('Invitasjonskode', 'Invite code')}
+                    </span>
+                    <input
+                      className={styles.input}
+                      type="text"
+                      name="invite-code"
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder={t('din alfa-kode', 'your alpha access code')}
+                      required
+                      aria-invalid={fieldErrors.inviteCode ? true : undefined}
+                      aria-describedby={
+                        fieldErrors.inviteCode
+                          ? 'signup-invite-error'
+                          : 'signup-invite-hint'
+                      }
+                      value={inviteCode}
+                      onChange={(e) => {
+                        setInviteCode(e.target.value);
+                        clearFieldError('inviteCode');
+                      }}
+                    />
+                    {fieldErrors.inviteCode ? (
+                      <span
+                        id="signup-invite-error"
+                        className={styles.fieldError}
+                      >
+                        {fieldErrors.inviteCode}
+                      </span>
+                    ) : (
+                      <span id="signup-invite-hint" className={styles.hint}>
+                        {t(
+                          'Fjellrute er i lukket alfa. Du trenger en kode for å bli med.',
+                          'Fjellrute is in closed alpha. You need a code to join.',
+                        )}
+                      </span>
+                    )}
+                  </label>
+                )}
+
                 {mode === 'signup' && (
                   <label className={styles.field}>
                     <span className={styles.label}>

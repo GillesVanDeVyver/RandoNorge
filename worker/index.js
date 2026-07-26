@@ -14,6 +14,11 @@
 // updates (1 h).
 import { proxyGet } from './proxy.js';
 import { getAuth } from './auth.js';
+import {
+  normalizeInviteCode,
+  validateInviteCode,
+  redeemInviteCode,
+} from './invite.js';
 import { handleRoutesApi } from './routes.js';
 import { handleTracksApi } from './tracks.js';
 import { handlePublicApi } from './public.js';
@@ -70,6 +75,17 @@ export default {
 async function handleRequest(request, env, ctx) {
   const url = new URL(request.url);
   const { pathname } = url;
+
+    // Closed-alpha gate: email/password sign-up must carry a valid invite
+    // code (migration 0006, worker/invite.js). We check the code here and
+    // only forward the request to Better Auth's real sign-up flow when it
+    // passes, so that flow is exercised for real — the code just decides who
+    // gets in. Everything else under /api/auth/* (sign-in, social sign-up,
+    // verification, reset) is untouched. Delete this block to open public
+    // sign-ups.
+    if (pathname === '/api/auth/sign-up/email' && request.method === 'POST') {
+      return gatedEmailSignUp(request, env, url, ctx);
+    }
 
     // Authentication (Better Auth): sign-up, sign-in, sign-out, session,
     // email verification and password reset all live under /api/auth/*.
@@ -165,6 +181,101 @@ async function purgeExpiredRows(env) {
     `retention cleanup: ${sessions.meta.changes} expired sessions, ` +
       `${verifications.meta.changes} expired verification tokens deleted`,
   );
+}
+
+/**
+ * Invite-code gate in front of Better Auth's email/password sign-up.
+ *
+ * Flow: read the JSON body once, pull out `inviteCode`, and validate it. If
+ * it's missing/invalid, reject with 403 before any account work happens. If
+ * it's valid, rebuild the request for Better Auth with the `inviteCode` field
+ * stripped (it isn't part of Better Auth's schema) and hand it off. Only when
+ * Better Auth answers 2xx do we consume one use of the code and log the
+ * redemption — a failed sign-up (taken username, weak password…) leaves the
+ * code untouched.
+ *
+ * Note: with email verification on, Better Auth returns a deliberate fake
+ * 2xx for an already-registered address (anti-enumeration), so in principle a
+ * duplicate sign-up could still spend a use. The client checks
+ * /api/account-exists before calling this, so it's a rare edge; a shared code
+ * with room to spare (max_uses) absorbs it.
+ */
+async function gatedEmailSignUp(request, env, url, ctx) {
+  const denied = (reason) =>
+    Response.json(
+      {
+        // Better Auth's client surfaces `message`; `code` lets the form show
+        // the right localized text and attach it to the invite field.
+        message:
+          reason === 'missing'
+            ? 'An invite code is required during the alpha.'
+            : 'That invite code is not valid.',
+        code: 'INVALID_INVITE_CODE',
+      },
+      { status: 403 },
+    );
+
+  // Throttle per IP. An invalid code is rejected here *before* it reaches
+  // Better Auth, so Better Auth's own sign-up limiter never sees guessing
+  // attempts — this is what stops a code being brute-forced. The cap is loose
+  // enough for real users retrying a typo.
+  const { allowed, resetAt } = await rateLimit(
+    env,
+    `invite-signup:${clientIp(request)}`,
+    15,
+    3600,
+  );
+  if (!allowed) {
+    const retryAfter = Math.max(1, Math.ceil((resetAt - Date.now()) / 1000));
+    return Response.json(
+      { message: 'Too many attempts. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+    );
+  }
+
+  // Read the body once; we have to rebuild the request for Better Auth anyway.
+  let raw;
+  try {
+    raw = await request.text();
+  } catch {
+    return denied('missing');
+  }
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    // Malformed body — let Better Auth produce its normal validation error
+    // rather than masking it as an invite problem.
+    return getAuth(env, url.origin).handler(rebuildJsonRequest(request, raw));
+  }
+
+  const code = normalizeInviteCode(body?.inviteCode);
+  const check = await validateInviteCode(env, code);
+  if (!check.ok) return denied(check.reason);
+
+  // Forward to Better Auth without the extra field.
+  const { inviteCode: _drop, ...forwarded } = body;
+  const authResponse = await getAuth(env, url.origin).handler(
+    rebuildJsonRequest(request, JSON.stringify(forwarded)),
+  );
+
+  // Consume a use only on a real success. Do it in the background so the
+  // user isn't blocked on the extra writes, but keep the isolate alive for
+  // them with waitUntil.
+  if (authResponse.ok) {
+    const email = typeof body?.email === 'string' ? body.email : '';
+    ctx.waitUntil(redeemInviteCode(env, code, email));
+  }
+  return authResponse;
+}
+
+/** Clone a request with a replaced JSON body (method/headers/URL kept). */
+function rebuildJsonRequest(request, bodyText) {
+  return new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: bodyText,
+  });
 }
 
 /** POST { email } → { exists: boolean }. Backs the login form's

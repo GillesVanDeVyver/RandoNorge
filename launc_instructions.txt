@@ -17,3 +17,10 @@ npm run dev
 #server side
 pnpm install --lockfile-only
 npx wrangler deploy
+
+# Fix for CI ERR_PNPM_OUTDATED_LOCKFILE:
+# If you add a package with npm, the pnpm lockfile drifts and CI (pnpm install --frozen-lockfile) fails.
+# Regenerate and commit the pnpm lockfile after any dependency change:
+#   pnpm install --lockfile-only
+#   git add pnpm-lock.yaml && git commit -m "Update pnpm-lock.yaml" && git push
+# Better: use one package manager. CI uses pnpm, so add deps with `pnpm add <pkg>` (not npm).
