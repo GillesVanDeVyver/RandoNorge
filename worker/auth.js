@@ -22,6 +22,7 @@ import {
   isUsernameTaken,
   deriveUniqueUsername,
 } from './usernameRules.js';
+import { TERMS_VERSION, PRIVACY_VERSION } from './policyVersions.js';
 
 // One instance per isolate+origin is enough; the D1 binding is stable for
 // the isolate's lifetime.
@@ -45,15 +46,40 @@ export function getAuth(env, origin) {
     // The public handle is chosen at sign-up and travels as an extra field
     // on the sign-up call. `input: true` lets the client send it; the
     // create hook below validates it and guarantees uniqueness.
+    //
+    // The three policy-acceptance fields (migration 0007) are `input: false`:
+    // they are stamped by the create hook below from the Worker's own
+    // constants, never accepted from the request. A client that could name the
+    // version it accepted could name one whose text it never showed.
     user: {
       additionalFields: {
         username: { type: 'string', required: false, input: true },
+        acceptedTermsVersion: {
+          type: 'string',
+          required: false,
+          input: false,
+        },
+        acceptedPrivacyVersion: {
+          type: 'string',
+          required: false,
+          input: false,
+        },
+        policiesAcceptedAt: { type: 'string', required: false, input: false },
       },
     },
 
     // Validate / normalise / de-duplicate the handle before the user row is
     // written. Email+password sign-ups supply one from the form; social
     // sign-ins (Google) don't, so we derive a unique one from their email.
+    //
+    // The same hook stamps which version of the terms and privacy policy the
+    // account accepted. Every route to a new account passes the acceptance
+    // gate first — the sign-up form and "Continue with Google" both hold their
+    // action behind TermsPage (src/components/LoginPage.tsx) — so account
+    // creation *is* the acceptance event, and this is the only place that sees
+    // both paths. Recording it here rather than in the client is what makes
+    // the Google flow work at all: that round trip leaves the app entirely and
+    // comes back through an OAuth callback carrying none of its state.
     databaseHooks: {
       user: {
         create: {
@@ -77,7 +103,15 @@ export function getAuth(env, origin) {
             } else {
               username = await deriveUniqueUsername(env, user.email);
             }
-            return { data: { ...user, username } };
+            return {
+              data: {
+                ...user,
+                username,
+                acceptedTermsVersion: TERMS_VERSION,
+                acceptedPrivacyVersion: PRIVACY_VERSION,
+                policiesAcceptedAt: new Date().toISOString(),
+              },
+            };
           },
         },
       },

@@ -36,3 +36,10 @@ yarn.lock
 
 # Saved third-party DPA web pages (authenticated captures; keep local, not in VCS)
 docs/dpa/
+
+# D1 exports. A dump holds every account, e-mail address and recorded GPS track
+# in the service, so one must never reach the repository — and .sql is
+# otherwise a committed file type here (migrations/, scripts/), so a plain
+# `git add -A` would take it. See docs/D1-EU-JURISDICTION-MIGRATION.md.
+*-dump.sql
+*.d1-export.sql

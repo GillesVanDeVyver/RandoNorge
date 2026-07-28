@@ -6,7 +6,11 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // `.wrangler` holds wrangler's own bundles of the Worker, left behind by
+  // `wrangler dev`. Linting them reported errors in generated code that no
+  // edit here could fix, and their number changed with how many dev sessions
+  // had run — enough noise to hide a real problem.
+  globalIgnores(['dist', '.wrangler']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

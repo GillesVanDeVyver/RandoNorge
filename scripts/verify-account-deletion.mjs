@@ -38,11 +38,29 @@ class Stmt {
     this.params = params;
     return this;
   }
+  /**
+   * The values in the shape node:sqlite wants for this statement.
+   *
+   * D1 accepts `?` and `?1` alike, and the shipped statements use `?1` where
+   * one value is needed twice (the verification-token delete matches both the
+   * bare address and the "reset-password:" prefixed form). node:sqlite treats
+   * `?1` as a *named* parameter, so passing positional arguments for it fails
+   * with "column index out of range" — an error that reads like a bug in the
+   * Worker rather than a difference between two SQLite bindings. Numbered
+   * statements therefore get an object keyed by position instead.
+   *
+   * Node >= 24 binds `?1` positionally too, so this only has to be right, not
+   * permanent.
+   */
+  get #values() {
+    if (!/\?\d/.test(this.sql)) return this.params;
+    return [Object.fromEntries(this.params.map((v, i) => [String(i + 1), v]))];
+  }
   async first() {
-    return this.db.prepare(this.sql).get(...this.params) ?? null;
+    return this.db.prepare(this.sql).get(...this.#values) ?? null;
   }
   async run() {
-    const r = this.db.prepare(this.sql).run(...this.params);
+    const r = this.db.prepare(this.sql).run(...this.#values);
     return { meta: { changes: Number(r.changes) } };
   }
 }

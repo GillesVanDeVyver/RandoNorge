@@ -126,10 +126,82 @@ question a B2B customer or a Datatilsynet enquiry asks. If the answer should
 ever be yes, do it this week; if not, record the decision here so the next
 person does not have to rediscover it.
 
-Either way, whether the §4 and §5 additions warrant bumping `PRIVACY_VERSION`
-is still open — §8 promises material changes are presented for acceptance
-again, so a bump makes every existing alpha user re-accept. That is cheap now
-and expensive later, for the same reason.
+### The version bump, and what it does not do
+
+`PRIVACY_VERSION` is bumped to `2026-07-28` for the §4 and §5 additions, decided
+while the alpha still has no users, so nobody is holding an acceptance of the
+older text. `TERMS_VERSION` deliberately stays at `2026-07-16`: the two
+documents are accepted separately, and a privacy change must not imply the terms
+moved.
+
+Checking what the bump would trigger turned up something worth writing down.
+**Nothing recorded which version a user accepted.** *(Fixed.)* Guests are gated on every
+visit and hold acceptance in component state only (`Root.tsx`, deliberately not
+persisted, so a reload asks again). Signed-in users accept once, at sign-up
+(`LoginPage.tsx` holds account creation behind `TermsPage` and calls
+`performSignup()` on accept) — and no column, cookie or local-storage key
+recorded the version they saw. `migrations/` contained no terms or privacy
+column at all.
+
+So §8's promise, "material changes will be presented for acceptance again", had
+no mechanism behind it for signed-in users: there was nothing to compare the
+current version against. Bumping the constant changed the date shown in the gate
+and the dialog, and that was all it did.
+
+At the time it cost nothing — no users, and everyone who signs up from here sees
+the new text. It would have become a broken promise the moment the first founding
+user signed up and the policy was then changed again. Built now, while the
+comparison has nothing to get wrong.
+
+### The mechanism
+
+Migration 0007 adds three nullable columns to `user`:
+`acceptedTermsVersion`, `acceptedPrivacyVersion` and `policiesAcceptedAt`. The
+versions are stamped at account creation by the `databaseHooks.user.create`
+hook in `worker/auth.js`, and updated by `PUT /api/me/policies`
+(`worker/policies.js`) when an existing user accepts a newer text.
+`GET` on the same route returns each document's accepted and current version
+plus a `stale` flag, and `Root.tsx` re-presents `TermsPage` while that flag is
+true. Declining signs out rather than dropping into the guest planner, since a
+signed-in account holding no acceptance is the state this exists to prevent.
+
+Four decisions in that are deliberate and easy to undo by accident, so each has
+a check behind it in `pnpm test:policies`:
+
+The columns are **nullable with no default**. A default of the current version
+would hand every pre-existing account an acceptance nobody ever gave — the one
+thing this migration must not do. Null means "no acceptance on record", which
+the staleness rule reads as needing acceptance.
+
+**The server decides what "current" means.** The three fields are declared
+`input: false` in `worker/auth.js` so a sign-up body cannot set them, and the
+`PUT` handler ignores the request body entirely. A client that could name the
+version it was accepting could name one whose text it never displayed, and the
+gate would clear without the change ever being seen. This is also forced by the
+Google path: the user accepts, leaves for Google, and returns through an OAuth
+callback carrying none of the app's state, so only the server is in a position
+to record anything.
+
+**The version lives in two files** — `src/terms/content.ts` /
+`src/terms/privacy.ts` for the app, `worker/policyVersions.js` for the Worker,
+which cannot import the TypeScript documents. They ship together, so they cannot
+drift in production, but they drift in the repository trivially: bump one and
+forget the other and every signed-in user is either permanently gated or never
+gated again. The harness imports both and fails if they differ.
+
+**An unknown answer does not gate.** `getMyPolicies()` returns `null` on a
+failed or refused request, and the gate condition is `policies?.stale` — so a
+lost connection defers the re-acceptance to the next successful load instead of
+walling someone off from their saved routes. For a tool used deliberately
+offline in the mountains, failing closed here would be the worse bug. The
+trade-off is that someone permanently unable to reach the API keeps using the
+old terms; the acceptance is recorded server-side or not at all, so nothing
+false is ever stored.
+
+What this deliberately does *not* do is keep a history of every acceptance. The
+columns record current state, which is what the gate needs; a log of consent
+events is more personal data than the purpose requires (art. 5(1)(c)). If an
+audit trail is ever genuinely needed, add a table then and say so in the policy.
 
 ## 2. Account deletion — not done, and the manual path leaves data behind
 
@@ -255,10 +327,21 @@ existing "Done" note would make this checkable next time.
 Every item on the Week 3 checklist is now met. What is left is one decision that
 expires, one two-minute confirmation, and one piece of UI.
 
-**Decide on the EU jurisdiction this week** (section 1). Recreating
-`fjellrute-db` with `--jurisdiction eu` is trivial at 242 kB and awkward once
-founding users have tracks in it, and it cannot be done to an existing database
-at all. Decide yes or no, and if no, write down why.
+**The EU jurisdiction is decided: yes** (2026-07-28). Step-by-step in
+`docs/D1-EU-JURISDICTION-MIGRATION.md`, to be run in one sitting — create,
+export, import, verify counts and cascades, swap `database_id`, deploy,
+smoke-test a write, then strengthen §4's wording and finally delete the old
+database and the dump, which are a second copy of everyone's data.
+
+**Apply migration 0007 to both databases.** The policy-acceptance columns are
+built and tested (section 1) but a migration only counts once it has run:
+`npx wrangler d1 migrations apply fjellrute-db --local` and then `--remote`. If
+the jurisdiction migration above happens first, 0007 goes to the new database as
+part of it and only the `--local` half is left to do.
+
+**When bumping a policy version, edit both copies** — the TypeScript document
+and `worker/policyVersions.js` — and run `pnpm test:policies`, which exists to
+catch exactly that omission.
 
 Confirm the consent screen's privacy-policy and home-page URLs in the Google
 Cloud console and record them in `AUTH_SETUP.md` next to the existing "Done"
@@ -271,8 +354,12 @@ then the endpoint is unreachable for real users and §6 stays as it is.
 
 ## Keeping this honest
 
-Whenever the policy text changes, run `pnpm test:privacy`; whenever the deletion
-or retention SQL changes, run `pnpm test:deletion`. `pnpm test:gdpr` runs both.
+Whenever the policy text changes, run `pnpm test:privacy`; whenever a version
+constant or the acceptance mechanism changes, `pnpm test:policies`; whenever the
+deletion or retention SQL changes, `pnpm test:deletion`. `pnpm test:gdpr` runs
+all three, and `pnpm test` adds the landing-page checks. None of them need a
+database, a build or a network — they rebuild the schema from `migrations/` in
+memory and read the shipped source.
 
 `scripts/verify-privacy-sync.mjs` imports `PRIVACY` from the canonical
 TypeScript source, strips the markup out of `public/privacy.html`, and requires
@@ -280,6 +367,21 @@ an exact match section by section in both languages, plus a mirror date equal to
 `PRIVACY_VERSION`. Its negative controls plant a changed word, a dropped
 paragraph and a stale date in the mirror and require each to be caught, so a
 clean run means the comparison was actually live.
+
+The policy-acceptance harnesses: `scripts/verify-policy-acceptance.mjs` imports
+the version constants from all three sources for real and compares them, then
+asserts the JavaScript-shaped invariants no type checker can see — `input: false`
+on each field, no request body read in the `PUT` handler, no `DEFAULT` in the
+migration, and a gate condition that is exactly `policies?.stale`.
+`scripts/verify-policy-sql.py` extracts the two statements *out of*
+`worker/policies.js` (rather than keeping a copy that could drift) and runs them
+against the real schema: the columns start null, the `UPDATE` is scoped to one
+id, its placeholder count matches the Worker's `.bind()` list, it touches nothing
+but the three columns and `updatedAt`, and deleting the account takes the consent
+record with it. Both plant their own regressions as negative controls — a
+drifted version, a body read, `input: true`, a `DEFAULT`, a fail-closed gate, a
+dropped bind value — so a clean run means the checks are still live rather than
+merely still passing.
 
 The deletion harnesses: `pnpm test:deletion`
 rebuilds the schema from `migrations/` in memory and runs two harnesses:

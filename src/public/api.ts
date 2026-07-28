@@ -238,3 +238,65 @@ export async function setMyUsername(username: string): Promise<string> {
     );
   return data.username ?? username;
 }
+
+// ---- Accepted policy versions ------------------------------------------
+
+/** One document's acceptance state, as the server reports it. */
+export interface PolicyState {
+  /** The version this account accepted, or null if none is on record. */
+  accepted: string | null;
+  /** The version currently in force, per the Worker. */
+  current: string;
+  stale: boolean;
+}
+
+export interface PolicyAcceptance {
+  terms: PolicyState;
+  privacy: PolicyState;
+  acceptedAt: string | null;
+  /** True if either document is stale — the gate shows both together. */
+  stale: boolean;
+}
+
+/**
+ * What the signed-in account has accepted.
+ *
+ * Returns null when the answer is unknown — offline, a 5xx, a session that
+ * just expired. Callers must treat null as "do not gate": this app is used in
+ * the mountains on a bad connection, and a failed version check is no reason
+ * to put a wall in front of someone's route library. The consequence of
+ * failing open is that a re-acceptance can be deferred to the next successful
+ * load, which is the right trade.
+ */
+export async function getMyPolicies(): Promise<PolicyAcceptance | null> {
+  try {
+    const res = await fetch('/api/me/policies');
+    if (!res.ok) return null;
+    return (await res.json()) as PolicyAcceptance;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Record acceptance of the current versions.
+ *
+ * Sends no body: the server decides what "current" means (see
+ * worker/policies.js), so there is nothing for the client to assert. Throws on
+ * failure, so the caller can keep the gate up rather than let someone through
+ * on an acceptance that was never stored.
+ */
+export async function acceptCurrentPolicies(): Promise<PolicyAcceptance> {
+  const res = await fetch('/api/me/policies', { method: 'PUT' });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      data.error ||
+        translate(
+          `Kunne ikke lagre godkjenningen (${res.status})`,
+          `Could not save your acceptance (${res.status})`,
+        ),
+    );
+  }
+  return (await res.json()) as PolicyAcceptance;
+}

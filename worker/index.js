@@ -23,6 +23,7 @@ import { handleRoutesApi } from './routes.js';
 import { handleTracksApi } from './tracks.js';
 import { handlePublicApi } from './public.js';
 import { handleUsernameApi } from './username.js';
+import { handlePoliciesApi } from './policies.js';
 import { handleAccountApi } from './account.js';
 import { handleTerrainTile } from './terrain.js';
 import { withSecurityHeaders } from './securityHeaders.js';
@@ -153,6 +154,13 @@ async function handleRequest(request, env, ctx) {
     // The signed-in user's public handle (worker/username.js).
     if (pathname === '/api/me/username') {
       return handleUsernameApi(request, env, url);
+    }
+
+    // Which version of the terms / privacy policy this account accepted, and
+    // re-acceptance after a version bump (worker/policies.js). Backs the
+    // promise in privacy policy §8.
+    if (pathname === '/api/me/policies') {
+      return handlePoliciesApi(request, env, url);
     }
 
     // Self-service account deletion, GDPR art. 17 (worker/account.js).

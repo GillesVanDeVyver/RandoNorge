@@ -19,6 +19,10 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { ensureTypeStripping } from './lib/type-stripping.mjs';
+
+// Before the `await import(tsPath)` below. See the helper.
+ensureTypeStripping();
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const tsPath = join(root, 'src/terms/privacy.ts');

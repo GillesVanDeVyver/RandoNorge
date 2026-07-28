@@ -114,6 +114,93 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    > redirect URI `https://fjellrute.no/api/auth/callback/google` added to
    > the OAuth client (`14850983815-...apps.googleusercontent.com`).
 
+   ### Consent screen fields as entered
+
+   These live only in the Google Cloud console, so nothing in the repository can
+   verify them and they were unrecorded until Week 3. The privacy-policy link
+   matters more than it looks: it is the entire reason `public/privacy.html`
+   exists as a static mirror, and if it points somewhere stale it is the one
+   piece of the policy a user sees *before* deciding to trust the app.
+
+   Check them at **Google Cloud console → APIs & Services → OAuth consent
+   screen → Branding** (older console layouts show these on the consent-screen
+   *Edit app* form), and fill in what is actually there:
+
+   | Field | Should be | Verified as |
+   | --- | --- | --- |
+   | App name | Fjellrute | _____ |
+   | User support email | | _____ |
+   | Application home page | `https://fjellrute.no/` (serves `coming-soon.html` during the closed alpha; the app itself is at `/alpha/`) | _____ |
+   | Privacy policy link | `https://fjellrute.no/privacy.html` | _____ |
+   | Terms of service link | Empty, or a URL that actually resolves. There is **no** `public/terms.html` — the terms exist only in-app via `src/terms/content.ts`, so any `fjellrute.no/terms…` URL entered here 404s | _____ |
+   | Authorized domain | `fjellrute.no` | _____ |
+   | Publishing status | In production | _____ |
+
+   Confirm the privacy link resolves for a signed-out visitor in a private
+   window, not just for you: `https://fjellrute.no/privacy.html` is served by
+   the assets binding and the closed-alpha intercept in `worker/index.js`
+   captures only the exact path `/`, so it should load — but that is the
+   assumption worth testing rather than trusting, since the consent screen
+   depends on it.
+
+   ### OAuth verification: what failed, and what fixed it
+
+   Google's verification review rejected the app on 2026-07-28 with four
+   findings, all about the **application home page** — which, because the home
+   page URL is the bare domain, means `public/coming-soon.html` (served for `/`
+   by `worker/index.js`).
+
+   | Google's finding | Status |
+   | --- | --- |
+   | The app name "Fjellrute" on the consent screen does not match the app name on your home page | Fixed in the page: `<h1>Fjellrute</h1>` is now real visible text, not only the wordmark |
+   | Your home page does not explain the purpose of your app | Fixed: the page now has a "What Fjellrute is" section describing what the service does, in both languages |
+   | Your home page is behind a login page | Fixed / was a misreading: `/` never required a session, but the old page said only "Kommer snart" with no content, which reads as a holding page in front of a login. There is now something to read |
+   | The website of your home page URL `https://fjellrute.no` is not registered to you. Verify ownership of your home page | **Not fixable from the repository — see below** |
+
+   Three of those are content requirements that nothing in a build can notice
+   breaking, so `pnpm test:landing` (`scripts/verify-landing-page.mjs`) now
+   asserts them: one `<h1>` reading exactly the app name from the table above,
+   the purpose section present in *script-free* HTML, both languages static
+   with the script only hiding one, no authentication call ahead of the root
+   intercept in `worker/index.js`, and every same-origin link resolving to a
+   real file in `public/`. It reads the expected app name out of the table
+   above, so renaming the app on the consent screen means updating that row and
+   the test will then require the page to follow.
+
+   Two content notes worth keeping in mind when editing that page:
+
+   - Both languages ship in the static HTML and JavaScript only hides one.
+     Moving copy back into the script would satisfy a browser and fail a
+     reviewer or crawler, which is the failure mode the test guards.
+   - The page still carries `<meta name="robots" content="noindex">` from its
+     closed-alpha life. That does not stop Googlebot fetching it, so it should
+     not affect the review — but if a re-review still reports the home page as
+     unreachable, that line is the first thing to try removing.
+
+   #### Verifying domain ownership (only Gilles can do this)
+
+   Google will not accept a home page on a domain it cannot tie to the account
+   that owns the Cloud project. The fix is to prove ownership of `fjellrute.no`
+   in Google Search Console, using **the same Google account that owns the
+   OAuth client**:
+
+   1. Sign in to <https://search.google.com/search-console/> with that account.
+   2. **Add property → Domain** (the left-hand option, not "URL prefix"), and
+      enter `fjellrute.no`.
+   3. It will show one `TXT` record to add. In the Cloudflare dashboard, open
+      the `fjellrute.no` zone → **DNS → Records → Add record**: type `TXT`,
+      name `@`, content the `google-site-verification=…` string it gave.
+   4. Save, then press **Verify** in Search Console. Cloudflare publishes DNS
+      changes in seconds, so this usually passes on the first try.
+   5. Leave the TXT record in place permanently — removing it un-verifies the
+      domain.
+   6. Back in the Google Cloud console, resubmit the app for verification.
+
+   The `.no` zone already holds SPF, DKIM and DMARC records added for Resend
+   (step 4 above), so this is the same kind of edit in the same place.
+
+   **Verified in Search Console on:** _____________
+
 6. **Deploy** as usual: `npm run build && npx wrangler deploy`.
 
 ## Local development

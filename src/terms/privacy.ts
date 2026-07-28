@@ -26,8 +26,18 @@ export interface PrivacyText {
   sections: TermsSection[];
 }
 
-/** Bump whenever the privacy policy changes materially. */
-export const PRIVACY_VERSION = '2026-07-16';
+/**
+ * Bump whenever the privacy policy changes materially.
+ *
+ * Deliberately independent of TERMS_VERSION (src/terms/content.ts), which
+ * stays at its own date: the two documents are accepted as separate things,
+ * so a privacy change must not silently imply the terms changed too.
+ *
+ * 2026-07-28: named the database's storage region in §4 and disclosed
+ * server-side diagnostic logs in §5. Bumped while the alpha still has no
+ * users, so nobody is holding an acceptance of the older text.
+ */
+export const PRIVACY_VERSION = '2026-07-28';
 
 export const PRIVACY: Record<TermsLang, PrivacyText> = {
   en: {

@@ -30,7 +30,10 @@ export async function handleUsernameApi(request, env, url) {
       return Response.json({ username: row?.username ?? null });
     }
     if (request.method === 'PUT') {
-      return setUsername(request, env, userId);
+      // Awaited, not just returned: a returned promise settles after this try
+      // has exited, so a failed write would skip the catch below and lose both
+      // the log line and the JSON error body.
+      return await setUsername(request, env, userId);
     }
     return Response.json(
       { error: 'method not allowed' },

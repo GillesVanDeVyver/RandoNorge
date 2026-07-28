@@ -42,15 +42,20 @@ export async function handleTracksApi(request, env, url) {
     return Response.json({ error: 'not found' }, { status: 404 });
   }
 
+  // Each dispatch is awaited, not just returned: a returned promise settles
+  // after this try has exited, so a rejection would skip the catch below and
+  // the client would get a bare 500 with no log line and no JSON error body.
   try {
     if (id === null) {
-      if (request.method === 'GET') return listTracks(env, userId);
-      if (request.method === 'POST') return createTrack(request, env, userId);
+      if (request.method === 'GET') return await listTracks(env, userId);
+      if (request.method === 'POST')
+        return await createTrack(request, env, userId);
       return methodNotAllowed('GET, POST');
     }
-    if (request.method === 'GET') return getTrack(env, userId, id);
-    if (request.method === 'PATCH') return updateTrack(request, env, userId, id);
-    if (request.method === 'DELETE') return deleteTrack(env, userId, id);
+    if (request.method === 'GET') return await getTrack(env, userId, id);
+    if (request.method === 'PATCH')
+      return await updateTrack(request, env, userId, id);
+    if (request.method === 'DELETE') return await deleteTrack(env, userId, id);
     return methodNotAllowed('GET, PATCH, DELETE');
   } catch (err) {
     console.error('tracks api error:', err);

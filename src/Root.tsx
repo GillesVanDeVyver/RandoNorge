@@ -9,7 +9,12 @@ import {
 } from './components/RoutesListPage.tsx';
 import { OfflineMapsPage } from './components/OfflineMapsPage.tsx';
 import { PublicView, type PublicNav } from './components/PublicView.tsx';
-import { getMyUsername } from './public/api.ts';
+import {
+  getMyUsername,
+  getMyPolicies,
+  acceptCurrentPolicies,
+  type PolicyAcceptance,
+} from './public/api.ts';
 import {
   LoginPage,
   PENDING_VERIFICATION_KEY,
@@ -289,6 +294,11 @@ export function Root() {
   // account chip's "view public profile" link and the /u/<handle>/... share
   // URLs built for each route/tour row. Null while loading (or if absent).
   const [myUsername, setMyUsername] = useState<string | null>(null);
+  // Which versions of the terms / privacy policy this account has accepted
+  // (GET /api/me/policies, migration 0007). Null means "not known yet, or the
+  // check failed", which deliberately does not gate — see the re-acceptance
+  // branch further down.
+  const [policies, setPolicies] = useState<PolicyAcceptance | null>(null);
   // Library route currently opened in the planner (null = fresh plan).
   // Derived from the URL's route id; also used as the planner's key so
   // reopening resets its state. While the library is still loading a
@@ -382,6 +392,11 @@ export function Root() {
         // profile link simply stay hidden until a later load succeeds.
         if (!cancelled) setMyUsername(null);
       });
+    // getMyPolicies already resolves to null on any failure, so nothing here
+    // can throw the account pages into an error state over a version check.
+    getMyPolicies().then((state) => {
+      if (!cancelled) setPolicies(state);
+    });
     return () => {
       cancelled = true;
     };
@@ -522,6 +537,7 @@ export function Root() {
       setSavedRoutes(null);
       setCompletedTracks(null);
       setMyUsername(null);
+      setPolicies(null);
       // Replace (don't push) so back after logout doesn't step through
       // the previous account's pages.
       window.history.replaceState(null, '', '/');
@@ -553,6 +569,43 @@ export function Root() {
   }
 
   if (isPending) return <SessionLoading />;
+
+  // Re-acceptance gate. The terms and the privacy policy each carry a version,
+  // and privacy policy §8 promises that a material change is put in front of
+  // the user again rather than taking effect quietly. This is where that
+  // promise is kept: the server compares what the account accepted with what
+  // is current (worker/policies.js) and this branch replaces the whole app
+  // with the same TermsPage used at sign-up until the new text is accepted.
+  //
+  // Two deliberate choices:
+  //
+  //  * It gates only on a known-stale answer. `policies` is null while the
+  //    check is in flight *and* when it failed — offline, cold Worker, expired
+  //    session — and null never gates. Fail-closed would mean a lost
+  //    connection can wall someone off from their own route library on a
+  //    mountain; the cost of failing open is that re-acceptance waits for the
+  //    next load that reaches the server. For a planning aid, that is the
+  //    right way round.
+  //  * Declining signs out rather than dropping to the guest planner. The
+  //    account exists and its data is still there; continuing to use it while
+  //    refusing the terms it is held under is not a state worth building.
+  if (session && policies?.stale) {
+    return (
+      <TermsPage
+        onAccept={() => {
+          // Optimistically clear the gate, then persist. If the write fails
+          // the state goes back and the gate returns, because an acceptance
+          // the server never stored is not an acceptance.
+          const previous = policies;
+          setPolicies({ ...policies, stale: false });
+          acceptCurrentPolicies()
+            .then((state) => setPolicies(state))
+            .catch(() => setPolicies(previous));
+        }}
+        onDecline={() => void authClient.signOut()}
+      />
+    );
+  }
 
   if (session) {
     const name = session.user.name || session.user.email;

@@ -30,10 +30,13 @@ export async function handlePublicApi(request, env, url) {
     return Response.json({ error: 'not found' }, { status: 404 });
   }
 
+  // Each dispatch is awaited, not just returned: a returned promise settles
+  // after this try has exited, so a rejection would skip the catch below and
+  // the client would get a bare 500 with no log line and no JSON error body.
   try {
-    if (kind === 'route') return getPublicRoute(env, key);
-    if (kind === 'track') return getPublicTrack(env, key);
-    if (kind === 'profile') return getPublicProfile(env, key);
+    if (kind === 'route') return await getPublicRoute(env, key);
+    if (kind === 'track') return await getPublicTrack(env, key);
+    if (kind === 'profile') return await getPublicProfile(env, key);
     return Response.json({ error: 'not found' }, { status: 404 });
   } catch (err) {
     console.error('public api error:', err);

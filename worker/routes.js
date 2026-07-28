@@ -53,15 +53,20 @@ export async function handleRoutesApi(request, env, url) {
     return Response.json({ error: 'not found' }, { status: 404 });
   }
 
+  // Each dispatch is awaited, not just returned: a returned promise settles
+  // after this try has exited, so a rejection would skip the catch below and
+  // the client would get a bare 500 with no log line and no JSON error body.
   try {
     if (id === null) {
-      if (request.method === 'GET') return listRoutes(env, userId);
-      if (request.method === 'POST') return createRoute(request, env, userId);
+      if (request.method === 'GET') return await listRoutes(env, userId);
+      if (request.method === 'POST')
+        return await createRoute(request, env, userId);
       return methodNotAllowed('GET, POST');
     }
-    if (request.method === 'GET') return getRoute(env, userId, id);
-    if (request.method === 'PATCH') return updateRoute(request, env, userId, id);
-    if (request.method === 'DELETE') return deleteRoute(env, userId, id);
+    if (request.method === 'GET') return await getRoute(env, userId, id);
+    if (request.method === 'PATCH')
+      return await updateRoute(request, env, userId, id);
+    if (request.method === 'DELETE') return await deleteRoute(env, userId, id);
     return methodNotAllowed('GET, PATCH, DELETE');
   } catch (err) {
     console.error('routes api error:', err);
