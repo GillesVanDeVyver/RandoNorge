@@ -23,6 +23,7 @@ import { handleRoutesApi } from './routes.js';
 import { handleTracksApi } from './tracks.js';
 import { handlePublicApi } from './public.js';
 import { handleUsernameApi } from './username.js';
+import { handleAccountApi } from './account.js';
 import { handleTerrainTile } from './terrain.js';
 import { withSecurityHeaders } from './securityHeaders.js';
 import { rateLimit, clientIp } from './rateLimit.js';
@@ -62,10 +63,11 @@ export default {
 
   // Daily data-retention cleanup (cron in wrangler.jsonc). GDPR storage
   // limitation (art. 5(1)(e)): expired session rows contain the user's IP
-  // address and user agent and must not accumulate forever, and expired
-  // verification tokens have no purpose after their expiry. Better Auth
-  // expires sessions logically but does not purge the rows from D1, so we
-  // do it here. The privacy policy (src/terms/privacy.ts §5) promises this
+  // address and user agent and must not accumulate forever, expired
+  // verification tokens have no purpose after their expiry, and spent
+  // rate-limit buckets are keyed by IP with nothing left to enforce. Better
+  // Auth expires sessions logically but does not purge the rows from D1, so
+  // we do it here. The privacy policy (src/terms/privacy.ts §5) promises this
   // cleanup — keep both in sync.
   async scheduled(_event, env, ctx) {
     ctx.waitUntil(purgeExpiredRows(env));
@@ -153,6 +155,13 @@ async function handleRequest(request, env, ctx) {
       return handleUsernameApi(request, env, url);
     }
 
+    // Self-service account deletion, GDPR art. 17 (worker/account.js).
+    // Requires the caller's own email as confirmation, plus their password
+    // when the account has one.
+    if (pathname === '/api/account') {
+      return handleAccountApi(request, env, url);
+    }
+
     // Anonymous, read-only access to shared routes/tracks and public
     // profiles (worker/public.js). No session required.
     if (pathname.startsWith('/api/public/')) {
@@ -219,6 +228,12 @@ async function handleRequest(request, env, ctx) {
  * adapter has stored datetimes both as ISO-8601 strings and as epoch
  * milliseconds depending on version, so compare in whichever form the row
  * actually uses (typeof() is SQLite-native).
+ *
+ * The two rate-limit tables (migration 0005) are purged here too. Their keys
+ * embed the client IP verbatim — `account-exists:<ip>`, `invite-signup:<ip>`
+ * and Better Auth's own per-route keys — so a spent bucket is an IP log with
+ * no remaining purpose, exactly the storage-limitation problem (GDPR art.
+ * 5(1)(e)) this job exists to prevent for sessions.
  */
 async function purgeExpiredRows(env) {
   const nowIso = new Date().toISOString();
@@ -230,13 +245,29 @@ async function purgeExpiredRows(env) {
          else "expiresAt" < ?2
        end)`,
     ).bind(nowIso, nowMs);
-  const [sessions, verifications] = await env.DB.batch([
-    expired('session'),
-    expired('verification'),
-  ]);
+  const [sessions, verifications, appBuckets, authBuckets] =
+    await env.DB.batch([
+      expired('session'),
+      expired('verification'),
+      // Our own limiter (worker/rateLimit.js) stores the window end as epoch
+      // ms in "resetAt"; once it has passed the row can never allow or deny
+      // anything again. Indexed by "app_rate_limit_resetAt_idx".
+      env.DB.prepare(`delete from "app_rate_limit" where "resetAt" < ?1`).bind(
+        nowMs,
+      ),
+      // Better Auth's store has no expiry column — only "lastRequest" (epoch
+      // ms). Its longest configured window is 3600 s (worker/auth.js), so a
+      // bucket untouched for 24 h is far outside every window and dropping it
+      // cannot loosen a limit for anyone still being throttled.
+      env.DB.prepare(`delete from "rateLimit" where "lastRequest" < ?1`).bind(
+        nowMs - 24 * 60 * 60 * 1000,
+      ),
+    ]);
   console.log(
     `retention cleanup: ${sessions.meta.changes} expired sessions, ` +
-      `${verifications.meta.changes} expired verification tokens deleted`,
+      `${verifications.meta.changes} expired verification tokens, ` +
+      `${appBuckets.meta.changes} app rate-limit buckets, ` +
+      `${authBuckets.meta.changes} auth rate-limit buckets deleted`,
   );
 }
 

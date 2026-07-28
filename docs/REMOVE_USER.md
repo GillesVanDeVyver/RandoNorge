@@ -2,17 +2,39 @@
 
 How to delete a user (by email address) from the D1 database
 (`fjellrute-db`), for example to clean up test accounts or to handle a
-deletion request. Deleting the `user` row is enough to remove everything:
-the `session`, `account` and `route` tables all reference `user` with
-`on delete cascade` (see `migrations/0001_auth_and_routes.sql`).
+GDPR art. 17 deletion request that arrives by email.
+
+> **There is now a code path for this too.** `DELETE /api/account`
+> (`worker/account.js`) lets a signed-in user delete their own account after
+> confirming with their email address and, if the account has one, their
+> password. It runs the same statements as step 2 below via
+> `deleteAccountRows()`. **If you change one, change the other** — and run
+> `pnpm test:deletion`, which executes both against a scratch copy of the
+> schema and asserts that the address survives nowhere.
+
+Deleting the `user` row takes most of it: `session`, `account` and `route`
+cascade from `migrations/0001_auth_and_routes.sql`, and `track` cascades
+from `migrations/0002_tracks.sql`. **Two tables do not cascade** because
+they are keyed by email address rather than by user id, so they need their
+own statements or the address survives the deletion:
+
+- `verification` — pending email-verification / password-reset tokens.
+- `invite_redemption` — the closed-alpha audit trail (`code`, `email`,
+  `redeemed_at`, `migrations/0006_invite_codes.sql`). Every alpha account
+  has a row here, so skipping it leaves the person's email address and
+  join date in the database indefinitely.
+
+Step 2 below covers both. The `invite_code` row itself holds no personal
+data and stays as-is (its `used_count` records that a code was spent,
+which is still true).
 
 All commands run from the project root and need a logged-in wrangler
 (`npx wrangler login`).
 
-> **Local vs remote:** `wrangler.jsonc` sets `"remote": true` for the D1
-> binding, so `--remote` below targets the **production** database — the
-> same one `wrangler dev` uses. Only use `--local` if you removed that
-> line and develop against an isolated local copy.
+> **Local vs remote:** the D1 binding in `wrangler.jsonc` carries no
+> `"remote"` flag, so `wrangler dev` develops against an isolated **local**
+> copy of the database while `--remote` below targets **production**. Pass
+> `--local` instead to operate on the dev copy.
 
 ## 1. Look up the account first
 
@@ -23,26 +45,31 @@ email address throughout):
 npx wrangler d1 execute fjellrute-db --remote --command "
   select u.id, u.email, u.name, u.emailVerified, u.createdAt,
          (select count(*) from session s where s.userId = u.id) as sessions,
-         (select count(*) from route   r where r.userId = u.id) as routes
+         (select count(*) from route   r where r.userId = u.id) as routes,
+         (select count(*) from track   t where t.userId = u.id) as tracks
   from user u
   where lower(u.email) = lower('someone@example.com')"
 ```
 
-No rows → nothing to delete. Note that `routes` is the number of saved
-routes that will be permanently deleted along with the account.
+No rows → nothing to delete. Note that `routes` and `tracks` are the number
+of saved routes and recorded tours that will be permanently deleted along
+with the account.
 
 ## 2. Delete the user
 
-Two statements: the second removes the user (cascading to sessions,
-credentials/linked providers and saved routes); the first cleans up any
-pending verification / password-reset tokens, which are keyed by email
-rather than by user id and therefore do **not** cascade.
+Three statements. The last removes the user, cascading to sessions,
+credentials/linked providers, saved routes and recorded tracks. The first
+two clean up the tables keyed by email address, which therefore do **not**
+cascade: pending verification / password-reset tokens, and the invite
+redemption record.
 
 ```sh
 npx wrangler d1 execute fjellrute-db --remote --command "
   delete from verification
   where lower(identifier) = lower('someone@example.com')
      or lower(identifier) like '%:' || lower('someone@example.com');
+  delete from invite_redemption
+  where lower(email) = lower('someone@example.com');
   delete from user
   where lower(email) = lower('someone@example.com')"
 ```
@@ -53,20 +80,25 @@ npx wrangler d1 execute fjellrute-db --remote --command "
 `one@example.com` vs `someone@example.com`, it would delete the wrong
 user's tokens.)
 
-The output of the second statement shows `"changes": n` — the user row
-plus its cascaded rows. `"changes": 0`-style output with `changed_db:
-false` means the email didn't match anything.
+The output of the last statement shows `"changes": n` — the user row plus
+its cascaded rows. `"changes": 0`-style output with `changed_db: false`
+means the email didn't match anything.
 
 ## 3. Verify
 
+Check every table that stores the address, not just `user` — the point of
+this step is to prove the email is actually gone:
+
 ```sh
 npx wrangler d1 execute fjellrute-db --remote --command "
-  select count(*) as remaining
-  from user
-  where lower(email) = lower('someone@example.com')"
+  select
+    (select count(*) from user              where lower(email)      = lower('someone@example.com')) as users,
+    (select count(*) from invite_redemption where lower(email)      = lower('someone@example.com')) as redemptions,
+    (select count(*) from verification      where lower(identifier) = lower('someone@example.com')
+        or lower(identifier) like '%:' || lower('someone@example.com'))                             as tokens"
 ```
 
-`remaining = 0` and the address is free to register again.
+All three `0` and the address is fully removed and free to register again.
 
 ## Notes
 

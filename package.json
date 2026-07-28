@@ -16,7 +16,10 @@
     "dev:worker": "wrangler dev",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:deletion": "node scripts/verify-account-deletion.mjs && python3 scripts/verify-deletion-sql.py",
+    "test:privacy": "node scripts/verify-privacy-sync.mjs",
+    "test:gdpr": "pnpm test:deletion && pnpm test:privacy"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

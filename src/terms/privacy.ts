@@ -63,6 +63,13 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'in and to detect and prevent abuse such as account ' +
             'hijacking. Legal basis: our legitimate interest in keeping ' +
             'the service secure (art. 6(1)(f)).',
+          'Abuse-prevention counters: sign-in, sign-up and ' +
+            'password-reset attempts are counted per IP address for a ' +
+            'short period, so that password guessing cannot be scripted ' +
+            'at speed. Such a counter holds an IP address and a number, ' +
+            'nothing else, and is deleted once its time window has ' +
+            'passed. Legal basis: our legitimate interest in keeping ' +
+            'the service secure (art. 6(1)(f)).',
           'Content you save: routes you draw and tracks you record are ' +
             'stored in your account when — and only when — you choose to ' +
             'save them. A recorded track contains GPS positions with ' +
@@ -94,12 +101,18 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
         body: [
           'Cloudflare, Inc. hosts the application and the database in ' +
             'which all data above is stored, and acts as our data ' +
-            'processor under its data processing addendum.',
+            'processor under its data processing addendum. The database ' +
+            'instance is located in Cloudflare\u2019s Eastern Europe ' +
+            'region, that is, inside the EU, and it is not replicated to ' +
+            'any other region. Cloudflare\u2019s network is worldwide, ' +
+            'however, so we cannot promise that no data ever passes ' +
+            'outside the EU; where that happens it is covered by the ' +
+            'safeguards described at the end of this section.',
           'Resend, Inc. (USA) delivers our account emails and therefore ' +
             'processes your email address when a verification or ' +
             'password-reset message is sent.',
-          'Google LLC (USA) is involved only if you choose "Sign in ' +
-            'with Google", in which case Google shares your name, email ' +
+          'Google LLC (USA) is involved only if you choose \u201CSign in ' +
+            'with Google\u201D, in which case Google shares your name, email ' +
             'address and profile picture with us under Google\u2019s own ' +
             'privacy policy.',
           'All three act under data processing agreements that meet ' +
@@ -124,9 +137,15 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
         body: [
           'Account data, saved routes and recorded tracks are kept until ' +
             'you delete them or your account. Expired sessions — ' +
-            'including their IP address and browser information — and ' +
-            'expired email-verification tokens are deleted automatically ' +
-            'by a daily cleanup job.',
+            'including their IP address and browser information — ' +
+            'expired email-verification tokens and spent ' +
+            'abuse-prevention counters are deleted automatically by a ' +
+            'daily cleanup job.',
+          'Separately, our server writes short-lived diagnostic logs so ' +
+            'that errors can be found and fixed. These can contain ' +
+            'technical details of individual requests. Cloudflare deletes ' +
+            'them automatically after a few days (seven at the most), so ' +
+            'a log entry may briefly outlive the account it refers to.',
         ],
       },
       {
@@ -196,6 +215,13 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'deg innlogget og til å oppdage og hindre misbruk, for ' +
             'eksempel kontokapring. Behandlingsgrunnlag: vår berettigede ' +
             'interesse i å holde tjenesten sikker (art. 6 nr. 1 bokstav f).',
+          'Tellere mot misbruk: forsøk på innlogging, registrering og ' +
+            'passordtilbakestilling telles per IP-adresse i en kort ' +
+            'periode, slik at passordgjetting ikke kan skriptes i høy ' +
+            'hastighet. En slik teller inneholder en IP-adresse og et ' +
+            'tall, ingenting annet, og slettes når tidsvinduet er ute. ' +
+            'Behandlingsgrunnlag: vår berettigede interesse i å holde ' +
+            'tjenesten sikker (art. 6 nr. 1 bokstav f).',
           'Innhold du lagrer: ruter du tegner og spor du tar opp, lagres ' +
             'på kontoen din når — og bare når — du velger å lagre dem. ' +
             'Et opptak inneholder GPS-posisjoner med tidsstempler og kan ' +
@@ -226,7 +252,12 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
         body: [
           'Cloudflare, Inc. drifter applikasjonen og databasen der alle ' +
             'opplysningene over lagres, og er vår databehandler i ' +
-            'henhold til sin databehandleravtale.',
+            'henhold til sin databehandleravtale. Databaseinstansen ' +
+            'ligger i Cloudflares Øst-Europa-region, altså innenfor EU, ' +
+            'og replikeres ikke til andre regioner. Cloudflares nettverk ' +
+            'er likevel verdensomspennende, så vi kan ikke love at ingen ' +
+            'data noen gang passerer utenfor EU; der det skjer, er det ' +
+            'dekket av garantiene beskrevet nederst i dette punktet.',
           'Resend, Inc. (USA) leverer konto-e-postene våre og behandler ' +
             'derfor e-postadressen din når en bekreftelses- eller ' +
             'tilbakestillingsmelding sendes.',
@@ -255,9 +286,14 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
         body: [
           'Kontoopplysninger, lagrede ruter og opptak beholdes til du ' +
             'sletter dem eller kontoen din. Utløpte økter — inkludert ' +
-            'IP-adresse og nettleserinformasjon — og utløpte ' +
-            'e-postbekreftelsestokener slettes automatisk av en daglig ' +
-            'oppryddingsjobb.',
+            'IP-adresse og nettleserinformasjon — utløpte ' +
+            'e-postbekreftelsestokener og oppbrukte tellere mot misbruk ' +
+            'slettes automatisk av en daglig oppryddingsjobb.',
+          'I tillegg skriver serveren vår kortlevde diagnoselogger slik ' +
+            'at feil kan finnes og rettes. Disse kan inneholde tekniske ' +
+            'detaljer om enkelte forespørsler. Cloudflare sletter dem ' +
+            'automatisk etter noen dager (maksimalt sju), så en ' +
+            'loggoppføring kan så vidt overleve kontoen den viser til.',
         ],
       },
       {
