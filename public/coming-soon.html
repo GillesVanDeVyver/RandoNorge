@@ -10,12 +10,20 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <meta name="theme-color" content="#0b1018" />
-    <!-- Kept from this page's earlier, pre-launch incarnation: the site is not
-         meant to appear in search results yet. This does not stop Googlebot
-         fetching the page, so it should not affect the OAuth review — but if a
-         future review still reports the home page as unreachable, this line is
-         the first thing to try removing. -->
-    <meta name="robots" content="noindex" />
+    <!-- The `noindex` this page inherited from its pre-launch incarnation was
+         removed on 2026-07-29. In principle it never blocked anything: noindex
+         asks a crawler not to *list* the page, which requires fetching it first.
+         In practice the branding review kept returning two findings that were
+         both absences — "does not explain the purpose" and "the app name does
+         not match" — which is what a checker reports when it read no text at
+         all, and it bounced a resubmission back to "resolve the issues" without
+         ever queueing a review. This line was the only instruction on the page
+         addressed to Google's automated side, so it goes first and cheapest.
+         Consequence, accepted deliberately: fjellrute.no can now enter search
+         results. Restore this line if the review passes and you want the site
+         unlisted again — but note that it is also the prime suspect, so
+         restoring it may recreate the problem. -->
+    <link rel="canonical" href="https://fjellrute.no/" />
     <!-- Both languages, because the page is Norwegian-first but the OAuth
          reviewer reads English. -->
     <meta

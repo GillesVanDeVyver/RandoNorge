@@ -128,13 +128,57 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
 
    | Field | Should be | Verified as |
    | --- | --- | --- |
-   | App name | Fjellrute | _____ |
-   | User support email | | _____ |
-   | Application home page | `https://fjellrute.no/` (serves `coming-soon.html` during the closed alpha; the app itself is at `/alpha/`) | _____ |
-   | Privacy policy link | `https://fjellrute.no/privacy.html` | _____ |
-   | Terms of service link | Empty, or a URL that actually resolves. There is **no** `public/terms.html` — the terms exist only in-app via `src/terms/content.ts`, so any `fjellrute.no/terms…` URL entered here 404s | _____ |
-   | Authorized domain | `fjellrute.no` | _____ |
-   | Publishing status | In production | _____ |
+   | App name | Fjellrute | `Fjellrute` — read from the Branding screen 2026-07-29 |
+   | User support email | | `fjellrute@gmail.com` — 2026-07-29 |
+   | Application home page | `https://fjellrute.no/` (serves `coming-soon.html` during the closed alpha; the app itself is at `/alpha/`) | `https://fjellrute.no` — no trailing slash, which resolves to the same page — 2026-07-29 |
+   | Privacy policy link | `https://fjellrute.no/privacy.html` | `https://fjellrute.no/privacy.html` — as intended, 2026-07-29 |
+   | Terms of service link | Empty, or a URL that actually resolves. There is **no** `public/terms.html` — the terms exist only in-app via `src/terms/content.ts`, so any `fjellrute.no/terms…` URL entered here 404s | Empty — the trap described here was never walked into, 2026-07-29 |
+   | Authorized domain | `fjellrute.no` | **Two** domains: `fjellrute.no` *and* `gillesvandevyver1.workers.dev` — 2026-07-29. See below |
+   | Publishing status | In production | In production — read from the **Audience** page, 2026-07-29 |
+
+   Also on that screen, not previously listed: **Developer contact information** is
+   `fjellrute@gmail.com`, and an **app logo is uploaded** (a teal square with a
+   white mountain glyph).
+
+   That logo is worth knowing about, because it is the reason any of this
+   verification exists. With only the default email/profile scopes an app does
+   not need verifying — but the console's own note on that field says a logo
+   requires the app to be submitted for verification unless it is internal-only
+   or in Testing. The failure mode is correspondingly mild, and the console
+   states it plainly: *"Your branding is not being shown to users."* Unverified
+   branding means the consent screen falls back to showing the URL instead of the
+   logo. Removing the logo would end the verification requirement altogether.
+
+   The second authorized domain, `gillesvandevyver1.workers.dev`, is the Worker's
+   default hostname, and it is load-bearing rather than leftover. The OAuth client
+   carries three redirect URIs, checked 2026-07-29:
+
+   ```
+   https://fjellrute.gillesvandevyver1.workers.dev/api/auth/callback/google
+   http://localhost:5173/api/auth/callback/google
+   https://fjellrute.no/api/auth/callback/google
+   ```
+
+   `wrangler.jsonc` sets neither `workers_dev: false` nor a `routes` block, so the
+   default subdomain stays enabled, and `https://fjellrute.gillesvandevyver1.workers.dev/`
+   does serve the same landing page today. That is the fallback URL used by
+   `docs/SECURITY-REVIEW-2026-07-23.md`, `docs/SIGNUP_FREEZE_DEBUGGING.md` and
+   `deploy_instructions.md` when the custom domain is in doubt — so the first
+   redirect URI is what makes Google sign-in testable there.
+
+   The tension: the Branding screen warns that authorized domains must be
+   verifiable in Google Search Console, and `workers.dev` cannot be verified as a
+   *domain* property, because it is Cloudflare's domain and no TXT record can be
+   added to it. A URL-prefix property for the subdomain could in principle be
+   verified with a meta tag or file served by the Worker, but whether Cloud
+   console accepts a URL-prefix property as an authorized domain is untested here.
+   Removing both the URI and the domain costs only Google sign-in on the fallback
+   hostname; email/password sign-in there is unaffected. Note that neither of the
+   two findings open on 2026-07-29 mentions domains, so this is precautionary
+   tidying, not a known blocker — the earlier domain-ownership finding disappeared
+   once `fjellrute.no` was verified.
+
+   `localhost` needs no authorized domain; Google exempts it.
 
    Confirm the privacy link resolves for a signed-out visitor in a private
    window, not just for you: `https://fjellrute.no/privacy.html` is served by
@@ -172,10 +216,18 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    - Both languages ship in the static HTML and JavaScript only hides one.
      Moving copy back into the script would satisfy a browser and fail a
      reviewer or crawler, which is the failure mode the test guards.
-   - The page still carries `<meta name="robots" content="noindex">` from its
-     closed-alpha life. That does not stop Googlebot fetching it, so it should
-     not affect the review — but if a re-review still reports the home page as
-     unreachable, that line is the first thing to try removing.
+   - The `<meta name="robots" content="noindex">` the page carried from its
+     closed-alpha life was **removed on 2026-07-29** and replaced by a
+     `<link rel="canonical" href="https://fjellrute.no/">`. The reasoning is in
+     the comment left in its place: the branding review kept returning the same
+     two findings, both of them absences rather than disagreements, and bounced a
+     resubmission straight back to "resolve the issues" without queueing a
+     review — the signature of a checker that read no text. `noindex` was the
+     only line on the page addressed to Google's automated side, so it went
+     first. The canonical is there because the identical page is also served at
+     `https://fjellrute.gillesvandevyver1.workers.dev/`, and an indexable page
+     with a live duplicate should say which copy is the real one. Accepted
+     consequence: `fjellrute.no` can now appear in search results.
 
    #### Verifying domain ownership (only Gilles can do this)
 

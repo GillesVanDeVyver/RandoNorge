@@ -185,15 +185,29 @@ configured. The *Terms of service link* row is the one worth reading before you
 look: there is no `public/terms.html`, so any `fjellrute.no/terms…` URL entered
 there returns a 404 to a reviewer.
 
-**This is still not blocking the closed alpha.** With only the default
-email/profile scopes, an unverified app works; users see an "unverified app"
-warning screen and there is a 100-user cap. Fine for invited testers.
+**This is still not blocking the closed alpha, and the stakes are smaller than
+this entry once claimed.** The Verification Center says so in as many words:
+*"Verification is not required since your app is not requesting any sensitive or
+restricted scopes."* The 100-user cap and the "unverified app" warning screen
+described here belong to **Testing** mode; the Audience page says **In
+production**, so neither applies. What failing branding verification actually
+costs is stated by the console too: *"Your branding is not being shown to
+users."* The uploaded logo does not appear on the consent screen. That is all.
+The logo is also the only reason verification is being asked for at all —
+removing it under **Branding → App logo → Remove** ends the requirement
+permanently, and is the right move if this turns into a third round of findings.
 
-One thing deliberately not changed: the page still carries
-`<meta name="robots" content="noindex">`. It does not stop Googlebot fetching
-the page, so it should not affect the review, and removing it would put the site
-into search results earlier than you may want. If a re-review still reports the
-home page as unreachable, that line is the first thing to try removing.
+**The `noindex` was removed on 2026-07-29** (see `docs/AUTH_SETUP.md`). Selecting
+*"I have fixed the issues"* had produced no change: the branding status returned
+to "resolve the issues in the branding page and verify again" rather than moving
+to a queued review, and the same two findings persisted. Both findings are
+absences — no purpose found, no matching name — which is what an automated
+checker reports when it read no text, not when it read the text and disagreed.
+The app name is `Fjellrute` in the console and `<h1 class="appName">Fjellrute</h1>`
+at 44–76px on the page, so there is nothing left to fix in the comparison itself.
+`noindex` was the only instruction on the page aimed at Google's automated side,
+so it went first. **This needs `npm run build && npx wrangler deploy` before it
+means anything to a reviewer**, and then one more *"I have fixed the issues"*.
 
 ### 2. Forwarded mail lands in Gmail's spam folder
 
