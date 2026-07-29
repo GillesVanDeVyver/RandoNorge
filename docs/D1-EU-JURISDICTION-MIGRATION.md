@@ -24,8 +24,8 @@ more; the remaining recovery path is D1 Time Travel on `fjellrute-db-eu`.
 Not part of the migration but discovered by it: wrangler's add-a-binding prompt
 had also left a **duplicate R2 binding** in `wrangler.jsonc`, which nothing
 checked for and which therefore deployed unnoticed for far longer than the D1 one
-survived. Removed 2026-07-29; see step 7's warning and §7 of
-`docs/TODO_WEEK3.md`.
+survived. Removed 2026-07-29; see step 7's warning, and the comment above
+`r2_buckets` in `wrangler.jsonc`.
 
 ## The short version
 
