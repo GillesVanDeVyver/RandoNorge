@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties, FormEvent } from 'react';
+import { appPath } from '../appBase.ts';
 import { authClient } from '../auth/client';
 import { checkPassword, MIN_PASSWORD_LENGTH } from '../auth/passwordPolicy';
 import { checkUsername } from '../auth/usernamePolicy';
@@ -68,6 +69,21 @@ function passwordStrengthLabel(
       return t('greit', 'fair');
   }
 }
+
+/**
+ * Where every round trip out of this page comes back to: Google's OAuth
+ * redirect, the emailed verification link, the emailed password-reset link,
+ * and the error paths of all three.
+ *
+ * This must be the app's own home (`src/appBase.ts`), never a literal "/".
+ * "/" is answered by the public holding page (`worker/index.js` →
+ * `public/coming-soon.html`), so a callback pointing there ends a successful
+ * sign-up on the words "Kommer snart" — which is exactly what happened until
+ * 2026-07-29: accept the terms, and Fjellrute told you it had not launched
+ * yet. Better Auth is given these as relative paths, so no origin handling or
+ * trusted-origin entry is involved.
+ */
+const AUTH_RETURN = appPath();
 
 /** Reads one-shot query params left by emailed links, then cleans the URL. */
 function consumeAuthParams() {
@@ -339,10 +355,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setBusy(true);
     const { error: err } = await authClient.signIn.social({
       provider: 'google',
-      callbackURL: '/',
+      callbackURL: AUTH_RETURN,
       // On OAuth failure, return to this page with ?error=<code> (handled
       // by consumeAuthParams above) instead of Better Auth's raw error page.
-      errorCallbackURL: '/',
+      errorCallbackURL: AUTH_RETURN,
     });
     if (err) {
       setBusy(false);
@@ -425,7 +441,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       // Closed-alpha gate: the worker checks this before Better Auth runs and
       // rejects with 403 if it isn't valid (worker/index.js gatedEmailSignUp).
       inviteCode: inviteCode.trim(),
-      callbackURL: '/',
+      callbackURL: AUTH_RETURN,
     } as Parameters<typeof authClient.signUp.email>[0] & {
       username: string;
       inviteCode: string;
@@ -497,7 +513,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setError(null);
     const { error: err } = await authClient.sendVerificationEmail({
       email,
-      callbackURL: '/',
+      callbackURL: AUTH_RETURN,
     });
     setBusy(false);
     if (err) {
@@ -527,7 +543,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setError(null);
     const { error: err } = await authClient.requestPasswordReset({
       email,
-      redirectTo: '/',
+      redirectTo: AUTH_RETURN,
     });
     setBusy(false);
     setWrongPassword(false);
@@ -555,7 +571,7 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setError(null);
     const { error: err } = await authClient.requestPasswordReset({
       email,
-      redirectTo: '/',
+      redirectTo: AUTH_RETURN,
     });
     setBusy(false);
     if (err) {

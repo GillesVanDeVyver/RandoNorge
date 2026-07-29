@@ -79,9 +79,10 @@
 		// "/" is here so the Worker intercepts the site root and serves the
 		// closed-alpha "coming soon" page (worker/index.js) instead of the SPA
 		// index.html the assets fallback would otherwise return. Only the exact
-		// root matches; /alpha/ and every other route still fall through to the
-		// SPA. Drop this entry (and the matching block in the Worker) to make
-		// the app public again.
+		// root matches; /alpha/ — where the app itself lives, see
+		// src/appBase.ts — and every other route still fall through to the SPA.
+		// Drop this entry (and the matching block in the Worker, and APP_BASE in
+		// src/appBase.ts) to make the app public again.
 		//
 		// "/assets/*" runs the Worker for every content-hashed build asset so
 		// it can turn a *missing* bundle (a stale index.html from a previous

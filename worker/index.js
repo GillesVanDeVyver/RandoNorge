@@ -81,12 +81,20 @@ async function handleRequest(request, env, ctx) {
 
     // Closed-alpha public face: a bare visit to the site root shows the
     // static holding page (public/coming-soon.html) instead of the app's
-    // login screen. The real app stays reachable for testers at /alpha/ and
-    // via its own deep links / public share URLs (/u/…), which still fall
-    // through to the SPA below — this only changes what the domain root
-    // itself serves. Requires "/" in run_worker_first (wrangler.jsonc) so
-    // the Worker beats the assets SPA fallback here. Remove this block (and
-    // the "/" entry) to make the app public again.
+    // login screen. The real app lives at /alpha/ — see src/appBase.ts — and
+    // that path, its deep links (/alpha/planner…) and the public share URLs
+    // (/u/…) all fall through to the SPA below; this only changes what the
+    // domain root itself serves. Requires "/" in run_worker_first
+    // (wrangler.jsonc) so the Worker beats the assets SPA fallback here.
+    //
+    // THE FRONTEND MUST AGREE ABOUT THIS. Taking the root away from the app
+    // does not, on its own, stop the app navigating to it: until 2026-07-29
+    // the SPA still used "/" as its home and every auth callback still
+    // returned there, so accepting the terms at sign-up landed the new tester
+    // on "Kommer snart". The base declared in src/appBase.ts is what keeps the
+    // two halves in step — change one and change the other. To make the app
+    // public again: delete this block, drop the "/" entry in wrangler.jsonc,
+    // and set APP_BASE to '' in src/appBase.ts.
     //
     // That page is deliberately almost empty, and is therefore *not* the URL
     // to declare as the application home page on Google's OAuth consent

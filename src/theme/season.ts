@@ -2,9 +2,11 @@
 // Seasonal theming for the full-bleed photo pages (login + account
 // overview). The photo swaps automatically with the calendar season, and
 // can be forced for the rest of the browser session by visiting the app
-// with a season as the URL path — e.g. https://…/summer — handy for
-// previewing a theme out of season.
+// with a season as the first path segment — e.g. https://…/alpha/summer —
+// handy for previewing a theme out of season.
 // =========================================================================
+
+import { appPath, stripAppBase } from '../appBase.ts';
 
 export type Season = 'spring' | 'summer' | 'fall' | 'winter';
 
@@ -27,14 +29,20 @@ export function seasonFromDate(date: Date = new Date()): Season {
 
 /**
  * URL theme override: if the path starts with a season segment
- * ("/summer", "/fall/planner", … — "autumn" is accepted as an alias),
- * remember it for the rest of the browser session and strip the segment
- * from the URL so the app's normal routing (Root's pathToNav) never sees
- * it. Must run before Root reads window.location — main.tsx calls it
+ * ("/alpha/summer", "/alpha/fall/planner", … — "autumn" is accepted as an
+ * alias), remember it for the rest of the browser session and strip the
+ * segment from the URL so the app's normal routing (Root's pathToNav) never
+ * sees it. Must run before Root reads window.location — main.tsx calls it
  * ahead of the first render.
+ *
+ * The segment is looked for *inside* the app's base (`src/appBase.ts`) and the
+ * cleaned URL is written back under it. A base-less "/summer" is still
+ * accepted — that is the form these links were shared in — and is rewritten
+ * into the app's real URL space, because the bare root it would otherwise
+ * clean itself down to belongs to the public holding page.
  */
 export function consumeSeasonPathOverride(): void {
-  const match = window.location.pathname.match(
+  const match = stripAppBase(window.location.pathname).match(
     /^\/(spring|summer|fall|autumn|winter)(\/.*)?$/i,
   );
   if (!match) return;
@@ -52,7 +60,7 @@ export function consumeSeasonPathOverride(): void {
   window.history.replaceState(
     null,
     '',
-    rest + window.location.search + window.location.hash,
+    appPath(rest) + window.location.search + window.location.hash,
   );
 }
 

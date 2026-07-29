@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import App, { clearNewPlanDraft } from './App.tsx';
+import { appPath, stripAppBase } from './appBase.ts';
 import { authClient } from './auth/client.ts';
 import { AccountChip } from './components/AccountChip.tsx';
 import { AccountOverview } from './components/AccountOverview.tsx';
@@ -45,14 +46,22 @@ import { downloadTextFile } from './routes/download.ts';
  *  - track     → overview of one completed route (planned vs actual tour)
  *
  * Each view is mirrored to a URL path via the History API so the browser's
- * back/forward buttons work and views can be deep-linked/refreshed:
- *  - /           → overview (or login/guest gate when signed out)
- *  - /planner    → fresh plan
- *  - /planner/:id→ a saved route opened in the planner
- *  - /saved      → saved routes list
- *  - /completed  → completed routes list
- *  - /completed/:id → one completed route's overview
- *  - /offline    → downloaded offline maps (map + list)
+ * back/forward buttons work and views can be deep-linked/refreshed. Every one
+ * of these paths sits under the app's base (`src/appBase.ts`) — during the
+ * closed alpha that is `/alpha`, because the site root serves the public
+ * holding page and is not the app's to navigate to:
+ *  - /alpha/           → overview (or login/guest gate when signed out)
+ *  - /alpha/planner    → fresh plan
+ *  - /alpha/planner/:id→ a saved route opened in the planner
+ *  - /alpha/saved      → saved routes list
+ *  - /alpha/completed  → completed routes list
+ *  - /alpha/completed/:id → one completed route's overview
+ *  - /alpha/offline    → downloaded offline maps (map + list)
+ *
+ * The two functions below are the only place these paths are spelled out:
+ * navToPath() prefixes the base on the way out, pathToNav() removes it on the
+ * way in. Never write a literal app path anywhere else — a hard-coded "/" is
+ * precisely how the terms gate ended up dropping users on the holding page.
  */
 type SignedInView =
   | 'overview'
@@ -69,32 +78,42 @@ type Nav = { view: SignedInView; routeId: string | null };
 function navToPath({ view, routeId }: Nav): string {
   switch (view) {
     case 'planner':
-      return routeId ? `/planner/${encodeURIComponent(routeId)}` : '/planner';
+      return appPath(
+        routeId ? `/planner/${encodeURIComponent(routeId)}` : '/planner',
+      );
     case 'saved':
-      return '/saved';
+      return appPath('/saved');
     case 'completed':
-      return '/completed';
+      return appPath('/completed');
     case 'offline':
-      return '/offline';
+      return appPath('/offline');
     case 'track':
-      return routeId
-        ? `/completed/${encodeURIComponent(routeId)}`
-        : '/completed';
+      return appPath(
+        routeId ? `/completed/${encodeURIComponent(routeId)}` : '/completed',
+      );
     default:
-      return '/';
+      return appPath();
   }
 }
 
+/** The app's own home page — the overview when signed in, the login/guest gate
+ *  when signed out. Everything that used to reset the URL to "/" resets it to
+ *  this instead. */
+const APP_HOME = appPath();
+
 function pathToNav(pathname: string): Nav {
-  if (pathname === '/planner') return { view: 'planner', routeId: null };
-  const opened = pathname.match(/^\/planner\/([^/]+)\/?$/);
+  // stripAppBase() removes the '/alpha' prefix (and tolerates its absence, so
+  // pre-move bookmarks still resolve) before any pattern below is tried.
+  const path = stripAppBase(pathname);
+  if (path === '/planner') return { view: 'planner', routeId: null };
+  const opened = path.match(/^\/planner\/([^/]+)$/);
   if (opened) {
     return { view: 'planner', routeId: decodeURIComponent(opened[1]) };
   }
-  if (pathname === '/saved') return { view: 'saved', routeId: null };
-  if (pathname === '/completed') return { view: 'completed', routeId: null };
-  if (pathname === '/offline') return { view: 'offline', routeId: null };
-  const trackOpened = pathname.match(/^\/completed\/([^/]+)\/?$/);
+  if (path === '/saved') return { view: 'saved', routeId: null };
+  if (path === '/completed') return { view: 'completed', routeId: null };
+  if (path === '/offline') return { view: 'offline', routeId: null };
+  const trackOpened = path.match(/^\/completed\/([^/]+)$/);
   if (trackOpened) {
     return { view: 'track', routeId: decodeURIComponent(trackOpened[1]) };
   }
@@ -110,8 +129,14 @@ function pathToNav(pathname: string): Nav {
  *  - /u/:username/t/:slug  → a single shared completed tour
  * Returns null for every other path. The more specific route/tour patterns
  * are tested before the bare profile so the extra segments aren't lost.
+ *
+ * These stay OUTSIDE the app's base (`src/appBase.ts`): a shared link goes to
+ * people without an invitation, so it must not read as an alpha URL. The base
+ * is stripped first all the same, so an accidental /alpha/u/… still resolves
+ * rather than falling through to the overview.
  */
 function pathToPublic(pathname: string): PublicNav | null {
+  pathname = stripAppBase(pathname);
   const route = pathname.match(/^\/u\/([^/]+)\/r\/([^/]+)\/?$/);
   if (route) {
     return {
@@ -493,8 +518,8 @@ export function Root() {
   // Leave the public section for the app root (overview when signed in, the
   // login/guest gate when signed out).
   const exitPublic = useCallback(() => {
-    if (window.location.pathname !== '/') {
-      window.history.pushState(null, '', '/');
+    if (window.location.pathname !== APP_HOME) {
+      window.history.pushState(null, '', APP_HOME);
     }
     setPublicNav(null);
     setNav({ view: 'overview', routeId: null });
@@ -539,8 +564,9 @@ export function Root() {
       setMyUsername(null);
       setPolicies(null);
       // Replace (don't push) so back after logout doesn't step through
-      // the previous account's pages.
-      window.history.replaceState(null, '', '/');
+      // the previous account's pages. APP_HOME, not "/": signing out has to
+      // leave the user on the login page, and "/" is the holding page.
+      window.history.replaceState(null, '', APP_HOME);
     }
   }
 
@@ -728,7 +754,7 @@ export function Root() {
           setGuest(false);
           // Leave the planner URL too, so a refresh doesn't re-open the
           // gate the user just declined.
-          window.history.replaceState(null, '', '/');
+          window.history.replaceState(null, '', APP_HOME);
           setNav({ view: 'overview', routeId: null });
         }}
       />

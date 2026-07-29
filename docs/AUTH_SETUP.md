@@ -155,6 +155,42 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    console is not something this repository can enforce. If you see that
    warning, the console still needs editing.
 
+   **Where the app itself is: `/alpha/`, and why sign-in has to know that.**
+   Taking the root away from the app was only half a change, and the missing
+   half broke sign-up for a day. The Worker began serving the holding page for
+   `/` on 2026-07-29, but the frontend still called `/` home: `Root.tsx` reset
+   the URL there after sign-out, and every Better Auth round trip in
+   `LoginPage.tsx` — Google sign-in and its error path, email sign-up,
+   resend-verification, and both password-reset requests — passed
+   `callbackURL: '/'`. The visible symptom was the worst possible one: a new
+   tester accepted the terms of use, Better Auth redirected exactly where it had
+   been told, and Fjellrute replied “Kommer snart”. Nothing errored, nothing
+   logged, and neither `tsc` nor eslint has an opinion about which path a string
+   contains.
+
+   The app therefore has a declared base, `APP_BASE` in `src/appBase.ts`, set to
+   `/alpha` — the address `public/about.html` gives testers. Every in-app URL is
+   built with `appPath()` and every incoming path is read through
+   `stripAppBase()`, so `/alpha/` is the overview, `/alpha/planner` the planner,
+   and the six auth callbacks all return to `/alpha/`. Paths without the prefix
+   still resolve, so links sent to testers before the move keep working; the one
+   address that cannot be rescued is the bare root, which the holding page
+   answers before the app ever loads. Public share URLs (`/u/<handle>/…`) stay
+   deliberately outside the base — they go to people without an invitation.
+
+   `scripts/verify-app-base.mjs` (`pnpm test:appbase`) is what keeps the two
+   halves in step: it runs the real mapping functions, fails if the Worker
+   intercepts `/` while the app has no base of its own, and scans `src/` for a
+   `callbackURL`, `redirectTo` or `pushState` written as a literal path. **To
+   open the app to the public**, set `APP_BASE` to `''`, delete the root branch
+   in `worker/index.js`, and drop the `/` entry from `run_worker_first` in
+   `wrangler.jsonc`; that script then expects the app at `/` and objects if only
+   one of the three is done.
+
+   Nothing on the consent screen needs to change for any of this. The authorized
+   redirect URIs point at `/api/auth/callback/google`, which is Better Auth's
+   own endpoint on the Worker and is unaffected by where the app's pages live.
+
    Also on that screen, not previously listed: **Developer contact information** is
    `fjellrute@gmail.com`, and an **app logo is uploaded** (a teal square with a
    white mountain glyph).
