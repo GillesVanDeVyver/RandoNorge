@@ -10,7 +10,9 @@
 
 **English:** "Plan ski touring routes on real Kartverket topo maps with avalanche steepness, runout zones and live snow depth — free."
 
-Why this works: FATMAP is gone (shut down by Strava), and nothing free fills the gap for Norway. UT.no doesn't draw routes over steepness. Norgeskart has no snow data. Varsom shows danger but doesn't plan. Fjellrute is the only tool that combines all of it in one planner. That is the entire story — resist the urge to list features instead.
+Why this works: FATMAP is gone (shut down by Strava), and nothing free fills the gap for Norway. UT.no now lets you draw a route and has a steepness/runout *layer* — but it doesn't measure runout, snow depth, weather and the Varsom bulletin *along the line you drew*, and has no 3D. Norgeskart has no snow data. Varsom shows danger but doesn't plan. Fjellrute is the only tool that combines all of it — safety data sampled along your route, pinned to the elevation profile, in 3D — in one planner. That is the entire story — resist the urge to list features instead.
+
+*(Accuracy note, added 24 Jul 2026: an earlier version of this line claimed "UT.no doesn't draw routes over steepness." That is now false — ut.no added logged-in route drawing and a bratthet/utløp layer. Never make that claim in a launch post; a topptur expert will discredit the whole launch over it. The honest, still-true differentiator is **integration**: data measured along your drawn line + 3D, not the mere existence of the layers.)*
 
 ## Guiding principles
 
