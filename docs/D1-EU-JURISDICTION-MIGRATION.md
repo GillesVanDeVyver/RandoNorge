@@ -1,14 +1,26 @@
 # Moving `fjellrute-db` into Cloudflare's EU jurisdiction
 
-**Status: steps 1–6 done 2026-07-29, stopped at step 7.** Decided 2026-07-28
-(Week 3) to do this now rather than later. Written to be executed in one sitting,
-top to bottom.
+**Status: done 2026-07-29, except the deletion in step 10.** Decided 2026-07-28
+(Week 3) to do this now rather than later, and executed in one sitting as
+intended.
 
-`fjellrute-db-eu` exists at `1d6f92bf-83c8-4dce-80f6-d20b4a09674b`, jurisdiction
-`eu` confirmed, with a verified copy of all ten tables (row counts matched, the
-`account` / `route` / `session` / `track` cascades survived, 7 migration records
-copied). **Production is still on `fjellrute-db`** — the run stopped before the
-binding swap, so resume at step 7. Dates and the reason are in step 10.
+Production runs on `fjellrute-db-eu` (`1d6f92bf-83c8-4dce-80f6-d20b4a09674b`),
+jurisdiction `eu` confirmed, with a verified copy of all ten tables — row counts
+matched, the `account` / `route` / `session` / `track` cascades survived, 7
+migration records copied — deployed and smoke-tested through a real sign-in,
+route save and delete. Step 7 needed a hand edit; see step 10 for why.
+
+**One thing is left: `fjellrute-db` still exists, and must be deleted by
+2026-08-05.** The dump is already gone. Step 9 (the privacy policy) was done and
+deployed the same evening in `PRIVACY_VERSION` `2026-07-29`, version
+`1d0855e9-0b33-42c4-a21d-6191080f93d1`, and confirmed by fetching the live
+`/privacy.html`.
+
+Not part of the migration but discovered by it: wrangler's add-a-binding prompt
+had also left a **duplicate R2 binding** in `wrangler.jsonc`, which nothing
+checked for and which therefore deployed unnoticed for far longer than the D1 one
+survived. Removed 2026-07-29; see step 7's warning and §7 of
+`docs/TODO_WEEK3.md`.
 
 ## The short version
 
@@ -217,6 +229,14 @@ date, so a rollback does not depend on this file's history.
 > entry and edit `DB` in place, so the app keeps reaching its database through
 > `env.DB`. Adopting the new binding name instead would mean renaming every
 > `env.DB` in `worker/`, which is a larger change for no benefit.
+>
+> **While you are in the file, check the other binding lists.** That prompt is not
+> specific to D1, and nothing outside this script checks for duplicates. On
+> 2026-07-29 the same artefact was found in `r2_buckets` — a second entry for
+> `fjellrute-terrain` bound as `fjellrute_terrain` with `remote: true` — which had
+> been deploying silently for some time precisely because no guardrail covered it.
+> The tell, either way, is the bindings table `wrangler deploy` prints: one row per
+> resource, or something added an entry you did not.
 
 The local dev database is keyed to the binding, so `wrangler dev` will start
 against an empty one. Reapply the schema locally:
@@ -256,6 +276,25 @@ match the new version; the second if the two version constants do. Bumping the
 version re-presents the acceptance gate to every signed-in user, which is the
 point of §8 — see the acceptance mechanism in `worker/policies.js`.
 
+Then build and deploy — the policy text is not a runtime lookup, it ships in the
+bundle and in the Worker, so an unbuilt edit changes nothing for users:
+
+```sh
+pnpm build && npx wrangler deploy
+```
+
+> **Done 2026-07-29.** Both harnesses pass, including
+> `PASS bumping PRIVACY_VERSION re-gates an already-accepted account`. What was
+> written is worth recording, because the obvious edit would have been wrong: the
+> hedge was **narrowed, not deleted**. The jurisdiction restricts where the
+> database is *stored*; it does not move the Worker, which still executes at
+> whichever Cloudflare location is nearest the visitor. So §4 now states the
+> storage restriction flatly — created in the EU jurisdiction, a restriction that
+> can only be set at creation, not replicated to any other region — and then states
+> the request-routing caveat as a specific fact, referring onward to the existing
+> SCC and Data Privacy Framework safeguards in the same section. "Your data never
+> leaves the EU" would have been the easy sentence, and false.
+
 ## Step 10 — delete the old database, and the dump
 
 The old database is a complete second copy of everyone's personal data. Leaving
@@ -277,39 +316,38 @@ write the actual date on the line below the moment you run the migration, becaus
 an unwritten deadline is the one that slips.
 
 - Copy made (steps 2–6 verified): **2026-07-29**, ~21:33 CEST
-- Step 8 cutover (Worker deployed against `fjellrute-db-eu`): _____________
-- Dump `fjellrute-dump.sql` deleted by: **2026-08-05** (copy + 7 days)
-- Old database `fjellrute-db` deleted by: _____________ (cutover + 7 days)
+- Step 8 cutover (Worker deployed against `fjellrute-db-eu`): **2026-07-29**,
+  ~22:00 CEST — deployed and smoke-tested (sign in, route library, save, delete)
+- Dump `fjellrute-dump.sql` deleted by: **2026-08-05** — *deleted 2026-07-29*
+- Old database `fjellrute-db` deleted by: **2026-08-05** (cutover + 7 days)
 
-**Why two of these are filled in and two are not.** The 2026-07-29 run got as far
-as step 6 and then stopped at step 7: `wrangler.jsonc` had two `database_name`
-keys, because wrangler's own *"Would you like Wrangler to add it on your behalf?"*
-prompt during the create appended a second `d1_databases` entry (`fjellrute_db_eu`,
-`remote: true`) alongside the real `DB` binding. The script refuses to guess which
-one to rewrite, which is correct — the wrong guess deploys production against the
-wrong database. So the copy exists and is verified, but **production is still
-served by `fjellrute-db`** and the cutover has not happened.
+**How 2026-08-05 was arrived at.** The copy and the cutover happened within half
+an hour of each other on 2026-07-29, so the two clocks that step 10 keeps separate
+landed on the same date this time. That is a coincidence of a quick evening, not
+the rule: had step 7 taken until the following week, the dump's deadline would
+still have been 2026-08-05 while the old database's would have moved out with the
+cutover. The rule is what is written above the lines.
 
-That splits one clock into two, and they are not interchangeable:
+The run did stop once, at step 7, because `wrangler.jsonc` had two
+`database_name` keys — wrangler's own *"Would you like Wrangler to add it on your
+behalf?"* prompt during the create had appended a second `d1_databases` entry
+(`fjellrute_db_eu`, `remote: true`) alongside the real `DB` binding. The script
+refuses to guess which one to rewrite, which is correct: the wrong guess deploys
+production against the wrong database. The binding was swapped by hand, and step 8
+then went through.
 
-- **The dump is a second copy of everyone's personal data, sitting on a laptop,
-  starting 2026-07-29.** That clock runs now and is the reason 2026-08-05 is
-  written above. It does not wait for the cutover, and it does not restart if the
-  cutover slips. Step 2 above says to delete the dump once step 5 passes; step 5
-  has passed, so the only thing the file still buys is a rollback that
-  `fjellrute-db` — untouched, every row present — already provides better.
-  Deleting it early is the right kind of early.
-- **`fjellrute-db` cannot be deleted yet at all.** Before the cutover it is not
-  the redundant copy, it is *the live production database*; `fjellrute-db-eu` is
-  the spare. Dating its deletion from 2026-07-29 would put a deadline on deleting
-  the database the service is actually running on. Its line stays blank until
-  step 8, then becomes cutover + 7.
+**The dump is already gone**, ahead of its deadline, which is the right direction
+to be early in: it was 86 kB holding every account, email address and recorded GPS
+track in the service, and once step 5 passed its only remaining value was a
+rollback that `fjellrute-db` — untouched, every row present — provides better.
 
-If you find the cutover line still blank days from now, the migration has stalled
-half-done, which is its own small problem: two live databases holding the same
-personal data, one of them serving nothing. If you find the *deletion* lines still
-blank after the cutover, the deletion has been forgotten, which is exactly the
-failure this section exists to prevent.
+**`fjellrute-db` is the one thing still on a clock.** It is now the redundant
+copy rather than production, so 2026-08-05 is a real deadline and not a
+formality. Until then it is the rollback; after then it is just a second copy of
+everyone's personal data, which is the storage-limitation problem this week's work
+existed to remove. If you find that line still unstruck after 2026-08-05, the
+deletion has been forgotten, which is exactly the failure this section exists to
+prevent.
 
 ## Rollback
 

@@ -23,7 +23,7 @@
 //
 // Apply the printed SQL to the production D1 database:
 //   node scripts/invite/create-invite.mjs --count 5 > /tmp/codes.sql
-//   npx wrangler d1 execute fjellrute-db --remote --file /tmp/codes.sql
+//   npx wrangler d1 execute fjellrute-db-eu --remote --file /tmp/codes.sql
 // (drop --remote and use --local to seed a local dev database instead.)
 
 import { randomBytes } from 'node:crypto';

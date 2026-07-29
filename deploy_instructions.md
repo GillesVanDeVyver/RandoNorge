@@ -9,7 +9,7 @@ export PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH"
 cd ~/Projects/PrivateProjects/RandoNorge/RandoNorge
 npx wrangler whoami
 npm run build
-npx wrangler d1 migrations apply fjellrute-db --remote
+npx wrangler d1 migrations apply fjellrute-db-eu --remote
 npx wrangler deploy
 ```
 

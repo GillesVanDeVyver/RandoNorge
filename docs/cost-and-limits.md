@@ -16,7 +16,7 @@ Four Cloudflare products, all configured in `wrangler.jsonc`:
 - **Workers** — serves the SPA and runs the API proxies (`/metno-api`,
   `/gts-api`, `/varsom-api`), auth (`/api/auth/*`), saved routes/tracks, and
   terrain tiles (`/terrain-dem/*`).
-- **D1** (`fjellrute-db`) — accounts, sessions, verification tokens, saved
+- **D1** (`fjellrute-db-eu`) — accounts, sessions, verification tokens, saved
   routes, recorded tracks.
 - **R2** (`fjellrute-terrain`) — Kartverket-derived Terrarium terrain tiles for
   the 3D view, with AWS Open Data fallback for uncovered areas.

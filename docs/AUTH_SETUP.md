@@ -13,19 +13,37 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
 
 ## One-time setup (production)
 
-1. **Create the D1 database** (once):
+1. **Create the D1 database** (once) — **with the jurisdiction flag:**
 
    ```sh
-   npx wrangler d1 create fjellrute-db
+   npx wrangler d1 create fjellrute-db-eu --jurisdiction eu
+   ```
+
+   `--jurisdiction eu` restricts the database to EU data centres, and it
+   **can only be set at creation time** — there is no way to add it later. The
+   privacy policy §4 states that restriction as a fact, so a database created
+   without the flag makes the policy untrue and the only remedy is to create
+   another database and copy this one into it. That is exactly what
+   `docs/D1-EU-JURISDICTION-MIGRATION.md` records having to do on 2026-07-29,
+   and it is worth one flag now to never repeat.
+
+   Confirm it took effect before going further — if `d1 info` reports
+   `jurisdiction: null`, delete the database and redo this step:
+
+   ```sh
+   npx wrangler d1 info fjellrute-db-eu
    ```
 
    Copy the `database_id` it prints into `wrangler.jsonc`, replacing
-   `REPLACE_WITH_ID_FROM_wrangler_d1_create`.
+   `REPLACE_WITH_ID_FROM_wrangler_d1_create`. Say **no** if wrangler offers to
+   add the binding on your behalf: it appends a *second* `d1_databases` entry
+   rather than filling in the existing one, and the app expects to reach the
+   database through the binding named `DB`.
 
 2. **Apply the schema** (also after any future migration):
 
    ```sh
-   npx wrangler d1 migrations apply fjellrute-db --remote
+   npx wrangler d1 migrations apply fjellrute-db-eu --remote
    ```
 
 3. **Set the session-signing secret** (any long random string):
@@ -341,7 +359,7 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
 ## Local development
 
 ```sh
-npx wrangler d1 migrations apply fjellrute-db --local   # once
+npx wrangler d1 migrations apply fjellrute-db-eu --local   # once
 npm run build && npx wrangler dev                        # worker on :8787
 npm run dev                                              # vite on :5173
 ```

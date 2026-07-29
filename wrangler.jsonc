@@ -53,15 +53,23 @@
 	// AWS Open Data fallback for uncovered areas. Create the bucket once:
 	//   npx wrangler r2 bucket create fjellrute-terrain
 	// Generate + upload tiles: scripts/terrain/make_terrarium_tiles.py.
+	//
+	// ONE binding for this bucket, and it is TERRAIN: worker/terrain.js reads
+	// env.TERRAIN and nothing else. Removed 2026-07-29: a second entry
+	// (binding "fjellrute_terrain", "remote": true, same bucket) had been added
+	// by wrangler's "Would you like Wrangler to add it on your behalf?" prompt,
+	// which names the binding after the resource and opts it into the remote
+	// resource. Nothing read it, but `wrangler dev` reached the real production
+	// bucket through it. Answer NO to that prompt — the same prompt appended a
+	// duplicate d1_databases entry and stopped step 7 of
+	// docs/D1-EU-JURISDICTION-MIGRATION.md. Unlike D1, nothing validates that
+	// R2 has exactly one binding per bucket, so a duplicate here deploys in
+	// silence; the only sign is two rows for one bucket in the bindings table
+	// that `wrangler deploy` prints.
 	"r2_buckets": [
 		{
 			"binding": "TERRAIN",
 			"bucket_name": "fjellrute-terrain"
-		},
-		{
-			"bucket_name": "fjellrute-terrain",
-			"binding": "fjellrute_terrain",
-			"remote": true
 		}
 	],
 	// Sender for auth emails (worker/email.js). Resend only sends from

@@ -29,4 +29,4 @@
 export const TERMS_VERSION = '2026-07-16';
 
 /** Must equal PRIVACY_VERSION in src/terms/privacy.ts. */
-export const PRIVACY_VERSION = '2026-07-28';
+export const PRIVACY_VERSION = '2026-07-29';

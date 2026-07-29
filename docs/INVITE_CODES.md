@@ -35,8 +35,8 @@ the account.
 Apply it:
 
 ```sh
-npx wrangler d1 migrations apply fjellrute-db --local     # dev
-npx wrangler d1 migrations apply fjellrute-db --remote    # production
+npx wrangler d1 migrations apply fjellrute-db-eu --local     # dev
+npx wrangler d1 migrations apply fjellrute-db-eu --remote    # production
 ```
 
 ## Creating codes
@@ -49,7 +49,7 @@ codes to the terminal and the SQL to stdout):
 node scripts/invite/create-invite.mjs --count 1 --days 7 --note "batch-1" > /tmp/codes.sql
 
 # Apply to production (drop --remote + use --local for a dev DB):
-npx wrangler d1 execute fjellrute-db --remote --file /tmp/codes.sql
+npx wrangler d1 execute fjellrute-db-eu --remote --file /tmp/codes.sql
 ```
 
 Options: `--count N` (default 1), `--uses N` (default 1), `--days N` (default
@@ -60,21 +60,21 @@ never expires), `--note "..."`, `--prefix STR` (default `FJELL`).
 List codes and how used they are:
 
 ```sh
-npx wrangler d1 execute fjellrute-db --remote --command \
+npx wrangler d1 execute fjellrute-db-eu --remote --command \
   'SELECT code, note, used_count, max_uses, expires_at, revoked FROM invite_code ORDER BY created_at DESC;'
 ```
 
 See who redeemed what:
 
 ```sh
-npx wrangler d1 execute fjellrute-db --remote --command \
+npx wrangler d1 execute fjellrute-db-eu --remote --command \
   'SELECT code, email, redeemed_at FROM invite_redemption ORDER BY redeemed_at DESC;'
 ```
 
 Revoke a code immediately (kill switch, independent of uses left):
 
 ```sh
-npx wrangler d1 execute fjellrute-db --remote --command \
+npx wrangler d1 execute fjellrute-db-eu --remote --command \
   "UPDATE invite_code SET revoked = 1 WHERE code = 'FJELL-XXXX-XXXX';"
 ```
 

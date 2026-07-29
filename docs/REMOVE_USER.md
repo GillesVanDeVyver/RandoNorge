@@ -1,7 +1,7 @@
 # Removing a user account from the database
 
 How to delete a user (by email address) from the D1 database
-(`fjellrute-db`), for example to clean up test accounts or to handle a
+(`fjellrute-db-eu`), for example to clean up test accounts or to handle a
 GDPR art. 17 deletion request that arrives by email.
 
 > **There is now a code path for this too.** `DELETE /api/account`
@@ -42,7 +42,7 @@ Confirm the account exists and see what would go with it (replace the
 email address throughout):
 
 ```sh
-npx wrangler d1 execute fjellrute-db --remote --command "
+npx wrangler d1 execute fjellrute-db-eu --remote --command "
   select u.id, u.email, u.name, u.emailVerified, u.createdAt,
          (select count(*) from session s where s.userId = u.id) as sessions,
          (select count(*) from route   r where r.userId = u.id) as routes,
@@ -64,7 +64,7 @@ cascade: pending verification / password-reset tokens, and the invite
 redemption record.
 
 ```sh
-npx wrangler d1 execute fjellrute-db --remote --command "
+npx wrangler d1 execute fjellrute-db-eu --remote --command "
   delete from verification
   where lower(identifier) = lower('someone@example.com')
      or lower(identifier) like '%:' || lower('someone@example.com');
@@ -90,7 +90,7 @@ Check every table that stores the address, not just `user` — the point of
 this step is to prove the email is actually gone:
 
 ```sh
-npx wrangler d1 execute fjellrute-db --remote --command "
+npx wrangler d1 execute fjellrute-db-eu --remote --command "
   select
     (select count(*) from user              where lower(email)      = lower('someone@example.com')) as users,
     (select count(*) from invite_redemption where lower(email)      = lower('someone@example.com')) as redemptions,

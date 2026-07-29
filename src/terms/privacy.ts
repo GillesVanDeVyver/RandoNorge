@@ -36,8 +36,21 @@ export interface PrivacyText {
  * 2026-07-28: named the database's storage region in §4 and disclosed
  * server-side diagnostic logs in §5. Bumped while the alpha still has no
  * users, so nobody is holding an acceptance of the older text.
+ *
+ * 2026-07-29: §4 turned a hedge into a commitment. The database was moved
+ * into Cloudflare's EU jurisdiction — a restriction that can only be set when
+ * a database is created, so it meant a new database and a verified copy (see
+ * docs/D1-EU-JURISDICTION-MIGRATION.md) — and the text now states that
+ * storage is confined to EU data centres instead of saying we cannot promise
+ * where data goes. Bumped only after the deploy, because until the Worker was
+ * actually bound to the new database the claim would have been false. Note
+ * that this strengthens the claim about data at rest only: requests are still
+ * served from the Cloudflare location nearest the visitor, which §4 now says
+ * plainly rather than leaving it inside a general disclaimer. Unlike the
+ * 2026-07-28 bump, this one re-presents the acceptance gate to real
+ * signed-in users.
  */
-export const PRIVACY_VERSION = '2026-07-28';
+export const PRIVACY_VERSION = '2026-07-29';
 
 export const PRIVACY: Record<TermsLang, PrivacyText> = {
   en: {
@@ -112,11 +125,14 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
           'Cloudflare, Inc. hosts the application and the database in ' +
             'which all data above is stored, and acts as our data ' +
             'processor under its data processing addendum. The database ' +
-            'instance is located in Cloudflare\u2019s Eastern Europe ' +
-            'region, that is, inside the EU, and it is not replicated to ' +
-            'any other region. Cloudflare\u2019s network is worldwide, ' +
-            'however, so we cannot promise that no data ever passes ' +
-            'outside the EU; where that happens it is covered by the ' +
+            'is restricted to data centres inside the EU: it was created ' +
+            'in Cloudflare\u2019s EU jurisdiction, a restriction that can ' +
+            'only be set when a database is created, and it is not ' +
+            'replicated to any other region. Requests are still handled ' +
+            'by whichever Cloudflare location is closest to you, so if ' +
+            'you use Fjellrute from outside the EU your request is ' +
+            'processed there before it reaches the database; where that ' +
+            'involves a transfer out of the EU it is covered by the ' +
             'safeguards described at the end of this section.',
           'Resend, Inc. (USA) delivers our account emails and therefore ' +
             'processes your email address when a verification or ' +
@@ -262,12 +278,16 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
         body: [
           'Cloudflare, Inc. drifter applikasjonen og databasen der alle ' +
             'opplysningene over lagres, og er vår databehandler i ' +
-            'henhold til sin databehandleravtale. Databaseinstansen ' +
-            'ligger i Cloudflares Øst-Europa-region, altså innenfor EU, ' +
-            'og replikeres ikke til andre regioner. Cloudflares nettverk ' +
-            'er likevel verdensomspennende, så vi kan ikke love at ingen ' +
-            'data noen gang passerer utenfor EU; der det skjer, er det ' +
-            'dekket av garantiene beskrevet nederst i dette punktet.',
+            'henhold til sin databehandleravtale. Databasen er begrenset ' +
+            'til datasentre innenfor EU: den er opprettet i Cloudflares ' +
+            'EU-jurisdiksjon, en begrensning som bare kan settes når en ' +
+            'database opprettes, og den replikeres ikke til andre ' +
+            'regioner. Forespørsler håndteres likevel av det ' +
+            'Cloudflare-stedet som er nærmest deg, så hvis du bruker ' +
+            'Fjellrute fra utenfor EU, behandles forespørselen din der ' +
+            'før den når databasen; der det innebærer en overføring ut ' +
+            'av EU, er det dekket av garantiene beskrevet nederst i ' +
+            'dette punktet.',
           'Resend, Inc. (USA) leverer konto-e-postene våre og behandler ' +
             'derfor e-postadressen din når en bekreftelses- eller ' +
             'tilbakestillingsmelding sendes.',
