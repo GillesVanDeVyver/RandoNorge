@@ -13,7 +13,7 @@
 --                         custom /api/account-exists endpoint (worker/rateLimit.js).
 --
 -- Apply with:
---   npx wrangler d1 migrations apply fjellrute-db --remote
+--   npx wrangler d1 migrations apply fjellrute-db-eu --remote
 
 create table "rateLimit" (
   "id" text not null primary key,

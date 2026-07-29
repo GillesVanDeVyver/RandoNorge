@@ -34,8 +34,8 @@
 -- worker/auth.js as `additionalFields` so the library will read and write
 -- them, and are stamped on account creation by the create hook there.
 --
--- Apply locally:  npx wrangler d1 migrations apply fjellrute-db --local
--- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db --remote
+-- Apply locally:  npx wrangler d1 migrations apply fjellrute-db-eu --local
+-- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db-eu --remote
 
 -- The version strings as accepted, e.g. '2026-07-16' / '2026-07-28'. Text
 -- rather than a date type because they are opaque labels that happen to look

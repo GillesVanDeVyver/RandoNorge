@@ -21,7 +21,7 @@
 -- saved before this feature, or saved with no computed profile, simply have no
 -- snapshot and fall back to live fetching.
 --
--- Apply locally:  npx wrangler d1 migrations apply fjellrute-db --local
--- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db --remote
+-- Apply locally:  npx wrangler d1 migrations apply fjellrute-db-eu --local
+-- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db-eu --remote
 
 alter table "route" add column "forecast" text;

@@ -3,8 +3,10 @@
 **Week 3 of the launch plan (Jul 27 – Aug 2): GDPR + accounts hygiene.**
 First written 2026-07-28, revised 2026-07-29, revised again the evening of
 2026-07-29 after the deploy, revised late on 2026-07-29 after the
-EU-jurisdiction migration was run and stopped part-way, and revised a last time
-at ~22:25 CEST that night once the policy deploy had landed. Companion to
+EU-jurisdiction migration was run and stopped part-way, revised again at ~22:25
+CEST once the policy deploy had landed, and revised a final time that night after
+the sign-in, the commit and the deletion of the old database closed the last three
+items. Companion to
 `WEEK3-GDPR-CHECK-2026-07-28.md`, which holds the full audit and its reasoning;
 this file is the short list of what is done and what still needs doing.
 
@@ -17,32 +19,40 @@ this file is the short list of what is done and what still needs doing.
 > privacy policy now says so.** `fjellrute-db-eu` was cut over and smoke-tested on
 > 2026-07-29 ~22:00 CEST; the strengthened §4 and `PRIVACY_VERSION` `2026-07-29`
 > were built and deployed ~22:20 CEST as version
-> `1d0855e9-0b33-42c4-a21d-6191080f93d1`. Verified by fetching the live
-> `/privacy.html`: both languages carry the new §4 and both updated lines read
-> `2026-07-29`. That version bump means **every signed-in user is now due the
-> acceptance gate once more.**
+> `1d0855e9-0b33-42c4-a21d-6191080f93d1`. Verified twice: by fetching the live
+> `/privacy.html`, which carries the new §4 and `2026-07-29` in both languages,
+> and by a real sign-in through the re-presented acceptance gate.
 >
-> **Three things are outstanding, in rough order of when they matter:**
+> **The three things this file listed as outstanding are all done** (2026-07-29,
+> late evening):
 >
-> 1. **Sign in once** and watch the gate appear and clear (§3). Nothing is broken
->    if it works; this is the confirmation, and it settles three open questions in
->    one click.
-> 2. **Commit the tree** — everything above is deployed but *not committed*, which
->    is the reverse of the usual danger and worth fixing tonight. `git status`
->    shows `src/terms/privacy.ts`, `public/privacy.html`,
->    `worker/policyVersions.js`, `wrangler.jsonc` and the docs. Production is
->    currently running code that exists in no commit.
-> 3. **Delete `fjellrute-db`, by 2026-08-05** (§4). Kept until then as the
->    rollback. This is the only item on a clock.
+> 1. **The acceptance gate was exercised for real.** It appeared on sign-in,
+>    accepted, and did not return on reload. That single click confirmed migration
+>    `0007` is on the remote database, that the version bump reached the deployed
+>    bundle and Worker, and that the re-acceptance path in `worker/policies.js`
+>    works against a live signed-in user — none of which had ever been true before
+>    (§3).
+> 2. **Committed** as `cfecf1a` ("Week 3 plan"). Production and the repository
+>    describe the same service again.
+> 3. **`fjellrute-db` is deleted** — seven days ahead of its 2026-08-05 deadline,
+>    on the same evening as the cutover. There is now exactly one copy of the
+>    data. **This means the migration no longer has a rollback**; see §4 and the
+>    Rollback section of `D1-EU-JURISDICTION-MIGRATION.md`, both of which have
+>    been rewritten to say so, because a document that still promises one is worse
+>    than no document.
+>
+> **Nothing in this file is now waiting on a date.** What is left (§1, §2, §5, §6)
+> is decisions and small hygiene, none of it blocking.
 >
 > One config change is deployed-pending rather than outstanding: the duplicate R2
-> binding removed from `wrangler.jsonc` (§7) is already gone from local dev, but
-> production keeps the extra unused binding until the next deploy. Nothing reads
-> it, so there is no reason to deploy for it alone.
+> binding removed from `wrangler.jsonc` (§7) is gone from the repository and from
+> local dev, but production keeps the extra unused binding until the next deploy.
+> Nothing reads it, so there is no reason to deploy for it alone.
 >
-> Also untracked, both deliberately: `wrangler.jsonc.bak-2026-07-29` (now
-> gitignored) and `.claude/settings.local.json`, which is §5 and a preference
-> rather than a defect.
+> Untracked, deliberately: `wrangler.jsonc.bak-2026-07-29` (gitignored) and
+> `.claude/settings.local.json`, which is §5 and a preference rather than a defect.
+> Note that the backup file is now the only local trace of the old binding, and it
+> is not a database backup — the database it points at is gone.
 >
 > Earlier versions of this file opened by warning that nothing here had reached
 > a Google reviewer yet. That is no longer true, and the outcome is recorded in
@@ -214,7 +224,7 @@ HTML parser — no nesting errors, nothing unclosed — and the two language
 sections confirmed structurally identical: same four `<h3>` headings, five
 paragraphs and five list items each.
 
-### From late on 2026-07-29 (deployed as `1d0855e9`, **not yet committed**)
+### From late on 2026-07-29 (deployed as `1d0855e9`, committed in `cfecf1a`)
 
 **The EU-jurisdiction cutover and the matching privacy policy both shipped.**
 Details in §4; the short version is that `fjellrute-db-eu` is production and the
@@ -242,17 +252,39 @@ is now checked by the harness itself.
 is the same wrangler-prompt artefact that stopped step 7 of the migration, one
 resource over, and it had been sitting in the config unnoticed for some time.
 
+**Nine more commands naming the deleted database were found and repointed.** The
+earlier sweep caught the operational docs and `scripts/invite/create-invite.mjs`
+but missed two places: the `-- Apply locally: / -- Apply in prod:` header comments
+in all seven files in `migrations/`, and — more embarrassingly — the two
+`d1 migrations apply` commands in `wrangler.jsonc`'s own comment, three lines above
+the binding that had already been repointed. Every one of them would now fail with
+a database-not-found error, and the kind of person who copy-pastes a command out of
+a migration file header is exactly the person who will not have read this document
+first. Left alone deliberately: the dated audit files
+(`WEEK3-GDPR-CHECK-2026-07-28.md`, `SECURITY-REVIEW-2026-07-23.md`), which are
+records of what was true when they were written; the procedure steps in
+`D1-EU-JURISDICTION-MIGRATION.md`, which describe a future run against whatever the
+old database is then; `OLD_NAME` in `scripts/migrate-d1-to-eu.sh`, which is a
+parameterised default; and `wrangler.jsonc.bak-2026-07-29`, which is a backup and
+would stop being one if edited.
+
+One incidental catch worth recording, because it nearly went in unnoticed:
+`migrations/0002_tracks.sql` is the only file in that directory with CRLF line
+endings, and rewriting it in Python normalised the whole file to LF — a two-line
+change arriving as a 58-line diff. Restored to CRLF, so the committed diff is the
+two comment lines it should be. Check `git diff --stat` after any mechanical sweep;
+a suspiciously large number is usually line endings, and it hides the real change.
+
 ---
 
 ## Still to do
 
-Almost everything that remains needs either a browser signed in to an account
-only you have, or a `wrangler` with production credentials. That is why it
-remains. The exceptions are the two bookkeeping items — committing the tree, and
-§5 — which need nothing but a decision.
+**Items 3, 4 and 7 are finished** and are kept below because how they went is worth
+recording — §4 in particular, since finishing it removed the migration's rollback.
 
-Items 4 and 7 are finished and are kept because a deadline and a lesson need
-somewhere to live.
+What genuinely remains is §1, §2, §5 and §6: one decision about the Google logo,
+one Gmail filter, one untracked config file, and a handful of optional
+improvements. None of it is on a clock and none of it blocks anything.
 
 ### 1. Google OAuth branding verification — one decision left, not a task
 
@@ -336,45 +368,48 @@ Note that the Status section of the landing page now invites people to write to
 `contact@fjellrute.no` to ask for access, which makes the spam filter rather
 more than housekeeping: those are the messages you would be missing.
 
-### 3. Confirm migration 0007 is applied to the remote database
+### 3. Migration 0007 on the remote database — confirmed, nothing to do
 
-Cannot be checked from a review session. If it was not applied, the policy
-endpoint will throw for a signed-in user (`no such column:
-acceptedTermsVersion`) while everything else keeps working.
+**Settled on 2026-07-29 by the sign-in.** The acceptance gate appeared at
+`fjellrute.no/alpha/`, accepted, and did not return on reload. That is three
+confirmations in one action, and they were the three loosest ends in the whole
+week:
+
+- **`0007` is applied to the remote database.** Had it not been, the policy
+  endpoint would have thrown `no such column: acceptedTermsVersion` for a
+  signed-in user while everything else kept working — the kind of fault that hides
+  until someone signs in.
+- **The version bump reached the deployed bundle and Worker**, not just the static
+  mirror. The gate is driven by `PRIVACY_VERSION` compiled into both; the live
+  `/privacy.html` fetch could only ever prove the mirror.
+- **The re-acceptance path in `worker/policies.js` works against a real user.** It
+  had never run in production against a stored acceptance before: the 2026-07-28
+  bump happened while nobody held one. The path being exercised includes the
+  server refusing to take the client's word for what version was accepted.
+
+Kept for reference, since a future bump will want them. Applying twice is safe; a
+migration already recorded is skipped:
 
 ```sh
 npx wrangler d1 migrations apply fjellrute-db-eu --local
 npx wrangler d1 migrations apply fjellrute-db-eu --remote
+npx wrangler d1 migrations list fjellrute-db-eu --remote   # the direct check
 ```
 
-Applying twice is safe; a migration already recorded is skipped. Then sign in
-on the live site and confirm the acceptance gate appears once and does not come
-back on reload.
+And if a future gate misbehaves: if it never appears, suspect a stale bundle in
+the browser before suspecting the deploy — hard-reload first. If it appears and
+will not clear, that is the `PUT /api/me/policies` path, and the two version
+constants disagreeing is the first thing to rule out (`pnpm test:policies` exists
+to make that impossible in the repository, so the question becomes what production
+is actually serving).
 
-**Largely settled by the migration, and now one click from confirmed.** The
-2026-07-29 cutover copied 7 migration records into `fjellrute-db-eu` and the
-smoke test signed in successfully, which the policy endpoint is on the path of —
-`0007` is evidently there. The gate is also expected to appear *again* regardless,
-because §4 bumped `PRIVACY_VERSION` to `2026-07-29` and that bump is deployed. So
-**one sign-in settles three things at once**: that `0007` is on the remote
-database, that the version bump reached production, and that the re-acceptance
-path in `worker/policies.js` works against a real signed-in user — which it has
-never yet had to do.
+### 4. EU-jurisdiction migration — complete, and no longer reversible
 
-Expected: the gate appears once, accepting it clears it, and a reload does not
-bring it back. If it never appears at all, the likely cause is *not* a failed
-deploy — the live `/privacy.html` was fetched and confirmed to carry
-`2026-07-29` — but a stale bundle in the browser; hard-reload before suspecting
-anything else. If it appears and will not clear, that is the `PUT
-/api/me/policies` path and the two constants disagreeing is the first thing to
-rule out (`pnpm test:policies` exists to make that impossible, so look at what
-production is actually serving).
-
-### 4. EU-jurisdiction migration — done, except deleting the old database
-
-**One thing is left here: `npx wrangler d1 delete fjellrute-db`, by 2026-08-05.**
-Everything else in this item is finished; it is kept below because the deadline
-needs somewhere to live and because how it went is worth recording.
+**All ten steps are done, all on 2026-07-29.** Kept here because how it went is
+worth recording, and because one consequence of finishing it needs stating
+plainly: **the migration has no rollback any more.** Both copies it relied on —
+the old database and the export taken from it — are gone. There is exactly one
+copy of the data, and it is production.
 
 **Run on 2026-07-29, ~21:33 CEST; cutover deployed ~22:00 CEST.**
 `fjellrute-db-eu` (`1d6f92bf-83c8-4dce-80f6-d20b4a09674b`) has
@@ -395,10 +430,15 @@ is the setting the comment in `wrangler.jsonc` explicitly warns against; droppin
 that entry removed it.
 
 **The binding swap was done by hand** (`wrangler.jsonc.bak-2026-07-29` is the
-backup). The `DB` binding names `fjellrute-db-eu`, the duplicate entry is gone,
-the old name and id sit in a dated rollback comment above it, and the config
-parses with exactly one `database_name` and one `database_id` — what step 7 was
-checking for. The binding is still called `DB` on purpose: `worker/` reaches the
+backup — of the config, not of the data). The `DB` binding names
+`fjellrute-db-eu`, the duplicate entry is gone, the old name and id sit in a dated
+comment above it, and the config parses with exactly one `database_name` and one
+`database_id` — what step 7 was checking for. That comment was labelled ROLLBACK
+until the old database was deleted; it now says **historical, not a rollback**,
+because restoring those two values would bind the Worker to a database that does
+not exist and every query would fail at once. The values stay because the
+migration document refers to that id and because `git log` should not be the only
+place it survives. The binding is still called `DB` on purpose: `worker/` reaches the
 database through `env.DB` everywhere, and adopting wrangler's suggested
 `fjellrute_db_eu` name would mean renaming all of them.
 
@@ -424,29 +464,56 @@ That is a stronger policy *and* a more accurate one, which is the only version
 worth having in a document users accept. Overclaiming "your data never leaves the
 EU" would have been easy, wrong, and the kind of thing a regulator reads closely.
 
-Because the version changed, **every signed-in user gets the acceptance gate
+Because the version changed, **every signed-in user was shown the acceptance gate
 again** — unlike the 2026-07-28 bump, which happened while nobody held an
-acceptance. That is the mechanism working as designed, and it is the same click
-that confirms item 3 above.
+acceptance. Confirmed the same evening by signing in: it appeared, accepted, and
+stayed gone on reload. That is the mechanism working as designed, and it is the
+click that closed item 3.
 
-**The dump is deleted.** It was 86 kB holding every account, email address and
-recorded GPS track in the service; its deadline was 2026-08-05 and it went on
-2026-07-29, which is the right direction to be early in. Once step 5 verified the
-copy, its only remaining value was a rollback that `fjellrute-db` provides
-better.
+**Both deletions are done, and both were early.** The dump was 86 kB holding every
+account, email address and recorded GPS track in the service; deleting it as soon
+as step 5 passed was straightforwardly right, because from that moment its only
+value was a rollback the old database provided better. `fjellrute-db` followed the
+same evening, ~20 minutes after the cutover, against a deadline of 2026-08-05.
 
-**`fjellrute-db` is the last thing on a clock — delete by 2026-08-05.**
+**That second one is worth being honest about in writing.** The seven days were
+never about the deadline; they were about the class of fault that verification
+cannot see. Row counts, cascades, migration records and a smoke test all answer
+"was the copy faithful?" — and the answer was yes, thoroughly. What they cannot
+answer is "does it hold up?": a write path nobody exercised, an index that matters
+at 500 rows and not at 5, a migration recorded but subtly wrong. That is what the
+week was for, and the window for it ended up being about twenty minutes.
+
+Nothing has gone wrong, and the odds were always good at this scale — five
+accounts, one recorded track. The point is not that it was reckless; it is that
+the insurance was the one part of the plan that could not be reconstructed
+afterwards, and it was spent for a day's tidiness. `D1-EU-JURISDICTION-MIGRATION.md`
+now says so at the top and in its Rollback section, so a future migration
+following that document follows the deadline rather than this example.
+
+**What recovery now exists.** D1 Time Travel on `fjellrute-db-eu`, which restores
+a *live* database to an earlier minute from Cloudflare's write-ahead log. It covers
+the faults that are actually plausible from here — a bad migration, an unscoped
+`UPDATE`, a delete that took more rows than intended — and does not cover a dropped
+database. Confirm the retention window before relying on it, because it depends on
+the plan and cannot be read from this repository:
 
 ```sh
-npx wrangler d1 delete fjellrute-db
+npx wrangler d1 time-travel info fjellrute-db-eu
 ```
 
-Until then it is the rollback, and worth keeping for exactly that reason: if
-something surfaces in the next few days, restoring the two values from the
-comment in `wrangler.jsonc` and redeploying puts the service back on a database
-that never stopped having every row. After 2026-08-05 it stops being insurance
-and becomes a second copy of everyone's personal data with no purpose — the
-storage-limitation problem this week's work existed to remove, one database over.
+Worth running once now, while nothing is wrong. And note that a restore rewinds the
+whole database: recovering one route by going back an hour discards every other
+account's hour too.
+
+**The tempting wrong answer is a periodic SQL export.** A dump is a plaintext file
+containing every account, email address and GPS track, living wherever it was
+written — laptop, backup, cloud sync — outside every access control the
+application has. That is the storage-limitation and data-minimisation problem this
+week existed to reduce, reintroduced in a worse form. If durable backup becomes a
+real requirement rather than a reflex, it needs designing as one: encrypted,
+retained for a stated period, inside the EU, and disclosed in privacy policy §4
+alongside everything else that holds user data.
 
 **`pnpm test:migration` still passes after the hand edit** (all seven scenarios,
 including the two that assert step 7 refuses) — it runs on Python 3, so unlike the
@@ -455,8 +522,10 @@ now. Its `[real wrangler.jsonc]` section reads the *actual* config rather than a
 fixture, so now that the config names `fjellrute-db-eu` that section exercises an
 id-only swap rather than the rename it was written against; it still checks the
 properties that matter (one live `database_id`, the old id preserved in a comment,
-every comment surviving, nothing outside the binding block touched). And the
-rollback comment added by hand deliberately mimics the format
+every comment surviving, nothing outside the binding block touched). Note that
+`the old id is preserved in a comment` is one of the checks, which is a second
+reason the deleted database's id stays in the file: removing it fails the harness.
+And the comment added by hand deliberately mimics the format
 `scripts/lib/swap-d1-binding.py` writes — `//   "database_name": …` — because that
 tool's regexes anchor on a line beginning with optional whitespace and then a
 quote, so a commented-out pair is not counted as a second binding. Verified by
@@ -544,10 +613,11 @@ table is the place to confirm it did.
 Honest list of things stated above that a review session cannot check, so that
 nobody later mistakes them for confirmed:
 
-- whether migration `0007` has been applied to the **remote** D1 database. The
-  migration copied 7 records into `fjellrute-db-eu` and a real sign-in succeeded
-  against it, which is strong evidence, but the direct check is
-  `npx wrangler d1 migrations list fjellrute-db-eu --remote`;
+- ~~whether migration `0007` has been applied to the **remote** D1 database~~ —
+  resolved on 2026-07-29 by the sign-in. The gate is served by the policy
+  endpoint, which reads `acceptedPrivacyVersion`; it rendered and cleared, so the
+  column exists. `npx wrangler d1 migrations list fjellrute-db-eu --remote` is
+  still the direct check if it is ever in doubt again;
 - ~~whether the D1 database is still outside the EU jurisdiction~~ — resolved on
   2026-07-29. It was (`jurisdiction: none`); `fjellrute-db-eu` was created with
   `jurisdiction eu` confirmed, and production was deployed against it and
@@ -561,19 +631,24 @@ nobody later mistakes them for confirmed:
   for real on Node 22.18 rather than through the Node 12 port used earlier, and
   `test:policies` reported `PASS bumping PRIVACY_VERSION re-gates an
   already-accepted account`;
-- **but note what that fetch does and does not prove.** It reads
+- note what that fetch alone could not prove, and what closed the gap. It reads
   `public/privacy.html`, the static mirror — the copy Google's consent screen
   links to. The text users see *inside* the app comes from `src/terms/privacy.ts`
   through the JS bundle, and the gate is driven by the constant in
-  `worker/policyVersions.js`. Those two are confirmed only by the harness, which
-  is exactly what the harness is for, but the mirror being right does not by
-  itself mean the bundle is. The gate appearing on sign-in is what closes that
-  gap;
-- **whether the acceptance gate actually re-presents** after the version bump,
-  and whether accepting it clears permanently. This is the first bump to face
-  real signed-in users, so it is also the first real exercise of the
-  re-acceptance path in `worker/policies.js`. Still the single highest-value
-  click available;
+  `worker/policyVersions.js`; the mirror being right does not by itself mean the
+  bundle is. The gate appearing on sign-in is what settled it, which is why that
+  one click was worth more than any check available from here;
+- ~~whether the acceptance gate actually re-presents after the version bump, and
+  whether accepting it clears permanently~~ — resolved on 2026-07-29. It appeared,
+  accepted, and did not return on reload. First real exercise of the re-acceptance
+  path in `worker/policies.js`, and it worked;
+- **whether anything about the new database only misbehaves under a few days of
+  real use.** This is now unanswerable in the way that matters: the old database
+  was deleted the same evening, so there is nothing to compare against and nothing
+  to fall back to. The copy was verified thoroughly (row counts, cascades,
+  migration records, a real write) and that is genuinely strong — but faithful at
+  the moment of copying and durable in use are different claims, and only the first
+  one was ever tested. D1 Time Travel is the remaining recourse; see §4;
 - ~~the exact *App name* string on the OAuth consent screen, and the six other
   consent-screen values still blank~~ — all seven were read from the console and
   recorded in `docs/AUTH_SETUP.md` on 2026-07-29, including the *Application home
@@ -621,10 +696,11 @@ pnpm test:migration      # the EU migration script's guardrails, against a stub
 pnpm build               # tsc -b && vite build
 pnpm lint                # 8 pre-existing problems, none from Week 3
 dig MX fjellrute.no      # should list Cloudflare's three mail servers
-git log --oneline -3     # 0b7f157, 28b7824, 90d4118 — nothing since; see git status
-git status --short       # deployed-but-uncommitted: the policy bump (§4) + wrangler.jsonc (§7)
+git log --oneline -3     # cfecf1a, 0b7f157, 28b7824
+git status --short       # only .claude/settings.local.json (§5), plus any later revision
 npx wrangler d1 info fjellrute-db-eu       # jurisdiction eu — this is production
-npx wrangler d1 list                       # fjellrute-db should be gone by 2026-08-05
+npx wrangler d1 list                       # one database; fjellrute-db is gone
+npx wrangler d1 time-travel info fjellrute-db-eu   # the only recovery path left (§4)
 grep -h "PRIVACY_VERSION = " src/terms/privacy.ts worker/policyVersions.js
 curl -s https://fjellrute.gillesvandevyver1.workers.dev/privacy.html \
   | grep -c 'restricted to data centres'
@@ -639,9 +715,9 @@ certainly the deployment just made; `https://fjellrute.no/privacy.html` should
 return the same bytes, and it is worth checking both, since that domain is
 attached outside this config and so cannot be confirmed from the repo.
 
-Note the mismatch the `git` lines above will show: `git log` has moved on less
-than the deployed service has, because what is running in production is not yet
-in any commit.
+`d1 list` returning a single database is the expected state, not a problem: the
+old one was deleted on 2026-07-29. If a second ever reappears, something created
+it — check which one `wrangler.jsonc` binds before assuming which is live.
 
 ### Getting those commands to run at all
 
@@ -698,38 +774,34 @@ stronger version and would have named the problem outright, but pnpm treats an
 cannot install at all until they upgrade. That is arguably the correct outcome
 and is still a decision rather than a tidy-up.
 
-## The state of the tree, which is unusual and should not stay this way
+## The state of the tree
 
-As of this revision the working tree is **not** clean, and the direction of the
-mismatch has flipped. Earlier today the tree was ahead of production: the policy
-edit existed only locally. It has now been built and deployed, so **production is
-ahead of `git`** — the running Worker serves code and policy text that exist in no
-commit. `git log --oneline -3` still ends at `0b7f157`.
+**Clean as of `cfecf1a` ("Week 3 plan"), apart from `.claude/settings.local.json`
+(§5) and whatever the current revision has touched.** Production and the
+repository describe the same service again, which they briefly did not: for about
+an hour on the evening of 2026-07-29 the policy change was deployed but
+uncommitted, so the running Worker served code that existed in no commit. That is
+the worse direction of the two mismatches, and committing ended it.
 
-Uncommitted, all of it deployed except the last:
+The one intentional divergence left is the duplicate R2 binding (§7): removed from
+the repository, still present in the deployed Worker until something else ships.
+Nothing reads it.
 
-- `src/terms/privacy.ts`, `public/privacy.html`, `worker/policyVersions.js` — the
-  strengthened §4 and the version bump (§4);
-- `docs/` and `deploy_instructions.md` — this file, the migration document,
-  `AUTH_SETUP.md`, and the operational docs repointed to `fjellrute-db-eu`;
-- `scripts/invite/create-invite.mjs` — one stale database name;
-- `wrangler.jsonc` — the duplicate R2 binding removed (§7). This one is *not*
-  deployed, deliberately; see §7.
+## Week 3, closed
 
-Untracked, both deliberately: `wrangler.jsonc.bak-2026-07-29` (now gitignored)
-and `.claude/settings.local.json` (§5).
+The week's stated goal was GDPR and accounts hygiene, and against that:
+policy-acceptance tracking exists and has now been exercised against a real user;
+account deletion is tested, including its SQL; the database is restricted to EU
+data centres and the privacy policy says so accurately rather than hopefully; the
+retention cron purges session rows carrying IP addresses; the OAuth home page
+explains what happens to Google user data; a plaintext dump of every account is
+gone and so is the redundant second copy of the database.
 
-Production being ahead of the repository is worse than the other way round: a
-rollback has nothing to roll back to, and the next person to clone cannot
-reproduce what is running. Committing costs one command and removes the whole
-problem.
+What is left is a short list of decisions rather than work: whether to remove the
+Google logo and end the verification loop (§1), a Gmail filter (§2), one untracked
+config file (§5), and the optional items in §6. None of it blocks anything.
 
-**Three things, in this order, and the first two are tonight's work:**
-
-1. **Sign in once** and watch the acceptance gate appear and clear. That single
-   click confirms the version bump reached the bundle, exercises the
-   re-acceptance path in `worker/policies.js` against a real user for the first
-   time, and answers §3's migration `0007` question.
-2. **Commit.** See the list above; nothing in it is accidental.
-3. **`npx wrangler d1 delete fjellrute-db` by 2026-08-05** (§4) — and not before
-   the sign-in above has held up, because until then it is the rollback.
+The one thing worth carrying into next week is not a task but a habit: the seven-day
+rollback window in §4 was the only part of this week's plan that could not be
+reconstructed afterwards, and it was the part that got skipped. Nothing came of it.
+The lesson is cheap to keep and expensive to relearn.

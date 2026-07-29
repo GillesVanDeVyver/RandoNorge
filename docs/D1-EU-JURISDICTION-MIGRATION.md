@@ -1,8 +1,8 @@
 # Moving `fjellrute-db` into Cloudflare's EU jurisdiction
 
-**Status: done 2026-07-29, except the deletion in step 10.** Decided 2026-07-28
-(Week 3) to do this now rather than later, and executed in one sitting as
-intended.
+**Status: complete, 2026-07-29.** All ten steps, decided 2026-07-28 (Week 3) and
+executed in one sitting as intended — including step 10, which was expected to
+take another week and did not.
 
 Production runs on `fjellrute-db-eu` (`1d6f92bf-83c8-4dce-80f6-d20b4a09674b`),
 jurisdiction `eu` confirmed, with a verified copy of all ten tables — row counts
@@ -10,11 +10,16 @@ matched, the `account` / `route` / `session` / `track` cascades survived, 7
 migration records copied — deployed and smoke-tested through a real sign-in,
 route save and delete. Step 7 needed a hand edit; see step 10 for why.
 
-**One thing is left: `fjellrute-db` still exists, and must be deleted by
-2026-08-05.** The dump is already gone. Step 9 (the privacy policy) was done and
-deployed the same evening in `PRIVACY_VERSION` `2026-07-29`, version
-`1d0855e9-0b33-42c4-a21d-6191080f93d1`, and confirmed by fetching the live
-`/privacy.html`.
+**Nothing is left.** Step 9 (the privacy policy) was deployed the same evening in
+`PRIVACY_VERSION` `2026-07-29`, version `1d0855e9-0b33-42c4-a21d-6191080f93d1`,
+confirmed by fetching the live `/privacy.html` and by a real sign-in through the
+re-presented acceptance gate. Step 10 is also done: both the dump and
+`fjellrute-db` were deleted on 2026-07-29, seven days inside the deadline.
+
+**Read the Rollback section before assuming this document describes a reversible
+change.** It no longer is. The old database and the export taken from it are both
+gone, so the rollback the earlier steps repeatedly promise does not exist any
+more; the remaining recovery path is D1 Time Travel on `fjellrute-db-eu`.
 
 Not part of the migration but discovered by it: wrangler's add-a-binding prompt
 had also left a **duplicate R2 binding** in `wrangler.jsonc`, which nothing
@@ -214,7 +219,10 @@ npx wrangler d1 migrations apply fjellrute-db-eu --remote
 
 In `wrangler.jsonc`, change `database_id` on the `DB` binding to the new id and
 `database_name` to `fjellrute-db-eu`. Leave the old id in a comment with the
-date, so a rollback does not depend on this file's history.
+date, so a rollback does not depend on this file's history. (In this repository
+that comment has since been relabelled as a historical record, because the
+database it names was deleted the same evening — see Rollback. For a future run,
+the instruction above is still the right one.)
 
 > **Expect the script to stop here, and expect a second binding to be the reason.**
 > On 2026-07-29 it refused with *"expected exactly one database_name and one
@@ -319,7 +327,8 @@ an unwritten deadline is the one that slips.
 - Step 8 cutover (Worker deployed against `fjellrute-db-eu`): **2026-07-29**,
   ~22:00 CEST — deployed and smoke-tested (sign in, route library, save, delete)
 - Dump `fjellrute-dump.sql` deleted by: **2026-08-05** — *deleted 2026-07-29*
-- Old database `fjellrute-db` deleted by: **2026-08-05** (cutover + 7 days)
+- Old database `fjellrute-db` deleted by: **2026-08-05** — *deleted 2026-07-29,
+  the same evening as the cutover*
 
 **How 2026-08-05 was arrived at.** The copy and the cutover happened within half
 an hour of each other on 2026-07-29, so the two clocks that step 10 keeps separate
@@ -327,6 +336,23 @@ landed on the same date this time. That is a coincidence of a quick evening, not
 the rule: had step 7 taken until the following week, the dump's deadline would
 still have been 2026-08-05 while the old database's would have moved out with the
 cutover. The rule is what is written above the lines.
+
+**Both deletions happened the same evening, and the second one traded away the
+safety margin the deadline existed to provide.** Written down plainly because the
+dates above make it look like a schedule kept early rather than a step skipped.
+The seven days were not about the deadline; they were about a class of fault that
+only shows up under real use — a write path nobody smoke-tested, an index that
+matters at 500 rows and not at 5, a migration record that is present but wrong.
+The rollback window for that class of fault ended up being about twenty minutes,
+which is how long passed between the cutover and the deletion.
+
+Nothing has gone wrong, and the verification that preceded the cutover was genuine
+— every row counted, every cascade checked, a real sign-in and a real write. The
+point is only that verification and endurance answer different questions, and this
+run answered the first one twice. If a future migration follows this document,
+follow the deadline rather than this example: it costs nothing to let a database
+sit for six more days, and it is the only part of the plan that cannot be
+reconstructed afterwards.
 
 The run did stop once, at step 7, because `wrangler.jsonc` had two
 `database_name` keys — wrangler's own *"Would you like Wrangler to add it on your
@@ -336,21 +362,57 @@ refuses to guess which one to rewrite, which is correct: the wrong guess deploys
 production against the wrong database. The binding was swapped by hand, and step 8
 then went through.
 
-**The dump is already gone**, ahead of its deadline, which is the right direction
-to be early in: it was 86 kB holding every account, email address and recorded GPS
-track in the service, and once step 5 passed its only remaining value was a
-rollback that `fjellrute-db` — untouched, every row present — provides better.
+**The dump is gone**, ahead of its deadline, which is the right direction to be
+early in: it was 86 kB holding every account, email address and recorded GPS track
+in the service, and once step 5 passed its only remaining value was a rollback
+that `fjellrute-db` provided better — while `fjellrute-db` existed.
 
-**`fjellrute-db` is the one thing still on a clock.** It is now the redundant
-copy rather than production, so 2026-08-05 is a real deadline and not a
-formality. Until then it is the rollback; after then it is just a second copy of
-everyone's personal data, which is the storage-limitation problem this week's work
-existed to remove. If you find that line still unstruck after 2026-08-05, the
-deletion has been forgotten, which is exactly the failure this section exists to
-prevent.
+**`fjellrute-db` is gone too.** Deleted 2026-07-29. Nothing in this document is
+now waiting on a date, and there is exactly one copy of the data: production.
 
 ## Rollback
 
-Before step 10, rollback is: put the old `database_id` and name back in
-`wrangler.jsonc`, `npx wrangler deploy`, and the service is on the original
-database again. Nothing else in the config depends on which database is bound.
+**There is no longer a rollback for this migration.** Both copies it depended on —
+`fjellrute-db` and `fjellrute-dump.sql` — were deleted on 2026-07-29. The
+`wrangler.jsonc` comment holding the old name and id is a historical record, not
+an instruction: restoring those values would bind the Worker to a database that no
+longer exists, and the failure would look like every query erroring at once.
+
+`scripts/migrate-d1-to-eu.sh` still prints *"the old database is untouched and
+still has every row"* and *"the old database still exists — step 10 is yours"*, and
+that is **correct and should stay**. Those lines are printed during a run, at a
+moment when the script has just created the new database from the old one, so the
+old one necessarily exists. They describe the state at the time they appear, not
+the state of this repository now. Do not "fix" them into agreeing with this
+section; a future run needs them.
+
+What remains is **D1 Time Travel**, which is a different and narrower thing. It
+restores a *live* database to an earlier point in time from Cloudflare's own
+write-ahead log, so it covers the faults that are actually plausible from here —
+a bad migration, a mistaken bulk `UPDATE`, a deletion that took more rows than
+intended. It does not cover a dropped database, and it is not a backup you hold a
+copy of.
+
+Confirm the window before relying on it, because it depends on the plan and is not
+readable from this repository:
+
+```sh
+npx wrangler d1 time-travel info fjellrute-db-eu
+npx wrangler d1 time-travel restore fjellrute-db-eu --timestamp <ISO-8601>
+```
+
+Check that *before* you need it, not after. A restore also rewinds the whole
+database, so anything written between the chosen timestamp and now is lost —
+recovering one deleted route by rewinding an hour would discard every other
+account's hour as well.
+
+**The tempting wrong answer is to keep a periodic SQL export.** A dump is a
+plaintext file containing every account, email address and GPS track in the
+service, and it lives wherever it was written — a laptop, a backup, a cloud sync
+folder — outside every access control the application has. That is the
+storage-limitation and data-minimisation problem this whole migration existed to
+reduce, and it would be reintroduced in a worse form than the one that was
+removed. If durable backup becomes a real requirement rather than a reflex, it
+needs to be designed as one: encrypted, retained for a stated period, inside the
+EU, and disclosed in privacy policy §4 alongside everything else that holds user
+data.

@@ -17,12 +17,12 @@
 	// D1 (SQLite at the edge) stores user accounts, sessions, email
 	// verification tokens and — next step — saved routes. Schema changes
 	// live in migrations/ and are applied with
-	// `npx wrangler d1 migrations apply fjellrute-db --remote`.
+	// `npx wrangler d1 migrations apply fjellrute-db-eu --remote`.
 	// See docs/AUTH_SETUP.md for the full checklist (incl. secrets).
 	//
 	// `wrangler dev` now develops against an isolated LOCAL copy of the
 	// database. Apply migrations to it with:
-	//   npx wrangler d1 migrations apply fjellrute-db --local
+	//   npx wrangler d1 migrations apply fjellrute-db-eu --local
 	// Add `"remote": true` back to this binding only if you deliberately
 	// want dev to read/write the real production database — note that then
 	// every D1 query is a network round-trip through wrangler's remote-dev
@@ -33,11 +33,18 @@
 	// 2026-07-29: moved into Cloudflare's EU jurisdiction. A jurisdiction can
 	// only be set when a database is created, so this is a new database with a
 	// verified copy of the old one — see docs/D1-EU-JURISDICTION-MIGRATION.md.
-	// ROLLBACK: put these two values back and redeploy. The old database is
-	// untouched and still holds every row; do not delete it until the new one
-	// has served real traffic (step 10 of that document has the deadline).
+	// HISTORICAL, NOT A ROLLBACK. The database these two values name was deleted
+	// on 2026-07-29, the same evening as the cutover, along with the export taken
+	// from it. Putting them back would bind the Worker to a database that no
+	// longer exists. They are kept only so the id in the migration document can
+	// be matched to something, and so `git log` is not the only record:
 	//   "database_name": "fjellrute-db",
 	//   "database_id": "fc24cf1f-35c7-4c9d-8a5a-4de38a3865fb"
+	// Recovery for this database is D1 Time Travel, which restores a live
+	// database to an earlier minute — it cannot recover a dropped one. Do not
+	// answer that by keeping a SQL export around: a plaintext copy of every
+	// account and GPS track sitting in a working directory is the exact
+	// storage-limitation problem the move was made to fix.
 	// The binding stays DB: worker/ reaches the database through env.DB
 	// throughout, so renaming it here would mean renaming it everywhere.
 	"d1_databases": [

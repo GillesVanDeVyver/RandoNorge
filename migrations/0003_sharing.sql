@@ -15,8 +15,8 @@
 --     public exactly like planned routes: private until "isShared" is set,
 --     then reachable by the unguessable "shareSlug".
 --
--- Apply locally:  npx wrangler d1 migrations apply fjellrute-db --local
--- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db --remote
+-- Apply locally:  npx wrangler d1 migrations apply fjellrute-db-eu --local
+-- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db-eu --remote
 
 alter table "user" add column "username" text;
 

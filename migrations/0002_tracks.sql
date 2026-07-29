@@ -11,8 +11,8 @@
 -- nullable (recording an unsaved plan) and set null if the plan is later
 -- deleted, so the activity log survives route cleanup.
 --
--- Apply locally:  npx wrangler d1 migrations apply fjellrute-db --local
--- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db --remote
+-- Apply locally:  npx wrangler d1 migrations apply fjellrute-db-eu --local
+-- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db-eu --remote
 
 create table "track" (
   "id" text not null primary key,

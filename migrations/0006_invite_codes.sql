@@ -8,8 +8,8 @@
 -- (worker/invite.js). Remove the gate (delete the intercept in index.js) to
 -- open public sign-ups later; the tables can stay.
 --
--- Apply locally:  npx wrangler d1 migrations apply fjellrute-db --local
--- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db --remote
+-- Apply locally:  npx wrangler d1 migrations apply fjellrute-db-eu --local
+-- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db-eu --remote
 
 -- One row per code we issue. "code" is stored normalized (upper-case, trimmed)
 -- exactly as the redeem/validate path normalizes user input, so a plain

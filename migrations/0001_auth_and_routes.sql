@@ -8,8 +8,8 @@
 -- The "route" table is created now (empty) so the upcoming save/share
 -- feature only needs API endpoints, not a schema change.
 --
--- Apply locally:  npx wrangler d1 migrations apply fjellrute-db --local
--- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db --remote
+-- Apply locally:  npx wrangler d1 migrations apply fjellrute-db-eu --local
+-- Apply in prod:  npx wrangler d1 migrations apply fjellrute-db-eu --remote
 
 create table "user" (
   "id" text not null primary key,
