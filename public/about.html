@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="nb">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b1018" />
+    <link rel="canonical" href="https://fjellrute.no/about.html" />
+    <!-- Both languages, because the page is Norwegian-first but the OAuth
+         reviewer reads English. -->
+    <meta
+      name="description"
+      content="Fjellrute er en turplanlegger for topptur og fjelltur i Norge: tegn ruten i terrenget, se bratthet og skredutsatt terreng, og les snø-, skred- og værvarsel på ett sted. — Fjellrute is a tour planner for backcountry skiing and mountain hiking in Norway."
+    />
+    <title>Fjellrute — turplanlegger for topptur og fjelltur i Norge</title>
+    <!--
+      THIS PAGE IS THE GOOGLE OAUTH "APPLICATION HOME PAGE".
+
+      That is the whole reason it exists as a separate file. It was split out of
+      public/coming-soon.html on 2026-07-29: the site root was wanted as a
+      near-empty holding screen for the public, but the root was also the URL
+      declared as the application home page on the OAuth consent screen, and
+      the review had just failed on the content that a holding screen by
+      definition does not have. Rather than choose, the two audiences were given
+      two pages. The root is now for visitors; this one is for the reviewer, and
+      the consent screen points here.
+
+      IF YOU CHANGE THE URL OF THIS FILE, the consent screen's "Application home
+      page" field must change with it, or the review fetches a page that no
+      longer explains anything. The field is recorded in docs/AUTH_SETUP.md and
+      lives in the Google Cloud console under APIs & Services → OAuth consent
+      screen → Branding.
+
+      Google's OAuth verification rejected an earlier version of this content on
+      three grounds, which the markup below is shaped to answer. Please keep
+      these true when editing (see docs/AUTH_SETUP.md):
+
+        1. The app name must appear on the page and match the consent screen
+           exactly — hence <h1>Fjellrute</h1> as real visible text, not only the
+           wordmark in the header.
+        2. The page must explain what the app is for. The "what it is" section
+           is there for that reason; it is not decoration.
+        3. Nothing may sit behind a sign-in, and the explanation must be
+           readable without logging in — which also means without JavaScript,
+           since a reviewer or crawler may not run it. Both languages are
+           therefore in the static HTML and the script at the bottom only
+           *hides* the one the visitor does not need. Move copy into the script
+           and the reviewer stops seeing it.
+        4. Google's guidance asks the home page to say not only what the app
+           does but what it does with *Google user data*. The "Konto" /
+           "Accounts" sections therefore name the scopes in prose — only name
+           and email address, used to identify the account, no Gmail/Drive/
+           contacts/calendar access, never for ads or model training. That
+           second paragraph is a verification requirement, not marketing copy.
+
+      One further thing, which is judgement rather than a stated rule: this page
+      must read as belonging to a product that exists. An earlier version
+      announced the app as forthcoming and in a closed test — accurate about the
+      rollout, but precisely the impression this check exists to reject, and
+      untrue of the software, which has been running for invited testers
+      throughout. The wording now describes an invitation-limited service that
+      works today. Keep it accurate, but do not put the product back into the
+      future tense. Note that the root page *does* say the product is coming,
+      which is a deliberate split and the reason the consent screen must not
+      point at the root. scripts/verify-landing-page.mjs enforces both halves:
+      no forthcoming-product wording here, and no explanatory content required
+      of the root.
+
+      A reachable privacy-policy link is required too, and is the reason
+      public/privacy.html exists as a static mirror of src/terms/privacy.ts.
+    -->
+    <style>
+      :root {
+        --accent: #2dd4bf;
+        --accent-contrast: #04241f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #0b1018;
+      }
+      body {
+        font-family:
+          'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          Helvetica, Arial, sans-serif;
+      }
+      .header {
+        padding: clamp(20px, 3.5vw, 48px) clamp(20px, 3.5vw, 48px) 0;
+        background: #0b1018;
+      }
+      .headerInner {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+      }
+      .brandIcon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--accent-contrast);
+      }
+      .brandIcon svg {
+        width: 22px;
+        height: 22px;
+      }
+      .brandName {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: #fff;
+      }
+      /* The app name, as the page's only level-one heading. Google's OAuth
+         review compares the name here with the one on the consent screen, so
+         it must be real, visible text reading exactly "Fjellrute". */
+      .appName {
+        margin: clamp(28px, 4vw, 44px) 0 0;
+        font-size: clamp(40px, 5vw, 68px);
+        line-height: 1.02;
+        font-weight: 800;
+        letter-spacing: -0.035em;
+        color: #fff;
+      }
+      .tagline {
+        margin: 14px 0 0;
+        max-width: 52ch;
+        font-size: clamp(16px, 1.3vw, 19px);
+        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.72);
+      }
+
+      /* "What Fjellrute is" — the section that answers Google's "your home
+         page does not explain the purpose of your app". Plain dark panel, no
+         photo, so it stays readable at any width. */
+      .about {
+        position: relative;
+        padding: clamp(32px, 5vw, 64px) clamp(20px, 3.5vw, 48px);
+        background: #0b1018;
+        color: rgba(255, 255, 255, 0.82);
+      }
+      .aboutInner {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .about h2 {
+        margin: 0 0 18px;
+        font-size: clamp(22px, 2.2vw, 30px);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #fff;
+      }
+      .about h3 {
+        margin: 34px 0 10px;
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: #fff;
+      }
+      .about p {
+        margin: 0 0 14px;
+        font-size: 1rem;
+        line-height: 1.65;
+      }
+      .about ul {
+        margin: 0 0 14px;
+        padding-left: 1.15rem;
+        line-height: 1.65;
+      }
+      .about li {
+        margin-bottom: 7px;
+      }
+      .about a {
+        color: var(--accent);
+      }
+      /* Inline paths (e.g. the app's URL in the Status section). Sized in `em`
+         so the monospace fallback does not tower over the surrounding prose. */
+      .about code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.92);
+      }
+      .footer {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 28px clamp(20px, 3.5vw, 48px) 48px;
+        font-size: 0.86rem;
+        line-height: 1.6;
+        color: rgba(255, 255, 255, 0.6);
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        background: #0b1018;
+      }
+      .footer a {
+        color: rgba(255, 255, 255, 0.82);
+      }
+      /* Both languages ship in the HTML so the page explains itself without
+         JavaScript; the script only sets `hidden` on the one the visitor does
+         not need. `!important` is load-bearing: the UA's `[hidden]` rule loses
+         to any class-based `display` (a hidden flex item would still be
+         flex), which would show both languages at once. */
+      [data-lang-block][hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="headerInner">
+        <a class="brand" href="/">
+          <span class="brandIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <g
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M1.5 20 L6.5 8.5 L9.5 12.5 L13 5.5 L17.5 17 L19.5 14.5 L22.5 20 Z" />
+                <path
+                  d="M18.5 19.9 C 13 19 10.5 16.5 12 13.8 C 13 11.9 12.9 9.6 12.95 7.8"
+                  stroke-width="1.8"
+                />
+              </g>
+            </svg>
+          </span>
+          <span class="brandName">Fjellrute</span>
+        </a>
+
+        <!-- The app name, verbatim as on the OAuth consent screen. -->
+        <h1 class="appName">Fjellrute</h1>
+        <p class="tagline" data-lang-block="nb" lang="nb">
+          Turplanlegger for topptur og fjelltur i Norge.
+        </p>
+        <p class="tagline" data-lang-block="en" lang="en">
+          A tour planner for backcountry skiing and mountain hiking in Norway.
+        </p>
+      </div>
+    </header>
+
+    <!--
+      The "what this app is for" section Google's review asked for. Both
+      languages are static HTML on purpose (see the note in <head>): whatever
+      a reviewer, a crawler or a JavaScript-less browser gets, it gets the
+      explanation. The wording of the "Viktig / Important" part is kept in
+      step with §1 and §2 of the terms of use (src/terms/content.ts) — the
+      point of that paragraph is that the limits are stated before anyone
+      signs up, not only inside the acceptance gate.
+    -->
+    <main class="about" id="about">
+      <div class="aboutInner">
+        <section data-lang-block="nb" lang="nb">
+          <h2>Hva Fjellrute er</h2>
+          <p>
+            <strong>Fjellrute</strong> er en nettbasert turplanlegger for
+            topptur og fjelltur i Norge. Tjenesten samler åpne offentlige data
+            — topografiske kart, bratthet og utløpsområder, snødybde,
+            snøskredvarsel og værvarsel — i én visning, slik at planleggingen
+            av turen skjer på ett sted framfor i et halvt dusin faner.
+          </p>
+
+          <h3>Hva du kan gjøre</h3>
+          <ul>
+            <li>
+              Tegne ruten rett på kartet og se lengde, høydemeter,
+              høydeprofil og et tidsanslag.
+            </li>
+            <li>
+              Se bratthet og skredutsatt terreng lagt over kartet, i 2D og i
+              3D.
+            </li>
+            <li>
+              Lese snødybde, snøskredvarsel og værvarsel for den dagen du
+              planlegger for.
+            </li>
+            <li>
+              Lagre rutene dine, dele dem med en lenke, og laste ned kart for
+              bruk uten mobildekning.
+            </li>
+            <li>
+              Ta opp turen du faktisk gikk, og se den ved siden av planen.
+            </li>
+          </ul>
+
+          <h3>Konto</h3>
+          <p>
+            Fjellrute kan brukes som gjest. Med en konto — e-post og passord,
+            eller «Fortsett med Google» — lagres rutene, sporene og
+            innstillingene dine, så de følger med mellom telefon og
+            datamaskin. Vi bruker ingen analyse- eller reklamesporing. Hva som
+            lagres og hvorfor står i
+            <a href="/privacy.html">personvernerklæringen</a>.
+          </p>
+          <p>
+            «Fortsett med Google» finnes for at du skal kunne opprette og logge
+            inn på en Fjellrute-konto uten et eget passord. Bruker du den,
+            mottar Fjellrute bare navnet og e-postadressen din fra Google, og
+            bruker dem utelukkende til å identifisere kontoen din. Vi ber ikke
+            om tilgang til Gmail, Google Disk, kontakter eller kalender, og
+            Google-data brukes aldri til annonser, selges ikke videre og brukes
+            ikke til å trene modeller.
+          </p>
+
+          <h3>Viktig</h3>
+          <p>
+            Fjellrute er et hjelpemiddel for planlegging, ikke noe mer.
+            Tjenesten er ikke sikkerhetsutstyr, ikke et navigasjonsinstrument
+            for nødsituasjoner, og ikke en erstatning for skredopplæring,
+            erfaring, riktig utstyr, lokalkunnskap eller dine egne vurderinger
+            i terrenget. Kart-, vær-, snø- og skreddata kommer fra
+            tredjeparter og leveres «som de er»; varsler er prognoser, ikke
+            fakta, og forholdene i fjellet kan avvike vesentlig fra det appen
+            viser.
+          </p>
+
+          <h3>Status</h3>
+          <p>
+            Fjellrute er i drift, og alt som er beskrevet over virker i appen i
+            dag. Tilgangen er invitasjonsbasert i denne første fasen, mens de
+            siste funksjonene ferdigstilles og vi holder antallet brukere lavt
+            nok til å følge opp tilbakemeldinger. Denne siden beskriver
+            tjenesten; appen ligger på
+            <code>fjellrute.no/alpha/</code>. Vil du prøve den, skriv til
+            <a href="mailto:contact@fjellrute.no">contact@fjellrute.no</a>.
+          </p>
+        </section>
+
+        <section data-lang-block="en" lang="en">
+          <h2>What Fjellrute is</h2>
+          <p>
+            <strong>Fjellrute</strong> is a web-based tour planner for
+            backcountry skiing and mountain hiking in Norway. It brings open
+            public data — topographic maps, slope steepness and avalanche
+            runout, snow depth, avalanche forecasts and weather forecasts —
+            into a single view, so that planning a tour happens in one place
+            rather than across half a dozen browser tabs.
+          </p>
+
+          <h3>What you can do</h3>
+          <ul>
+            <li>
+              Draw a route directly on the map and see its distance, ascent,
+              elevation profile and an estimated time.
+            </li>
+            <li>
+              See steepness and avalanche terrain shaded over the map, in 2D
+              and in 3D.
+            </li>
+            <li>
+              Read snow depth, avalanche warnings and the weather forecast for
+              the day you are planning for.
+            </li>
+            <li>
+              Save your routes, share them with a link, and download maps for
+              use without mobile coverage.
+            </li>
+            <li>
+              Record the tour you actually did and view it alongside the plan.
+            </li>
+          </ul>
+
+          <h3>Accounts</h3>
+          <p>
+            Fjellrute can be used as a guest. With an account — email and
+            password, or “Continue with Google” — your routes, recorded tracks
+            and settings are stored, so they follow you between phone and
+            computer. We use no analytics or advertising trackers. What is
+            stored, and why, is set out in the
+            <a href="/privacy.html">privacy policy</a>.
+          </p>
+          <p>
+            “Continue with Google” exists so that you can create and sign in to
+            a Fjellrute account without a separate password. When you use it,
+            Fjellrute receives only your name and email address from Google,
+            and uses them solely to identify your account. We request no access
+            to Gmail, Google Drive, contacts or calendar, and Google user data
+            is never used for advertising, sold on, or used to train models.
+          </p>
+
+          <h3>Important</h3>
+          <p>
+            Fjellrute is a planning aid and nothing more. It is not a safety
+            device, not a navigation instrument for emergencies, and not a
+            substitute for avalanche training, experience, proper equipment,
+            local knowledge or your own judgement in the terrain. Map,
+            weather, snow and avalanche data come from third parties and are
+            provided “as is”; forecasts are predictions, not facts, and
+            conditions in the mountains can differ substantially from what the
+            app shows.
+          </p>
+
+          <h3>Status</h3>
+          <p>
+            Fjellrute is running, and everything described above works in the
+            app today. Access is invitation-based in this first phase, while the
+            last features are finished and we keep the number of users low
+            enough to act on the feedback we get. This page describes the
+            service; the app itself lives at
+            <code>fjellrute.no/alpha/</code>. To try it, write to
+            <a href="mailto:contact@fjellrute.no">contact@fjellrute.no</a>.
+          </p>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p data-lang-block="nb" lang="nb">
+        Fjellrute · <a href="/privacy.html">Personvernerklæring</a> ·
+        Kontakt: <a href="mailto:contact@fjellrute.no">contact@fjellrute.no</a>
+        <br />
+        Kart- og terrengdata fra Kartverket, værvarsel fra MET Norway,
+        snødybde og snøskredvarsel fra NVE (seNorge og Varsom).
+      </p>
+      <p data-lang-block="en" lang="en">
+        Fjellrute · <a href="/privacy.html">Privacy policy</a> · Contact:
+        <a href="mailto:contact@fjellrute.no">contact@fjellrute.no</a>
+        <br />
+        Map and terrain data from Kartverket, weather forecasts from MET
+        Norway, snow depth and avalanche warnings from NVE (seNorge and
+        Varsom).
+      </p>
+    </footer>
+
+    <script>
+      // Language: Norwegian by default (the app's default), English for
+      // clearly non-Norwegian browsers. No persistence needed here.
+      //
+      // Both languages are already in the HTML, so this only *hides* the
+      // one the visitor does not need. That ordering matters: with
+      // JavaScript blocked, or for a crawler that does not run it, the page
+      // still shows what the app is — just twice. Do not turn this back into
+      // text injection; Google's OAuth review reads the served HTML.
+      (function () {
+        var lang = (navigator.language || 'nb').toLowerCase();
+        var en = !(
+          lang.indexOf('nb') === 0 ||
+          lang.indexOf('nn') === 0 ||
+          lang.indexOf('no') === 0
+        );
+        var keep = en ? 'en' : 'nb';
+        document.documentElement.lang = keep;
+        var blocks = document.querySelectorAll('[data-lang-block]');
+        for (var i = 0; i < blocks.length; i++) {
+          if (blocks[i].getAttribute('data-lang-block') !== keep)
+            blocks[i].hidden = true;
+        }
+      })();
+    </script>
+  </body>
+</html>

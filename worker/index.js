@@ -80,13 +80,18 @@ async function handleRequest(request, env, ctx) {
   const { pathname } = url;
 
     // Closed-alpha public face: a bare visit to the site root shows the
-    // static "coming soon" page (public/coming-soon.html) instead of the
-    // app's login screen. The real app stays reachable for testers at
-    // /alpha/ and via its own deep links / public share URLs (/u/…), which
-    // still fall through to the SPA below — this only changes what the
-    // domain root itself serves. Requires "/" in run_worker_first
-    // (wrangler.jsonc) so the Worker beats the assets SPA fallback here.
-    // Remove this block (and the "/" entry) to make the app public again.
+    // static holding page (public/coming-soon.html) instead of the app's
+    // login screen. The real app stays reachable for testers at /alpha/ and
+    // via its own deep links / public share URLs (/u/…), which still fall
+    // through to the SPA below — this only changes what the domain root
+    // itself serves. Requires "/" in run_worker_first (wrangler.jsonc) so
+    // the Worker beats the assets SPA fallback here. Remove this block (and
+    // the "/" entry) to make the app public again.
+    //
+    // That page is deliberately almost empty, and is therefore *not* the URL
+    // to declare as the application home page on Google's OAuth consent
+    // screen — that is public/about.html, which ASSETS serves directly and so
+    // needs no branch here. See the comment at the top of either file.
     if (pathname === '/') {
       const landing = await env.ASSETS.fetch(
         new Request(new URL('/coming-soon.html', url)),

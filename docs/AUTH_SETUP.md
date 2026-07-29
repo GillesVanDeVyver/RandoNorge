@@ -130,11 +130,30 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    | --- | --- | --- |
    | App name | Fjellrute | `Fjellrute` — read from the Branding screen 2026-07-29 |
    | User support email | | `fjellrute@gmail.com` — 2026-07-29 |
-   | Application home page | `https://fjellrute.no/` (serves `coming-soon.html` during the closed alpha; the app itself is at `/alpha/`) | `https://fjellrute.no` — no trailing slash, which resolves to the same page — 2026-07-29 |
+   | Application home page | `https://fjellrute.no/about.html` — **not** the bare root; see the note below the table (the app itself is at `/alpha/`) | `https://fjellrute.no` — ⚠️ **still needs changing in the console**; the content it used to point at moved on 2026-07-29 |
    | Privacy policy link | `https://fjellrute.no/privacy.html` | `https://fjellrute.no/privacy.html` — as intended, 2026-07-29 |
    | Terms of service link | Empty, or a URL that actually resolves. There is **no** `public/terms.html` — the terms exist only in-app via `src/terms/content.ts`, so any `fjellrute.no/terms…` URL entered here 404s | Empty — the trap described here was never walked into, 2026-07-29 |
    | Authorized domain | `fjellrute.no` | **Two** domains: `fjellrute.no` *and* `gillesvandevyver1.workers.dev` — 2026-07-29. See below |
    | Publishing status | In production | In production — read from the **Audience** page, 2026-07-29 |
+
+   **Why the home page is `/about.html` and not `/`.** Until 2026-07-29 this
+   field named the bare root, which meant the root had to carry everything the
+   review requires: the app name as visible text, a full explanation of the
+   product, the Google-user-data disclosure, a privacy link, and no hint that
+   the product was merely forthcoming. All of that was written for a reviewer,
+   none of it for a visitor, and it made a pre-launch site look like a launched
+   one. The content therefore moved, unchanged, to `public/about.html`, and the
+   root went back to being a holding page — wordmark and “Kommer snart”.
+
+   The consequence is that **these two things must now be kept in step**: the
+   URL in this field, and the file the content lives in. Pointing this field
+   back at `https://fjellrute.no/` would submit a near-empty page to a check
+   that has already failed once for exactly that, and nothing in the app would
+   break to tell you. `scripts/verify-landing-page.mjs` reads the table row
+   above and fails if the “Should be” cell stops naming `/about.html`; it warns
+   rather than fails on the “Verified as” cell, because a value in Google's
+   console is not something this repository can enforce. If you see that
+   warning, the console still needs editing.
 
    Also on that screen, not previously listed: **Developer contact information** is
    `fjellrute@gmail.com`, and an **app logo is uploaded** (a teal square with a

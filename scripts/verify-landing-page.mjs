@@ -1,20 +1,36 @@
-// Guards public/coming-soon.html against the four things Google's OAuth
+// Guards the Google OAuth "application home page" against the four things
 // verification rejected it for.
 //
-// Google reviews the "application home page" declared on the consent screen,
-// which for us is the site root (worker/index.js serves coming-soon.html for
-// "/"). The review failed on: the app name not matching the consent screen,
-// the page not explaining the app's purpose, and the page appearing to be
-// behind a login. None of that is expressible as a type, and all of it is easy
-// to undo by accident — a redesign that moves the copy into JavaScript, a
-// tidy-up that turns the <h1> back into a slogan, or a broken privacy link.
-// The cost of finding out is a rejected re-review weeks later, so it is worth
-// a test.
+// Google reviews the home page declared on the consent screen. That review
+// failed on: the app name not matching the consent screen, the page not
+// explaining the app's purpose, and the page appearing to be behind a login.
+// None of that is expressible as a type, and all of it is easy to undo by
+// accident — a redesign that moves the copy into JavaScript, a tidy-up that
+// turns the <h1> back into a slogan, or a broken privacy link. The cost of
+// finding out is a rejected re-review weeks later, so it is worth a test.
 //
-// The app name is not hard-coded here: it is read out of the consent-screen
-// table in docs/AUTH_SETUP.md, which is where the value that Google actually
-// compares against is recorded. Change the name on the consent screen, update
-// that table, and this script tells you the page has to change too.
+// TWO PAGES, ON PURPOSE. Until 2026-07-29 the declared home page was the site
+// root, so the root had to carry several hundred words of explanation written
+// for a reviewer rather than for a visitor. The audiences were then split:
+//
+//   public/about.html        the declared home page. All the content Google
+//                            requires lives here, and checks 1–4 below are
+//                            about this file.
+//   public/coming-soon.html  the site root, served by worker/index.js for "/".
+//                            Deliberately almost empty — wordmark and a line
+//                            saying the product is on its way.
+//
+// The split is itself a thing that can be broken, and it breaks silently: point
+// the consent screen back at "/" and the review fetches a page with nothing on
+// it. So the home-page URL recorded in docs/AUTH_SETUP.md is checked against
+// the file this script verifies (check 0), and the placeholder-wording check
+// that used to cover the root now covers only the home page — the root is
+// *supposed* to say the product is coming.
+//
+// The app name is not hard-coded here either: it is read out of the
+// consent-screen table in docs/AUTH_SETUP.md, which is where the value Google
+// actually compares against is recorded. Change the name on the consent screen,
+// update that table, and this script tells you the page has to change too.
 //
 // Run with:  node scripts/verify-landing-page.mjs   (needs Node >= 22)
 // Wired into `pnpm test:landing`.
@@ -24,15 +40,25 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const pagePath = join(root, 'public/coming-soon.html');
+// The declared OAuth home page — the file that has to satisfy the review.
+const homePath = join(root, 'public/about.html');
+// The site root. Almost nothing is required of it; see check 5.
+const rootPagePath = join(root, 'public/coming-soon.html');
 const authDocPath = join(root, 'docs/AUTH_SETUP.md');
 const workerPath = join(root, 'worker/index.js');
 
-const page = readFileSync(pagePath, 'utf8');
+// `page` throughout the checks below means the OAuth home page, since that is
+// what the review reads. The site root is `rootPage`, examined only in check 5.
+const page = readFileSync(homePath, 'utf8');
+const rootPage = readFileSync(rootPagePath, 'utf8');
 const authDoc = readFileSync(authDocPath, 'utf8');
 const worker = readFileSync(workerPath, 'utf8');
 
 let failures = 0;
+// Warnings are for facts this repository can state but not enforce — the value
+// of a field in Google's console being the only one so far. They are reported
+// and counted, and deliberately do not affect the exit code.
+let warnings = 0;
 const check = (label, ok, detail) => {
   if (ok) {
     console.log(`  PASS  ${label}`);
@@ -85,6 +111,75 @@ function proseOf(source = static_) {
 }
 
 const prose = proseOf();
+
+// ---------------------------------------------------------------------------
+// 0. The consent screen points at the page this script is checking.
+//
+// Everything below verifies public/about.html. All of it is wasted if the
+// "Application home page" field on the consent screen names a different URL,
+// and the specific different URL to worry about is the bare site root: that is
+// where the field pointed until 2026-07-29, and the root is now a near-empty
+// holding page. Reverting the field is a one-click change in a console this
+// repo cannot see, so the best available check is the recorded value in
+// docs/AUTH_SETUP.md — which is also the thing a future reader will trust.
+// ---------------------------------------------------------------------------
+console.log('\n[consent-url] the declared home page is the page checked here');
+
+// | Application home page | <should be> | <verified as> |
+const homeRow = /^\s*\|\s*Application home page\s*\|([^|]*)\|([^|]*)\|/m.exec(
+  authDoc,
+);
+check(
+  'docs/AUTH_SETUP.md records the consent-screen home page URL',
+  homeRow !== null,
+  'expected a table row "| Application home page | … | … |"',
+);
+if (homeRow) {
+  const [intended, observed] = [homeRow[1], homeRow[2]].map(normalise);
+
+  // The intended value is a fact about this repository, so it is a hard
+  // failure: if the home page is supposed to be somewhere other than the file
+  // checked below, then this script is verifying the wrong thing.
+  check(
+    'the intended home page is /about.html',
+    /about\.html/.test(intended),
+    `"Should be" reads: ${JSON.stringify(intended)} — if the home page really ` +
+      'moved, point this script at the new file rather than editing the row',
+  );
+
+  // The observed value is a fact about the Google Cloud console, which this
+  // repository cannot read or change. Failing on it would mean a red test suite
+  // for a reason no code change can fix, so it warns instead — but loudly,
+  // because until someone edits that field the review still fetches the old URL.
+  //
+  // Read the *first backticked URL* in the cell rather than searching the whole
+  // cell for "about.html". The prose recording the change necessarily mentions
+  // the new path ("…the content moved to `/about.html`"), so a substring search
+  // reports the console as updated on the strength of the note saying it is not
+  // — which is precisely the false pass this check exists to avoid. The
+  // convention the cell must follow: state the observed URL first, in backticks.
+  const observedUrl = /`([^`]+)`/.exec(observed)?.[1] ?? '';
+  check(
+    'the "Verified as" cell opens with the observed URL in backticks',
+    observedUrl.length > 0,
+    `cell reads: ${JSON.stringify(observed)} — put the URL actually in the ` +
+      'console first, in backticks, so it can be told apart from the commentary',
+  );
+  const stillRoot = !/about\.html$/.test(observedUrl.replace(/\/$/, ''));
+  if (stillRoot) {
+    console.log('  WARN  the console has not been updated to /about.html yet');
+    console.log(
+      '        "Verified as" reads: ' +
+        JSON.stringify(observed) +
+        '\n        Set Application home page to https://fjellrute.no/about.html' +
+        '\n        (console → APIs & Services → OAuth consent screen → Branding),' +
+        '\n        then record it in the table in docs/AUTH_SETUP.md.',
+    );
+    warnings += 1;
+  } else {
+    console.log('  PASS  the console is recorded as pointing at /about.html');
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 1. The app name, matching the consent screen.
@@ -353,13 +448,29 @@ check(
   /href="\/privacy\.html"/.test(static_),
 );
 
-// Every same-origin link and asset must exist in public/. This is the check
-// that would have caught the consent screen's terms-of-service URL: there is
-// no public/terms.html, so any /terms… link here would 404 for a reviewer.
+// No Worker branch may shadow the home page. The root gets one (it has to, to
+// beat the SPA fallback); about.html is served straight from ASSETS, and the
+// moment it acquires a branch it becomes something that can redirect or gate.
+check(
+  'no worker/index.js branch intercepts /about.html',
+  !/about\.html/.test(worker.replace(/\/\/[^\n]*/g, '')),
+  'about.html should be a plain static asset, not a path the Worker handles',
+);
+
+// Every same-origin link and asset must exist in public/, on both pages. This
+// is the check that would have caught the consent screen's terms-of-service
+// URL: there is no public/terms.html, so any /terms… link would 404 for a
+// reviewer. The root is included because a dead link there is still a dead link
+// on the domain a reviewer was given.
 const refs = new Set();
-for (const m of page.matchAll(/(?:href|src)="(\/[^"#?]*)"/g)) refs.add(m[1]);
-for (const m of page.matchAll(/'(\/[\w./-]+\.(?:jpg|png|svg|html|css|js))'/g))
-  refs.add(m[1]);
+for (const source of [page, rootPage]) {
+  for (const m of source.matchAll(/(?:href|src)="(\/[^"#?]*)"/g))
+    refs.add(m[1]);
+  for (const m of source.matchAll(
+    /'(\/[\w./-]+\.(?:jpg|png|svg|html|css|js))'/g,
+  ))
+    refs.add(m[1]);
+}
 const dangling = [...refs].filter(
   (r) => !existsSync(join(root, 'public', r.replace(/^\//, ''))),
 );
@@ -378,6 +489,71 @@ check(
 check(
   'a meta description explains the app',
   /<meta\s+name="description"\s+content="[^"]{80,}"/.test(page),
+);
+
+// ---------------------------------------------------------------------------
+// 5. The site root, which has almost no requirements — and shouldn't grow any.
+//
+// This section is short by design. The root is the holding page; the reason it
+// is checked at all is that it is the page a member of the public actually
+// reaches, and there are two ways for the split to rot from this side. It can
+// re-acquire the reviewer-facing copy (someone deciding the root looks empty),
+// which puts the project back where it started. Or the app name can vanish from
+// it, leaving an unattributed photo on the domain the consent screen's
+// authorized-domain field names.
+// ---------------------------------------------------------------------------
+console.log('\n[root] the holding page stays a holding page');
+
+const rootStatic = withoutScripts(rootPage);
+const rootProse = proseOf(rootStatic);
+
+// The name, as real text — not only the <title> and not only the logo.
+const rootH1s = [...rootStatic.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/g)].map((m) =>
+  stripTags(m[1]),
+);
+check(
+  `the root names the app in an <h1> (found ${JSON.stringify(rootH1s)})`,
+  expectedName === null ||
+    (rootH1s.length === 1 && rootH1s[0] === expectedName),
+);
+
+// It is allowed to say the product is coming — that is its whole job, and the
+// phrase is checked for rather than merely permitted so that a silent
+// truncation to a bare logo shows up as a failure.
+check(
+  'the root says the product is on its way, in both languages',
+  /kommer snart/i.test(rootProse) && /coming soon/i.test(rootProse),
+  'the holding page should still tell a visitor what it is holding',
+);
+
+// And it must NOT grow the reviewer-facing content back. The threshold is
+// deliberately loose: the page is a handful of words, so anything approaching
+// the old length means the explanation has come back.
+check(
+  `the root stays short (${rootProse.length} characters of visible text)`,
+  rootProse.length < 400,
+  'the reviewer-facing explanation belongs in public/about.html; the root is ' +
+    'for visitors',
+);
+check(
+  'the root does not restate the product explanation',
+  !/turplanlegger|tour planner/i.test(rootProse),
+  'this copy exists for the OAuth review and lives in public/about.html',
+);
+
+// The bilingual mechanism, same rule as the home page: both strings static,
+// script only hides. Cheaper to keep honest than to rediscover.
+check(
+  'the root ships both languages statically and hides one',
+  /data-lang-block="nb"/.test(rootPage) &&
+    /data-lang-block="en"/.test(rootPage) &&
+    /\.hidden\s*=\s*true/.test(rootPage),
+);
+check(
+  'the root forces hidden blocks to display:none !important',
+  /\[data-lang-block\]\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.test(
+    rootPage,
+  ),
 );
 
 // ---------------------------------------------------------------------------
@@ -458,13 +634,13 @@ console.log('\n[control] the checks detect the regressions they exist for');
     `mutation removed ${page.length - noGoogleData.length} characters`,
   );
 
-  // The badge reverted to "Coming soon", the single loudest placeholder signal
-  // on the page and the one most likely to be restored by someone who reads it
-  // as a plain statement of fact.
-  const comingSoon = page.replace(/>Tidlig tilgang</, '>Kommer snart<');
+  // The home page's Status section put back into the future tense — now the
+  // likeliest version of this mistake, since the root page one directory over
+  // says exactly this and copying the line across would feel like consistency.
+  const comingSoon = page.replace(/Fjellrute er i drift/, 'Fjellrute kommer snart');
   const comingSoonProse = proseOf(withoutScripts(comingSoon)).toLowerCase();
   check(
-    'restored "coming soon" wording is caught',
+    'forthcoming-product wording on the home page is caught',
     comingSoon !== page &&
       placeholderPhrases.some((p) => comingSoonProse.includes(p)),
   );
@@ -483,11 +659,53 @@ console.log('\n[control] the checks detect the regressions they exist for');
         /invitation-based/i.test(overPromisingProse)
       ),
   );
+
+  // The consent screen repointed at the bare root — the failure this whole
+  // two-page arrangement exists to prevent, and the one no amount of checking
+  // the HTML would catch on its own.
+  const revertedUrl = authDoc.replace(
+    /(\|\s*Application home page\s*\|)[^|]*\|[^|]*\|/,
+    '$1 `https://fjellrute.no/` | `https://fjellrute.no` — 2026-01-01 |',
+  );
+  const revertedRow = /^\s*\|\s*Application home page\s*\|([^|]*)\|([^|]*)\|/m.exec(
+    revertedUrl,
+  );
+  check(
+    'a home-page URL reverted to the site root is caught',
+    revertedUrl !== authDoc &&
+      revertedRow !== null &&
+      !/about\.html/.test(revertedRow[1]),
+  );
+
+  // The root growing the reviewer-facing copy back, which is check 5's job.
+  const chattyRoot = rootPage.replace(
+    /<h1 class="appName">Fjellrute<\/h1>/,
+    '<h1 class="appName">Fjellrute</h1><p>En turplanlegger for topptur.</p>',
+  );
+  check(
+    'explanatory copy creeping back onto the root is caught',
+    chattyRoot !== rootPage &&
+      /turplanlegger/i.test(proseOf(withoutScripts(chattyRoot))),
+  );
+
+  // And the root losing the app name, the other direction the split can rot.
+  const namelessRoot = rootPage.replace(
+    /<h1 class="appName">Fjellrute<\/h1>/,
+    '<p class="appName">Fjellrute</p>',
+  );
+  check(
+    'an app name demoted out of the root <h1> is caught',
+    namelessRoot !== rootPage &&
+      [...withoutScripts(namelessRoot).matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/g)]
+        .length === 0,
+  );
 }
 
+const warningNote =
+  warnings > 0 ? ` (${warnings} warning(s) — see above)` : '';
 console.log(
   failures === 0
-    ? '\nALL CHECKS PASSED — the landing page still meets the OAuth requirements'
-    : `\n${failures} CHECK(S) FAILED`,
+    ? `\nALL CHECKS PASSED — the home page still meets the OAuth requirements${warningNote}`
+    : `\n${failures} CHECK(S) FAILED${warningNote}`,
 );
 process.exit(failures === 0 ? 0 : 1);
