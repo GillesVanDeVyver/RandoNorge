@@ -199,7 +199,13 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    The `.no` zone already holds SPF, DKIM and DMARC records added for Resend
    (step 4 above), so this is the same kind of edit in the same place.
 
-   **Verified in Search Console on:** _____________
+   **Verified in Search Console on:** 2026-07-28 — the date the Week 3 audit
+   recorded the `google-site-verification=zgnw5kNLNCDG_…` TXT record as live on
+   `fjellrute.no`, with the two OAuth findings about domain ownership gone
+   (`docs/WEEK3-GDPR-CHECK-2026-07-28.md`). Nobody watched the **Verify** button
+   being pressed, so if it happened on a different day, correct this line. It is
+   recorded only so that the age of the TXT record is knowable; the record
+   itself must stay in place permanently.
 
 6. **Deploy** as usual: `npm run build && npx wrangler deploy`.
 

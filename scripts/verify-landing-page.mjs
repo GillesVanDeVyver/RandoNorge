@@ -167,6 +167,111 @@ check(
 );
 
 // ---------------------------------------------------------------------------
+// 2b. The page says what the app does with *Google user data*.
+//
+// Google's verification guidance asks the home page for two things, and the
+// second is easy to miss because the first is so prominent: what the app does,
+// *and* what it does with the Google user data it requests. An earlier version
+// of this page mentioned "Continue with Google" and stopped there — a purpose
+// statement about the app that says nothing about the data. The Accounts /
+// Konto sections now name the scopes in prose, and this check exists because
+// that paragraph reads like marketing copy and is the obvious thing for a
+// future tidy-up to cut.
+// ---------------------------------------------------------------------------
+console.log('\n[google-data] the page says what Google data is used for, and why');
+
+// Each entry: the fact that has to be stated, and phrases proving it is.
+const googleDataMarkers = {
+  nb: {
+    'the sign-in method is named': ['fortsett med google'],
+    'the fields received are named': ['navnet og e-postadressen'],
+    'the purpose is stated': ['identifisere kontoen'],
+    'the scopes not requested are named': ['gmail'],
+    'non-use for advertising is stated': ['annonser'],
+  },
+  en: {
+    'the sign-in method is named': ['continue with google'],
+    'the fields received are named': ['name and email address'],
+    'the purpose is stated': ['identify your account'],
+    'the scopes not requested are named': ['gmail'],
+    'non-use for advertising is stated': ['advertising'],
+  },
+};
+for (const [lang, facts] of Object.entries(googleDataMarkers)) {
+  for (const [fact, phrases] of Object.entries(facts)) {
+    check(
+      `[${lang}] ${fact}`,
+      phrases.some((p) => lowerProse.includes(p)),
+      `none of ${JSON.stringify(phrases)} in the static HTML`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2c. The page reads as a product that exists.
+//
+// Not a written rule, unlike everything else here, but it is the spirit of the
+// check Google failed the page on: an OAuth reviewer is deciding whether there
+// is a real application behind the consent screen. This page led with a
+// "Coming soon" badge and a Status section beginning "Fjellrute is in closed
+// alpha" while the app was in fact running and in daily use by invited
+// testers — an accurate description of the *rollout* that reads as a
+// placeholder for a product that has not been built.
+//
+// The wording may of course change. What must not come back is the future
+// tense, so the forbidden list is short and specific rather than a judgement
+// this script cannot make.
+// ---------------------------------------------------------------------------
+console.log('\n[product] no placeholder-page wording in the served copy');
+
+const placeholderPhrases = [
+  'coming soon',
+  'kommer snart',
+  'closed alpha',
+  'lukket alfa',
+  'under construction',
+  'under utvikling',
+  'work in progress',
+];
+{
+  const found = placeholderPhrases.filter((p) => lowerProse.includes(p));
+  check(
+    `none of the ${placeholderPhrases.length} placeholder phrases appear`,
+    found.length === 0,
+    `found in the visible copy: ${JSON.stringify(found)} — accurate about the ` +
+      'rollout, but it reads to a reviewer as a page for an app that does not ' +
+      'exist yet. Describe the invitation limit instead.',
+  );
+}
+// Comments count. They are invisible to a visitor but they are in the bytes
+// served, and the phrases above lived on in three HTML comments for a while
+// after the visible copy was fixed — including one that existed only to explain
+// the fix. Whether any automated part of Google's review reads comments is
+// unknown and not worth finding out: paraphrase instead of quoting the old
+// wording. The forbidden phrases are of course listed in this script, which is
+// not served.
+{
+  const rawLower = page.toLowerCase();
+  const inComments = placeholderPhrases.filter((p) => rawLower.includes(p));
+  check(
+    'none of them survive in HTML comments either',
+    inComments.length === 0,
+    `found in the page source: ${JSON.stringify(inComments)} — describe the ` +
+      'old wording rather than quoting it',
+  );
+}
+
+// The counterpart: having removed the forthcoming-product wording, the page must
+// still say somewhere that access is limited, or it over-promises to a member of
+// the public who then cannot sign up.
+check(
+  'the invitation-only limit is still disclosed in both languages',
+  /invitasjonsbasert|inviterte/.test(prose) &&
+    /invitation-based|invitation only|invited/i.test(prose),
+  'softening the alpha wording must not turn into hiding that sign-up is closed',
+);
+
+// ---------------------------------------------------------------------------
 // 3. Both languages are static, and the script only hides one.
 //
 // This is what keeps check 2 honest over time. Text injection is the natural
@@ -324,6 +429,59 @@ console.log('\n[control] the checks detect the regressions they exist for');
     prose.length > 1500 &&
       !/navigator\.language/.test(static_) &&
       !/backdrop-filter/.test(static_),
+  );
+
+  // The Google-data paragraph cut as redundant — the page still explains the
+  // app perfectly well, which is what makes this the plausible mistake.
+  //
+  // The two paragraphs are found by the fact they exist to state rather than by
+  // their opening words. The first version of this control matched the
+  // Norwegian paragraph's first clause, and the clause was then reworded for
+  // style — at which point the control was mutating nothing and asserting that
+  // nothing had changed. It failed rather than passing silently, but only
+  // because a control has to check that its own mutation happened; without that
+  // `!== page`, a negative control quietly stops testing anything.
+  const cutParagraphContaining = (src, marker) =>
+    src.replace(
+      new RegExp(`\\s*<p>(?:(?!</p>)[\\s\\S])*?${marker}[\\s\\S]*?</p>`),
+      '',
+    );
+  let noGoogleData = cutParagraphContaining(page, 'e-postadressen din fra Google');
+  noGoogleData = cutParagraphContaining(noGoogleData, 'name and email address');
+  const withoutGoogleDataProse = proseOf(withoutScripts(noGoogleData))
+    .toLowerCase();
+  check(
+    'a removed Google-data disclosure is caught',
+    noGoogleData !== page &&
+      !withoutGoogleDataProse.includes('navnet og e-postadressen') &&
+      !withoutGoogleDataProse.includes('name and email address'),
+    `mutation removed ${page.length - noGoogleData.length} characters`,
+  );
+
+  // The badge reverted to "Coming soon", the single loudest placeholder signal
+  // on the page and the one most likely to be restored by someone who reads it
+  // as a plain statement of fact.
+  const comingSoon = page.replace(/>Tidlig tilgang</, '>Kommer snart<');
+  const comingSoonProse = proseOf(withoutScripts(comingSoon)).toLowerCase();
+  check(
+    'restored "coming soon" wording is caught',
+    comingSoon !== page &&
+      placeholderPhrases.some((p) => comingSoonProse.includes(p)),
+  );
+
+  // And the opposite failure: the invitation limit dropped along with the
+  // alpha wording, leaving a page that reads as generally available.
+  const overPromising = page
+    .replace(/invitasjonsbasert/g, 'åpen')
+    .replace(/invitation-based/g, 'open');
+  const overPromisingProse = proseOf(withoutScripts(overPromising));
+  check(
+    'a page that stops disclosing the invitation limit is caught',
+    overPromising !== page &&
+      !(
+        /invitasjonsbasert/.test(overPromisingProse) &&
+        /invitation-based/i.test(overPromisingProse)
+      ),
   );
 }
 

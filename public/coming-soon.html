@@ -10,11 +10,11 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <meta name="theme-color" content="#0b1018" />
-    <!-- Kept from the closed-alpha "coming soon" page: the site is not meant
-         to appear in search results yet. This does not stop Googlebot fetching
-         the page, so it should not affect the OAuth review — but if a future
-         review still reports the home page as unreachable, this line is the
-         first thing to try removing. -->
+    <!-- Kept from this page's earlier, pre-launch incarnation: the site is not
+         meant to appear in search results yet. This does not stop Googlebot
+         fetching the page, so it should not affect the OAuth review — but if a
+         future review still reports the home page as unreachable, this line is
+         the first thing to try removing. -->
     <meta name="robots" content="noindex" />
     <!-- Both languages, because the page is Norwegian-first but the OAuth
          reviewer reads English. -->
@@ -24,11 +24,17 @@
     />
     <title>Fjellrute — turplanlegger for topptur og fjelltur i Norge</title>
     <!--
-      Public landing page served at the site root while the app is in closed
-      alpha (worker/index.js serves this for "/"). Testers go straight to
+      Public landing page served at the site root during the invitation-limited
+      phase (worker/index.js serves this for "/"). Testers go straight to
       /alpha/, which loads the real app. Standalone + self-contained on
       purpose: no bundler, no Google Fonts (same privacy stance as the app),
       so it renders instantly and independently of the SPA build.
+
+      The filename is historical. It began life as a pre-launch holding page and
+      is referenced by that name in worker/index.js and in the tests, so it was
+      not worth renaming — but nothing about the content is a holding page any
+      more, and it should not be edited back towards one. See point 4 and the
+      note below it.
 
       The seasonal background photo mirrors the login page — same files in
       public/, same season-by-month logic (src/theme/season.ts) and the same
@@ -51,6 +57,22 @@
            therefore in the static HTML and the script at the bottom only
            *hides* the one the visitor does not need. Move copy into the script
            and the reviewer stops seeing it.
+        4. Google's guidance asks the home page to say not only what the app
+           does but what it does with *Google user data*. The "Konto" /
+           "Accounts" sections therefore name the scopes in prose — only name
+           and email address, used to identify the account, no Gmail/Drive/
+           contacts/calendar access, never for ads or model training. That
+           second paragraph is a verification requirement, not marketing copy.
+
+      One further thing, which is judgement rather than a stated rule: the page
+      must read as belonging to a product that exists. The badge and the
+      "Status" section used to announce the app as forthcoming and in a closed
+      test — accurate about the rollout, but precisely the impression this
+      check exists to reject, and untrue of the software, which has been
+      running for invited testers throughout. Both now describe an
+      invitation-limited service that works today. Keep it accurate, but do not
+      put the product back into the future tense. scripts/verify-landing-page.mjs
+      fails on the specific phrasings that did this, so it will tell you.
 
       A reachable privacy-policy link is required too, and is the reason
       public/privacy.html exists as a static mirror of src/terms/privacy.ts.
@@ -269,6 +291,16 @@
       .about a {
         color: var(--accent);
       }
+      /* Inline paths (e.g. the app's URL in the Status section). Sized in `em`
+         so the monospace fallback does not tower over the surrounding prose. */
+      .about code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.92);
+      }
       .footer {
         max-width: 720px;
         margin: 0 auto;
@@ -329,11 +361,18 @@
 
       <div class="content">
         <section class="hero">
+          <!-- This badge used to announce the app as forthcoming. It is the
+               first thing on the page, and to an OAuth reviewer checking that
+               the home page belongs to a real product it read as a holding
+               page — whereas the app has in fact been running and in use by
+               invited testers for weeks. The current wording says the same
+               thing about availability without implying the product does not
+               exist yet. See docs/TODO_WEEK3.md §1. -->
           <span class="badge" data-lang-block="nb" lang="nb"
-            ><span class="dot" aria-hidden="true"></span>Kommer snart</span
+            ><span class="dot" aria-hidden="true"></span>Tidlig tilgang</span
           >
           <span class="badge" data-lang-block="en" lang="en"
-            ><span class="dot" aria-hidden="true"></span>Coming soon</span
+            ><span class="dot" aria-hidden="true"></span>Early access</span
           >
           <!-- The app name, verbatim as on the OAuth consent screen. -->
           <h1 class="appName">Fjellrute</h1>
@@ -417,6 +456,15 @@
             lagres og hvorfor står i
             <a href="/privacy.html">personvernerklæringen</a>.
           </p>
+          <p>
+            «Fortsett med Google» finnes for at du skal kunne opprette og logge
+            inn på en Fjellrute-konto uten et eget passord. Bruker du den,
+            mottar Fjellrute bare navnet og e-postadressen din fra Google, og
+            bruker dem utelukkende til å identifisere kontoen din. Vi ber ikke
+            om tilgang til Gmail, Google Disk, kontakter eller kalender, og
+            Google-data brukes aldri til annonser, selges ikke videre og brukes
+            ikke til å trene modeller.
+          </p>
 
           <h3>Viktig</h3>
           <p>
@@ -432,9 +480,13 @@
 
           <h3>Status</h3>
           <p>
-            Fjellrute er i lukket alfa. Denne siden er tjenestens offentlige
-            forside; selve appen er åpen for inviterte testere mens vi bygger
-            den ferdig.
+            Fjellrute er i drift, og alt som er beskrevet over virker i appen i
+            dag. Tilgangen er invitasjonsbasert i denne første fasen, mens de
+            siste funksjonene ferdigstilles og vi holder antallet brukere lavt
+            nok til å følge opp tilbakemeldinger. Denne siden er tjenestens
+            offentlige forside; appen ligger på
+            <code>fjellrute.no/alpha/</code>. Vil du prøve den, skriv til
+            <a href="mailto:contact@fjellrute.no">contact@fjellrute.no</a>.
           </p>
         </section>
 
@@ -481,6 +533,14 @@
             stored, and why, is set out in the
             <a href="/privacy.html">privacy policy</a>.
           </p>
+          <p>
+            “Continue with Google” exists so that you can create and sign in to
+            a Fjellrute account without a separate password. When you use it,
+            Fjellrute receives only your name and email address from Google,
+            and uses them solely to identify your account. We request no access
+            to Gmail, Google Drive, contacts or calendar, and Google user data
+            is never used for advertising, sold on, or used to train models.
+          </p>
 
           <h3>Important</h3>
           <p>
@@ -496,9 +556,13 @@
 
           <h3>Status</h3>
           <p>
-            Fjellrute is in closed alpha. This page is the service's public
-            front page; the app itself is open to invited testers while we
-            finish building it.
+            Fjellrute is running, and everything described above works in the
+            app today. Access is invitation-based in this first phase, while the
+            last features are finished and we keep the number of users low
+            enough to act on the feedback we get. This page is the service's
+            public front page; the app itself lives at
+            <code>fjellrute.no/alpha/</code>. To try it, write to
+            <a href="mailto:contact@fjellrute.no">contact@fjellrute.no</a>.
           </p>
         </section>
       </div>

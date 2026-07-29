@@ -23,6 +23,17 @@ yarn.lock
 # Local secrets for `wrangler dev` (e.g. GOOGLE_CLIENT_SECRET) — never commit
 .dev.vars
 
+# Python bytecode. scripts/lib/ is imported by the SQL test harnesses and the
+# migration helpers, so running them drops a __pycache__ next to the sources;
+# one .pyc was committed by accident in 98ac10c. A .pyc is a build artefact of a
+# file already in the repo, it goes stale silently, and a committed one can
+# shadow an edited .py on a machine with a matching interpreter version.
+__pycache__/
+*.py[cod]
+
+# pnpm's content-addressable store, if it is ever pointed inside the tree.
+.pnpm-store/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

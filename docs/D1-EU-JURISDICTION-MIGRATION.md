@@ -249,7 +249,19 @@ rm fjellrute-dump.sql
 npx wrangler d1 delete fjellrute-db
 ```
 
-**Delete by:** _____________ (fill in a date, and do it.)
+**Delete by:** **seven days after the cutover in step 8** — that is the rule;
+write the actual date on the line below the moment you run the migration, because
+an unwritten deadline is the one that slips.
+
+- Migration run on (step 8 cutover): _____________
+- Old database and dump deleted by: _____________ (cutover + 7 days)
+
+As of 2026-07-29 both are blank because the migration has not been run: the
+script exists and its guardrails are tested (`pnpm test:migration`), but nothing
+has been copied yet, so there is no second copy of anyone's data to delete and no
+date to count from. The two lines stay blank only until step 8 happens. If you
+find them still blank afterwards, the deletion has been forgotten, which is
+exactly the failure this section exists to prevent.
 
 ## Rollback
 
