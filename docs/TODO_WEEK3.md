@@ -1,18 +1,22 @@
 # Week 3 — status and what is left
 
 **Week 3 of the launch plan (Jul 27 – Aug 2): GDPR + accounts hygiene.**
-First written 2026-07-28, revised 2026-07-29. Companion to
-`WEEK3-GDPR-CHECK-2026-07-28.md`, which holds the full audit and its reasoning;
-this file is the short list of what is done and what still needs doing.
+First written 2026-07-28, revised 2026-07-29, revised again the evening of
+2026-07-29 after the deploy. Companion to `WEEK3-GDPR-CHECK-2026-07-28.md`,
+which holds the full audit and its reasoning; this file is the short list of
+what is done and what still needs doing.
 
-> **Read this first — the tree is no longer what it was on 2026-07-28.**
-> Everything described in the 2026-07-28 version of this file was committed in
-> `98ac10c` and live. The 2026-07-29 revision then made further changes to the
-> landing page, its test, two docs and `.gitignore`, and **those changes are
-> neither committed nor deployed.** `dist/` has been rebuilt from them, so the
-> build output on disk is ahead of production too. The live site still serves
-> the 2026-07-28 landing page. Nothing here reaches a Google reviewer until you
-> review the diff, commit, and `npx wrangler deploy`.
+> **Everything described below is committed and deployed.** The 2026-07-28 work
+> went out in `98ac10c`; the 2026-07-29 landing-page revision and the `/alpha/`
+> base fix went out in `d98226b` and `90d4118` (both titled "Fix alpha homepage
+> redirect"), were built, and were deployed with `npx wrangler deploy`. `dist/`
+> matches the tree. The only thing `git status` still shows is the untracked
+> `.claude/settings.local.json`, which is §5 below and is a preference, not a
+> defect.
+>
+> Earlier versions of this file opened by warning that nothing here had reached
+> a Google reviewer yet. That is no longer true, and the outcome is recorded in
+> §1: the reviewer has now seen it, and rejected it anyway.
 
 ---
 
@@ -68,7 +72,7 @@ be run from a review session, its guardrails are tested against a stub
 `wrangler` over real SQLite in seven scenarios — five of them failure paths —
 via `pnpm test:migration`.
 
-### From 2026-07-29 (uncommitted, undeployed)
+### From 2026-07-29 (committed in `d98226b` + `90d4118`, deployed)
 
 **The home page now says what it does with Google user data** — the gap that
 was §1.3 of the old to-do list. The "Konto" / "Accounts" sections gained a
@@ -136,9 +140,42 @@ committed `.pyc` is worth avoiding: it is a build artefact of a file already in
 the repo, it goes stale silently, and it can shadow an edited `.py` on a machine
 with a matching interpreter version.
 
-**Verified after the changes:** all seven harnesses pass (the six behind
+**Sign-up was broken for a day, and the landing-page work is what broke it.**
+Taking `/` away from the app was only half a change. The Worker began serving
+the holding page for `/`, but the frontend still called `/` home: every Better
+Auth round trip in `LoginPage.tsx` passed `callbackURL: '/'` — Google sign-in
+and its error path, email sign-up, resend-verification and both password-reset
+requests — and `Root.tsx` reset the URL to `/` after sign-out, after leaving a
+public route, and when a guest declined the terms. The symptom was the worst
+available one: a new tester accepted the terms of use and Fjellrute answered
+"Kommer snart". Nothing errored and nothing logged, because every one of those
+strings was a perfectly valid path.
+
+The app now has a declared base — `APP_BASE = '/alpha'` in `src/appBase.ts`,
+the address `public/about.html` gives testers. Outgoing URLs are built with
+`appPath()`, incoming ones read through `stripAppBase()`, so `/alpha/` is the
+overview and `/alpha/planner` the planner. Paths without the prefix still
+resolve, so links sent before the move keep working; the one address that cannot
+be rescued is the bare root, which the holding page answers before the app
+loads. Public share URLs (`/u/<handle>/…`) stay outside the base deliberately —
+they go to people without an invitation. The sticky season override
+(`/summer`, `/fall/planner`) used to clean the URL down to `/`, i.e. onto the
+holding page, and now cleans down to `/alpha/`.
+
+`scripts/verify-app-base.mjs` (`pnpm test:appbase`, now part of `pnpm test`)
+keeps the two halves in step: it runs the real mapping functions, fails if the
+Worker intercepts `/` while the app claims no base of its own, and scans `src/`
+for any `callbackURL`, `redirectTo` or `pushState` written as a literal path —
+which is the specific mistake that caused this. Six negative controls prove each
+section can fail. **To open the app to the public** later: set `APP_BASE` to
+`''`, delete the root branch in `worker/index.js`, drop the `/` entry from
+`run_worker_first` in `wrangler.jsonc`. That script then expects the app at `/`
+and objects if only one or two of the three are done.
+
+**Verified after the changes:** all eight harnesses pass (the seven behind
 `pnpm test`, plus `pnpm test:migration`); `tsc -b` is clean; `vite build`
-succeeds; `eslint .` reports the same 8 pre-existing problems as before, none of
+succeeds and the bundle contains the `/alpha` base rather than a literal `'/'`;
+`eslint .` reports the same 8 pre-existing problems as before, none of
 them from this work. The page was also checked for well-formedness with a real
 HTML parser — no nesting errors, nothing unclosed — and the two language
 sections confirmed structurally identical: same four `<h3>` headings, five
@@ -151,63 +188,55 @@ paragraphs and five list items each.
 Everything that remains needs either a browser signed in to an account only you
 have, or a `wrangler` with production credentials. That is why it remains.
 
-### 1. Finish Google OAuth verification — two findings, both need the console
+### 1. Google OAuth branding verification — one decision left, not a task
 
-Quoted from the console:
+**Status, 2026-07-29 evening.** Everything this repository could do has been
+done and deployed: the content lives at `/about.html`, the *Application home
+page* field in the console now names that URL, `noindex` is gone, the app name
+matches character for character, and the domain is verified in Search Console.
+It was resubmitted. **The findings came back anyway** — the third round with the
+same result.
 
-> * Your home page does not explain the purpose of your app.
-> * The app name "Fjellrute" configured for your OAuth consent screen does not
->   match the app name on your home page.
+So the honest answer to "what is left" is: nothing to fix, one thing to choose.
 
-The two content gaps most likely to be behind the first finding are now closed
-(see Done, above), so the useful next steps are the two that need your
-credentials:
+Every finding across all three rounds has been an *absence* — "does not explain
+the purpose", "does not match the app name" — while the page demonstrably
+contains both, as static HTML, in both languages, at the URL the console names,
+with the app name as an `<h1>` at 44–76px. An automated checker that read the
+text and disagreed would say something else. Continuing to edit the page is
+therefore working on the wrong end of the problem, and the checks in
+`verify-landing-page.mjs` now exist partly to stop a future round of guessing
+from quietly undoing something that was right.
 
-1. **Check whether the review ran before or after the page went live.** The
-   console labels these as issues from the **previous** verification attempt, so
-   they may simply predate the 2026-07-28 deploy. If so they are stale. Either
-   way, deploy the 2026-07-29 changes first, then reply in the verification
-   email thread saying the home page is live, pointing at the sections by name
-   ("What Fjellrute is", "What you can do", "Accounts", "Status"), and resubmit.
-2. **Check the exact app name string.** Google Cloud console → **APIs &
-   Services → OAuth consent screen → Branding** → *App name*. It has to match
-   the home page character for character. `Fjellrute.no`, `fjellrute`,
-   `Fjellrute Alpha`, or a stray trailing space would all trip this, and the
-   project name is not the app name. The page says `Fjellrute`, and
-   `docs/AUTH_SETUP.md` records the expected value in a table that
-   `verify-landing-page.mjs` reads — so if you correct the name on the consent
-   screen, update that table and the test will tell you the page must change
-   too.
+**What failing this actually costs, in the console's own words:** *"Your
+branding is not being shown to users."* That is the whole consequence. The
+Verification Center also says *"Verification is not required since your app is
+not requesting any sensitive or restricted scopes"*, the Audience page says **In
+production**, and so the 100-user cap and the "unverified app" warning screen —
+both of which belong to **Testing** mode — do not apply. Sign-in works. Nobody
+is blocked. The uploaded logo simply does not appear on the consent screen,
+which falls back to showing the URL.
 
-While you are in the console, the consent-screen table in
-`docs/AUTH_SETUP.md` has six other `_____` cells waiting for what is actually
-configured. The *Terms of service link* row is the one worth reading before you
-look: there is no `public/terms.html`, so any `fjellrute.no/terms…` URL entered
-there returns a 404 to a reviewer.
+**The choice.** That logo is the only reason verification is being asked for at
+all. Either:
 
-**This is still not blocking the closed alpha, and the stakes are smaller than
-this entry once claimed.** The Verification Center says so in as many words:
-*"Verification is not required since your app is not requesting any sensitive or
-restricted scopes."* The 100-user cap and the "unverified app" warning screen
-described here belong to **Testing** mode; the Audience page says **In
-production**, so neither applies. What failing branding verification actually
-costs is stated by the console too: *"Your branding is not being shown to
-users."* The uploaded logo does not appear on the consent screen. That is all.
-The logo is also the only reason verification is being asked for at all —
-removing it under **Branding → App logo → Remove** ends the requirement
-permanently, and is the right move if this turns into a third round of findings.
+- **Remove it** — Google Cloud console → **Branding → App logo → Remove** — and
+  the verification requirement ends permanently, along with this entry. The
+  consent screen shows `fjellrute.no` instead of a teal mountain glyph.
+- **Keep it and stop resubmitting.** Costs nothing except that the consent
+  screen stays unbranded and the console keeps showing an unresolved item.
 
-**The `noindex` was removed on 2026-07-29** (see `docs/AUTH_SETUP.md`). Selecting
-*"I have fixed the issues"* had produced no change: the branding status returned
-to "resolve the issues in the branding page and verify again" rather than moving
-to a queued review, and the same two findings persisted. Both findings are
-absences — no purpose found, no matching name — which is what an automated
-checker reports when it read no text, not when it read the text and disagreed.
-The app name is `Fjellrute` in the console and `<h1 class="appName">Fjellrute</h1>`
-at 44–76px on the page, so there is nothing left to fix in the comparison itself.
-`noindex` was the only instruction on the page aimed at Google's automated side,
-so it went first. **This needs `npm run build && npx wrangler deploy` before it
-means anything to a reviewer**, and then one more *"I have fixed the issues"*.
+Removing it is the recommendation, on the grounds that three rounds of evidence
+say the branding will not be approved and a logo nobody is shown is worth less
+than the time. Not urgent either way; it blocks nothing.
+
+The consent-screen table in `docs/AUTH_SETUP.md` no longer has blank cells —
+all seven values were read from the console on 2026-07-29 and recorded, so the
+next person does not have to go looking. Two are worth knowing: there are **two**
+authorized domains, the second being the Worker's `workers.dev` hostname, which
+is load-bearing rather than leftover (it carries a redirect URI); and the *Terms
+of service link* is empty, which is correct — there is no `public/terms.html`, so
+any `fjellrute.no/terms…` URL entered there would 404 to a reviewer.
 
 ### 2. Forwarded mail lands in Gmail's spam folder
 
@@ -316,15 +345,36 @@ nobody later mistakes them for confirmed:
 - whether migration `0007` has been applied to the **remote** D1 database;
 - whether the D1 database is still outside the EU jurisdiction (the migration
   script checks this itself before doing anything);
-- the exact *App name* string on the OAuth consent screen, and the six other
-  consent-screen values still blank in `docs/AUTH_SETUP.md`;
-- whether the verification attempt that produced the two remaining findings ran
-  before or after the landing page was deployed;
+- ~~the exact *App name* string on the OAuth consent screen, and the six other
+  consent-screen values still blank~~ — all seven were read from the console and
+  recorded in `docs/AUTH_SETUP.md` on 2026-07-29, including the *Application home
+  page* field after it was changed to `/about.html`. What still cannot be checked
+  from here is whether any of them is later edited: nothing in a build can read
+  that console, which is why `verify-landing-page.mjs` warns on the recorded
+  value rather than asserting the live one;
+- ~~whether the verification attempt that produced the two remaining findings ran
+  before or after the landing page was deployed~~ — moot: the app was resubmitted
+  after the deploy, with the console field pointing at the live page, and was
+  rejected again. Whatever the earlier attempts saw, this one saw the current
+  page;
+- **why** the branding review keeps reporting absences. The reasoning in §1 —
+  that a checker finding "no purpose" on a page containing a purpose section did
+  not read the page — is inference from three identical outcomes, not something
+  Google has confirmed. It is the best available reading, and it is still a
+  reading;
 - **the Search Console verification date.** `docs/AUTH_SETUP.md` now records
   2026-07-28, which is the date the audit found the TXT record live and the
   domain-ownership findings gone. Nobody watched **Verify** being pressed. If it
   happened on another day, correct that line; it is recorded only so the age of
   the TXT record is knowable;
+- **whether a real sign-in on the live site now lands on `/alpha/`.** The fix is
+  verified by `tsc -b`, by the built bundle containing the base rather than a
+  literal `'/'`, by `verify-app-base.mjs` round-tripping every view, and by a
+  scratch harness that ran the real Worker handler against `/`, `/alpha`,
+  `/alpha/planner` and a share URL — but nobody has completed an actual sign-in
+  through the deployed site. Six flows deserve one click each, because all six
+  shared the one bug: Google sign-in, email sign-up through the terms gate,
+  resend-verification, forgot-password, password reset, and sign-out;
 - how the revised landing-page copy actually *renders*. It is verified by a test
   and by an HTML parser, and the language blocks are structurally identical, but
   no one has looked at it in a browser. The two additions worth a glance are the
@@ -337,20 +387,52 @@ nobody later mistakes them for confirmed:
 ## How to check the state yourself
 
 ```sh
-pnpm test                # the six harnesses: deletion, privacy, policies, landing
+pnpm test                # seven harnesses: deletion, privacy, policies, landing, appbase
 pnpm test:migration      # the EU migration script's guardrails, against a stub
 pnpm build               # tsc -b && vite build
 pnpm lint                # 8 pre-existing problems, none from Week 3
 dig MX fjellrute.no      # should list Cloudflare's three mail servers
-git diff                 # the 2026-07-29 changes, still uncommitted
+git log --oneline -3     # 90d4118, d98226b — the /alpha/ fix; the tree is clean
 ```
 
-The harnesses need **Node ≥ 22** — they use `??`, and on an older Node they die
-with `SyntaxError: Unexpected token '?'` before running a single check, which
-looks like a broken test rather than a wrong interpreter.
+### Getting those commands to run at all
 
-Uncommitted at the time of writing: `.gitignore`, `docs/AUTH_SETUP.md`,
-`docs/D1-EU-JURISDICTION-MIGRATION.md`, `public/coming-soon.html`,
-`scripts/verify-landing-page.mjs`, this file, and the staged deletion of
-`scripts/lib/__pycache__/swap-d1-binding.cpython-310.pyc`. `dist/` has been
-rebuilt and is ahead of production.
+Two interpreter problems cost more time on 2026-07-29 than any of the code did,
+both of them looking like broken tests rather than a wrong toolchain. Written
+down so the next machine loses minutes instead of an evening.
+
+**`pnpm: not found`, and `npm test` fails the same way.** The `test` script calls
+`pnpm` recursively, so npm cannot stand in for it — the failure appears one level
+deeper (`sh: 1: pnpm: not found`) and looks like a broken script. `package.json`
+pins `pnpm@10.11.1` in `packageManager`, and the cheapest route that needs no
+install is:
+
+```sh
+npx pnpm@10.11.1 test
+```
+
+`corepack enable pnpm` is the tidier fix but the Corepack bundled with some Node
+builds fails with `Cannot find matching keyid` — a signature-verification bug in
+Corepack itself, not a problem with this repo; `npm i -g corepack@latest` clears
+it. Note also that `npm build` is not a command (`npm run build` is), and that a
+`(base)` conda prompt can shadow an already-installed `pnpm`.
+
+**Node must be ≥ 22.13, not merely ≥ 22.** Two independent reasons, and neither
+error names the version:
+
+- `verify-account-deletion.mjs` imports `node:sqlite` to run the real deletion
+  code against a throwaway database. On Node 22.7 that module exists only behind
+  `--experimental-sqlite`, so the import dies with
+  `ERR_UNKNOWN_BUILTIN_MODULE: No such built-in module: node:sqlite` before a
+  single check runs. `NODE_OPTIONS=--experimental-sqlite` is the escape hatch.
+- Vite's own floor is Node 22.12, so `pnpm build` is next in line to complain.
+
+`22.14.0` is known-good: the full suite, `tsc -b` and `vite build` were all run
+on it. On an older Node still (below 20) the scripts die on `??` with
+`SyntaxError: Unexpected token '?'`. There is no `.nvmrc` and `engines` pins only
+the package manager, which is why none of this announces itself — worth adding if
+this recurs.
+
+Nothing is uncommitted as of this revision except the untracked
+`.claude/settings.local.json` (§5). `dist/` was rebuilt and deployed, so the
+build output, the tree and production all agree.

@@ -130,7 +130,7 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    | --- | --- | --- |
    | App name | Fjellrute | `Fjellrute` — read from the Branding screen 2026-07-29 |
    | User support email | | `fjellrute@gmail.com` — 2026-07-29 |
-   | Application home page | `https://fjellrute.no/about.html` — **not** the bare root; see the note below the table (the app itself is at `/alpha/`) | `https://fjellrute.no` — ⚠️ **still needs changing in the console**; the content it used to point at moved on 2026-07-29 |
+   | Application home page | `https://fjellrute.no/about.html` — **not** the bare root; see the note below the table (the app itself is at `/alpha/`) | `https://fjellrute.no/about.html` — changed in the console on 2026-07-29, so the field and the file agree again |
    | Privacy policy link | `https://fjellrute.no/privacy.html` | `https://fjellrute.no/privacy.html` — as intended, 2026-07-29 |
    | Terms of service link | Empty, or a URL that actually resolves. There is **no** `public/terms.html` — the terms exist only in-app via `src/terms/content.ts`, so any `fjellrute.no/terms…` URL entered here 404s | Empty — the trap described here was never walked into, 2026-07-29 |
    | Authorized domain | `fjellrute.no` | **Two** domains: `fjellrute.no` *and* `gillesvandevyver1.workers.dev` — 2026-07-29. See below |
@@ -245,9 +245,11 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    ### OAuth verification: what failed, and what fixed it
 
    Google's verification review rejected the app on 2026-07-28 with four
-   findings, all about the **application home page** — which, because the home
-   page URL is the bare domain, means `public/coming-soon.html` (served for `/`
-   by `worker/index.js`).
+   findings, all about the **application home page** — which at that point meant
+   `public/coming-soon.html`, because the field still named the bare domain and
+   `worker/index.js` serves that file for `/`. Since 2026-07-29 the field names
+   `/about.html`, so "home page" in the table below means the file the content
+   moved to.
 
    | Google's finding | Status |
    | --- | --- |
@@ -255,6 +257,26 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    | Your home page does not explain the purpose of your app | Fixed: the page now has a "What Fjellrute is" section describing what the service does, in both languages |
    | Your home page is behind a login page | Fixed / was a misreading: `/` never required a session, but the old page said only "Kommer snart" with no content, which reads as a holding page in front of a login. There is now something to read |
    | The website of your home page URL `https://fjellrute.no` is not registered to you. Verify ownership of your home page | **Not fixable from the repository — see below** |
+
+   **Third round, 2026-07-29: still rejected.** With the content live at
+   `/about.html`, the console field pointing at it, `noindex` gone and the app
+   deployed, the app was resubmitted and the branding findings came back anyway.
+   That is now three attempts in which every finding has been an *absence* — no
+   purpose found, no matching name — while the page demonstrably contains both,
+   in static HTML, at the URL the console names. There is nothing further to fix
+   by editing the page, and the checks in `verify-landing-page.mjs` exist to stop
+   anyone trying.
+
+   What that costs is worth restating, because it is much less than it sounds:
+   the console's own wording is *"Your branding is not being shown to users."*
+   The scopes are the default email/profile ones, verification is not required
+   for them, the app is in production and there is no 100-user cap and no
+   unverified-app warning screen. The only visible consequence is that the
+   uploaded logo does not appear on the consent screen, which falls back to
+   showing the URL. **The uploaded logo is also the only reason verification is
+   being asked for at all**, so `Branding → App logo → Remove` ends the
+   requirement permanently and is the cheaper trade than a fourth round. Keep the
+   logo only if a branded consent screen is worth more than the review effort.
 
    Three of those are content requirements that nothing in a build can notice
    breaking, so `pnpm test:landing` (`scripts/verify-landing-page.mjs`) now
