@@ -20,6 +20,11 @@ yarn.lock
 # Wrangler local state (the config itself, wrangler.jsonc, IS committed)
 .wrangler
 
+# Timestamped config backups left by scripts/migrate-d1-to-eu.sh step 7, so the
+# rollback copy stays local instead of being committed next to the real config —
+# two files claiming to be the D1 binding is what stopped that step on 2026-07-29.
+wrangler.jsonc.bak-*
+
 # Local secrets for `wrangler dev` (e.g. GOOGLE_CLIENT_SECRET) — never commit
 .dev.vars
 

@@ -29,11 +29,22 @@
 	// proxy, which can stall and hang the request (that proxy fronts D1 with
 	// a single serializing object, so one stalled query wedges every later
 	// request until you restart the dev server).
+	//
+	// 2026-07-29: moved into Cloudflare's EU jurisdiction. A jurisdiction can
+	// only be set when a database is created, so this is a new database with a
+	// verified copy of the old one — see docs/D1-EU-JURISDICTION-MIGRATION.md.
+	// ROLLBACK: put these two values back and redeploy. The old database is
+	// untouched and still holds every row; do not delete it until the new one
+	// has served real traffic (step 10 of that document has the deadline).
+	//   "database_name": "fjellrute-db",
+	//   "database_id": "fc24cf1f-35c7-4c9d-8a5a-4de38a3865fb"
+	// The binding stays DB: worker/ reaches the database through env.DB
+	// throughout, so renaming it here would mean renaming it everywhere.
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "fjellrute-db",
-			"database_id": "fc24cf1f-35c7-4c9d-8a5a-4de38a3865fb",
+			"database_name": "fjellrute-db-eu",
+			"database_id": "1d6f92bf-83c8-4dce-80f6-d20b4a09674b",
 			"migrations_dir": "migrations"
 		}
 	],

@@ -1,7 +1,14 @@
 # Moving `fjellrute-db` into Cloudflare's EU jurisdiction
 
-**Status: not started.** Decided 2026-07-28 (Week 3) to do this now rather than
-later. Written to be executed in one sitting, top to bottom.
+**Status: steps 1–6 done 2026-07-29, stopped at step 7.** Decided 2026-07-28
+(Week 3) to do this now rather than later. Written to be executed in one sitting,
+top to bottom.
+
+`fjellrute-db-eu` exists at `1d6f92bf-83c8-4dce-80f6-d20b4a09674b`, jurisdiction
+`eu` confirmed, with a verified copy of all ten tables (row counts matched, the
+`account` / `route` / `session` / `track` cascades survived, 7 migration records
+copied). **Production is still on `fjellrute-db`** — the run stopped before the
+binding swap, so resume at step 7. Dates and the reason are in step 10.
 
 ## The short version
 
@@ -197,6 +204,20 @@ In `wrangler.jsonc`, change `database_id` on the `DB` binding to the new id and
 `database_name` to `fjellrute-db-eu`. Leave the old id in a comment with the
 date, so a rollback does not depend on this file's history.
 
+> **Expect the script to stop here, and expect a second binding to be the reason.**
+> On 2026-07-29 it refused with *"expected exactly one database_name and one
+> database_id, found 2 and 2"*. The extra pair was not stale config: answering
+> **yes** to wrangler's *"Would you like Wrangler to add it on your behalf?"* in
+> the create step writes a whole new `d1_databases` entry — binding
+> `fjellrute_db_eu`, `remote: true` — next to the existing `DB` one. It also
+> answers the *"connect to the remote resource for local dev?"* question yes,
+> which is the setting the comment in `wrangler.jsonc` warns against. Say **no**
+> to the add-on-your-behalf prompt and
+> step 7 stays automatic. If you already said yes, the fix is to delete the added
+> entry and edit `DB` in place, so the app keeps reaching its database through
+> `env.DB`. Adopting the new binding name instead would mean renaming every
+> `env.DB` in `worker/`, which is a larger change for no benefit.
+
 The local dev database is keyed to the binding, so `wrangler dev` will start
 against an empty one. Reapply the schema locally:
 
@@ -241,27 +262,54 @@ The old database is a complete second copy of everyone's personal data. Leaving
 it parked indefinitely is the storage-limitation problem this week's work was
 supposed to remove, one database over.
 
-Keep it just long enough to be a rollback (a week is plenty at alpha scale),
-then:
+Keep it just long enough to be a rollback (a week is plenty at alpha scale). The
+two deletions are not one action and should not wait for each other — the dump
+stops being useful as soon as step 5 passes, while the old database stays useful
+until the new one has served real traffic:
 
 ```sh
-rm fjellrute-dump.sql
-npx wrangler d1 delete fjellrute-db
+rm fjellrute-dump.sql                  # as soon as step 5 has passed
+npx wrangler d1 delete fjellrute-db    # only after step 8 has held up
 ```
 
 **Delete by:** **seven days after the cutover in step 8** — that is the rule;
 write the actual date on the line below the moment you run the migration, because
 an unwritten deadline is the one that slips.
 
-- Migration run on (step 8 cutover): _____________
-- Old database and dump deleted by: _____________ (cutover + 7 days)
+- Copy made (steps 2–6 verified): **2026-07-29**, ~21:33 CEST
+- Step 8 cutover (Worker deployed against `fjellrute-db-eu`): _____________
+- Dump `fjellrute-dump.sql` deleted by: **2026-08-05** (copy + 7 days)
+- Old database `fjellrute-db` deleted by: _____________ (cutover + 7 days)
 
-As of 2026-07-29 both are blank because the migration has not been run: the
-script exists and its guardrails are tested (`pnpm test:migration`), but nothing
-has been copied yet, so there is no second copy of anyone's data to delete and no
-date to count from. The two lines stay blank only until step 8 happens. If you
-find them still blank afterwards, the deletion has been forgotten, which is
-exactly the failure this section exists to prevent.
+**Why two of these are filled in and two are not.** The 2026-07-29 run got as far
+as step 6 and then stopped at step 7: `wrangler.jsonc` had two `database_name`
+keys, because wrangler's own *"Would you like Wrangler to add it on your behalf?"*
+prompt during the create appended a second `d1_databases` entry (`fjellrute_db_eu`,
+`remote: true`) alongside the real `DB` binding. The script refuses to guess which
+one to rewrite, which is correct — the wrong guess deploys production against the
+wrong database. So the copy exists and is verified, but **production is still
+served by `fjellrute-db`** and the cutover has not happened.
+
+That splits one clock into two, and they are not interchangeable:
+
+- **The dump is a second copy of everyone's personal data, sitting on a laptop,
+  starting 2026-07-29.** That clock runs now and is the reason 2026-08-05 is
+  written above. It does not wait for the cutover, and it does not restart if the
+  cutover slips. Step 2 above says to delete the dump once step 5 passes; step 5
+  has passed, so the only thing the file still buys is a rollback that
+  `fjellrute-db` — untouched, every row present — already provides better.
+  Deleting it early is the right kind of early.
+- **`fjellrute-db` cannot be deleted yet at all.** Before the cutover it is not
+  the redundant copy, it is *the live production database*; `fjellrute-db-eu` is
+  the spare. Dating its deletion from 2026-07-29 would put a deadline on deleting
+  the database the service is actually running on. Its line stays blank until
+  step 8, then becomes cutover + 7.
+
+If you find the cutover line still blank days from now, the migration has stalled
+half-done, which is its own small problem: two live databases holding the same
+personal data, one of them serving nothing. If you find the *deletion* lines still
+blank after the cutover, the deletion has been forgotten, which is exactly the
+failure this section exists to prevent.
 
 ## Rollback
 

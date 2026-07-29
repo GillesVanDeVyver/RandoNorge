@@ -2,17 +2,24 @@
 
 **Week 3 of the launch plan (Jul 27 – Aug 2): GDPR + accounts hygiene.**
 First written 2026-07-28, revised 2026-07-29, revised again the evening of
-2026-07-29 after the deploy. Companion to `WEEK3-GDPR-CHECK-2026-07-28.md`,
-which holds the full audit and its reasoning; this file is the short list of
-what is done and what still needs doing.
+2026-07-29 after the deploy, and revised once more late on 2026-07-29 after the
+EU-jurisdiction migration was run and stopped part-way. Companion to
+`WEEK3-GDPR-CHECK-2026-07-28.md`, which holds the full audit and its reasoning;
+this file is the short list of what is done and what still needs doing.
 
-> **Everything described below is committed and deployed.** The 2026-07-28 work
-> went out in `98ac10c`; the 2026-07-29 landing-page revision and the `/alpha/`
-> base fix went out in `d98226b` and `90d4118` (both titled "Fix alpha homepage
-> redirect"), were built, and were deployed with `npx wrangler deploy`. `dist/`
-> matches the tree. The only thing `git status` still shows is the untracked
-> `.claude/settings.local.json`, which is §5 below and is a preference, not a
-> defect.
+> **The application work described below is committed and deployed.** The
+> 2026-07-28 work went out in `98ac10c`; the 2026-07-29 landing-page revision and
+> the `/alpha/` base fix went out in `d98226b` and `90d4118` (both titled "Fix
+> alpha homepage redirect"), were built, and were deployed with
+> `npx wrangler deploy`; the to-do list itself was committed in `28b7824`.
+>
+> **The database migration is the exception, and it is mid-flight.** `git status`
+> now shows `wrangler.jsonc` modified — that is the step 7 binding swap onto
+> `fjellrute-db-eu`, and it is **not deployed**. Production is still served by the
+> old database until `npx wrangler deploy` runs. Also present and deliberately
+> untracked: `fjellrute-dump.sql` (a full copy of everyone's personal data, see
+> §4) and `wrangler.jsonc.bak-2026-07-29`. `.claude/settings.local.json` is still
+> untracked too, which is §5 and is a preference, not a defect.
 >
 > Earlier versions of this file opened by warning that nothing here had reached
 > a Google reviewer yet. That is no longer true, and the outcome is recorded in
@@ -63,14 +70,17 @@ skipped the `catch`: no log line, no JSON error body, just a bare 500. The same
 pattern was in `routes.js`, `tracks.js`, `username.js` and `public.js`; all five
 are fixed, with a test and a deliberate regression to keep it fixed.
 
-**The EU-jurisdiction migration is written but not run.**
-`scripts/migrate-d1-to-eu.sh` performs the create-and-copy (a D1 jurisdiction
-can only be set at creation time) and refuses to continue on an unconfirmed
-jurisdiction, a row count that does not match, a lost foreign-key cascade, or a
-leftover dump. It never deletes the old database. Because its commands cannot
-be run from a review session, its guardrails are tested against a stub
-`wrangler` over real SQLite in seven scenarios — five of them failure paths —
-via `pnpm test:migration`.
+**The EU-jurisdiction migration was written on 2026-07-28 and run on 2026-07-29
+— see §4, it is two thirds done.** `scripts/migrate-d1-to-eu.sh` performs the
+create-and-copy (a D1 jurisdiction can only be set at creation time) and refuses
+to continue on an unconfirmed jurisdiction, a row count that does not match, a
+lost foreign-key cascade, a `wrangler.jsonc` it cannot edit unambiguously, or a
+leftover dump. It never deletes the old database. Because its commands cannot be
+run from a review session, its guardrails are tested against a stub `wrangler`
+over real SQLite in seven scenarios — five of them failure paths — via
+`pnpm test:migration`. On the real run one of those five refusals fired, at step
+7, and was right to: the config had become ambiguous. Steps 1–6 completed and
+verified.
 
 ### From 2026-07-29 (committed in `d98226b` + `90d4118`, deployed)
 
@@ -285,27 +295,93 @@ Applying twice is safe; a migration already recorded is skipped. Then sign in
 on the live site and confirm the acceptance gate appears once and does not come
 back on reload.
 
-### 4. Run the EU-jurisdiction migration
+### 4. Finish the EU-jurisdiction migration — stopped at step 7 of 10
+
+**Run on 2026-07-29, ~21:33 CEST. Steps 1–6 succeeded; step 7 refused.**
+`fjellrute-db-eu` exists at `1d6f92bf-83c8-4dce-80f6-d20b4a09674b` with
+`jurisdiction eu` confirmed, all ten tables copied, every row count matching
+(5 users, 5 accounts, 4 sessions, 4 routes, 1 track, 18 invite codes), the four
+`on delete cascade` clauses intact, and 7 migration records carried across. So
+the data is where it needs to be.
+
+**Production is still on `fjellrute-db`,** because the cutover has not been
+deployed. That is the state to hold in mind: two live databases, the EU one
+serving nothing.
+
+**Why it stopped, and why that was correct.** The script found two
+`database_name` keys in `wrangler.jsonc` and refused to guess. The second pair
+was not stale — wrangler's own *"Would you like Wrangler to add it on your
+behalf?"* prompt, during the create, had appended a whole new `d1_databases`
+entry (binding `fjellrute_db_eu`, `remote: true`). Guessing wrong there points
+production at the wrong database, so stopping was the right failure. Note that
+the same prompt sequence also opted local dev into the *remote* database, which
+is the setting the comment in `wrangler.jsonc` explicitly warns against; dropping
+that entry removed it.
+
+**The binding swap is now done, by hand** (`wrangler.jsonc.bak-2026-07-29` is
+the backup). The `DB` binding names `fjellrute-db-eu`, the duplicate entry is
+gone, the old name and id sit in a dated rollback comment above it, and the
+config parses with exactly one `database_name` and one `database_id` — what step
+7 was checking for. The binding is still called `DB` on purpose: `worker/`
+reaches the database through `env.DB` everywhere, and adopting wrangler's
+suggested `fjellrute_db_eu` name would mean renaming all of them.
+
+**What is left, in order.** Steps 8–10 of
+`docs/D1-EU-JURISDICTION-MIGRATION.md`:
 
 ```sh
-./scripts/migrate-d1-to-eu.sh --dry-run    # read what it plans to do
-./scripts/migrate-d1-to-eu.sh              # then for real
+npx wrangler d1 migrations apply fjellrute-db-eu --local   # dev db follows the binding
+npx wrangler deploy                                        # the actual cutover
 ```
 
-It stops and tells you why rather than pressing on. Read the plan before
-running it for real. `docs/D1-EU-JURISDICTION-MIGRATION.md` has the same steps
-by hand if you would rather do it yourself. Afterwards, keep the old database
-and the dump until the new one has served real traffic for a while.
+Then smoke-test against the deployed site in this order: sign in, open the route
+library, save a route, delete it. **A read-only check is not enough** — a Worker
+bound to a database that does not answer still serves the app shell perfectly, so
+the write path is the failure worth catching. If anything fails, restore the two
+values from the rollback comment and redeploy; the old database is untouched.
 
-**When you run it, write two dates into step 10 of that document.** The old
-`**Delete by:** _____` line has been replaced by the rule — *seven days after
-the cutover* — plus two blank lines to fill in: the date of the cutover, and the
-deadline it implies. They are blank on purpose and cannot be filled in from
-here: the migration has not run, so there is no second copy of anyone's data to
-delete and no date to count from. If you find them still blank *after* the
-cutover, the deletion has been forgotten, which is the whole point of writing
-them down. The old database is a complete second copy of every account, email
-address and recorded GPS track in the service.
+Only after that does step 9 apply — the privacy policy §4 hedge about
+Cloudflare's worldwide network may become a straight claim that the database is
+restricted to EU data centres, in **all four** places (`src/terms/privacy.ts` and
+`public/privacy.html`, English and Norwegian), with `PRIVACY_VERSION` bumped in
+both `src/terms/privacy.ts` and `worker/policyVersions.js`, then
+`pnpm test:privacy && pnpm test:policies`. Bumping the version re-presents the
+acceptance gate to every signed-in user, which is the point. **Do not write that
+claim before the deploy succeeds**, or the policy asserts a restriction that
+production is not yet under.
+
+**The dates in step 10 are now filled in, and there are two clocks, not one.**
+
+- **`fjellrute-dump.sql` — delete by 2026-08-05.** It is 86 kB of every account,
+  email address and recorded GPS track in the service, sitting in the working
+  directory since 2026-07-29. That clock started with the copy and does not wait
+  for the cutover. Step 5 has passed, so the file's only remaining value is a
+  rollback that the untouched old database already provides better; deleting it
+  sooner than the deadline is correct.
+- **`fjellrute-db` — no date yet, and it must not have one until step 8.**
+  Before the cutover it is not the redundant copy, it is *the live production
+  database*. Its deadline is cutover + 7 days and its line stays blank until
+  there is a cutover to count from.
+
+If that cutover line is still blank in a few days, the migration has stalled
+half-done rather than been forgotten — which is its own small problem, since the
+duplicate personal data exists either way.
+
+**`pnpm test:migration` still passes after the hand edit** (all seven scenarios,
+including the two that assert step 7 refuses) — it runs on Python 3, so unlike the
+Node harnesses it could be re-run here. Two things it is worth knowing about it
+now. Its `[real wrangler.jsonc]` section reads the *actual* config rather than a
+fixture, so now that the config names `fjellrute-db-eu` that section exercises an
+id-only swap rather than the rename it was written against; it still checks the
+properties that matter (one live `database_id`, the old id preserved in a comment,
+every comment surviving, nothing outside the binding block touched). And the
+rollback comment added by hand deliberately mimics the format
+`scripts/lib/swap-d1-binding.py` writes — `//   "database_name": …` — because that
+tool's regexes anchor on a line beginning with optional whitespace and then a
+quote, so a commented-out pair is not counted as a second binding. Verified by
+running those regexes against the file: one name, one id. Re-running step 7 now
+exits with *"the binding already points at fjellrute-db-eu"* instead of the
+ambiguity error, which is the refusal you want if you resume with `--from 7`.
 
 ### 5. One choice left in the repo cleanups
 
@@ -342,9 +418,23 @@ leaving it.
 Honest list of things stated above that a review session cannot check, so that
 nobody later mistakes them for confirmed:
 
-- whether migration `0007` has been applied to the **remote** D1 database;
-- whether the D1 database is still outside the EU jurisdiction (the migration
-  script checks this itself before doing anything);
+- whether migration `0007` has been applied to the **remote** D1 database. Note
+  that the migration copied 7 records into `fjellrute-db-eu` and the script
+  reported anything beyond them as still pending, so this is now answerable with
+  `npx wrangler d1 migrations list fjellrute-db-eu --remote` — worth doing before
+  the step 8 deploy rather than after;
+- ~~whether the D1 database is still outside the EU jurisdiction~~ — answered on
+  2026-07-29: it was (`jurisdiction: none`), and `fjellrute-db-eu` was created
+  with `jurisdiction eu` confirmed. What is **not** verified is the part that
+  matters to a user: the deployed Worker still talks to the non-jurisdictional
+  database, because the cutover has not been deployed. Until then the EU
+  restriction is true of a database nothing is using;
+- **whether the edited `wrangler.jsonc` deploys.** It parses, and it satisfies
+  the one-name-one-id condition step 7 checks, but that was verified with a JSONC
+  parser rather than by wrangler: no Node ≥ 22 was available to run
+  `wrangler deploy --dry-run`, so `pnpm test:migration`, `pnpm test` and the
+  schema validation have **not** been re-run since the edit. Run them before the
+  cutover;
 - ~~the exact *App name* string on the OAuth consent screen, and the six other
   consent-screen values still blank~~ — all seven were read from the console and
   recorded in `docs/AUTH_SETUP.md` on 2026-07-29, including the *Application home
@@ -392,7 +482,10 @@ pnpm test:migration      # the EU migration script's guardrails, against a stub
 pnpm build               # tsc -b && vite build
 pnpm lint                # 8 pre-existing problems, none from Week 3
 dig MX fjellrute.no      # should list Cloudflare's three mail servers
-git log --oneline -3     # 90d4118, d98226b — the /alpha/ fix; the tree is clean
+git log --oneline -3     # 28b7824, 90d4118, d98226b
+git status --short       # M wrangler.jsonc — the step 7 swap, undeployed (§4)
+npx wrangler d1 info fjellrute-db-eu       # jurisdiction eu
+ls -la fjellrute-dump.sql                  # delete by 2026-08-05 (§4)
 ```
 
 ### Getting those commands to run at all
@@ -433,6 +526,10 @@ on it. On an older Node still (below 20) the scripts die on `??` with
 the package manager, which is why none of this announces itself — worth adding if
 this recurs.
 
-Nothing is uncommitted as of this revision except the untracked
-`.claude/settings.local.json` (§5). `dist/` was rebuilt and deployed, so the
-build output, the tree and production all agree.
+As of this revision the working tree is **not** clean, and deliberately so:
+`wrangler.jsonc` carries the undeployed step 7 binding swap (§4), alongside the
+untracked `fjellrute-dump.sql`, `wrangler.jsonc.bak-2026-07-29` and
+`.claude/settings.local.json` (§5). `dist/` was rebuilt and deployed earlier on
+2026-07-29, so the build output, the tree and production agree about the
+*application* — they no longer agree about which database it binds, and will not
+until step 8 runs.
