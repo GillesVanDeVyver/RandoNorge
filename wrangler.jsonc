@@ -115,6 +115,34 @@
 		// deploy) into a real 404 instead of the SPA fallback's index.html —
 		// which the browser would otherwise try to execute as JS, blanking the
 		// page. See the matching /assets/ block in worker/index.js.
+		//
+		// THE DOCUMENT ROUTES BELOW ("/alpha…" through "/u/*") are here for two
+		// things the Worker's fall-through does that Workers Assets cannot, and
+		// which every one of these paths silently lost by not being listed:
+		//
+		//   1. Security headers. worker/securityHeaders.js wraps every response
+		//      the Worker returns (CSP, HSTS, X-Frame-Options, …). A path served
+		//      straight from ASSETS never enters the Worker, so it came back with
+		//      nothing but a Cache-Control header — verified against production
+		//      on 2026-07-31: "/" had the full CSP + HSTS, while /alpha/,
+		//      /privacy and /about had no CSP, no HSTS and no X-Frame-Options
+		//      at all. The app itself was the least protected page on the site.
+		//   2. "Cache-Control: no-cache" on the HTML shell (see the end of
+		//      worker/index.js). ASSETS answered these with
+		//      "max-age=0, must-revalidate" instead, so the stale-index.html
+		//      failure that the /assets/* entry above exists to catch was never
+		//      actually prevented for the app's own entry point.
+		//
+		// These are HTML documents — a handful of requests per visit, not one per
+		// asset — so listing them costs little against the 100k/day Worker
+		// request budget (docs/cost-and-limits.md). Do NOT replace this array
+		// with `"run_worker_first": true`: that bills every hashed bundle, tile
+		// and photo as a Worker request and would blow the budget outright.
+		//
+		// "/alpha" and "/alpha/*" are both needed: the bare path is a distinct
+		// route from anything beneath it. When the alpha opens and APP_BASE
+		// becomes '' (src/appBase.ts), replace those two with the app's real
+		// routes or drop them once "/" no longer serves the holding page.
 		"run_worker_first": [
 			"/",
 			"/assets/*",
@@ -122,7 +150,14 @@
 			"/metno-api/*",
 			"/gts-api/*",
 			"/varsom-api/*",
-			"/terrain-dem/*"
+			"/terrain-dem/*",
+			"/alpha",
+			"/alpha/*",
+			"/privacy",
+			"/privacy.html",
+			"/about",
+			"/about.html",
+			"/u/*"
 		]
 	},
 	// Daily GDPR retention cleanup (worker/index.js scheduled handler):

@@ -1,0 +1,83 @@
+#!/bin/sh
+# Pre-push gate: type-check, lint and build before anything reaches main.
+#
+# WHY THIS EXISTS. A push to main is a deploy. Cloudflare builds and releases
+# from the repository itself — commit cf70572 was pushed at 17:33:29 +0200 and
+# was live at 17:34:18Z, 49 seconds later, with no wrangler command run on this
+# machine at all. Nothing between `git push` and production looks at whether the
+# code compiles.
+#
+# `pnpm dev` does not close that gap. It runs `vite` and `wrangler dev`, and
+# neither type-checks: `tsc` only runs as part of `pnpm build`. So a type error,
+# a broken import or a failing lint rule can be developed against, committed and
+# deployed without any tool ever objecting — the first sign would be a blank page
+# on fjellrute.no.
+#
+# So the build that production is about to do is done here first, and a failure
+# stops the push.
+#
+# Runs on the working tree, which is the thing about to be pushed in the normal
+# case. It is not a substitute for a server-side check: `--no-verify` skips it,
+# and a hook cannot see commits made on another machine.
+#
+# INSTALL (once per clone — .git/hooks is not version-controlled, which is why
+# this file lives in .githooks/ and is committed):
+#   pnpm hooks:install     # git config core.hooksPath .githooks
+#
+# To bypass deliberately for a single push (docs-only change, hotfix), state it:
+#   git push --no-verify
+
+set -e
+
+# Hooks run with a minimal environment; GUI clients in particular do not source
+# a login shell, so pnpm may not be on PATH. Fall back to the nvm install.
+if ! command -v pnpm >/dev/null 2>&1; then
+	for dir in "$HOME"/.nvm/versions/node/*/bin; do
+		if [ -x "$dir/pnpm" ]; then
+			PATH="$dir:$PATH"
+			export PATH
+			break
+		fi
+	done
+fi
+
+if ! command -v pnpm >/dev/null 2>&1; then
+	echo "pre-push: pnpm not found on PATH; cannot verify the build." >&2
+	echo "pre-push: install pnpm, or push with --no-verify if you accept the risk." >&2
+	exit 1
+fi
+
+# Run from the repository root, not from wherever the push was invoked.
+cd "$(git rev-parse --show-toplevel)"
+
+echo "pre-push: type-check + build (this is what production is about to do)..."
+if ! pnpm build; then
+	echo "" >&2
+	echo "pre-push: BUILD FAILED — push stopped." >&2
+	echo "pre-push: pushing this would deploy a broken site to fjellrute.no in about a minute." >&2
+	exit 1
+fi
+
+# Lint is REPORTED BUT DOES NOT BLOCK, and that is a deliberate, temporary
+# compromise rather than the intended end state.
+#
+# When this gate was added (2026-07-31) `pnpm lint` already failed with 7
+# pre-existing errors on code nothing in this change touched:
+#   src/App.tsx                        react-refresh/only-export-components
+#                                      react-hooks/set-state-in-effect
+#   src/components/DatePopover.tsx     react-hooks/set-state-in-effect
+#   src/components/PublicView.tsx      react-hooks/set-state-in-effect
+#   src/components/SourceAttribution.tsx  react-refresh/only-export-components (x2)
+#   src/elevation/useElevation.ts      react-hooks/set-state-in-effect
+#
+# A gate that fails every single push is a gate everyone learns to pass with
+# --no-verify, which would also disable the build check above — the one that
+# actually keeps a broken bundle off fjellrute.no. None of these 7 break the
+# build, so blocking on them would trade real protection for cosmetic strictness.
+#
+# CLEAR THOSE 7, THEN MAKE THIS BLOCKING: drop the `|| true` and restore the
+# `exit 1`. Until then the output is here to stop the count growing quietly.
+echo "pre-push: lint (advisory — see the note in this hook)..."
+pnpm lint || echo "pre-push: lint reported problems (not blocking)." >&2
+
+echo "pre-push: ok."

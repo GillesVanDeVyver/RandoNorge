@@ -11,6 +11,7 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
+    "hooks:install": "git config core.hooksPath .githooks && echo 'pre-push build gate active'",
     "dev": "concurrently -n vite,worker -c cyan,yellow \"vite\" \"wrangler dev\"",
     "dev:frontend": "vite",
     "dev:worker": "wrangler dev",
