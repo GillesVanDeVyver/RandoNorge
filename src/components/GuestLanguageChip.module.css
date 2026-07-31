@@ -1,0 +1,10 @@
+/* Same corner and stacking level as AccountChip: the map controls below
+   already reserve ~38px of clearance for a chip here, so for guests this
+   fills a slot that would otherwise sit empty. Fixed, not absolute — the
+   chip renders next to <App/> rather than inside it. */
+.root {
+  position: fixed;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  right: max(var(--space-3), env(safe-area-inset-right));
+  z-index: 1100;
+}

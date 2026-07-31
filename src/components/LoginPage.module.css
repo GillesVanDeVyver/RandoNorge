@@ -54,6 +54,8 @@
 
 .language {
   margin-left: auto;
+  /* Never let the brand name squeeze the switcher on narrow phones. */
+  flex: none;
 }
 
 .brandIcon {

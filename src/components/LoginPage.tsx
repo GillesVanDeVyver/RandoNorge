@@ -660,7 +660,11 @@ export function LoginPage({ onContinueAsGuest }: Props) {
           <MountainIcon />
         </span>
         <span className={styles.brandName}>Fjellrute</span>
-        <LanguageSwitcher className={styles.language} />
+        {/* Prominent variant: this is the one place a first-time visitor can
+            pick a language before committing to anything, so it gets the
+            globe and the spelled-out names rather than a quiet NO|EN pill
+            that disappears into the photo. */}
+        <LanguageSwitcher emphasis="prominent" className={styles.language} />
       </header>
 
       <div className={styles.content}>

@@ -8,6 +8,7 @@ import {
   RoutesListPage,
   type RouteListItem,
 } from './components/RoutesListPage.tsx';
+import { GuestLanguageChip } from './components/GuestLanguageChip.tsx';
 import { OfflineMapsPage } from './components/OfflineMapsPage.tsx';
 import { PublicView, type PublicNav } from './components/PublicView.tsx';
 import {
@@ -744,9 +745,17 @@ export function Root() {
   // The terms-of-use gate sits in front of the planner: it covers both
   // the "Continue as guest" button and deep links straight to /planner,
   // and declining lands back on the login page.
+  //
+  // The language chip stands in for the account chip a guest doesn't have:
+  // without it the NO/EN switch would only exist behind a sign-in, and a
+  // guest could not change language at all. (The terms gate below carries
+  // its own toggle, which writes to the same locale store.)
   if (guest) {
     return guestTermsAccepted ? (
-      <App />
+      <>
+        <App />
+        <GuestLanguageChip />
+      </>
     ) : (
       <TermsPage
         onAccept={() => setGuestTermsAccepted(true)}

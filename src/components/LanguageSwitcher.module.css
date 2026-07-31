@@ -46,6 +46,12 @@
   color: #12241a;
 }
 
+/* Full language names are the default in the prominent pill; the short
+   NO/EN labels take over on narrow screens (see the media query below). */
+.labelShort {
+  display: none;
+}
+
 /* Light variant for use on pale/solid backgrounds (e.g. settings panels). */
 .light {
   background: rgba(18, 36, 26, 0.06);
@@ -67,4 +73,100 @@
 
 .light .optionActive:hover {
   color: #fff;
+}
+
+/* Surface variant for the map chrome: same glass tokens as the view
+   toggle and info button, with the app accent marking the active
+   language, so the guest language chip reads as part of the map UI. */
+.surface {
+  background: var(--surface-2);
+  border-color: var(--hairline);
+  box-shadow: var(--shadow-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.surface .option {
+  color: var(--text-2);
+}
+
+.surface .option:hover {
+  color: var(--text-1);
+  background: var(--surface-hover);
+}
+
+.surface .optionActive,
+.surface .optionActive:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.surface .option:focus-visible {
+  outline: none;
+  border: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+@media (pointer: coarse) {
+  .surface .option {
+    padding: 9px 14px;
+  }
+}
+
+/* Prominent: globe icon + spelled-out language names on a solid pill.
+   Used where the switcher sits on a photo and has to be spotted without
+   hunting — the login page. Rules come after .light / .surface so the
+   sizing wins for equal specificity regardless of the variant. */
+.prominent {
+  gap: 3px;
+  padding: 4px 4px 4px 11px;
+  background: rgba(8, 18, 28, 0.74);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 2px 12px rgba(8, 18, 28, 0.35);
+}
+
+.prominent .option {
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.prominent .option:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.prominent .optionActive,
+.prominent .optionActive:hover {
+  background: #fff;
+  color: #12241a;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 3px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Not enough width for "Norsk | English" beside the brand — fall back to
+   the short labels, keeping the globe and the solid pill. */
+@media (max-width: 520px) {
+  .prominent .labelFull {
+    display: none;
+  }
+
+  .prominent .labelShort {
+    display: inline;
+  }
+
+  .prominent .option {
+    padding: 7px 11px;
+  }
 }
