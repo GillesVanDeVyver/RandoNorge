@@ -10,7 +10,6 @@ import type { CSSProperties } from 'react';
 import { getSeason, OVERVIEW_PHOTOS } from '../theme/season';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
 import { useT } from '../i18n/index.ts';
-import { LanguageSwitcher } from './LanguageSwitcher.tsx';
 import styles from './AccountOverview.module.css';
 
 type Props = {
@@ -76,7 +75,6 @@ export function AccountOverview({
           <MountainIcon />
         </span>
         <span className={styles.brandName}>Fjellrute</span>
-        <LanguageSwitcher className={styles.language} />
       </header>
 
       <main className={styles.content}>
