@@ -23,6 +23,7 @@ import {
   deriveUniqueUsername,
 } from './usernameRules.js';
 import { TERMS_VERSION, PRIVACY_VERSION } from './policyVersions.js';
+import { betterAuthRateLimitStorage } from './rateLimit.js';
 
 // One instance per isolate+origin is enough; the D1 binding is stable for
 // the isolate's lifetime.
@@ -196,6 +197,24 @@ export function getAuth(env, origin) {
       },
     },
 
+    // Let errors Better Auth doesn't recognise escape to the Worker instead of
+    // becoming its router's bodiless 500.
+    //
+    // better-call answers an unrecognised error with `new Response(null, {
+    // status: 500 })` — no body, nothing for the client to read, nothing in the
+    // response naming the cause. Every one of this app's own endpoints already
+    // returns JSON on failure; this was the one path that didn't, and it hid a
+    // rejected PBKDF2 iteration count (worker/password.js) behind the sign-up
+    // form's generic "could not create the account" for two weeks.
+    //
+    // `throw` only affects that unrecognised case. Better Auth's own APIErrors
+    // — every 401, 403, 422, 429 the flows raise deliberately — are re-caught
+    // inside the router and converted to their normal responses, and OAuth's
+    // "FOUND" redirect is returned before this is consulted at all. What is
+    // left is genuine faults, which runAuthHandler (worker/index.js) logs and
+    // answers as JSON.
+    onAPIError: { throw: true },
+
     // Resolve the caller's real IP from Cloudflare's trusted CF-Connecting-IP
     // header so the rate limiter buckets per client. Without this Better Auth
     // can't find an IP on Workers and falls back to ONE shared per-path bucket
@@ -207,16 +226,22 @@ export function getAuth(env, origin) {
       },
     },
 
-    // Rate limiting against credential stuffing / brute force, backed by the
-    // shared D1 "rateLimit" table (migration 0005) rather than the default
-    // per-isolate memory store: Cloudflare spreads requests across many
-    // short-lived isolates, so an in-memory counter only sees one isolate's
-    // slice of traffic and barely throttles a distributed attack. Sensitive
-    // flows get stricter per-route caps on top of the global default.
+    // Rate limiting against credential stuffing / brute force, backed by D1
+    // rather than the default per-isolate memory store: Cloudflare spreads
+    // requests across many short-lived isolates, so an in-memory counter only
+    // sees one isolate's slice of traffic and barely throttles a distributed
+    // attack. Sensitive flows get stricter per-route caps on top of the
+    // global default.
+    //
+    // NOT `storage: 'database'`. Better Auth's own database backend hangs
+    // forever on D1 — it froze every sign-up until 2026-08-06 — so the store
+    // is the app's own bounded limiter instead. The full explanation is on
+    // `betterAuthRateLimitStorage` in worker/rateLimit.js; read it before
+    // changing this back. Everything else here (windows, per-route caps) is
+    // resolved by Better Auth exactly as before and passed to the storage.
     rateLimit: {
       enabled: true,
-      storage: 'database',
-      modelName: 'rateLimit',
+      customStorage: betterAuthRateLimitStorage(env),
       window: 60,
       max: 100,
       customRules: {

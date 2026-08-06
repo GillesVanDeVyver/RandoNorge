@@ -85,6 +85,34 @@ function passwordStrengthLabel(
  */
 const AUTH_RETURN = appPath();
 
+/**
+ * Ceilings on the two network calls sign-up makes, in ms.
+ *
+ * Neither is a performance tweak — they are what stops the form freezing.
+ * `busy` is what renders the submit button as "One moment…", and nothing
+ * clears it while a request is outstanding, so any call that never settles
+ * strands the user on that spinner with no way out but a page reload. Nothing
+ * else imposes a limit: `fetch` has no default timeout, and better-fetch (the
+ * transport under `authClient`) only installs one when `timeout` is passed.
+ *
+ * That is not hypothetical. On 2026-08-06 every /api/auth/* request was
+ * hanging in production — see docs/SIGNUP_FREEZE_DEBUGGING.md, Cause C — and
+ * the form sat spinning indefinitely rather than reporting anything. The
+ * server bug is fixed; these bound the symptom so the next one cannot present
+ * as a dead UI.
+ *
+ * Sign-up is the slowest by design (a password hash and a verification email
+ * happen inside it), hence the wider budget. AUTH_TIMEOUT_MS covers every
+ * other call on this page — sign-in, resend, password reset — which reach the
+ * same /api/auth/* handler and would have frozen in exactly the same way.
+ */
+const ACCOUNT_EXISTS_TIMEOUT_MS = 8000;
+const SIGNUP_TIMEOUT_MS = 25000;
+const AUTH_TIMEOUT_MS = 15000;
+
+/** The parts of a Better Auth client error this page acts on. */
+type AuthError = { status?: number; message?: string };
+
 /** Reads one-shot query params left by emailed links, then cleans the URL. */
 function consumeAuthParams() {
   const params = new URLSearchParams(window.location.search);
@@ -286,63 +314,89 @@ export function LoginPage({ onContinueAsGuest }: Props) {
       return next;
     });
 
+  // Every Better Auth call on this page goes through here. It bounds the
+  // request — better-fetch installs a timeout only when one is passed, and a
+  // hung /api/auth/* is precisely what stranded users on 2026-08-06 — and
+  // reports a stall in the same `{ message }` shape a normal failure has, so
+  // each caller's existing error branch already covers it.
+  const authRequest = async (
+    call: (fetchOptions: {
+      timeout: number;
+    }) => Promise<{ error?: AuthError | null }>,
+  ): Promise<AuthError | null> => {
+    try {
+      const { error: err } = await call({ timeout: AUTH_TIMEOUT_MS });
+      return err ?? null;
+    } catch {
+      return {
+        message: translate(
+          'Serveren svarte ikke. Sjekk nettforbindelsen og prøv igjen.',
+          'The server did not respond. Check your connection and try again.',
+        ),
+      };
+    }
+  };
+
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setWrongPassword(false);
     setBusy(true);
-    const { error: err } = await authClient.signIn.email({ email, password });
-    if (!err) {
-      setBusy(false);
-      return; // useSession in Root picks up the new session.
-    }
-    if (err.status === 403) {
-      // Unverified address: the server has just re-sent the verification
-      // email as part of rejecting this sign-in.
-      setBusy(false);
-      setNotice(null);
-      setMode('verify');
-      return;
-    }
-    if (err.status === 401) {
-      // Better Auth returns the same 401 whether the account is missing or
-      // the password is wrong; ask the worker which one it was.
-      let exists = true;
-      try {
-        const res = await fetch('/api/account-exists', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
-        if (res.ok) {
-          exists = Boolean((await res.json()).exists);
+    // try/finally, not a setBusy(false) before each return: one missed branch
+    // (or one thrown request) is a permanent "One moment…".
+    try {
+      const err = await authRequest((o) =>
+        authClient.signIn.email({ email, password }, o),
+      );
+      if (!err) return; // useSession in Root picks up the new session.
+      if (err.status === 403) {
+        // Unverified address: the server has just re-sent the verification
+        // email as part of rejecting this sign-in.
+        setNotice(null);
+        setMode('verify');
+        return;
+      }
+      if (err.status === 401) {
+        // Better Auth returns the same 401 whether the account is missing or
+        // the password is wrong; ask the worker which one it was.
+        let exists = true;
+        try {
+          const res = await fetch('/api/account-exists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+            signal: AbortSignal.timeout(ACCOUNT_EXISTS_TIMEOUT_MS),
+          });
+          if (res.ok) {
+            exists = Boolean((await res.json()).exists);
+          }
+        } catch {
+          // Lookup failed — fall back to assuming the account exists so the
+          // user still gets an actionable message and the reset button.
         }
-      } catch {
-        // Lookup failed — fall back to assuming the account exists so the
-        // user still gets an actionable message and the reset button.
+        if (exists) {
+          setError(translate('Feil passord.', 'Wrong password.'));
+          setWrongPassword(true);
+        } else {
+          setError(
+            translate(
+              'Fant ingen konto for denne e-postadressen.',
+              'No account found for this email address.',
+            ),
+          );
+        }
+        return;
       }
-      setBusy(false);
-      if (exists) {
-        setError(translate('Feil passord.', 'Wrong password.'));
-        setWrongPassword(true);
-      } else {
-        setError(
+      setError(
+        err.message ??
           translate(
-            'Fant ingen konto for denne e-postadressen.',
-            'No account found for this email address.',
+            'Kunne ikke logge inn. Prøv igjen.',
+            'Could not log in. Please try again.',
           ),
-        );
-      }
-      return;
+      );
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    setError(
-      err.message ??
-        translate(
-          'Kunne ikke logge inn. Prøv igjen.',
-          'Could not log in. Please try again.',
-        ),
-    );
   };
 
   // OAuth with Google. On success the browser is redirected to Google and
@@ -353,13 +407,22 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setError(null);
     setWrongPassword(false);
     setBusy(true);
-    const { error: err } = await authClient.signIn.social({
-      provider: 'google',
-      callbackURL: AUTH_RETURN,
-      // On OAuth failure, return to this page with ?error=<code> (handled
-      // by consumeAuthParams above) instead of Better Auth's raw error page.
-      errorCallbackURL: AUTH_RETURN,
-    });
+    // No try/finally here, unlike the others: on success the browser leaves
+    // for Google, and clearing `busy` would flash the button back to life on
+    // the way out. authRequest still guarantees this settles.
+    const err = await authRequest((o) =>
+      authClient.signIn.social(
+        {
+          provider: 'google',
+          callbackURL: AUTH_RETURN,
+          // On OAuth failure, return to this page with ?error=<code> (handled
+          // by consumeAuthParams above) instead of Better Auth's raw error
+          // page.
+          errorCallbackURL: AUTH_RETURN,
+        },
+        o,
+      ),
+    );
     if (err) {
       setBusy(false);
       setError(
@@ -401,8 +464,10 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     setPendingAction('signup');
   };
 
-  const performSignup = async () => {
-    setBusy(true);
+  // The sign-up attempt proper. Every network call it makes is bounded by one
+  // of the timeouts at the top of the file; `performSignup` below owns the
+  // busy flag so no exit from here can leave the button spinning.
+  const runSignup = async () => {
     // Better Auth deliberately answers duplicate sign-ups with a fake
     // success (anti-enumeration when email verification is required), so
     // no error would ever come back for a taken address. Ask the worker's
@@ -413,9 +478,9 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
+        signal: AbortSignal.timeout(ACCOUNT_EXISTS_TIMEOUT_MS),
       });
       if (res.ok && Boolean((await res.json()).exists)) {
-        setBusy(false);
         setFieldErrors({
           email: translate(
             'Det finnes allerede en konto for denne e-posten.',
@@ -426,27 +491,50 @@ export function LoginPage({ onContinueAsGuest }: Props) {
         return;
       }
     } catch {
-      // Lookup failed — fall through to the normal sign-up attempt.
+      // Lookup failed or timed out — this is only a nicety, so fall through
+      // to the normal sign-up attempt rather than blocking on it.
     }
-    const { error: err } = await authClient.signUp.email({
-      // The form asks for a first name; keep it in full (compound first
-      // names like "Anne Marie" are common) and fall back to the email's
-      // local part when nothing is entered.
-      name: name.trim() || email.split('@')[0],
-      email,
-      password,
-      // The chosen public handle (normalized); the worker validates it and
-      // guarantees uniqueness before the account row is written.
-      username: username.trim().toLowerCase(),
-      // Closed-alpha gate: the worker checks this before Better Auth runs and
-      // rejects with 403 if it isn't valid (worker/index.js gatedEmailSignUp).
-      inviteCode: inviteCode.trim(),
-      callbackURL: AUTH_RETURN,
-    } as Parameters<typeof authClient.signUp.email>[0] & {
-      username: string;
-      inviteCode: string;
-    });
-    setBusy(false);
+    // The sign-up call itself. It is wrapped because better-fetch does not
+    // catch transport failures: an aborted or dropped request rejects, and
+    // without this the user would be left staring at the spinner.
+    // Not authRequest(): sign-up gets a wider budget than the other calls and
+    // a message of its own, since it is the one the user waits on longest.
+    let err: AuthError | null;
+    try {
+      const result = await authClient.signUp.email(
+        {
+          // The form asks for a first name; keep it in full (compound first
+          // names like "Anne Marie" are common) and fall back to the email's
+          // local part when nothing is entered.
+          name: name.trim() || email.split('@')[0],
+          email,
+          password,
+          // The chosen public handle (normalized); the worker validates it and
+          // guarantees uniqueness before the account row is written.
+          username: username.trim().toLowerCase(),
+          // Closed-alpha gate: the worker checks this before Better Auth runs
+          // and rejects with 403 if it isn't valid (worker/index.js
+          // gatedEmailSignUp).
+          inviteCode: inviteCode.trim(),
+          callbackURL: AUTH_RETURN,
+        } as Parameters<typeof authClient.signUp.email>[0] & {
+          username: string;
+          inviteCode: string;
+        },
+        // better-fetch aborts the request once this elapses, so a server that
+        // never answers becomes a real error instead of an endless spinner.
+        { timeout: SIGNUP_TIMEOUT_MS },
+      );
+      err = result.error ?? null;
+    } catch {
+      setError(
+        translate(
+          'Registreringen svarte ikke. Sjekk nettforbindelsen og prøv igjen.',
+          'Sign-up did not respond. Check your connection and try again.',
+        ),
+      );
+      return;
+    }
     if (err) {
       // 403 is the invite gate rejecting the code; point the message straight
       // at the invite field rather than the shared error box.
@@ -499,6 +587,21 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     }
   };
 
+  // Every exit from the sign-up attempt must clear `busy`, or the submit
+  // button stays on "One moment…" for good. That is why the flag is set and
+  // cleared here in try/finally instead of at each return inside runSignup: a
+  // thrown request (better-fetch does not catch transport failures, and the
+  // `void performSignup()` call site below would swallow the rejection) used
+  // to skip the reset entirely — the freeze Tryggve hit on 2026-08-06.
+  const performSignup = async () => {
+    setBusy(true);
+    try {
+      await runSignup();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // The user accepted the terms: run whichever sign-up path was waiting
   // behind the gate. Declining just returns to the login page unchanged.
   const handleTermsAccept = () => {
@@ -511,28 +614,30 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   const handleResend = async () => {
     setBusy(true);
     setError(null);
-    const { error: err } = await authClient.sendVerificationEmail({
-      email,
-      callbackURL: AUTH_RETURN,
-    });
-    setBusy(false);
-    if (err) {
-      setError(
-        err.message ??
+    try {
+      const err = await authRequest((o) =>
+        authClient.sendVerificationEmail({ email, callbackURL: AUTH_RETURN }, o),
+      );
+      if (err) {
+        setError(
+          err.message ??
+            translate(
+              'Kunne ikke sende e-posten på nytt.',
+              'Could not resend the email.',
+            ),
+        );
+      } else {
+        setNotice(
           translate(
-            'Kunne ikke sende e-posten på nytt.',
-            'Could not resend the email.',
+            'Bekreftelses-e-post sendt på nytt. Sjekk innboksen (og søppelpost-mappen).',
+            'Verification email sent again. Check your inbox (and your spam folder).',
           ),
-      );
-    } else {
-      setNotice(
-        translate(
-          'Bekreftelses-e-post sendt på nytt. Sjekk innboksen (og søppelpost-mappen).',
-          'Verification email sent again. Check your inbox (and your spam folder).',
-        ),
-      );
-      persistResendDeadline();
-      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+        );
+        persistResendDeadline();
+        setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -541,27 +646,29 @@ export function LoginPage({ onContinueAsGuest }: Props) {
   const handleQuickReset = async () => {
     setBusy(true);
     setError(null);
-    const { error: err } = await authClient.requestPasswordReset({
-      email,
-      redirectTo: AUTH_RETURN,
-    });
-    setBusy(false);
-    setWrongPassword(false);
-    if (err) {
-      setError(
-        err.message ??
+    try {
+      const err = await authRequest((o) =>
+        authClient.requestPasswordReset({ email, redirectTo: AUTH_RETURN }, o),
+      );
+      setWrongPassword(false);
+      if (err) {
+        setError(
+          err.message ??
+            translate(
+              'Kunne ikke sende e-post for tilbakestilling.',
+              'Could not send the reset email.',
+            ),
+        );
+      } else {
+        setNotice(
           translate(
-            'Kunne ikke sende e-post for tilbakestilling.',
-            'Could not send the reset email.',
+            'Lenke for tilbakestilling av passord sendt. Sjekk innboksen (og søppelpost-mappen).',
+            'Password reset link sent. Check your inbox (and your spam folder).',
           ),
-      );
-    } else {
-      setNotice(
-        translate(
-          'Lenke for tilbakestilling av passord sendt. Sjekk innboksen (og søppelpost-mappen).',
-          'Password reset link sent. Check your inbox (and your spam folder).',
-        ),
-      );
+        );
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -569,26 +676,28 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error: err } = await authClient.requestPasswordReset({
-      email,
-      redirectTo: AUTH_RETURN,
-    });
-    setBusy(false);
-    if (err) {
-      setError(
-        err.message ??
+    try {
+      const err = await authRequest((o) =>
+        authClient.requestPasswordReset({ email, redirectTo: AUTH_RETURN }, o),
+      );
+      if (err) {
+        setError(
+          err.message ??
+            translate(
+              'Kunne ikke sende e-post for tilbakestilling.',
+              'Could not send the reset email.',
+            ),
+        );
+      } else {
+        setNotice(
           translate(
-            'Kunne ikke sende e-post for tilbakestilling.',
-            'Could not send the reset email.',
+            'Hvis det finnes en konto for adressen, er en lenke for tilbakestilling på vei. Sjekk innboksen og søppelpost-mappen.',
+            'If an account exists for that address, a reset link is on its way. Check your inbox and your spam folder.',
           ),
-      );
-    } else {
-      setNotice(
-        translate(
-          'Hvis det finnes en konto for adressen, er en lenke for tilbakestilling på vei. Sjekk innboksen og søppelpost-mappen.',
-          'If an account exists for that address, a reset link is on its way. Check your inbox and your spam folder.',
-        ),
-      );
+        );
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -608,27 +717,29 @@ export function LoginPage({ onContinueAsGuest }: Props) {
     }
     if (!resetToken) return;
     setBusy(true);
-    const { error: err } = await authClient.resetPassword({
-      newPassword: password,
-      token: resetToken,
-    });
-    setBusy(false);
-    if (err) {
-      setError(
-        err.message ??
+    try {
+      const err = await authRequest((o) =>
+        authClient.resetPassword({ newPassword: password, token: resetToken }, o),
+      );
+      if (err) {
+        setError(
+          err.message ??
+            translate(
+              'Kunne ikke tilbakestille passordet. Lenken kan ha utløpt.',
+              'Could not reset the password. The link may have expired.',
+            ),
+        );
+      } else {
+        switchMode('login');
+        setNotice(
           translate(
-            'Kunne ikke tilbakestille passordet. Lenken kan ha utløpt.',
-            'Could not reset the password. The link may have expired.',
+            'Passordet er oppdatert. Logg inn med det nye passordet.',
+            'Password updated. Log in with your new password.',
           ),
-      );
-    } else {
-      switchMode('login');
-      setNotice(
-        translate(
-          'Passordet er oppdatert. Logg inn med det nye passordet.',
-          'Password updated. Log in with your new password.',
-        ),
-      );
+        );
+      }
+    } finally {
+      setBusy(false);
     }
   };
 

@@ -6,9 +6,16 @@
 -- stuffing attack. Both limiters below move that state into D1 so counts are
 -- shared across every isolate.
 --
---   1. "rateLimit"      — Better Auth's own store for /api/auth/* (enabled with
---                         storage:"database" in worker/auth.js). Better Auth
---                         owns the rows; these are the columns it expects.
+--   1. "rateLimit"      — the table Better Auth's own store expects for
+--                         /api/auth/*. Its columns are the shape Better Auth
+--                         defines; these are not ours to rename.
+--                         2026-08-06: that store is no longer used. Better
+--                         Auth's database backend recurses without a ceiling
+--                         on D1 and froze every sign-up, so /api/auth/* now
+--                         goes through "app_rate_limit" below via
+--                         betterAuthRateLimitStorage() (worker/rateLimit.js).
+--                         This table is still written by that storage's
+--                         get/set fallback — see docs/SIGNUP_FREEZE_DEBUGGING.md.
 --   2. "app_rate_limit" — a generic per-IP fixed-window limiter used by the
 --                         custom /api/account-exists endpoint (worker/rateLimit.js).
 --

@@ -38,6 +38,9 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
+// Order-sensitive in a way that can silently blank out the code being checked
+// (it once did, here); the reasoning lives with the helper.
+import { stripComments } from './lib/strip-comments.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const basePath = join(root, 'src/appBase.ts');
@@ -296,9 +299,7 @@ for (const { what, re } of literalPatterns) {
     const source = readFileSync(file, 'utf8');
     // Comments describe the old mistake on purpose (that is how a reader learns
     // why the rule exists), so only real code is scanned.
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/^\s*\/\/[^\n]*$/gm, '');
+    const code = stripComments(source);
     if (re.test(code)) offenders.push(relative(root, file));
   }
   check(`${what}: none found`, offenders.length === 0, `in: ${JSON.stringify(offenders)}`);
@@ -375,7 +376,7 @@ console.log('\n[control] the checks detect the regressions they exist for');
     'an auth callback reverted to "/" is caught',
     reverted !== login &&
       literalPatterns[0].re.test(
-        reverted.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, ''),
+        stripComments(reverted),
       ),
   );
 
@@ -388,9 +389,7 @@ console.log('\n[control] the checks detect the regressions they exist for');
     'a history reset to "/" is caught',
     revertedHistory !== rootTsx &&
       literalPatterns[2].re.test(
-        revertedHistory
-          .replace(/\/\*[\s\S]*?\*\//g, '')
-          .replace(/^\s*\/\/[^\n]*$/gm, ''),
+        stripComments(revertedHistory),
       ),
   );
 

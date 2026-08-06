@@ -126,7 +126,7 @@ async function handleRequest(request, env, ctx) {
     // Authentication (Better Auth): sign-up, sign-in, sign-out, session,
     // email verification and password reset all live under /api/auth/*.
     if (pathname === '/api/auth' || pathname.startsWith('/api/auth/')) {
-      return getAuth(env, url.origin).handler(request);
+      return runAuthHandler(env, url, request);
     }
 
     // Tells the login form whether an account exists for an email address,
@@ -369,7 +369,7 @@ async function gatedEmailSignUp(request, env, url, ctx) {
   } catch {
     // Malformed body — let Better Auth produce its normal validation error
     // rather than masking it as an invite problem.
-    return getAuth(env, url.origin).handler(rebuildJsonRequest(request, raw));
+    return runAuthHandler(env, url, rebuildJsonRequest(request, raw));
   }
 
   const code = normalizeInviteCode(body?.inviteCode);
@@ -384,7 +384,9 @@ async function gatedEmailSignUp(request, env, url, ctx) {
 
   // Forward to Better Auth without the extra field.
   const { inviteCode: _drop, ...forwarded } = body;
-  const authResponse = await getAuth(env, url.origin).handler(
+  const authResponse = await runAuthHandler(
+    env,
+    url,
     rebuildJsonRequest(request, JSON.stringify(forwarded)),
   );
 
@@ -402,6 +404,46 @@ async function gatedEmailSignUp(request, env, url, ctx) {
     );
   }
   return authResponse;
+}
+
+/**
+ * Run a request through Better Auth, guaranteeing a readable response.
+ *
+ * Better Auth's router (better-call) answers an error it doesn't recognise —
+ * anything that isn't one of its own APIErrors — with `new Response(null,
+ * { status: 500 })`: no body at all. The auth client can't parse that, so it
+ * reports only "something went wrong", and the form shows its catch-all
+ * message. Two separate week-long outages were diagnosed slowly for exactly
+ * this reason: the one signal that would have named the cause never left the
+ * server. Most recently that was a PBKDF2 iteration count the platform refuses
+ * (worker/password.js), which is not the kind of thing anyone guesses from
+ * "could not create the account".
+ *
+ * `onAPIError.throw` (worker/auth.js) makes those unrecognised errors propagate
+ * here instead of becoming that empty 500 — Better Auth's real APIErrors are
+ * still converted to their proper responses inside the router and never reach
+ * this catch. So this turns the one unreadable outcome into a logged line and
+ * a JSON body shaped like every other error the client already understands.
+ *
+ * The message stays generic on purpose: the detail goes to the log
+ * (`wrangler tail`), not to whoever is posting to the endpoint.
+ */
+async function runAuthHandler(env, url, request) {
+  try {
+    return await getAuth(env, url.origin).handler(request);
+  } catch (err) {
+    console.error(
+      `auth handler failed for ${request.method} ${url.pathname}:`,
+      err,
+    );
+    return Response.json(
+      {
+        message: 'Something went wrong on our side. Please try again shortly.',
+        code: 'AUTH_INTERNAL_ERROR',
+      },
+      { status: 500 },
+    );
+  }
 }
 
 /**

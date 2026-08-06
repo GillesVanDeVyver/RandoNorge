@@ -24,8 +24,10 @@
     "test:appbase": "node scripts/verify-app-base.mjs",
     "test:policies": "node scripts/verify-policy-acceptance.mjs && python3 scripts/verify-policy-sql.py",
     "test:migration": "python3 scripts/verify-eu-migration.py",
+    "test:ratelimit": "node scripts/verify-rate-limit.mjs",
+    "test:password": "node scripts/verify-password-hash.mjs",
     "test:gdpr": "pnpm test:deletion && pnpm test:privacy && pnpm test:policies",
-    "test": "pnpm test:gdpr && pnpm test:landing && pnpm test:appbase"
+    "test": "pnpm test:gdpr && pnpm test:landing && pnpm test:appbase && pnpm test:ratelimit && pnpm test:password"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
