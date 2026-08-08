@@ -81,11 +81,38 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    > inbox. Sender is `EMAIL_FROM = "Fjellrute <no-reply@fjellrute.no>"`
    > (`wrangler.jsonc`). `RESEND_API_KEY` is set as a Worker secret.
    >
-   > Caveat: the DMARC `rua=` points at `hei@fjellrute.no`, which is **not set
-   > up yet** — DMARC aggregate reports sent there are silently dropped. This
-   > is harmless (policy is monitor-only `p=none`); set up that mailbox via
-   > Cloudflare Email Routing later if you want to read the reports, or drop
-   > the `rua=` part from the DMARC record.
+   > The DMARC `rua=` points at `hei@fjellrute.no`. That mailbox now exists —
+   > see "Inbound mail" below — so aggregate reports are delivered rather than
+   > dropped. Drop the `rua=` part from the DMARC record if you would rather
+   > not receive the daily XML; the policy is monitor-only (`p=none`) either
+   > way.
+
+   **Inbound mail — a separate system from Resend.** Resend only sends. Mail
+   *to* `@fjellrute.no` is handled by **Cloudflare Email Routing** (dashboard →
+   the `fjellrute.no` zone → Email → Email Routing), which forwards to a
+   personal mailbox; the destination address lives only in that dashboard and
+   is deliberately not recorded here. Nothing in Resend affects whether inbound
+   mail arrives, and nothing here needs configuring per address beyond the
+   routes themselves.
+
+   > **Verified — 2026-08-08:** live test messages sent to both
+   > `contact@fjellrute.no` and `hei@fjellrute.no` were received. The zone's
+   > MX records point at `route1/2/3.mx.cloudflare.net` and the root SPF is
+   > `v=spf1 include:_spf.mx.cloudflare.net ~all`.
+   >
+   > Two things about this that look wrong and are not. First, the root SPF
+   > authorises Cloudflare rather than Resend: outbound mail uses
+   > `send.fjellrute.no` as its return path, and SPF is evaluated against the
+   > envelope sender, so Resend mail still passes SPF there and aligns for
+   > DMARC via DKIM. Second, forwarded mail can land in the destination
+   > mailbox's spam folder — Cloudflare preserves the original sender, so SPF
+   > cannot match at the forwarding hop. That is expected; filter on
+   > `To: contact@fjellrute.no` (and `hei@`) rather than treating it as a
+   > misconfiguration.
+
+   `FEEDBACK_TO` in `wrangler.jsonc` is `contact@fjellrute.no`, so in-app
+   feedback (`worker/feedback.js`) arrives through this same inbound path.
+   Being a recipient rather than a sender, it needs no verification in Resend.
 
 5. **Set up "Continue with Google"** (optional — the button shows an error
    until this is done, everything else keeps working):

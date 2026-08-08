@@ -59,14 +59,21 @@ Nothing is on a deadline. In rough order of value:
    misconfiguration: Cloudflare forwards while preserving the original sender, so
    SPF cannot match. Filter on `To: contact@fjellrute.no` → **Never send it to
    Spam**, repeat for `hei@`. These are the messages asking for alpha access.
+
+   *2026-08-08: delivery to both addresses confirmed by a live test, so routing
+   itself is sound. Whether the spam filters have been added is a separate
+   question and is not recorded here — if they have not, the failure mode is a
+   tester who writes in and is never answered.*
 5. **`.claude/settings.local.json` is untracked.** Commit it or ignore it; it is a
    preference about your own tooling, and until you pick one `git status` stays
    dirty.
 
 Optional and known: replying as `contact@fjellrute.no` needs Gmail "send mail as"
-via Resend SMTP, or your personal address is exposed in GDPR replies; DMARC reports
-now arrive at `hei@` and can be turned off by dropping `rua=`; a screenshot on the
-landing page would help if a reviewer still doubts the app exists.
+via Resend SMTP, or your personal address is exposed in GDPR replies — now also in
+replies to in-app feedback, which raises the value of doing it; DMARC reports
+now arrive at `hei@` (confirmed 2026-08-08) and can be turned off by dropping
+`rua=`; a screenshot on the landing page would help if a reviewer still doubts the
+app exists.
 
 ## Two things not to get wrong later
 

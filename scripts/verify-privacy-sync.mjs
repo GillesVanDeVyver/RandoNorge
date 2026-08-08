@@ -182,15 +182,33 @@ for (const lang of ['en', 'no']) {
 console.log('\n[control] the extractor detects drift planted in the mirror');
 {
   // A word silently added to a sentence — the realistic failure mode.
-  const wordPlanted = html.replace(
-    'Fjellrute is the data controller',
-    'Fjellrute is possibly the data controller',
-  );
+  //
+  // The plant is derived from §1's own text rather than quoted from it. A
+  // hardcoded quote rots the moment that section is reworded, and then this
+  // control fails for a reason that has nothing to do with drift: it did
+  // exactly that on 2026-08-08, when §1 was rewritten to name the controller
+  // and the old quote ("Fjellrute is the data controller") stopped existing.
+  // A control that cries wolf about itself is one nobody reads, and this one
+  // is the only thing standing behind every PASS above.
+  const heading = '1. Who is responsible';
+  const canonical = sectionsFromTs('en').sections.get(heading);
+  // First word of the section, taken from the canonical text so it is
+  // guaranteed to appear in a faithful mirror, and injected a second time.
+  // Planted *after* the §1 heading, because that word ("Fjellrute") also
+  // occurs in the title and the intro, and a plant landing there would leave
+  // §1 itself identical — the control would then fail while reporting
+  // nothing useful.
+  const at = html.indexOf(`<h2>${heading}</h2>`);
+  const firstWord = canonical.split(' ')[0];
+  const wordPlanted =
+    at === -1
+      ? html // heading missing: leave html untouched so the check below fails
+      : html.slice(0, at) +
+        html.slice(at).replace(firstWord, `${firstWord} possibly`);
   check(
     'a changed word is caught',
     wordPlanted !== html &&
-      sectionsFromHtml(wordPlanted).en.sections.get('1. Who is responsible') !==
-        sectionsFromTs('en').sections.get('1. Who is responsible'),
+      sectionsFromHtml(wordPlanted).en.sections.get(heading) !== canonical,
   );
 
   // A whole paragraph dropped — what happens when one file gets updated and

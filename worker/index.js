@@ -25,6 +25,7 @@ import { handlePublicApi } from './public.js';
 import { handleUsernameApi } from './username.js';
 import { handlePoliciesApi } from './policies.js';
 import { handleAccountApi } from './account.js';
+import { handleFeedbackApi } from './feedback.js';
 import { handleTerrainTile } from './terrain.js';
 import { withSecurityHeaders } from './securityHeaders.js';
 import { rateLimit, clientIp } from './rateLimit.js';
@@ -181,6 +182,12 @@ async function handleRequest(request, env, ctx) {
     // when the account has one.
     if (pathname === '/api/account') {
       return handleAccountApi(request, env, url);
+    }
+
+    // In-app feedback: stored in D1 and emailed on to FEEDBACK_TO
+    // (worker/feedback.js). Signed-in only, and rate limited there.
+    if (pathname === '/api/feedback') {
+      return handleFeedbackApi(request, env, url);
     }
 
     // Anonymous, read-only access to shared routes/tracks and public

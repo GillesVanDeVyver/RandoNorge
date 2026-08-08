@@ -117,6 +117,14 @@ for (const u of [TARGET, OTHER]) {
     'insert into "track" (id,userId,routeId,name,geometry,startedAt,finishedAt,createdAt,isShared,shareSlug)' +
       ' values (?,?,?,?,?,?,?,?,1,?)',
   ).run(`t-${u.id}`, u.id, `r-${u.id}`, 'opptak', '{}', ISO, ISO, ISO, `slug-t-${u.id}`);
+  // In-app feedback (migration 0008). replyTo holds the address on purpose:
+  // it is the only column there that can carry personal data beyond the
+  // userId, so it is what the leak scan in [3] has to find if the cascade
+  // ever stops reaching this table.
+  db.prepare(
+    'insert into "feedback" (id,userId,message,replyTo,createdAt)' +
+      ' values (?,?,?,?,?)',
+  ).run(`f-${u.id}`, u.id, 'skiene sporer ikke', u.email, ISO);
   db.prepare('insert into "invite_redemption" (code,email) values (?,?)').run(
     'ALPHA1',
     u.email,
@@ -170,6 +178,7 @@ check('sessions cascaded', count('select count(*) n from "session" where userId 
 check('accounts cascaded (both providers)', count('select count(*) n from "account" where userId = ?', TARGET.id), 0);
 check('routes cascaded', count('select count(*) n from "route" where userId = ?', TARGET.id), 0);
 check('tracks cascaded', count('select count(*) n from "track" where userId = ?', TARGET.id), 0);
+check('feedback cascaded', count('select count(*) n from "feedback" where userId = ?', TARGET.id), 0);
 check(
   'verification tokens gone (bare and reset-password: forms)',
   count(
@@ -211,6 +220,7 @@ check('other sessions kept', count('select count(*) n from "session" where userI
 check('other accounts kept', count('select count(*) n from "account" where userId = ?', OTHER.id), 2);
 check('other routes kept', count('select count(*) n from "route" where userId = ?', OTHER.id), 1);
 check('other tracks kept', count('select count(*) n from "track" where userId = ?', OTHER.id), 1);
+check('other feedback kept', count('select count(*) n from "feedback" where userId = ?', OTHER.id), 1);
 check('other tokens kept (substring trap)', count('select count(*) n from "verification"'), 2);
 check('other redemption kept', count('select count(*) n from "invite_redemption"'), 1);
 

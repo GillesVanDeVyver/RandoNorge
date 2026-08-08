@@ -12,9 +12,10 @@
 //
 // Deleting the "user" row cascades to "session" (with its stored IP address
 // and user agent), "account" (the password hash and any linked Google
-// identity), "route" and "track" — the cascades come from migrations 0001 and
-// 0002. Two tables are keyed by email address instead of user id, so they do
-// NOT cascade and are deleted explicitly here:
+// identity), "route", "track" and "feedback" (in-app feedback messages) — the
+// cascades come from migrations 0001, 0002 and 0008. Two tables are keyed by
+// email address instead of user id, so they do NOT cascade and are deleted
+// explicitly here:
 //
 //   * "verification"      — pending email-verification / password-reset tokens
 //   * "invite_redemption" — the closed-alpha audit trail (migration 0006)
@@ -24,7 +25,11 @@
 //
 // Nothing of the user's lives outside D1. R2 holds only self-generated terrain
 // tiles, and the app sets no analytics cookies, so there is nothing else to
-// clean up.
+// clean up — with one honest exception: a feedback message the user sent was
+// also emailed to FEEDBACK_TO (worker/feedback.js), and that copy is
+// correspondence in a mailbox, not a database row. It is not reachable from
+// here and is not claimed to be; privacy policy §5 and docs/REMOVE_USER.md
+// both say so plainly.
 //
 // CONFIRMATION
 //

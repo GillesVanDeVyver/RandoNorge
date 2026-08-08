@@ -1,0 +1,235 @@
+/* In-app feedback form. Shares the glass-panel look of DisclaimerModal /
+   TermsDialog — same backdrop, radius, hairline and accent button — so the
+   new dialog reads as part of the app rather than a bolted-on form. Wider
+   than the disclaimer because it contains a multi-line text box. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  /* Tall keyboards on phones leave very little room; scroll inside the panel
+     rather than letting the actions escape below the fold. */
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow: auto;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-2);
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.intro {
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+/* --- Fields --------------------------------------------------------------- */
+
+.label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+
+/* "optional" next to the reply-address label — quieter than the label so the
+   field reads as genuinely skippable. */
+.optional {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-3);
+}
+
+.textarea,
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-3);
+
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--text-1);
+
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 132px;
+}
+
+.textarea::placeholder,
+.input::placeholder {
+  color: var(--text-3);
+}
+
+.textarea:focus-visible,
+.input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.textarea:disabled,
+.input:disabled {
+  color: var(--text-2);
+  background: var(--surface-3);
+}
+
+/* Character count under the message box, right-aligned and quiet: it is
+   reassurance about the limit, not a thing to look at while typing. */
+.counter {
+  display: flex;
+  justify-content: flex-end;
+  margin: var(--space-1) 0 var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.hint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.error {
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--descent-strong);
+  background: rgba(255, 107, 94, 0.1);
+  border: 1px solid rgba(255, 107, 94, 0.35);
+  border-radius: var(--radius-md);
+}
+
+/* --- Actions -------------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.cancelBtn {
+  padding: 0;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.cancelBtn:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+.cancelBtn:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.cancelBtn:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Same accent pill as the disclaimer's accept button. */
+.sendBtn {
+  height: 40px;
+  min-width: 132px;
+  padding: 0 var(--space-6);
+
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--accent-contrast);
+
+  background-image: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    var(--shadow-2);
+  transition:
+    transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    filter var(--dur-fast) var(--ease);
+}
+
+.sendBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    var(--shadow-float);
+}
+
+.sendBtn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.97);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.15),
+    var(--shadow-1);
+}
+
+/* Disabled covers both "nothing typed yet" and "sending" — in both cases the
+   button must look inert rather than merely unresponsive. */
+.sendBtn:disabled {
+  filter: saturate(0.35);
+  opacity: 0.65;
+  cursor: default;
+  box-shadow: var(--shadow-1);
+}
+
+.sendBtn:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 0 3px var(--accent-ring),
+    var(--shadow-2);
+}

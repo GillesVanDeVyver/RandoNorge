@@ -647,6 +647,10 @@ export function Root() {
         {view === 'overview' && (
           <AccountOverview
             name={name}
+            // Prefills the reply address in the feedback form. `name` already
+            // falls back to the email above, so this is passed separately
+            // rather than reused from it.
+            email={session.user.email}
             savedCount={savedRoutes === null ? null : savedItems.length}
             completedCount={
               completedTracks === null ? null : completedItems.length

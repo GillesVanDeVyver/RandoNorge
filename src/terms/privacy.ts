@@ -62,6 +62,20 @@ export interface PrivacyText {
  * re-presents the acceptance gate — done now, at alpha scale, rather than
  * during the November launch when the same change would interrupt hundreds
  * of sessions.
+ *
+ * 2026-08-08 (same day, same version string, deliberately): the mailto: link
+ * on the account overview became an in-app form that stores the message in D1
+ * before emailing it (migration 0008, worker/feedback.js). New stored personal
+ * data means the policy has to say so, so §2 discloses it, §4 notes that a
+ * feedback message passes through Resend like any other mail, and §5 states
+ * how long it is kept. Folded into the version bumped hours earlier rather
+ * than given a label of its own: the gate is already re-presenting today's
+ * text to every tester, and a second bump would put the same wall in front of
+ * anyone who happened to accept in between, for an addition that only ever
+ * describes a feature they had no way to use yet. If a change like this ever
+ * lands on a day the version was NOT already moving, bump it — versions are
+ * opaque labels (see worker/policyVersions.js), so '2026-08-08b' is
+ * available and an unannounced edit to accepted text is not.
  */
 export const PRIVACY_VERSION = '2026-08-08';
 
@@ -114,6 +128,13 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'timestamps and can therefore reveal where you have been; ' +
             'save and delete them with that in mind. Legal basis: ' +
             'performance of our agreement with you (art. 6(1)(b)).',
+          'Feedback you send: if you use the feedback form in the app, the ' +
+            'message you wrote is stored on your account and emailed to us. ' +
+            'A reply address is stored only if you fill that field in, and ' +
+            'nothing about your device, browser or location is attached to ' +
+            'the message. Used to find and fix faults and to decide what to ' +
+            'build next. Legal basis: our legitimate interest in ' +
+            'maintaining and improving the service (art. 6(1)(f)).',
           'Your live GPS position during navigation is processed on your ' +
             'device only. It is never sent to our servers unless you ' +
             'save the recording as a track. Location access is requested ' +
@@ -149,9 +170,10 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'processed there before it reaches the database; where that ' +
             'involves a transfer out of the EU it is covered by the ' +
             'safeguards described at the end of this section.',
-          'Resend, Inc. (USA) delivers our account emails and therefore ' +
-            'processes your email address when a verification or ' +
-            'password-reset message is sent.',
+          'Resend, Inc. (USA) delivers our email and therefore processes ' +
+            'your email address when a verification or password-reset ' +
+            'message is sent, and the text of a feedback message when you ' +
+            'send one.',
           'Google LLC (USA) is involved only if you choose \u201CSign in ' +
             'with Google\u201D, in which case Google shares your name, email ' +
             'address and profile picture with us under Google\u2019s own ' +
@@ -182,6 +204,11 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'expired email-verification tokens and spent ' +
             'abuse-prevention counters are deleted automatically by a ' +
             'daily cleanup job.',
+          'Feedback you send through the form is kept on your account until ' +
+            'you delete the account, and is deleted with it. The copy that ' +
+            'reaches our own inbox is ordinary email correspondence: it ' +
+            'stays in that mailbox until we clear it out, and can therefore ' +
+            'outlive the stored message.',
           'Separately, our server writes short-lived diagnostic logs so ' +
             'that errors can be found and fixed. These can contain ' +
             'technical details of individual requests. Cloudflare deletes ' +
@@ -270,6 +297,14 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'dermed vise hvor du har vært; lagre og slett dem med det i ' +
             'mente. Behandlingsgrunnlag: avtalen med deg (art. 6 nr. 1 ' +
             'bokstav b).',
+          'Tilbakemeldinger du sender: bruker du tilbakemeldingsskjemaet i ' +
+            'appen, lagres meldingen du skrev på kontoen din, og den sendes ' +
+            'til oss på e-post. Svaradresse lagres bare hvis du fyller ut ' +
+            'det feltet, og ingenting om enheten, nettleseren eller ' +
+            'posisjonen din knyttes til meldingen. Brukes til å finne og ' +
+            'rette feil og til å avgjøre hva som skal bygges videre. ' +
+            'Behandlingsgrunnlag: vår berettigede interesse i å drifte og ' +
+            'forbedre tjenesten (art. 6 nr. 1 bokstav f).',
           'Din GPS-posisjon under navigasjon behandles kun på din egen ' +
             'enhet. Den sendes aldri til våre servere med mindre du ' +
             'lagrer opptaket som et spor. Nettleseren ber om ' +
@@ -304,9 +339,10 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'før den når databasen; der det innebærer en overføring ut ' +
             'av EU, er det dekket av garantiene beskrevet nederst i ' +
             'dette punktet.',
-          'Resend, Inc. (USA) leverer konto-e-postene våre og behandler ' +
-            'derfor e-postadressen din når en bekreftelses- eller ' +
-            'tilbakestillingsmelding sendes.',
+          'Resend, Inc. (USA) leverer e-posten vår og behandler derfor ' +
+            'e-postadressen din når en bekreftelses- eller ' +
+            'tilbakestillingsmelding sendes, og innholdet i en ' +
+            'tilbakemelding når du sender en.',
           'Google LLC (USA) er bare involvert hvis du velger «Logg inn ' +
             'med Google»; da deler Google navn, e-postadresse og ' +
             'profilbilde med oss i henhold til Googles egen personvern' +
@@ -335,6 +371,11 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
             'IP-adresse og nettleserinformasjon — utløpte ' +
             'e-postbekreftelsestokener og oppbrukte tellere mot misbruk ' +
             'slettes automatisk av en daglig oppryddingsjobb.',
+          'Tilbakemeldinger du sender via skjemaet, beholdes på kontoen din ' +
+            'til du sletter kontoen, og slettes sammen med den. Kopien som ' +
+            'havner i vår egen innboks, er vanlig e-postkorrespondanse: den ' +
+            'ligger i den innboksen til vi rydder den ut, og kan dermed ' +
+            'overleve den lagrede meldingen.',
           'I tillegg skriver serveren vår kortlevde diagnoselogger slik ' +
             'at feil kan finnes og rettes. Disse kan inneholde tekniske ' +
             'detaljer om enkelte forespørsler. Cloudflare sletter dem ' +

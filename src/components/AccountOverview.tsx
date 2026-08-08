@@ -3,18 +3,23 @@ import {
   BookmarkIcon,
   CircleCheckIcon,
   MapIcon,
+  MessageIcon,
   MountainIcon,
   RouteIcon,
 } from './icons';
 import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import { getSeason, OVERVIEW_PHOTOS } from '../theme/season';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
 import { useT } from '../i18n/index.ts';
+import { FeedbackDialog } from './FeedbackDialog.tsx';
 import styles from './AccountOverview.module.css';
 
 type Props = {
   /** Display name of the signed-in user (falls back to email in Root). */
   name: string;
+  /** The account's email address — prefills the feedback reply field. */
+  email: string;
   /** Number of routes in the user's library, or null while the first
    *  fetch is still pending (renders a "loading" label instead of "0"). */
   savedCount: number | null;
@@ -39,6 +44,7 @@ type Props = {
  */
 export function AccountOverview({
   name,
+  email,
   savedCount,
   completedCount,
   onOpenSavedRoutes,
@@ -48,6 +54,7 @@ export function AccountOverview({
 }: Props) {
   const t = useT();
   const firstName = name.trim() || name;
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // Downloaded offline areas live in IndexedDB (client-side), so the count is
   // read here directly rather than passed in like the server-backed route
@@ -238,27 +245,47 @@ export function AccountOverview({
           </button>
         </div>
 
-        {/* Feedback channel (launch plan, week 4). A mailto rather than a
-            form: no backend, no storage, and it arrives in the same
-            inbox as the published GDPR contact. The subject is
-            pre-filled so replies are triageable, and the address is
-            spelled out in the link text so it still works for anyone
-            whose browser has no mail handler registered. */}
-        <p className={styles.feedback}>
-          {t(
-            'Fant du en feil, eller mangler det noe?',
-            'Found a bug, or is something missing?',
-          )}{' '}
-          <a
-            className={styles.feedbackLink}
-            href={`mailto:contact@fjellrute.no?subject=${encodeURIComponent(
-              t('Tilbakemelding om Fjellrute', 'Fjellrute feedback'),
-            )}`}
-          >
-            {t('Send tilbakemelding', 'Send feedback')}
-          </a>
-        </p>
+        {/* Feedback channel (launch plan, week 4).
+            Was a one-line mailto: link in muted grey under the grid, which
+            asked the tester to leave the app, find a configured mail client
+            and compose a message — on the phones most of the alpha traffic
+            comes from, that is three places to give up, and it showed. It is
+            now a full-width card in the same glass language as the grid
+            above, opening an in-app form (FeedbackDialog) that posts to
+            /api/feedback. Full-width rather than a fifth card in the grid so
+            the 2×2 composition — and the primacy of "plan new route" — stays
+            intact while the action is impossible to miss. */}
+        <button
+          type="button"
+          className={styles.feedbackCard}
+          onClick={() => setFeedbackOpen(true)}
+        >
+          <span className={styles.feedbackIcon}>
+            <MessageIcon />
+          </span>
+          <span className={styles.feedbackBody}>
+            <span className={styles.feedbackTitle}>
+              {t('Send tilbakemelding', 'Send feedback')}
+            </span>
+            <span className={styles.feedbackText}>
+              {t(
+                'Fant du en feil, eller mangler det noe? Skriv til oss uten å forlate appen — alt blir lest.',
+                'Found a bug, or is something missing? Write to us without leaving the app — everything is read.',
+              )}
+            </span>
+          </span>
+          <span className={styles.feedbackArrow} aria-hidden="true">
+            <ArrowRightIcon />
+          </span>
+        </button>
       </main>
+
+      {feedbackOpen && (
+        <FeedbackDialog
+          accountEmail={email}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
 
       {/* Photos licensed under the Pexels license (free for commercial
           use, no attribution required): https://www.pexels.com/license/ */}

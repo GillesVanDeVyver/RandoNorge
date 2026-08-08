@@ -385,6 +385,17 @@ export function ArrowRightIcon() {
   );
 }
 
+export function MessageIcon() {
+  // Lucide "message-square" — a speech bubble, for the feedback action on the
+  // account overview. Reads as "write to us" rather than the envelope the old
+  // mailto: link implied, which is the point: nothing leaves the app now.
+  return (
+    <svg {...baseProps}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
 export function GlobeIcon() {
   // Lucide "globe" — reads as "public / shared with the world".
   return (

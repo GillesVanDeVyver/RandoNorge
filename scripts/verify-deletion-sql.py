@@ -83,6 +83,15 @@ for uid, email in (("u1", TARGET), ("u2", OTHER)):
         'insert into "invite_redemption" (code,email) values (?,?)',
         ("ALPHA1", email),
     )
+    # An in-app feedback message. replyTo carries the address on purpose: it is
+    # the one column of migration 0008 that can hold personal data beyond the
+    # userId, so it is what the leak scan below has to find if the cascade ever
+    # stops working.
+    db.execute(
+        'insert into "feedback" (id,userId,message,replyTo,createdAt)'
+        " values (?,?,?,?,?)",
+        (f"f-{uid}", uid, "skiene sporer ikke", email, NOW_ISO),
+    )
     # one expired session (epoch-ms form) and one live session (ISO form)
     db.execute(
         'insert into "session" (id,expiresAt,token,createdAt,updatedAt,ipAddress,userAgent,userId)'
@@ -156,11 +165,13 @@ check("sessions cascaded", one("select count(*) from session where userId='u1'")
 check("account cascaded", one("select count(*) from account where userId='u1'"), 0)
 check("route cascaded", one("select count(*) from route where userId='u1'"), 0)
 check("track cascaded", one("select count(*) from track where userId='u1'"), 0)
+check("feedback cascaded", one("select count(*) from feedback where userId='u1'"), 0)
 check("invite_redemption purged", one("select count(*) from invite_redemption where lower(email)=lower(?)", (TARGET,)), 0)
 check("reset token purged", one("select count(*) from verification where identifier like '%'||?", (TARGET,)), 0)
 addr = TARGET.lower()
 leaks = [t for (t, c) in (("user", "email"), ("invite_redemption", "email"),
-                          ("verification", "identifier"), ("account", "accountId"))
+                          ("verification", "identifier"), ("account", "accountId"),
+                          ("feedback", "replyTo"))
          if one(f'select count(*) from "{t}" where lower("{c}") like ?', (f"%{addr}%",))]
 check("no table still contains the address", leaks, [])
 
@@ -170,6 +181,7 @@ check("other user's live token kept", one("select count(*) from verification whe
 check("other user's redemption kept", one("select count(*) from invite_redemption where email=?", (OTHER,)), 1)
 check("other user's route kept", one("select count(*) from route where userId='u2'"), 1)
 check("other user's track kept", one("select count(*) from track where userId='u2'"), 1)
+check("other user's feedback kept", one("select count(*) from feedback where userId='u2'"), 1)
 
 print("\n[4] verify query from REMOVE_USER.md step 3")
 row = db.execute("""

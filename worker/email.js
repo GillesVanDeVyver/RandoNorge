@@ -12,7 +12,15 @@
 // verification link) is logged instead, so the flow can be tested with
 // `wrangler dev` / `wrangler tail` before wiring up Resend.
 
-export async function sendEmail(env, { to, subject, html, text }) {
+/**
+ * Send one email through Resend.
+ *
+ * `replyTo` is optional and only used by the feedback endpoint
+ * (worker/feedback.js): a feedback mail arrives from the no-reply sender like
+ * every other message here, so without it, hitting "Reply" in the inbox
+ * answers a mailbox nobody reads instead of the tester who wrote in.
+ */
+export async function sendEmail(env, { to, subject, html, text, replyTo }) {
   if (!env.RESEND_API_KEY) {
     console.log(
       `[email stub] RESEND_API_KEY not set — would send to ${to}: ` +
@@ -39,7 +47,16 @@ export async function sendEmail(env, { to, subject, html, text }) {
         Authorization: `Bearer ${env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from, to, subject, html, text }),
+      // reply_to is omitted rather than sent as null/undefined: Resend
+      // validates the field's shape when it is present.
+      body: JSON.stringify({
+        from,
+        to,
+        subject,
+        html,
+        text,
+        ...(replyTo ? { reply_to: replyTo } : {}),
+      }),
       signal: AbortSignal.timeout(10000),
     });
   } catch (err) {
@@ -59,8 +76,12 @@ export async function sendEmail(env, { to, subject, html, text }) {
 /** Escape a value for interpolation into HTML (text or double-quoted
  *  attribute). Auth email fields are mostly internal, but `body` carries the
  *  user's own email address, so escaping keeps any HTML-significant character
- *  in an address from breaking out of the markup. */
-const escapeHtml = (value) =>
+ *  in an address from breaking out of the markup.
+ *
+ *  Exported since 2026-08-08 because worker/feedback.js puts something far
+ *  less internal into an email body — free text the user typed — and that has
+ *  to go through exactly this function rather than a second copy of it. */
+export const escapeHtml = (value) =>
   String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

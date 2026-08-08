@@ -13,8 +13,10 @@ GDPR art. 17 deletion request that arrives by email.
 > schema and asserts that the address survives nowhere.
 
 Deleting the `user` row takes most of it: `session`, `account` and `route`
-cascade from `migrations/0001_auth_and_routes.sql`, and `track` cascades
-from `migrations/0002_tracks.sql`. **Two tables do not cascade** because
+cascade from `migrations/0001_auth_and_routes.sql`, `track` cascades from
+`migrations/0002_tracks.sql`, and `feedback` — in-app feedback messages —
+cascades from `migrations/0008_feedback.sql`. **Two tables do not cascade**
+because
 they are keyed by email address rather than by user id, so they need their
 own statements or the address survives the deletion:
 
@@ -27,6 +29,13 @@ own statements or the address survives the deletion:
 Step 2 below covers both. The `invite_code` row itself holds no personal
 data and stays as-is (its `used_count` records that a code was spent,
 which is still true).
+
+Feedback needs no statement of its own, but note what the cascade means: any
+message the person sent through the in-app form is destroyed with the
+account. **The copy emailed to `FEEDBACK_TO` is not**, because it is
+ordinary correspondence sitting in a mailbox and outside the database
+entirely. The privacy policy §5 says exactly that. An art. 17 request that
+asks for the mail too has to be honoured by hand, in the inbox.
 
 All commands run from the project root and need a logged-in wrangler
 (`npx wrangler login`).
@@ -58,10 +67,10 @@ with the account.
 ## 2. Delete the user
 
 Three statements. The last removes the user, cascading to sessions,
-credentials/linked providers, saved routes and recorded tracks. The first
-two clean up the tables keyed by email address, which therefore do **not**
-cascade: pending verification / password-reset tokens, and the invite
-redemption record.
+credentials/linked providers, saved routes, recorded tracks and feedback
+messages. The first two clean up the tables keyed by email address, which
+therefore do **not** cascade: pending verification / password-reset tokens,
+and the invite redemption record.
 
 ```sh
 npx wrangler d1 execute fjellrute-db-eu --remote --command "
