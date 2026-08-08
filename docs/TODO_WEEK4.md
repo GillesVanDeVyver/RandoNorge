@@ -1,8 +1,13 @@
 # Week 4 — done
 
 **Week 4 of the launch plan (Aug 3–9): business shell, dedicated e-mail,
-feedback channel. Finished 2026-08-08,** one day inside the window. Unlike
-week 3 this work is **not yet committed or deployed** — see "What is left".
+feedback channel. Finished 2026-08-08,** one day inside the window — and unlike
+the first draft of this document, **committed and deployed the same day**
+(`928ad36`, `188b2cd`). Migration `0008_feedback.sql` is applied to both the
+local database and `fjellrute-db-eu` in production, and in-app feedback has been
+exercised end to end: a message typed in the app arrives at
+`contact@fjellrute.no`. `GET https://fjellrute.no/api/feedback` answering `405`
+(POST only) is the one-command proof that the serving Worker is this one.
 
 ## What shipped
 
@@ -62,36 +67,65 @@ nobody browsing without an account can reach you from inside the app. The info
 button on the map screen is the natural second home if that matters before the
 Facebook push.
 
+**The privacy test suite had rotted, and nobody would have noticed.**
+`scripts/verify-privacy-sync.mjs` was already failing before this week's work
+began: its negative control planted the literal string "Fjellrute is the data
+controller" into the HTML mirror to prove the comparison could detect a
+difference, and the §1 controller rewrite above deleted that sentence, so the
+control planted nothing and the check reported failure. It now derives the word
+it plants from the canonical §1 text, which cannot go stale the same way. Worth
+noticing what the near-miss was: a negative control that silently stops
+controlling is worse than no control, because the suite still looks thorough.
+
+**The afternoon went to Cloudflare accounts, not to code.** Applying migration
+`0008` to production failed first with `7403` and then with `7404`, and the
+domain appeared to have vanished from the Cloudflare dashboard. Nothing was
+wrong with the database, the id, the jurisdiction or the domain: the project
+lives in `gillesvandevyver1@gmail.com`'s account `1558c6da…`, while
+`fjellrute@gmail.com` — the OAuth support contact and the mailbox identity, and
+therefore the natural guess — is a *separate Cloudflare user* whose two visible
+accounts hold no databases at all. `wrangler login` kept handing back the same
+wrong identity because it inherits the browser's dashboard session, and the
+account choice is cached in `node_modules/.cache/wrangler/wrangler-account.json`
+where `wrangler logout` does not clear it. `wrangler.jsonc` now pins
+`account_id` so a wrong login fails loudly and immediately, the full diagnosis
+lives in `deploy_instructions.md` → "Which Cloudflare account", and the
+jurisdiction hedge in `docs/D1-EU-JURISDICTION-MIGRATION.md` has been narrowed
+because it would have sent the next person down the wrong path. Also fixed
+there: that file named a repository path that no longer exists.
+
 ## What is left
 
-Nothing is on a deadline, but the first three are prerequisites for the rest
-being real.
+The three prerequisites the first draft of this document listed — run the tests,
+apply the migration, commit and deploy — are done. The tests were run for real
+this time rather than approximated by hand: all eight verification scripts pass,
+and both deletion tests now carry `feedback` fixtures, so the new table's
+`on delete cascade` is proven rather than assumed. The seven `eslint` errors are
+pre-existing and confined to files this work never touched. Nothing below is on
+a deadline.
 
-1. **Run the tests, then commit and deploy.** `pnpm test && pnpm lint`. The
-   privacy checks are the ones that matter: `test:policies` compares the two
-   `PRIVACY_VERSION` copies, `test:privacy` compares the two policy texts. Note
-   these need Node ≥ 22.18 (see week 3's toolchain section) — they were verified
-   here by an equivalent hand-rolled comparison, not by the real scripts.
-2. **Apply migration `0008_feedback.sql` to `fjellrute-db-eu`** before deploying
-   the Worker, or `/api/feedback` will 500 against a missing table. Answer "no"
-   if wrangler offers to add a binding on your behalf — week 3 explains why.
-3. **Verify the gate actually re-presents.** The version bump means the next
+1. **Verify the gate actually re-presents.** The version bump means the next
    sign-in should show the policy again. This path has only ever run once for
    real; watch it once rather than assuming.
-4. **The five untested sign-in flows** from week 3 are still untested: Google
+2. **The five untested sign-in flows** from week 3 are still untested: Google
    sign-in, e-mail sign-up through the terms gate, resend-verification,
    forgot-password, password reset, sign-out. Password reset first — it also
    confirms Resend still delivers.
-5. **Gmail spam filters for forwarded mail**, if not already added. Delivery is
+3. **Gmail spam filters for forwarded mail**, if not already added. Delivery is
    confirmed; the folder it lands in is not recorded.
-6. **"Send mail as" `contact@fjellrute.no`** via Resend SMTP. Higher value now
+4. **"Send mail as" `contact@fjellrute.no`** via Resend SMTP. Higher value now
    than in week 3: every feedback reply, not just GDPR replies, otherwise goes
    out from a personal address.
-7. **The terms of service still name no legal entity** — only the privacy policy
+5. **The terms of service still name no legal entity** — only the privacy policy
    does. Less urgent, but if it is worth fixing, ship it together with a
    `TERMS_VERSION` bump so users are not gated twice in consecutive weeks.
-8. **The Google logo decision** from week 3 is still open, and still blocks
+6. **The Google logo decision** from week 3 is still open, and still blocks
    nothing.
+7. **Decide whether `fjellrute@gmail.com` should be a member of the Cloudflare
+   account.** Right now it is not, which is what made deploying this week
+   confusing (below). Members → invite it into `1558c6da…` as Super
+   Administrator, or accept that `gillesvandevyver1@gmail.com` is the only
+   login that can deploy and stop being surprised by it.
 
 ## Two things not to get wrong later
 

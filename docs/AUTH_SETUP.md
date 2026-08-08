@@ -13,6 +13,16 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
 
 ## One-time setup (production)
 
+> **Before any `wrangler` command below: check which Cloudflare account you are
+> in.** This project lives in `gillesvandevyver1@gmail.com`'s account
+> `1558c6da960183cc75e12fbd7a9df3ce`. The `fjellrute@gmail.com` address used
+> throughout this document — the Google OAuth support contact, the Resend
+> sender identity, the Email Routing destination — is a *different Cloudflare
+> user* that cannot see this account, and running `wrangler` as it produces
+> `7403` and `7404` errors that read like a missing database. `wrangler.jsonc`
+> pins `account_id` to prevent that; `deploy_instructions.md` → "Which
+> Cloudflare account" explains the failure modes if it recurs.
+
 1. **Create the D1 database** (once) — **with the jurisdiction flag:**
 
    ```sh

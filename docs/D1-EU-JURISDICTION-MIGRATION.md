@@ -101,11 +101,20 @@ The output must show `jurisdiction eu`. If it shows `null`, stop — the databas
 was created without the restriction and, since jurisdiction cannot be added
 later, the only fix is to delete it and repeat this step.
 
-> Cloudflare's docs do not say whether commands addressing a jurisdictional
-> database need `--jurisdiction eu` repeated on every invocation, the way
-> jurisdictional R2 buckets do. If any command below fails to find
-> `fjellrute-db-eu`, try appending `--jurisdiction eu` before assuming anything
-> is wrong, and note here which commands needed it.
+> **Answered on 2026-08-08 — no command needs it, and the flag does not exist.**
+> This paragraph used to hedge that commands addressing a jurisdictional
+> database might need `--jurisdiction eu` repeated on every invocation, the way
+> jurisdictional R2 buckets do. They do not: wrangler only ever sends a
+> `cf-r2-jurisdiction` header (grep `wrangler-dist/cli.js`), there is no D1
+> equivalent, and the `d1` subcommands accept no `--jurisdiction` flag at all.
+> Every remote command in this document ran against `fjellrute-db-eu` with a
+> plain `--remote`.
+>
+> Remember the replacement instead, because it is the failure that actually
+> happened: `7404 The database … could not be found` from a `d1` command means
+> the **wrong Cloudflare account**, not a jurisdiction that needs declaring.
+> Applying migration 0008 cost an afternoon on that distinction — see
+> `deploy_instructions.md` → "Which Cloudflare account".
 
 ## Step 2 — export the old database
 

@@ -7,6 +7,18 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "fjellrute",
+	// The Cloudflare account that owns the zone, this Worker, the R2 bucket
+	// and the D1 database. Pinned on 2026-08-08 rather than left to wrangler
+	// to infer, because inferring it cost an afternoon: wrangler derives the
+	// account from whichever OAuth login is active, caches that choice per
+	// checkout in node_modules/.cache/wrangler/wrangler-account.json, and the
+	// cache survives `wrangler logout`. The result was `d1 migrations apply`
+	// failing with 7403 and then 7404 against two accounts that simply have
+	// no databases in them — which reads exactly like a deleted database.
+	// With this line a wrong login fails immediately and says which account
+	// it wanted. deploy_instructions.md → "Which Cloudflare account" has the
+	// full story and the meaning of each error code.
+	"account_id": "1558c6da960183cc75e12fbd7a9df3ce",
 	"main": "worker/index.js",
 	"compatibility_date": "2026-07-12",
 	// Better Auth touches a few node: built-ins; workerd provides them
