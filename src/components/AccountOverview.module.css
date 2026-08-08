@@ -278,6 +278,38 @@
   color: var(--text-2);
 }
 
+/* --- Feedback line (below the card grid) ---------------------------------
+   Sits in the normal flow rather than pinned to a corner, so it survives
+   the mobile layout that hides .credit — a feedback channel nobody on a
+   phone can see is not a feedback channel, and the launch traffic is
+   expected to be mostly phones. Quieter than .subtitle so it never
+   competes with the primary action. */
+
+.feedback {
+  margin: clamp(24px, 3.5vh, 40px) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 8px rgba(8, 18, 28, 0.5);
+}
+
+.feedbackLink {
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.feedbackLink:hover {
+  color: #fff;
+}
+
+.feedbackLink:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
 /* --- Photo credit (bottom-right corner, matches the login page) ----------- */
 
 .credit {

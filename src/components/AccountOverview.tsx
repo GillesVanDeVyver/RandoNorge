@@ -237,6 +237,27 @@ export function AccountOverview({
             </span>
           </button>
         </div>
+
+        {/* Feedback channel (launch plan, week 4). A mailto rather than a
+            form: no backend, no storage, and it arrives in the same
+            inbox as the published GDPR contact. The subject is
+            pre-filled so replies are triageable, and the address is
+            spelled out in the link text so it still works for anyone
+            whose browser has no mail handler registered. */}
+        <p className={styles.feedback}>
+          {t(
+            'Fant du en feil, eller mangler det noe?',
+            'Found a bug, or is something missing?',
+          )}{' '}
+          <a
+            className={styles.feedbackLink}
+            href={`mailto:contact@fjellrute.no?subject=${encodeURIComponent(
+              t('Tilbakemelding om Fjellrute', 'Fjellrute feedback'),
+            )}`}
+          >
+            {t('Send tilbakemelding', 'Send feedback')}
+          </a>
+        </p>
       </main>
 
       {/* Photos licensed under the Pexels license (free for commercial

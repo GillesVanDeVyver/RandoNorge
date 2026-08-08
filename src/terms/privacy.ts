@@ -49,8 +49,21 @@ export interface PrivacyText {
  * plainly rather than leaving it inside a general disclaimer. Unlike the
  * 2026-07-28 bump, this one re-presents the acceptance gate to real
  * signed-in users.
+ *
+ * 2026-08-08: §1 now names the controller. "Fjellrute" is a product name,
+ * not a legal person, so the previous text did not satisfy GDPR art.
+ * 13(1)(a), which asks for the controller's identity — the entity a
+ * supervisory authority or a data subject would actually address. The
+ * operating entity is the enkeltpersonforetak registered on 2026-02-18
+ * under organisation number 937 188 439; the org number is the durable
+ * identifier, so it is stated alongside the name. The registered address is
+ * deliberately left out: for an ENK it is a private home, and it is already
+ * public in Enhetsregisteret to anyone who looks the number up. This
+ * re-presents the acceptance gate — done now, at alpha scale, rather than
+ * during the November launch when the same change would interrupt hundreds
+ * of sessions.
  */
-export const PRIVACY_VERSION = '2026-07-29';
+export const PRIVACY_VERSION = '2026-08-08';
 
 export const PRIVACY: Record<TermsLang, PrivacyText> = {
   en: {
@@ -65,9 +78,11 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
       {
         heading: '1. Who is responsible',
         body: [
-          'Fjellrute is the data controller for the personal data ' +
-            'described here. Contact for all privacy matters: ' +
-            'contact@fjellrute.no.',
+          'Fjellrute is operated by Van de Vyver Engineering, a Norwegian ' +
+            'sole proprietorship (enkeltpersonforetak) with organisation ' +
+            'number 937 188 439, which is the data controller for the ' +
+            'personal data described here. Contact for all privacy ' +
+            'matters: contact@fjellrute.no.',
         ],
       },
       {
@@ -220,9 +235,10 @@ export const PRIVACY: Record<TermsLang, PrivacyText> = {
       {
         heading: '1. Hvem som er ansvarlig',
         body: [
-          'Fjellrute er behandlingsansvarlig for personopplysningene som ' +
-            'beskrives her. Kontakt for alle personvernspørsmål: ' +
-            'contact@fjellrute.no.',
+          'Fjellrute drives av Van de Vyver Engineering, et norsk ' +
+            'enkeltpersonforetak med organisasjonsnummer 937 188 439, som ' +
+            'er behandlingsansvarlig for personopplysningene som beskrives ' +
+            'her. Kontakt for alle personvernspørsmål: contact@fjellrute.no.',
         ],
       },
       {
