@@ -27,12 +27,35 @@ export function useElevation(route: Route): ElevationState {
   });
   const workerRef = useRef<Worker | null>(null);
   const latestIdRef = useRef(0);
+  // Set when the worker could not be constructed at all, so the second effect
+  // can report that instead of leaving an empty panel that never resolves.
+  const workerErrorRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const worker = new Worker(
-      new URL('./profile.worker.ts', import.meta.url),
-      { type: 'module' },
-    );
+    // `new Worker` is not a safe expression: it throws synchronously if the
+    // page's CSP forbids the script URL (worker-src), and it can also fail
+    // behind strict enterprise policies or in browsers with workers disabled.
+    // Un-caught, that error escapes the mount effect and React unwinds to the
+    // nearest ErrorBoundary — so a missing elevation profile would take the
+    // entire planner down with it. The profile is an enhancement; losing it
+    // must not cost the user the map, the route they are drawing, or their
+    // unsaved work.
+    let worker: Worker;
+    try {
+      worker = new Worker(new URL('./profile.worker.ts', import.meta.url), {
+        type: 'module',
+      });
+    } catch (err) {
+      workerErrorRef.current =
+        err instanceof Error ? err.message : String(err);
+      setState({
+        profile: null,
+        loading: false,
+        error: workerErrorRef.current,
+      });
+      return;
+    }
+    workerErrorRef.current = null;
     worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const msg = e.data;
       if (msg.id !== latestIdRef.current) return; // superseded
@@ -65,7 +88,19 @@ export function useElevation(route: Route): ElevationState {
       return;
     }
     const worker = workerRef.current;
-    if (!worker) return;
+    if (!worker) {
+      // No worker was ever created (see the mount effect). Surface the reason
+      // rather than sitting in a permanent, silent "no profile yet" state.
+      if (workerErrorRef.current) {
+        latestIdRef.current++;
+        setState({
+          profile: null,
+          loading: false,
+          error: workerErrorRef.current,
+        });
+      }
+      return;
+    }
     const id = ++latestIdRef.current;
     setState((s) => ({ ...s, loading: true, error: null }));
     worker.postMessage({ id, route });
