@@ -674,6 +674,7 @@ export function Root() {
               onGoToCompleted: () => navigate('completed'),
               onActivitySaved: handleActivitySaved,
             }}
+            onOpenOfflineMaps={() => navigate('offline')}
           />
         )}
         {(view === 'saved' ||
@@ -721,6 +722,11 @@ export function Root() {
                 null,
               onBack: () => navigate('completed'),
             }}
+            // Review mode renders the same map (and so the same offline
+            // panel) as the planner, and it's equally signed-in: the link
+            // out of it has to work here too, or the panel would lose the
+            // saved-areas list with nothing put in its place.
+            onOpenOfflineMaps={() => navigate('offline')}
           />
         )}
         <AccountChip

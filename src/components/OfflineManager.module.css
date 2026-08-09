@@ -32,12 +32,6 @@
   font-weight: 700;
 }
 
-.subtitle {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
 .iconBtn {
   display: flex;
   align-items: center;
@@ -259,67 +253,55 @@
   margin: var(--space-1) 0;
 }
 
-.savedHeader {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.total {
-  font-size: var(--text-sm);
-  color: var(--text-3);
-}
-
-.regionList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.regionItem {
+/* Full-width row that leaves the panel for the offline maps page. Reads as a
+   list row rather than a button — it goes somewhere, it doesn't act — with
+   the chevron carrying the "onward" meaning. */
+.linkBtn {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  width: 100%;
+  min-height: 40px;
   padding: var(--space-2);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
-}
-
-.regionInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.regionName {
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.regionMeta {
-  font-size: var(--text-xs);
-  color: var(--text-3);
-}
-
-.clearAll {
-  align-self: flex-start;
-  padding: var(--space-1) 0;
-  border: none;
-  background: none;
-  color: var(--danger, #dc2626);
+  color: var(--text-1);
   font: inherit;
   font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: left;
   cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease),
+              background var(--dur-fast) var(--ease);
+}
+
+.linkBtn:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.linkBtn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.linkBtn svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--text-3);
 }
 
 @media (pointer: coarse) {
   .iconBtn {
     width: 40px;
     height: 40px;
+  }
+
+  .linkBtn {
+    min-height: 44px;
   }
 }

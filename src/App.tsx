@@ -354,9 +354,21 @@ interface Props {
     /** Leave the public view (back to the owner's profile, or home). */
     onBack: () => void;
   };
+  /**
+   * Navigate to the downloaded offline maps page. The map's offline panel
+   * links there rather than listing the saved areas beside the planner.
+   * Passed only in a signed-in session — that page sits behind the account,
+   * so guests and anonymous share visitors don't get the link.
+   */
+  onOpenOfflineMaps?: () => void;
 }
 
-function App({ saving, review: reviewProp, publicView }: Props) {
+function App({
+  saving,
+  review: reviewProp,
+  publicView,
+  onOpenOfflineMaps,
+}: Props) {
   const t = useT();
   const [mode, setMode] = useState<Mode>('idle');
   // Stable for the lifetime of this planner instance: Root remounts the
@@ -987,6 +999,7 @@ function App({ saving, review: reviewProp, publicView }: Props) {
             navigating={navLive}
             progress={routeProgress}
             fitTo={reviewFit}
+            onOpenOfflineMaps={onOpenOfflineMaps}
           />
         ) : (
           <Suspense fallback={null}>

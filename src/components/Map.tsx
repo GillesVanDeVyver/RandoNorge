@@ -85,6 +85,10 @@ interface Props {
   /** Geometry the initial fit frames instead of the plan (e.g. reviewing a
    *  completed tour fits the plan and the recorded track together). */
   fitTo?: Route;
+  /** Open the downloaded offline maps page. Handed to the offline panel,
+   *  which links there instead of listing the saved areas itself. Absent in
+   *  guest mode, which has no such page — the link then isn't rendered. */
+  onOpenOfflineMaps?: () => void;
 }
 
 export function Map({
@@ -100,6 +104,7 @@ export function Map({
   navigating = false,
   progress = null,
   fitTo,
+  onOpenOfflineMaps,
 }: Props) {
   // Offline-maps panel: lets the user select a rectangle and download its
   // tiles into IndexedDB so the map keeps working with no connectivity.
@@ -200,6 +205,7 @@ export function Map({
         <OfflineManager
           onClose={() => setOfflineOpen(false)}
           snowDate={snowDate}
+          onOpenOfflineMaps={onOpenOfflineMaps}
         />
       )}
       <InvalidateOnResize />

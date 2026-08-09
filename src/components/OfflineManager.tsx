@@ -2,12 +2,9 @@ import { useCallback, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { RegionSelector } from './RegionSelector';
 import { OfflineDownloadFields } from './OfflineDownloadFields';
-import { CloseIcon, TrashIcon } from './icons';
-import { OFFLINE_LAYER_LIST } from '../offline/layers';
-import { removeRegion } from '../offline/download';
+import { ChevronRightIcon, CloseIcon } from './icons';
 import { useOfflineDownload } from '../offline/useOfflineDownload';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
-import { formatBytes, formatResolution } from '../offline/format';
 import { useT } from '../i18n/index.ts';
 import styles from './OfflineManager.module.css';
 
@@ -17,10 +14,25 @@ interface Props {
   snowDate: string;
   /** Called after a download or deletion so cached layers can redraw. */
   onCacheChange?: () => void;
+  /**
+   * Navigate to the downloaded offline maps page (/alpha/offline), where
+   * saved areas are reviewed, framed on the map and removed. Absent in guest
+   * mode — that page lives behind a sign-in — and the link then isn't shown.
+   */
+  onOpenOfflineMaps?: () => void;
 }
 
-export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
+export function OfflineManager({
+  onClose,
+  snowDate,
+  onCacheChange,
+  onOpenOfflineMaps,
+}: Props) {
   const t = useT();
+  // The saved areas are no longer listed here — that belongs to the offline
+  // maps page, linked at the bottom of this panel. They're still read for the
+  // count, which names a new download ("Area 3"), and `refresh()` keeps that
+  // count right after one finishes.
   const { regions, supported, refresh } = useOfflineRegions();
 
   const onDownloaded = useCallback(async () => {
@@ -44,17 +56,6 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
       L.DomEvent.disableScrollPropagation(el);
     }
   }, []);
-
-  const handleDelete = useCallback(
-    async (id: string) => {
-      await removeRegion(id);
-      await refresh();
-      onCacheChange?.();
-    },
-    [refresh, onCacheChange],
-  );
-
-  const totalBytes = regions.reduce((sum, r) => sum + r.bytes, 0);
 
   return (
     <>
@@ -110,51 +111,22 @@ export function OfflineManager({ onClose, snowDate, onCacheChange }: Props) {
               onCancel={dl.handleCancel}
             />
 
-            <div className={styles.divider} />
-
-            <div className={styles.savedHeader}>
-              <h3 className={styles.subtitle}>
-                {t('Nedlastede områder', 'Downloaded areas')}
-              </h3>
-              {regions.length > 0 && (
-                <span className={styles.total}>{formatBytes(totalBytes)}</span>
-              )}
-            </div>
-
-            {regions.length === 0 ? (
-              <p className={styles.note}>
-                {t('Ingen områder lastet ned ennå.', 'No areas downloaded yet.')}
-              </p>
-            ) : (
-              <ul className={styles.regionList}>
-                {regions.map((r) => (
-                  <li key={r.id} className={styles.regionItem}>
-                    <div className={styles.regionInfo}>
-                      <span className={styles.regionName}>{r.name}</span>
-                      <span className={styles.regionMeta}>
-                        {formatResolution(r.maxZoom)} · {formatBytes(r.bytes)}
-                      </span>
-                      <span className={styles.regionMeta}>
-                        {r.layerIds
-                          .map(
-                            (id) =>
-                              OFFLINE_LAYER_LIST.find((l) => l.id === id)?.label() ??
-                              id,
-                          )
-                          .join(', ')}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.iconBtn}
-                      onClick={() => handleDelete(r.id)}
-                      aria-label={t(`Slett ${r.name}`, `Delete ${r.name}`)}
-                    >
-                      <TrashIcon />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            {/* Already-downloaded areas used to be listed here. Two screens
+                showed the same list, and this one — squeezed beside the
+                planner's map — could neither frame an area nor confirm a
+                deletion. It now points at the page that does both. */}
+            {onOpenOfflineMaps && (
+              <>
+                <div className={styles.divider} />
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={onOpenOfflineMaps}
+                >
+                  <span>{t('Nedlastede kart', 'Downloaded maps')}</span>
+                  <ChevronRightIcon />
+                </button>
+              </>
             )}
           </>
         )}
