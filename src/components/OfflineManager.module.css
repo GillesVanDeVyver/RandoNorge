@@ -253,42 +253,63 @@
   margin: var(--space-1) 0;
 }
 
-/* Full-width row that leaves the panel for the offline maps page. Reads as a
-   list row rather than a button — it goes somewhere, it doesn't act — with
-   the chevron carrying the "onward" meaning. */
-.linkBtn {
+/* "Downloaded maps · 3 areas · 240 MB" — what the panel says about existing
+   downloads now that it doesn't list them. Deliberately shaped like one of
+   the region rows it replaced, so the eye lands where it used to. `.summaryRow`
+   is the inert version shown when there's no page to link to (guests);
+   `.summaryBtn` adds the affordances on top of it. */
+.summaryRow,
+.summaryBtn {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
-  min-height: 40px;
   padding: var(--space-2);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-1);
   font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
   text-align: left;
+}
+
+.summaryBtn {
+  min-height: 44px;
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease),
               background var(--dur-fast) var(--ease);
 }
 
-.linkBtn:hover {
+.summaryBtn:hover {
   border-color: var(--accent);
   background: var(--surface-hover);
 }
 
-.linkBtn:focus-visible {
+.summaryBtn:focus-visible {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-.linkBtn svg {
+.summaryText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.summaryLabel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.summaryMeta {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.summaryBtn svg {
   width: 16px;
   height: 16px;
   flex: none;
@@ -299,9 +320,5 @@
   .iconBtn {
     width: 40px;
     height: 40px;
-  }
-
-  .linkBtn {
-    min-height: 44px;
   }
 }

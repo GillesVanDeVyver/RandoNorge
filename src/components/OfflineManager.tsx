@@ -5,6 +5,7 @@ import { OfflineDownloadFields } from './OfflineDownloadFields';
 import { ChevronRightIcon, CloseIcon } from './icons';
 import { useOfflineDownload } from '../offline/useOfflineDownload';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
+import { formatBytes } from '../offline/format';
 import { useT } from '../i18n/index.ts';
 import styles from './OfflineManager.module.css';
 
@@ -31,8 +32,8 @@ export function OfflineManager({
   const t = useT();
   // The saved areas are no longer listed here — that belongs to the offline
   // maps page, linked at the bottom of this panel. They're still read for the
-  // count, which names a new download ("Area 3"), and `refresh()` keeps that
-  // count right after one finishes.
+  // summary on that link and to name a new download ("Area 3"); `refresh()`
+  // keeps both current after one finishes.
   const { regions, supported, refresh } = useOfflineRegions();
 
   const onDownloaded = useCallback(async () => {
@@ -45,6 +46,29 @@ export function OfflineManager({
     regionCount: regions.length,
     onDownloaded,
   });
+
+  // What the panel says about everything already downloaded, now that it no
+  // longer lists it: how many areas and how much disk they take. Enough to
+  // answer "have I got this covered, and is it getting out of hand?" without
+  // leaving the planner; the page behind the link answers everything else.
+  const totalBytes = regions.reduce((sum, r) => sum + r.bytes, 0);
+  const summary =
+    regions.length === 0
+      ? t('Ingen områder ennå', 'No areas yet')
+      : `${regions.length} ${
+          regions.length === 1
+            ? t('område', 'area')
+            : t('områder', 'areas')
+        } · ${formatBytes(totalBytes)}`;
+
+  const summaryText = (
+    <span className={styles.summaryText}>
+      <span className={styles.summaryLabel}>
+        {t('Nedlastede kart', 'Downloaded maps')}
+      </span>
+      <span className={styles.summaryMeta}>{summary}</span>
+    </span>
+  );
 
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -111,22 +135,29 @@ export function OfflineManager({
               onCancel={dl.handleCancel}
             />
 
-            {/* Already-downloaded areas used to be listed here. Two screens
-                showed the same list, and this one — squeezed beside the
-                planner's map — could neither frame an area nor confirm a
-                deletion. It now points at the page that does both. */}
-            {onOpenOfflineMaps && (
-              <>
-                <div className={styles.divider} />
-                <button
-                  type="button"
-                  className={styles.linkBtn}
-                  onClick={onOpenOfflineMaps}
-                >
-                  <span>{t('Nedlastede kart', 'Downloaded maps')}</span>
-                  <ChevronRightIcon />
-                </button>
-              </>
+            {/* Already-downloaded areas used to be listed here, one row each.
+                Two screens showed the same list, and this one — squeezed
+                beside the planner's map — could neither frame an area nor
+                confirm a deletion. What's left is the part worth having
+                while planning (how much is covered, and how big it's got),
+                pointing at the page that does the rest.
+
+                Guests can download areas too but have no account page to
+                link to, so without the callback the same summary renders as
+                plain text rather than vanishing. */}
+            <div className={styles.divider} />
+
+            {onOpenOfflineMaps ? (
+              <button
+                type="button"
+                className={styles.summaryBtn}
+                onClick={onOpenOfflineMaps}
+              >
+                {summaryText}
+                <ChevronRightIcon />
+              </button>
+            ) : (
+              <div className={styles.summaryRow}>{summaryText}</div>
             )}
           </>
         )}

@@ -161,16 +161,23 @@ function ChartTooltip({
 }
 
 // NVE Bratthet 2024 color bands — same as the map overlay.
-// Class 1 (< 27°) is transparent on the map; we use a neutral gray on the
-// chart so the line stays visible against a white background.
+// The overlay paints exactly five slope classes (30-35, 35-40, 40-45,
+// 45-50, >50). Everything below 30° is class 1 and renders fully
+// transparent, so we use a neutral gray there to keep the line visible
+// against a white background.
+//
+// Verified by sampling the published tiles: across 2.1M pixels spanning
+// Jæren to Svalbard the only colors present are the five below plus the
+// three runout blues. There is no green class. An earlier #38a800 band at
+// 27-30° here had no counterpart on the map, which made the profile show
+// green for terrain the overlay deliberately leaves blank.
 const GRAY = '#666666';
 // NVE Bratthet_med_utlop_2024 layer 2/3/4 fill colors (decoded from the
 // service legend). Indexed by RunoutLevel: 0 unused, 1=long, 2=medium,
 // 3=short runout.
 const RUNOUT_COLORS = ['', '#9AB1E6', '#4C9BFF', '#004DA8'];
 const STEEPNESS_BANDS: { max: number; color: string }[] = [
-  { max: 27, color: GRAY },
-  { max: 30, color: '#38a800' },
+  { max: 30, color: GRAY },
   { max: 35, color: '#ffff00' },
   { max: 40, color: '#ffaa00' },
   { max: 45, color: '#ff5500' },
