@@ -27,6 +27,7 @@ import { handlePoliciesApi } from './policies.js';
 import { handleAccountApi } from './account.js';
 import { handleFeedbackApi } from './feedback.js';
 import { handleTerrainTile } from './terrain.js';
+import { resolveDocument } from './knownPaths.js';
 import { withSecurityHeaders } from './securityHeaders.js';
 import { rateLimit, clientIp } from './rateLimit.js';
 
@@ -223,23 +224,65 @@ async function handleRequest(request, env, ctx) {
       const asset = await env.ASSETS.fetch(request);
       const type = asset.headers.get('content-type') || '';
       if (type.includes('text/html')) {
-        return new Response('Not Found', {
-          status: 404,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        });
+        return notFound();
       }
       return asset;
     }
 
-    // Everything else falls through to the static app (SPA handling is
-    // configured in wrangler.jsonc). The HTML shell must be revalidated on
-    // every navigation so a returning visitor always resolves the latest
-    // asset hashes — a browser-cached index.html is exactly what leaves users
-    // requesting deleted bundles above. Only the HTML shell is marked
-    // no-cache; the hashed assets it references stay immutably cacheable.
+    // Everything left is a request for a document or a file. Decide whether
+    // this site actually has a URL by that name BEFORE the assets binding gets
+    // a chance to answer, because its answer for a path it doesn't recognise is
+    // the SPA fallback — dist/index.html, HTTP 200. That is how
+    // https://fjellrute.no/xx came to serve the closed alpha's login screen to
+    // anyone who mistyped the domain or scanned it. worker/knownPaths.js holds
+    // the allowlist and the reasoning; this is only the enforcement.
+    //
+    // Nothing above this line is affected: the API, the proxies, the terrain
+    // tiles and the hashed bundles have all already returned.
+    const resolved = resolveDocument(pathname);
+    if (resolved.kind === 'redirect') {
+      // Only a navigation is redirected. A POST or PUT to a path that doesn't
+      // exist is not a user who mistyped a URL, and answering it with "go look
+      // at the front page" would be a lie about what happened — say 404.
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return notFound();
+      }
+      // 302, not 301: the alpha's URL space is still moving (when APP_BASE goes
+      // away, several of these paths become real pages again), and a permanent
+      // redirect is cached by browsers indefinitely and would outlive the
+      // arrangement that justified it.
+      //
+      // Resolved against the request's own origin rather than hard-coded to
+      // https://fjellrute.no, so preview deployments and `wrangler dev`
+      // redirect to themselves instead of bouncing a developer to production.
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: new URL(resolved.to, url).toString(),
+          // The destination is a different page for every branch of the
+          // allowlist and the allowlist changes with the deploy; caching the
+          // hop buys nothing and outlives its reason.
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
+    // A URL the site owns: hand back what the assets binding has for it. The
+    // HTML shell must be revalidated on every navigation so a returning visitor
+    // always resolves the latest asset hashes — a browser-cached index.html is
+    // exactly what leaves users requesting deleted bundles above. Only the HTML
+    // shell is marked no-cache; the hashed assets it references stay immutably
+    // cacheable.
     const response = await env.ASSETS.fetch(request);
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
+      if (resolved.kind === 'file') {
+        // Something with a file extension that isn't there. The SPA fallback
+        // just answered it with index.html, which is the same trap as a deleted
+        // hashed bundle: the browser asked for an image or a script and is
+        // handed HTML, so the load fails with no useful error. Make it a 404.
+        return notFound();
+      }
       const headers = new Headers(response.headers);
       headers.set('Cache-Control', 'no-cache');
       return new Response(response.body, {
@@ -249,6 +292,16 @@ async function handleRequest(request, env, ctx) {
       });
     }
     return response;
+}
+
+/** A plain-text 404. text/plain on purpose: every caller here is a request for
+ *  something that is missing rather than something to read, and an HTML body
+ *  is what the callers are trying to avoid handing back. */
+function notFound() {
+  return new Response('Not Found', {
+    status: 404,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+  });
 }
 
 /**
