@@ -21,6 +21,7 @@ import { AvalancheRisk } from './components/AvalancheRisk';
 import { TermsDialog } from './components/TermsDialog';
 import { DisclaimerModal } from './components/DisclaimerModal';
 import { SaveRouteDialog } from './components/SaveRouteDialog';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import {
   BookmarkPlusIcon,
   PencilIcon,
@@ -56,7 +57,8 @@ import { formatAscent, formatDate, formatDistance } from './routes/format';
 import { useIsMobile } from './useIsMobile';
 import { useT } from './i18n/index.ts';
 import { translate } from './i18n/locale.ts';
-import type { Mode, Overlay, Route } from './types';
+import { loadDrawStyle, storeDrawStyle } from './draw/drawStyle';
+import type { DrawStyle, Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
 // MapLibre GL is a large dependency only needed once the user switches to the
@@ -371,6 +373,15 @@ function App({
 }: Props) {
   const t = useT();
   const [mode, setMode] = useState<Mode>('idle');
+  // How the pencil draws: one fluent freehand stroke, or straight legs
+  // between clicked points (ut.no / norgeskart style). A personal preference,
+  // so it is restored from localStorage rather than defaulting each visit.
+  const [drawStyle, setDrawStyle] = useState<DrawStyle>(loadDrawStyle);
+  // A style the user has asked for but that needs an answer first: switching
+  // with a route already on the map raises the "reset the route?" question.
+  const [pendingDrawStyle, setPendingDrawStyle] = useState<DrawStyle | null>(
+    null,
+  );
   // Stable for the lifetime of this planner instance: Root remounts the
   // planner (via `key`) whenever a different library route is opened.
   const initialId = saving?.initial?.id ?? null;
@@ -496,6 +507,11 @@ function App({
   );
   const [overlay, setOverlay] = useState<Overlay>('steepness');
   const [view, setView] = useState<ViewMode>('2d');
+  // Straight-line drawing is a 2D-map interaction (vertex handles live on the
+  // Leaflet map), so the 3D view always draws freehand — and the toolbar shows
+  // that honestly instead of advertising a style it can't deliver there.
+  const effectiveDrawStyle: DrawStyle = view === '3d' ? 'freehand' : drawStyle;
+  const placingVertices = mode === 'draw' && effectiveDrawStyle === 'lines';
   const [termsOpen, setTermsOpen] = useState(false);
   // First-run safety disclaimer: shown in the interactive planner only (never
   // over a read-only shared/review view), once per device and then again at
@@ -730,17 +746,19 @@ function App({
   // back to navigation mode so the map shows the grab cursor and the user
   // can pan/zoom while the worker is busy. Erase strokes also flow through
   // onRouteChange, so leave erase mode alone: erase commits on every
-  // mouseup and we don't want to kick the user out mid-edit.
+  // mouseup and we don't want to kick the user out mid-edit. Straight-line
+  // mode is left alone for the same reason: it publishes the line after every
+  // vertex, and the user is still in the middle of placing them.
   const handleRouteChange = useCallback(
     (next: Route) => {
       setRoute(next);
-      setMode((m) => (m === 'draw' ? 'idle' : m));
+      setMode((m) => (m === 'draw' && !placingVertices ? 'idle' : m));
       // Editing the line invalidates every frozen source (snow depths,
       // avalanche points and weather anchors are all keyed to the old
       // geometry), so drop the whole snapshot and fall back to live data.
       refreshForecast();
     },
-    [refreshForecast],
+    [refreshForecast, placingVertices],
   );
 
   // Block transitions into draw mode while loading. Direct setMode calls
@@ -793,6 +811,35 @@ function App({
     if (clearedRoute) setRoute(clearedRoute);
     dismissToast();
   }, [clearedRoute, dismissToast]);
+
+  // ---- Drawing style (freehand ↔ straight lines) -------------------------
+  // Switching applies from the next stroke on; the existing route is kept
+  // unless the user asks for a clean slate. Whichever way they answer, the
+  // pencil stays selected if it already was, so the switch never interrupts
+  // the flow of drawing.
+  const applyDrawStyle = useCallback(
+    (next: DrawStyle, resetRoute: boolean) => {
+      setPendingDrawStyle(null);
+      setDrawStyle(next);
+      storeDrawStyle(next);
+      if (!resetRoute) return;
+      const wasDrawing = mode === 'draw';
+      handleClear(); // reversible: leaves the undo toast up for a few seconds
+      if (wasDrawing) setMode('draw');
+    },
+    [handleClear, mode],
+  );
+
+  // Asking first only makes sense when there is something to lose. With an
+  // empty map the switch is instant.
+  const handleDrawStyleChange = useCallback(
+    (next: DrawStyle) => {
+      if (next === drawStyle) return;
+      if (route.length === 0) applyDrawStyle(next, false);
+      else setPendingDrawStyle(next);
+    },
+    [drawStyle, route.length, applyDrawStyle],
+  );
 
   const dismissImportError = useCallback(() => {
     if (importErrorTimer.current !== null) {
@@ -988,6 +1035,7 @@ function App({
         {view === '2d' ? (
           <Map
             mode={mode}
+            drawStyle={effectiveDrawStyle}
             route={route}
             onRouteChange={handleRouteChange}
             overlay={overlay}
@@ -999,6 +1047,10 @@ function App({
             navigating={navLive}
             progress={routeProgress}
             fitTo={reviewFit}
+            // Placing vertices republishes the route after every click, and
+            // re-framing the map under the cursor each time would fight the
+            // user. The fit resumes once the line is done.
+            holdView={placingVertices}
             onOpenOfflineMaps={onOpenOfflineMaps}
           />
         ) : (
@@ -1048,6 +1100,9 @@ function App({
           <Toolbar
             mode={mode}
             onModeChange={handleModeChange}
+            drawStyle={effectiveDrawStyle}
+            onDrawStyleChange={handleDrawStyleChange}
+            drawStyleLocked={view === '3d'}
             onClear={handleClear}
             hasRoute={hasRoute}
             loading={loading}
@@ -1465,6 +1520,25 @@ function App({
           }
           onSave={handleSaveRoute}
           onClose={() => setSaveOpen(false)}
+        />
+      )}
+      {pendingDrawStyle && (
+        <ConfirmDialog
+          title={
+            pendingDrawStyle === 'lines'
+              ? t('Bytter til rette linjer', 'Switching to straight lines')
+              : t('Bytter til frihånd', 'Switching to freehand')
+          }
+          message={t(
+            'Vil du fjerne ruta og begynne på nytt? Velger du nei, beholdes ruta og den nye tegnemåten gjelder fra neste strek.',
+            'Do you want to clear the route and start over? Choose no to keep it — the new drawing style applies from your next stroke.',
+          )}
+          confirmLabel={t('Ja, start på nytt', 'Yes, start over')}
+          onConfirm={() => applyDrawStyle(pendingDrawStyle, true)}
+          declineLabel={t('Nei, behold ruta', 'No, keep the route')}
+          onDecline={() => applyDrawStyle(pendingDrawStyle, false)}
+          onDismiss={() => setPendingDrawStyle(null)}
+          destructive
         />
       )}
     </div>

@@ -13,6 +13,14 @@ export type TrackTimes = number[][];
 
 export type Mode = 'idle' | 'draw' | 'erase';
 
+// How the pencil behaves in draw mode:
+//  - 'freehand' follows the cursor while the button is held, giving one
+//    fluent line (the stroke is RDP-simplified on release).
+//  - 'lines'    places one vertex per click and joins them with straight
+//    segments — the way ut.no and norgeskart draw. The vertices stay
+//    editable (drag to move, click to remove) until the line is finished.
+export type DrawStyle = 'freehand' | 'lines';
+
 // Which thematic overlay is shown on top of the base map.
 // 'none' shows the plain base map with no thematic layer draped on top.
 export type Overlay = 'steepness' | 'snowdepth' | 'none';

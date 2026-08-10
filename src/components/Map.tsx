@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { LatLng, Mode, Overlay, Route } from '../types';
+import type { DrawStyle, LatLng, Mode, Overlay, Route } from '../types';
 import type { RouteProgress } from '../tracking/useRouteProgress';
 import { CursorReadout } from './CursorReadout';
 import { DrawingHandler } from './DrawingHandler';
@@ -39,7 +39,7 @@ function InvalidateOnResize() {
 // room for the surrounding terrain. invalidateSize() is called first so
 // the fit uses the post-layout dimensions when the pane has just shrunk
 // to make room for the summary panel.
-function FitToRoute({ route }: { route: Route }) {
+function FitToRoute({ route, hold }: { route: Route; hold: boolean }) {
   const map = useMap();
   // Skip the very first render when the route is already empty — we don't
   // want to clobber the initial Norway-wide view.
@@ -49,6 +49,11 @@ function FitToRoute({ route }: { route: Route }) {
       didMount.current = true;
       if (route.length === 0) return;
     }
+    // `hold` is set while the user is mid-edit in a mode that publishes the
+    // route continuously (placing straight-line vertices). Re-framing between
+    // clicks would move the map out from under the cursor; the next change
+    // once they're done re-frames as usual.
+    if (hold) return;
     const pts: L.LatLngTuple[] = [];
     for (const seg of route) for (const p of seg) pts.push([p[0], p[1]]);
     if (pts.length < 2) return;
@@ -58,7 +63,7 @@ function FitToRoute({ route }: { route: Route }) {
     const padX = Math.max(0, Math.round(size.x * 0.25));
     const padY = Math.max(0, Math.round(size.y * 0.25));
     map.fitBounds(bounds, { padding: [padX, padY], animate: true });
-  }, [route, map]);
+  }, [route, hold, map]);
   return null;
 }
 
@@ -67,6 +72,8 @@ const INITIAL_ZOOM = 5;
 
 interface Props {
   mode: Mode;
+  /** Freehand stroke or straight legs between clicked vertices. */
+  drawStyle?: DrawStyle;
   route: Route;
   onRouteChange: (route: Route) => void;
   overlay: Overlay;
@@ -85,6 +92,9 @@ interface Props {
   /** Geometry the initial fit frames instead of the plan (e.g. reviewing a
    *  completed tour fits the plan and the recorded track together). */
   fitTo?: Route;
+  /** Suspend the automatic re-frame on route changes, for edits that publish
+   *  the route continuously (placing straight-line vertices). */
+  holdView?: boolean;
   /** Open the downloaded offline maps page. Handed to the offline panel,
    *  which links there instead of listing the saved areas itself. Absent in
    *  guest mode, which has no such page — the link then isn't rendered. */
@@ -93,6 +103,7 @@ interface Props {
 
 export function Map({
   mode,
+  drawStyle = 'freehand',
   route,
   onRouteChange,
   overlay,
@@ -104,6 +115,7 @@ export function Map({
   navigating = false,
   progress = null,
   fitTo,
+  holdView = false,
   onOpenOfflineMaps,
 }: Props) {
   // Offline-maps panel: lets the user select a rectangle and download its
@@ -174,7 +186,12 @@ export function Map({
           offline coverage ends. Drawn under the route/nav layers and kept
           non-interactive so it never blocks drawing. */}
       <RegionBoundaryLayer />
-      <DrawingHandler mode={mode} route={route} onRouteChange={onRouteChange} />
+      <DrawingHandler
+        mode={mode}
+        drawStyle={drawStyle}
+        route={route}
+        onRouteChange={onRouteChange}
+      />
       {(track.length > 0 || navigating) && (
         <NavigationLayer
           active={navigating}
@@ -209,7 +226,7 @@ export function Map({
         />
       )}
       <InvalidateOnResize />
-      <FitToRoute route={fitTo ?? route} />
+      <FitToRoute route={fitTo ?? route} hold={holdView} />
     </MapContainer>
   );
 }

@@ -1,0 +1,70 @@
+/* Vertex handles for straight-line ("lines") drawing mode.
+   These are Leaflet divIcon markers, so the classes below are applied to
+   the icon element itself — keep them self-contained (no descendant
+   selectors) and keep the box sizes in sync with the iconSize/iconAnchor
+   constants in DrawingHandler.tsx, which centre the dot on its point. */
+
+.vertex {
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+/* Invisible ring that grows the hit area to a comfortable ~26 px touch
+   target without changing the dot's size (and therefore without throwing
+   off the icon anchor). */
+.vertex::after,
+.midpoint::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+}
+
+.vertex:hover {
+  transform: scale(1.25);
+}
+
+.vertex:active {
+  cursor: grabbing;
+}
+
+/* The point the line currently ends at. Filled so it reads as "the live end
+   of the line" — and it's the handle that finishes the line. */
+.vertexLast {
+  background: var(--accent);
+  border-color: #fff;
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* Ghost handle halfway along each edge: click or drag it to insert a new
+   vertex there, the way ut.no and norgeskart let you bend an existing leg
+   without redrawing it. */
+.midpoint {
+  box-sizing: border-box;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  opacity: 0.5;
+  cursor: copy;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.midpoint:hover {
+  opacity: 1;
+  transform: scale(1.3);
+}

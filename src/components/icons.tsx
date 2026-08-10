@@ -295,6 +295,32 @@ export function CubeIcon() {
   );
 }
 
+export function FreehandIcon() {
+  // A single fluent stroke — the pencil's original behaviour, where the line
+  // follows the cursor. Paired with PolylineIcon in the toolbar's style
+  // switch, so the two read as a contrast: curve vs. corners.
+  return (
+    <svg {...baseProps}>
+      <path d="M3 16c2-6 4.5-6.5 6.5-3S13 19 15.5 15 19 7.5 21 8" />
+    </svg>
+  );
+}
+
+export function PolylineIcon() {
+  // Straight segments between explicit vertices — the ut.no / norgeskart
+  // drawing model. The dots are the clickable, draggable handles the user
+  // gets while placing points.
+  return (
+    <svg {...baseProps}>
+      <path d="M5 18 10 9l4.5 4L19 6" />
+      <circle cx="5" cy="18" r="1.9" />
+      <circle cx="10" cy="9" r="1.9" />
+      <circle cx="14.5" cy="13" r="1.9" />
+      <circle cx="19" cy="6" r="1.9" />
+    </svg>
+  );
+}
+
 export function RouteIcon() {
   // Lucide "route": waypoint circles joined by a path, reads as "fit to the
   // drawn track".

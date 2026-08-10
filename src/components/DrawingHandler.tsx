@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import { useMap, useMapEvents, Polyline } from 'react-leaflet';
-import type { LatLng, Mode, Route, Segment } from '../types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import L from 'leaflet';
+import { useMap, useMapEvents, Marker, Polyline } from 'react-leaflet';
+import type { DrawStyle, LatLng, Mode, Route, Segment } from '../types';
 import { simplify } from '../geometry';
+import { useT } from '../i18n/index.ts';
+import styles from './DrawingHandler.module.css';
 
 interface Props {
   mode: Mode;
+  /** Freehand (fluent line) or straight lines between clicked vertices. */
+  drawStyle?: DrawStyle;
   route: Route;
   onRouteChange: (route: Route) => void;
 }
@@ -30,6 +35,56 @@ const HALO_OPACITY = 0.9;
 const MIN_DRAW_PX = 3;
 const MIN_DRAW_PX2 = MIN_DRAW_PX * MIN_DRAW_PX;
 
+// Path options are module constants rather than inline literals: react-leaflet
+// re-applies setStyle() whenever the `pathOptions` reference changes, which
+// would repaint every committed polyline on each re-render — and lines mode
+// re-renders once per animation frame while the rubber band follows the
+// cursor. Stable references keep those repaints to the geometry that moved.
+const HALO_STYLE = {
+  color: HALO_COLOR,
+  weight: HALO_WEIGHT,
+  opacity: HALO_OPACITY,
+} as const;
+const LIVE_HALO_STYLE = {
+  color: HALO_COLOR,
+  weight: HALO_WEIGHT,
+  opacity: HALO_OPACITY * 0.7,
+} as const;
+const LINE_STYLE = { color: ROUTE_COLOR, weight: ROUTE_WEIGHT } as const;
+const LIVE_LINE_STYLE = {
+  color: ROUTE_COLOR,
+  weight: ROUTE_WEIGHT,
+  opacity: 0.7,
+} as const;
+// Dashed leg from the last placed vertex to the cursor, so the next straight
+// segment is visible before it is committed.
+const RUBBER_BAND_STYLE = {
+  color: ROUTE_COLOR,
+  weight: ROUTE_WEIGHT - 1,
+  opacity: 0.75,
+  dashArray: '6 7',
+} as const;
+
+// ---- Straight-line mode ---------------------------------------------------
+// Size of the draggable vertex dots, kept in sync with DrawingHandler.module.css
+// so the anchor sits exactly on the point.
+const VERTEX_PX = 14;
+const MIDPOINT_PX = 11;
+// Don't offer a midpoint handle on edges shorter than this on screen — the
+// ghost dot would sit on top of its own two vertices and just add clutter.
+const MIN_MIDPOINT_EDGE_PX = 34;
+// Two clicks of a double-click land within a few pixels of each other. The
+// second one has already appended a vertex by the time `dblclick` fires, so
+// anything this close to its predecessor is treated as that duplicate and
+// dropped before the line is finished.
+const DUP_CLICK_PX = 8;
+// A vertex edit (click, drag, delete) republishes the route so the elevation
+// profile and stats follow along, but doing that on every single click would
+// re-run the whole worker + Kartverket fetch a dozen times while the user is
+// still placing points. Edits are therefore coalesced: the route is published
+// once the user pauses — and immediately when the line is finished.
+const LINES_COMMIT_DELAY_MS = 500;
+
 // Pink tilted eraser block matching the toolbar icon, used as the
 // cursor while in erase mode. Hotspot is set to the bottom-left
 // working corner of the rotated rect (~(7, 22) in the 28×28 viewport),
@@ -43,8 +98,14 @@ const ERASER_CURSOR_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='44' he
 </svg>`;
 const ERASER_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(ERASER_CURSOR_SVG)}") 10 36, cell`;
 
-export function DrawingHandler({ mode, route, onRouteChange }: Props) {
+export function DrawingHandler({
+  mode,
+  drawStyle = 'freehand',
+  route,
+  onRouteChange,
+}: Props) {
   const map = useMap();
+  const t = useT();
   const drawingRef = useRef<Segment | null>(null);
   const erasingRef = useRef(false);
   const [livePoints, setLivePoints] = useState<Segment>([]);
@@ -55,6 +116,10 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
   // the in-progress Polyline per animation frame, regardless of mousemove
   // event rate.
   const liveRafRef = useRef<number | null>(null);
+
+  // Which pencil is live. Freehand drags a stroke; lines places vertices.
+  const freehandActive = mode === 'draw' && drawStyle === 'freehand';
+  const linesActive = mode === 'draw' && drawStyle === 'lines';
 
   const scheduleLiveUpdate = () => {
     if (liveRafRef.current !== null) return;
@@ -84,6 +149,15 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
       map.doubleClickZoom.enable();
       container.style.cursor = '';
       container.style.touchAction = '';
+    } else if (linesActive) {
+      // Vertices are placed by clicking, so panning and pinch-zooming stay
+      // available while drawing — exactly like the ut.no / norgeskart tools,
+      // where you can drag the map between clicks to follow a valley.
+      // Double-click zoom stays off: that gesture finishes the line.
+      map.dragging.enable();
+      map.doubleClickZoom.disable();
+      container.style.cursor = 'crosshair';
+      container.style.touchAction = '';
     } else {
       map.dragging.disable();
       map.doubleClickZoom.disable();
@@ -98,7 +172,7 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
       container.style.cursor = '';
       container.style.touchAction = '';
     };
-  }, [mode, map]);
+  }, [mode, linesActive, map]);
 
   // Erase every part of the route that lies inside a disk of radius
   // ERASER_RADIUS_PX around the cursor. Works edge-by-edge so the user
@@ -280,21 +354,231 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
     };
   }, [mode]);
 
-  // Touch support. Leaflet only synthesises mouse events for taps — a
-  // finger *drag* never produces the mousedown/mousemove map events used
-  // below, so on mobile drawing silently did nothing. Handle touch strokes
-  // with native listeners on the map container instead. Listeners are
-  // registered with passive: false so preventDefault() can actually stop
-  // the browser's default pan/scroll while a stroke is in progress.
+  // =======================================================================
+  // Straight-line ("lines") mode: click to place vertices, joined by
+  // straight segments — the drawing model used by ut.no and norgeskart.
+  //
+  // The line being placed lives here as a local draft rather than directly
+  // in the route, so clicking, dragging and deleting vertices stay instant.
+  // The draft is published to the parent (debounced) so the elevation
+  // profile and stats keep up, and flushed the moment the line is finished.
+  // =======================================================================
+  const [draft, setDraftState] = useState<Segment>([]);
+  const draftRef = useRef<Segment>([]);
+  // The committed route the draft is stacked on top of. Held both as state
+  // (the render needs it: while a draft is in progress it, not `route`, is the
+  // committed geometry to draw) and as a ref, so the publish/finish helpers
+  // can read the current value synchronously from timers and cleanups.
+  const [base, setBaseState] = useState<Route>(route);
+  const baseRef = useRef<Route>(route);
+  const setBase = useCallback((next: Route) => {
+    baseRef.current = next;
+    setBaseState(next);
+  }, []);
+  // The exact array last handed to onRouteChange. Lets the route coming back
+  // in as a prop be told apart from an external change (clear, import, undo,
+  // an eraser stroke) that must reset the draft.
+  const emittedRef = useRef<Route | null>(null);
+  const commitTimerRef = useRef<number | null>(null);
+  // Rubber-band end: the cursor position, drawn as a dashed leg from the
+  // last placed vertex so the next segment is visible before it's committed.
+  const [cursor, setCursor] = useState<LatLng | null>(null);
+  const cursorRafRef = useRef<number | null>(null);
+  const pendingCursorRef = useRef<LatLng | null>(null);
+  // Live geometry while a handle is being dragged. `insert` distinguishes a
+  // midpoint handle (which adds a vertex at `index`) from a vertex handle
+  // (which moves the one already at `index`).
+  const [handleDrag, setHandleDrag] = useState<{
+    index: number;
+    pos: LatLng;
+    insert: boolean;
+  } | null>(null);
+  // Current zoom, so midpoint handles can be hidden on edges that are too
+  // short on screen to be worth a handle.
+  const [zoom, setZoom] = useState(() => map.getZoom());
+
+  // Keep the latest callback in a ref so the publish/finish helpers below can
+  // stay referentially stable (they're wired into effects and cleanups).
+  const onRouteChangeRef = useRef(onRouteChange);
   useEffect(() => {
-    if (mode === 'idle') return;
+    onRouteChangeRef.current = onRouteChange;
+  }, [onRouteChange]);
+
+  const publishDraft = useCallback(() => {
+    commitTimerRef.current = null;
+    const base = baseRef.current;
+    const pending = draftRef.current;
+    // A single point isn't a line yet: publish the bare base instead, which
+    // also cleans up after deleting a two-point line down to one.
+    const next = pending.length >= 2 ? [...base, pending] : base;
+    if (next === emittedRef.current) return; // already published
+    if (next === base && emittedRef.current === null) return; // nothing to undo
+    emittedRef.current = next;
+    onRouteChangeRef.current(next);
+  }, []);
+
+  /** Replace the draft and schedule a (coalesced) publish. */
+  const updateDraft = useCallback(
+    (next: Segment) => {
+      draftRef.current = next;
+      setDraftState(next);
+      if (commitTimerRef.current !== null) {
+        window.clearTimeout(commitTimerRef.current);
+      }
+      commitTimerRef.current = window.setTimeout(
+        publishDraft,
+        LINES_COMMIT_DELAY_MS,
+      );
+    },
+    [publishDraft],
+  );
+
+  // Vertex edits, expressed against the draft as it stands when the gesture
+  // ends. Kept as stable callbacks rather than inline handlers so the marker
+  // event objects don't have to reach for the draft themselves.
+  const insertVertex = useCallback(
+    (index: number, pos: LatLng) => {
+      const next = draftRef.current.slice();
+      next.splice(index, 0, pos);
+      updateDraft(next);
+    },
+    [updateDraft],
+  );
+  const moveVertex = useCallback(
+    (index: number, pos: LatLng) => {
+      const next = draftRef.current.slice();
+      next[index] = pos;
+      updateDraft(next);
+    },
+    [updateDraft],
+  );
+  const removeVertex = useCallback(
+    (index: number) => {
+      updateDraft(draftRef.current.filter((_, j) => j !== index));
+    },
+    [updateDraft],
+  );
+
+  /**
+   * Stop editing the current line: publish it immediately and hand it over
+   * to the committed route. Safe (and a no-op) with no draft in progress.
+   */
+  const finishLine = useCallback(() => {
+    if (commitTimerRef.current !== null) {
+      window.clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    setCursor(null);
+    setHandleDrag(null);
+    if (draftRef.current.length === 0) return;
+    publishDraft();
+    // Everything published is now part of the committed base, so a following
+    // line stacks on top of it instead of replacing it.
+    setBase(emittedRef.current ?? baseRef.current);
+    draftRef.current = [];
+    setDraftState([]);
+  }, [publishDraft, setBase]);
+
+  // Reconcile with route changes that didn't come from here — a clear, an
+  // import, the undo toast, an eraser stroke or a freehand stroke. The
+  // draft's base would be stale, so the draft is dropped rather than
+  // resurrecting geometry the user just removed.
+  useEffect(() => {
+    if (route === emittedRef.current) return;
+    if (commitTimerRef.current !== null) {
+      window.clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    setBase(route);
+    emittedRef.current = null;
+    draftRef.current = [];
+    setDraftState([]);
+    setCursor(null);
+    setHandleDrag(null);
+  }, [route, setBase]);
+
+  // Leaving lines mode (switching tool, pressing Esc, unmounting) finishes
+  // the line instead of losing it.
+  const finishLineRef = useRef(finishLine);
+  useEffect(() => {
+    finishLineRef.current = finishLine;
+  }, [finishLine]);
+  useEffect(() => {
+    if (linesActive) return;
+    finishLineRef.current();
+  }, [linesActive]);
+  useEffect(
+    () => () => {
+      finishLineRef.current();
+    },
+    [],
+  );
+
+  // Keyboard shortcuts while placing a line: Enter finishes it, and
+  // Backspace / Delete / Ctrl-Z step back one vertex at a time. (Esc is
+  // handled app-wide — it leaves draw mode, which finishes the line.)
+  useEffect(() => {
+    if (!linesActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLElement &&
+        (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))
+      ) {
+        return; // the user is typing, not drawing
+      }
+      const undo =
+        e.key === 'Backspace' ||
+        e.key === 'Delete' ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z');
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        finishLine();
+      } else if (undo && draftRef.current.length > 0) {
+        e.preventDefault();
+        updateDraft(draftRef.current.slice(0, -1));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [linesActive, finishLine, updateDraft]);
+
+  const scheduleCursor = (ll: LatLng) => {
+    pendingCursorRef.current = ll;
+    if (cursorRafRef.current !== null) return;
+    cursorRafRef.current = requestAnimationFrame(() => {
+      cursorRafRef.current = null;
+      setCursor(pendingCursorRef.current);
+    });
+  };
+
+  useEffect(
+    () => () => {
+      if (cursorRafRef.current !== null) {
+        cancelAnimationFrame(cursorRafRef.current);
+      }
+    },
+    [],
+  );
+
+  // Touch support for freehand/erase strokes. Leaflet only synthesises mouse
+  // events for taps — a finger *drag* never produces the mousedown/mousemove
+  // map events used below, so on mobile drawing silently did nothing. Handle
+  // touch strokes with native listeners on the map container instead.
+  // Listeners are registered with passive: false so preventDefault() can
+  // actually stop the browser's default pan/scroll while a stroke is in
+  // progress. Lines mode is deliberately excluded: it is driven by taps
+  // (which Leaflet does synthesise as clicks) and must keep one-finger
+  // panning between them.
+  useEffect(() => {
+    if (mode === 'idle' || linesActive) return;
     const container = map.getContainer();
 
-    const touchLatLng = (t: Touch): LatLng => {
+    const touchLatLng = (touch: Touch): LatLng => {
       const rect = container.getBoundingClientRect();
       const ll = map.containerPointToLatLng([
-        t.clientX - rect.left,
-        t.clientY - rect.top,
+        touch.clientX - rect.left,
+        touch.clientY - rect.top,
       ]);
       return [ll.lat, ll.lng];
     };
@@ -355,11 +639,11 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
       container.removeEventListener('touchcancel', onTouchEnd);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, map, route, onRouteChange]);
+  }, [mode, linesActive, map, route, onRouteChange]);
 
   useMapEvents({
     mousedown(e) {
-      if (mode === 'draw') {
+      if (freehandActive) {
         drawingRef.current = [[e.latlng.lat, e.latlng.lng]];
         lastDrawPxRef.current = map.latLngToContainerPoint(e.latlng);
         setLivePoints(drawingRef.current.slice());
@@ -371,7 +655,7 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
       }
     },
     mousemove(e) {
-      if (mode === 'draw' && drawingRef.current) {
+      if (freehandActive && drawingRef.current) {
         const pt = map.latLngToContainerPoint(e.latlng);
         const last = lastDrawPxRef.current;
         if (last) {
@@ -384,57 +668,242 @@ export function DrawingHandler({ mode, route, onRouteChange }: Props) {
         scheduleLiveUpdate();
       } else if (mode === 'erase' && erasingRef.current) {
         eraseAt([e.latlng.lat, e.latlng.lng]);
+      } else if (linesActive && !handleDrag && draftRef.current.length > 0) {
+        // Not while a handle is being dragged: the rubber band is hidden then,
+        // so following the cursor would only cost a re-render (and a full
+        // canvas repaint of the route) per mouse move.
+        scheduleCursor([e.latlng.lat, e.latlng.lng]);
       }
     },
-    // Note: no mouseup/mouseout handlers here. Committing the stroke is
-    // handled exclusively by the document-level mouseup listener armed in
-    // mousedown, so leaving the map container mid-stroke does NOT
-    // interrupt or save the route — only releasing the button does.
+    // Lines mode: one click, one vertex. Leaflet already swallows the click
+    // that ends a map pan, so dragging the map between vertices is safe.
+    click(e) {
+      if (!linesActive) return;
+      updateDraft([...draftRef.current, [e.latlng.lat, e.latlng.lng]]);
+      scheduleCursor([e.latlng.lat, e.latlng.lng]);
+    },
+    // Double-click finishes the line. Its second click has usually already
+    // landed on the last vertex handle (which finishes the line itself), but
+    // when it reaches the map instead it has appended a duplicate vertex —
+    // drop that before finishing.
+    dblclick() {
+      if (!linesActive) return;
+      const pending = draftRef.current;
+      if (pending.length >= 2) {
+        const a = map.latLngToContainerPoint(pending[pending.length - 1]);
+        const b = map.latLngToContainerPoint(pending[pending.length - 2]);
+        if (a.distanceTo(b) <= DUP_CLICK_PX) {
+          draftRef.current = pending.slice(0, -1);
+          setDraftState(draftRef.current);
+        }
+      }
+      finishLine();
+    },
+    // The rubber band shouldn't dangle off a cursor that has left the map.
+    mouseout() {
+      if (linesActive) setCursor(null);
+    },
+    zoomend() {
+      setZoom(map.getZoom());
+    },
+    // Note: no mouseup handler here. Committing a freehand stroke is handled
+    // exclusively by the document-level mouseup listener armed in mousedown,
+    // so leaving the map container mid-stroke does NOT interrupt or save the
+    // route — only releasing the button does.
   });
 
-  const displayRoute = eraseRoute ?? route;
+  // ---- Lines mode geometry & handles ------------------------------------
+  // The line as it should look right now, including any handle being dragged.
+  const previewDraft = useMemo(() => {
+    if (!handleDrag) return draft;
+    const next = draft.slice();
+    if (handleDrag.insert) next.splice(handleDrag.index, 0, handleDrag.pos);
+    else next[handleDrag.index] = handleDrag.pos;
+    return next;
+  }, [draft, handleDrag]);
+
+  // Midpoint of every draft edge that is long enough on screen to deserve a
+  // handle. Projected at the current zoom so the dot sits on the visual
+  // middle of the leg (a plain lat/lng average drifts in Web Mercator).
+  const midpoints = useMemo(() => {
+    if (!linesActive || draft.length < 2) return [];
+    const out: { index: number; pos: LatLng }[] = [];
+    for (let i = 1; i < draft.length; i++) {
+      const a = map.project(draft[i - 1], zoom);
+      const b = map.project(draft[i], zoom);
+      if (a.distanceTo(b) < MIN_MIDPOINT_EDGE_PX) continue;
+      const mid = map.unproject(a.add(b).divideBy(2), zoom);
+      out.push({ index: i, pos: [mid.lat, mid.lng] });
+    }
+    return out;
+  }, [linesActive, draft, map, zoom]);
+
+  const vertexIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: styles.vertex,
+        iconSize: [VERTEX_PX, VERTEX_PX],
+        iconAnchor: [VERTEX_PX / 2, VERTEX_PX / 2],
+      }),
+    [],
+  );
+  const lastVertexIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: `${styles.vertex} ${styles.vertexLast}`,
+        iconSize: [VERTEX_PX, VERTEX_PX],
+        iconAnchor: [VERTEX_PX / 2, VERTEX_PX / 2],
+      }),
+    [],
+  );
+  const midpointIcon = useMemo(
+    () =>
+      L.divIcon({
+        className: styles.midpoint,
+        iconSize: [MIDPOINT_PX, MIDPOINT_PX],
+        iconAnchor: [MIDPOINT_PX / 2, MIDPOINT_PX / 2],
+      }),
+    [],
+  );
+
+  const markerLatLng = (e: L.LeafletEvent): LatLng => {
+    const ll = (e.target as L.Marker).getLatLng();
+    return [ll.lat, ll.lng];
+  };
+
+  // While a draft is in progress it is rendered from `previewDraft`, so the
+  // committed part of the route must exclude it — otherwise the published
+  // copy would sit underneath, stale, while a handle is being dragged.
+  const displayRoute = eraseRoute ?? (draft.length > 0 ? base : route);
+  const showRubberBand =
+    linesActive && !handleDrag && cursor !== null && draft.length > 0;
 
   return (
     <>
       {/* White halos first, so every teal line renders on top of every halo. */}
       {displayRoute.map((seg, i) => (
-        <Polyline
-          key={`halo-${i}`}
-          positions={seg}
-          pathOptions={{
-            color: HALO_COLOR,
-            weight: HALO_WEIGHT,
-            opacity: HALO_OPACITY,
-          }}
-        />
+        <Polyline key={`halo-${i}`} positions={seg} pathOptions={HALO_STYLE} />
       ))}
+      {previewDraft.length >= 2 && (
+        <Polyline positions={previewDraft} pathOptions={HALO_STYLE} />
+      )}
       {livePoints.length >= 2 && (
-        <Polyline
-          positions={livePoints}
-          pathOptions={{
-            color: HALO_COLOR,
-            weight: HALO_WEIGHT,
-            opacity: HALO_OPACITY * 0.7,
-          }}
-        />
+        <Polyline positions={livePoints} pathOptions={LIVE_HALO_STYLE} />
       )}
       {displayRoute.map((seg, i) => (
-        <Polyline
-          key={i}
-          positions={seg}
-          pathOptions={{ color: ROUTE_COLOR, weight: ROUTE_WEIGHT }}
-        />
+        <Polyline key={i} positions={seg} pathOptions={LINE_STYLE} />
       ))}
-      {livePoints.length >= 2 && (
+      {previewDraft.length >= 2 && (
+        <Polyline positions={previewDraft} pathOptions={LINE_STYLE} />
+      )}
+      {showRubberBand && (
         <Polyline
-          positions={livePoints}
-          pathOptions={{
-            color: ROUTE_COLOR,
-            weight: ROUTE_WEIGHT,
-            opacity: 0.7,
-          }}
+          positions={[previewDraft[previewDraft.length - 1], cursor]}
+          pathOptions={RUBBER_BAND_STYLE}
         />
       )}
+      {livePoints.length >= 2 && (
+        <Polyline positions={livePoints} pathOptions={LIVE_LINE_STYLE} />
+      )}
+      {/* Editable handles for the line being placed. Midpoints render below
+          the vertices so overlapping dots stay grabbable.
+
+          react-hooks/refs is switched off across the two blocks that follow.
+          Every function in them is a Leaflet drag/click callback and so can
+          only run after render — but the rule can't see that: `eventHandlers`
+          is a prop on a third-party component (react-leaflet's Marker), and a
+          function handed to a component the compiler can't inspect might, as
+          far as it knows, be called while that component renders. Every ref
+          read reachable from a handler (the draft, the debounce timer) is
+          therefore reported. Re-enabled immediately after the handles. */}
+      {/* eslint-disable react-hooks/refs */}
+      {linesActive &&
+        midpoints.map((mid) => (
+          <Marker
+            key={`mid-${mid.index}`}
+            position={mid.pos}
+            icon={midpointIcon}
+            draggable
+            bubblingMouseEvents={false}
+            keyboard={false}
+            title={t(
+              'Dra for å legge til et punkt her',
+              'Drag to add a point here',
+            )}
+            eventHandlers={{
+              dragstart: (e) =>
+                setHandleDrag({
+                  index: mid.index,
+                  pos: markerLatLng(e),
+                  insert: true,
+                }),
+              drag: (e) =>
+                setHandleDrag({
+                  index: mid.index,
+                  pos: markerLatLng(e),
+                  insert: true,
+                }),
+              dragend: (e) => {
+                const pos = markerLatLng(e);
+                setHandleDrag(null);
+                insertVertex(mid.index, pos);
+              },
+              click: () => insertVertex(mid.index, mid.pos),
+            }}
+          />
+        ))}
+      {linesActive &&
+        draft.map((point, i) => {
+          const isLast = i === draft.length - 1;
+          return (
+            <Marker
+              key={`vertex-${i}`}
+              position={point}
+              icon={isLast ? lastVertexIcon : vertexIcon}
+              draggable
+              bubblingMouseEvents={false}
+              keyboard={false}
+              zIndexOffset={100}
+              title={
+                isLast
+                  ? t(
+                      'Dra for å flytte · klikk for å fullføre linja',
+                      'Drag to move · click to finish the line',
+                    )
+                  : t(
+                      'Dra for å flytte · klikk for å fjerne punktet',
+                      'Drag to move · click to remove the point',
+                    )
+              }
+              eventHandlers={{
+                dragstart: (e) =>
+                  setHandleDrag({
+                    index: i,
+                    pos: markerLatLng(e),
+                    insert: false,
+                  }),
+                drag: (e) =>
+                  setHandleDrag({
+                    index: i,
+                    pos: markerLatLng(e),
+                    insert: false,
+                  }),
+                dragend: (e) => {
+                  setHandleDrag(null);
+                  moveVertex(i, markerLatLng(e));
+                },
+                click: () => {
+                  // Clicking the leading vertex closes the line off, the
+                  // convention on ut.no/norgeskart and in Leaflet.draw. Any
+                  // other vertex is simply removed.
+                  if (isLast) finishLine();
+                  else removeVertex(i);
+                },
+              }}
+            />
+          );
+        })}
+      {/* eslint-enable react-hooks/refs */}
     </>
   );
 }

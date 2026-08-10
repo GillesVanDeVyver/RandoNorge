@@ -1,0 +1,136 @@
+/* Same glass-panel language as SaveRouteDialog / TermsDialog, trimmed down
+   to a title, one sentence and the answers. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(400px, 100%);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+
+  background: var(--surface-1);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-2);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) 0;
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.close {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.close:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.close:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.message {
+  margin: var(--space-2) 0 0;
+  padding: 0 var(--space-5);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-5);
+}
+
+.primaryBtn,
+.secondaryBtn {
+  padding: var(--space-2) var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.primaryBtn {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.primaryBtn:hover {
+  filter: brightness(1.08);
+}
+
+.destructiveBtn {
+  color: #fff;
+  background: var(--danger, #c0392b);
+  border-color: var(--danger, #c0392b);
+}
+
+.secondaryBtn {
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--hairline);
+}
+
+.secondaryBtn:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.primaryBtn:focus-visible,
+.secondaryBtn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
