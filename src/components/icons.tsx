@@ -295,28 +295,37 @@ export function CubeIcon() {
   );
 }
 
+// The pencil's two drawing styles. They sit side by side in a 28px segmented
+// control, so they have to be told apart at a glance at that size: the pair is
+// deliberately built on opposite primitives — one unbroken curve with no
+// corners and no dots, against two straight legs meeting at a sharp corner
+// with handles on the vertices. Nothing else in the shapes is shared.
 export function FreehandIcon() {
-  // A single fluent stroke — the pencil's original behaviour, where the line
-  // follows the cursor. Paired with PolylineIcon in the toolbar's style
-  // switch, so the two read as a contrast: curve vs. corners.
+  // One fluent stroke that follows the cursor: a smooth two-hump wave, all
+  // curve and no vertices. Kept to two humps (rather than a denser squiggle)
+  // because a third one turns to mush at 17px.
   return (
     <svg {...baseProps}>
-      <path d="M3 16c2-6 4.5-6.5 6.5-3S13 19 15.5 15 19 7.5 21 8" />
+      <path d="M2.8 15.2c2-6.6 4.6-6.6 6.4-.4 1.6 5.6 4.2 5.4 6-.8 1-3.4 2.6-4.2 4-2" />
     </svg>
   );
 }
 
 export function PolylineIcon() {
-  // Straight segments between explicit vertices — the ut.no / norgeskart
-  // drawing model. The dots are the clickable, draggable handles the user
-  // gets while placing points.
+  // Straight legs between explicit vertices — the ut.no / norgeskart drawing
+  // model. The handles mirror what the map actually shows while placing a
+  // line: hollow rings for the vertices you can drag or delete, and a filled
+  // leading vertex, the one that finishes the line when clicked. Their stroke
+  // is thinner than the legs so the rings stay open (and don't blot into dots)
+  // at toolbar size.
   return (
     <svg {...baseProps}>
-      <path d="M5 18 10 9l4.5 4L19 6" />
-      <circle cx="5" cy="18" r="1.9" />
-      <circle cx="10" cy="9" r="1.9" />
-      <circle cx="14.5" cy="13" r="1.9" />
-      <circle cx="19" cy="6" r="1.9" />
+      <path d="M4 17.2 11.5 7.2 19.8 13.6" />
+      <g strokeWidth={1.7}>
+        <circle cx="4" cy="17.2" r="2.7" />
+        <circle cx="11.5" cy="7.2" r="2.7" />
+      </g>
+      <circle cx="19.8" cy="13.6" r="2.7" fill="currentColor" stroke="none" />
     </svg>
   );
 }

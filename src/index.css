@@ -32,6 +32,16 @@
   --snow: #7fb4e6;
   --route: #2dd4bf; /* drawn route line (same teal as --accent) */
 
+  /* Destructive actions — deleting a route, wiping the drawing to start over.
+     Five stylesheets were already reaching for `--danger` before it existed
+     here, each with its own fallback (#c0392b, #dc2626, #e5484d), so the same
+     "this destroys something" signal was painted in three different reds.
+     Defined once, on the palette's own red, so it speaks with the descent
+     figures rather than against them. */
+  --danger: #dd4a3c; /* = --descent-strong */
+  --danger-hover: #c8402f;
+  --danger-ring: rgba(221, 74, 60, 0.45);
+
   /* --- Text (on light) ------------------------------------------------- */
   --text-1: rgba(20, 28, 38, 0.92);
   --text-2: rgba(20, 28, 38, 0.58);

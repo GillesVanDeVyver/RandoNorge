@@ -24,8 +24,10 @@ import { SaveRouteDialog } from './components/SaveRouteDialog';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import {
   BookmarkPlusIcon,
+  FreehandIcon,
   PencilIcon,
   PlayIcon,
+  PolylineIcon,
   UploadIcon,
 } from './components/icons';
 import { useElevation } from './elevation/useElevation';
@@ -1524,14 +1526,17 @@ function App({
       )}
       {pendingDrawStyle && (
         <ConfirmDialog
+          icon={
+            pendingDrawStyle === 'lines' ? <PolylineIcon /> : <FreehandIcon />
+          }
           title={
             pendingDrawStyle === 'lines'
-              ? t('Bytter til rette linjer', 'Switching to straight lines')
-              : t('Bytter til frihånd', 'Switching to freehand')
+              ? t('Bytt til rette linjer', 'Switch to straight lines')
+              : t('Bytt til frihånd', 'Switch to freehand')
           }
           message={t(
-            'Vil du fjerne ruta og begynne på nytt? Velger du nei, beholdes ruta og den nye tegnemåten gjelder fra neste strek.',
-            'Do you want to clear the route and start over? Choose no to keep it — the new drawing style applies from your next stroke.',
+            'Vil du fjerne ruta og begynne på nytt? Velger du nei, beholdes ruta, og den nye tegnemåten gjelder fra neste strek.',
+            'Clear the route and start over? Choose no to keep it — the new drawing style then applies from your next stroke.',
           )}
           confirmLabel={t('Ja, start på nytt', 'Yes, start over')}
           onConfirm={() => applyDrawStyle(pendingDrawStyle, true)}

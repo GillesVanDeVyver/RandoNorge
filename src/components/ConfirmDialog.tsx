@@ -1,8 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useT } from '../i18n/index.ts';
 import styles from './ConfirmDialog.module.css';
 
 interface Props {
+  /**
+   * Optional mark for the accent disc in the header — the icon of the thing
+   * being switched to, so the question can be recognised from its shape before
+   * the sentence is read. Purely decorative: the title carries the meaning.
+   */
+  icon?: ReactNode;
   title: string;
   /** One or two short sentences explaining the consequence of confirming. */
   message: string;
@@ -30,6 +36,7 @@ interface Props {
  * kept or replaced.
  */
 export function ConfirmDialog({
+  icon,
   title,
   message,
   confirmLabel,
@@ -68,9 +75,21 @@ export function ConfirmDialog({
         if (e.target === e.currentTarget) onDismiss();
       }}
     >
-      <div className={styles.panel} role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        className={styles.panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         <header className={styles.header}>
-          <h2 className={styles.title}>{title}</h2>
+          {icon && (
+            <span className={styles.badge} aria-hidden="true">
+              {icon}
+            </span>
+          )}
+          <div className={styles.heading}>
+            <h2 className={styles.title}>{title}</h2>
+          </div>
           <button
             type="button"
             className={styles.close}
