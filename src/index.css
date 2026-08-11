@@ -39,8 +39,6 @@
      Defined once, on the palette's own red, so it speaks with the descent
      figures rather than against them. */
   --danger: #dd4a3c; /* = --descent-strong */
-  --danger-hover: #c8402f;
-  --danger-ring: rgba(221, 74, 60, 0.45);
 
   /* --- Text (on light) ------------------------------------------------- */
   --text-1: rgba(20, 28, 38, 0.92);

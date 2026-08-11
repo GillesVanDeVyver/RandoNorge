@@ -21,13 +21,10 @@ import { AvalancheRisk } from './components/AvalancheRisk';
 import { TermsDialog } from './components/TermsDialog';
 import { DisclaimerModal } from './components/DisclaimerModal';
 import { SaveRouteDialog } from './components/SaveRouteDialog';
-import { ConfirmDialog } from './components/ConfirmDialog';
 import {
   BookmarkPlusIcon,
-  FreehandIcon,
   PencilIcon,
   PlayIcon,
-  PolylineIcon,
   UploadIcon,
 } from './components/icons';
 import { useElevation } from './elevation/useElevation';
@@ -379,11 +376,6 @@ function App({
   // between clicked points (ut.no / norgeskart style). A personal preference,
   // so it is restored from localStorage rather than defaulting each visit.
   const [drawStyle, setDrawStyle] = useState<DrawStyle>(loadDrawStyle);
-  // A style the user has asked for but that needs an answer first: switching
-  // with a route already on the map raises the "reset the route?" question.
-  const [pendingDrawStyle, setPendingDrawStyle] = useState<DrawStyle | null>(
-    null,
-  );
   // Stable for the lifetime of this planner instance: Root remounts the
   // planner (via `key`) whenever a different library route is opened.
   const initialId = saving?.initial?.id ?? null;
@@ -815,32 +807,18 @@ function App({
   }, [clearedRoute, dismissToast]);
 
   // ---- Drawing style (freehand ↔ straight lines) -------------------------
-  // Switching applies from the next stroke on; the existing route is kept
-  // unless the user asks for a clean slate. Whichever way they answer, the
-  // pencil stays selected if it already was, so the switch never interrupts
-  // the flow of drawing.
-  const applyDrawStyle = useCallback(
-    (next: DrawStyle, resetRoute: boolean) => {
-      setPendingDrawStyle(null);
-      setDrawStyle(next);
-      storeDrawStyle(next);
-      if (!resetRoute) return;
-      const wasDrawing = mode === 'draw';
-      handleClear(); // reversible: leaves the undo toast up for a few seconds
-      if (wasDrawing) setMode('draw');
-    },
-    [handleClear, mode],
-  );
-
-  // Asking first only makes sense when there is something to lose. With an
-  // empty map the switch is instant.
+  // The switch takes effect immediately and never asks anything: whatever is
+  // already drawn stays exactly as it is, the new style simply applies from the
+  // next stroke on, and the pencil stays selected if it already was. Mixing the
+  // two within one route is legitimate — a freehand traverse joined to a couple
+  // of straight legs up a ridge — so there is nothing here to confirm.
   const handleDrawStyleChange = useCallback(
     (next: DrawStyle) => {
       if (next === drawStyle) return;
-      if (route.length === 0) applyDrawStyle(next, false);
-      else setPendingDrawStyle(next);
+      setDrawStyle(next);
+      storeDrawStyle(next);
     },
-    [drawStyle, route.length, applyDrawStyle],
+    [drawStyle],
   );
 
   const dismissImportError = useCallback(() => {
@@ -1522,28 +1500,6 @@ function App({
           }
           onSave={handleSaveRoute}
           onClose={() => setSaveOpen(false)}
-        />
-      )}
-      {pendingDrawStyle && (
-        <ConfirmDialog
-          icon={
-            pendingDrawStyle === 'lines' ? <PolylineIcon /> : <FreehandIcon />
-          }
-          title={
-            pendingDrawStyle === 'lines'
-              ? t('Bytt til rette linjer', 'Switch to straight lines')
-              : t('Bytt til frihånd', 'Switch to freehand')
-          }
-          message={t(
-            'Vil du fjerne ruta og begynne på nytt? Velger du nei, beholdes ruta, og den nye tegnemåten gjelder fra neste strek.',
-            'Clear the route and start over? Choose no to keep it — the new drawing style then applies from your next stroke.',
-          )}
-          confirmLabel={t('Ja, start på nytt', 'Yes, start over')}
-          onConfirm={() => applyDrawStyle(pendingDrawStyle, true)}
-          declineLabel={t('Nei, behold ruta', 'No, keep the route')}
-          onDecline={() => applyDrawStyle(pendingDrawStyle, false)}
-          onDismiss={() => setPendingDrawStyle(null)}
-          destructive
         />
       )}
     </div>
