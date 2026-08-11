@@ -736,6 +736,10 @@ function App({
     showNotice,
   ]);
 
+  // Raised while a drawing-style switch hands over its line — see
+  // handleDrawStyleChange below for why that publish needs marking.
+  const styleSwitchFlushRef = useRef(false);
+
   // The route just got extended (a draw stroke committed) or replaced — drop
   // back to navigation mode so the map shows the grab cursor and the user
   // can pan/zoom while the worker is busy. Erase strokes also flow through
@@ -746,7 +750,12 @@ function App({
   const handleRouteChange = useCallback(
     (next: Route) => {
       setRoute(next);
-      setMode((m) => (m === 'draw' && !placingVertices ? 'idle' : m));
+      // A style switch also lands here, carrying the line it just handed over.
+      // That is not a finished stroke and must not cost the user the pencil.
+      const styleSwitch = styleSwitchFlushRef.current;
+      setMode((m) =>
+        m === 'draw' && !placingVertices && !styleSwitch ? 'idle' : m,
+      );
       // Editing the line invalidates every frozen source (snow depths,
       // avalanche points and weather anchors are all keyed to the old
       // geometry), so drop the whole snapshot and fall back to live data.
@@ -812,14 +821,25 @@ function App({
   // next stroke on, and the pencil stays selected if it already was. Mixing the
   // two within one route is legitimate — a freehand traverse joined to a couple
   // of straight legs up a ridge — so there is nothing here to confirm.
+  //
+  // Leaving straight-line mode hands the line in progress over to the route
+  // rather than dropping it, and that publish reaches handleRouteChange above
+  // looking exactly like a committed freehand stroke — which used to deselect
+  // the pencil. The flag tells the two apart: raised synchronously here, lowered
+  // by the effect below, which React runs after the map's own effects in the
+  // same commit, so it can never still be up for a later stroke.
   const handleDrawStyleChange = useCallback(
     (next: DrawStyle) => {
       if (next === drawStyle) return;
+      styleSwitchFlushRef.current = true;
       setDrawStyle(next);
       storeDrawStyle(next);
     },
     [drawStyle],
   );
+  useEffect(() => {
+    styleSwitchFlushRef.current = false;
+  }, [drawStyle]);
 
   const dismissImportError = useCallback(() => {
     if (importErrorTimer.current !== null) {
