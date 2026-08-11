@@ -17,3 +17,12 @@
 .attribution a:hover {
   color: var(--text-1);
 }
+
+/* These links were falling back to the browser's default focus outline — the
+   last interactive elements still doing so. Same accent ring as every other
+   control, offset so it clears the underline. */
+.attribution a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

@@ -230,7 +230,7 @@
 }
 
 .regionName {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-1);
 }
@@ -381,7 +381,7 @@
 
 .emptyTitle {
   margin: var(--space-2) 0 0;
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-1);
 }
@@ -390,6 +390,24 @@
   margin: 0;
   font-size: var(--text-sm);
   line-height: 1.5;
+}
+
+/* --- Keyboard focus ---------------------------------------------------
+   This page was fully tokenised but had no focus-visible treatment at all,
+   so tabbing through it was invisible. Grouped in one rule rather than
+   repeated per button: every control here already carries a 1px border (or
+   a transparent one), so the accent border + ring lands consistently
+   without shifting any layout. */
+.backBtn:focus-visible,
+.downloadBtn:focus-visible,
+.row:focus-visible,
+.deleteBtn:focus-visible,
+.confirmDelete:focus-visible,
+.confirmCancel:focus-visible,
+.clearAll:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 /* --- Smaller screens: stack map over the list ------------------------- */

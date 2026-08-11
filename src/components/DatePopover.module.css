@@ -1,74 +1,99 @@
+/* Custom date picker shared by the snow-depth and avalanche-risk panels.
+   This module was written before the design-token system landed and was the
+   last place still painting its own accent (#3478f6) — one of the four
+   competing "primary" colours the UI plan called out. Everything here now
+   consumes the shared tokens, so the picker reads as a member of the same
+   family as the rest of the floating chrome. Geometry (248px width, 26px day
+   cells, fixed 6-row grid) is deliberately unchanged: the popover's height
+   must stay stable across months, and that sizing is load-bearing. */
+
 .dateInput {
-  font-size: 15px;
+  font-size: var(--text-base);
   font-weight: 500;
   padding: 10px 14px;
-  border: 1px solid #d8d8d8;
-  border-radius: 8px;
-  background: #fff;
-  color: #1d1d1f;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
   font-family: inherit;
   cursor: pointer;
   text-align: left;
   font-variant-numeric: tabular-nums;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  font-feature-settings: 'tnum' 1;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
   width: 100%;
 }
 
 .dateInput:hover {
-  border-color: #b8b8b8;
+  border-color: var(--hairline-strong);
 }
 
 .dateInput:focus-visible {
   outline: none;
-  border-color: #3478f6;
-  box-shadow: 0 0 0 3px rgba(52, 120, 246, 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .dateWrap {
   position: relative;
 }
 
+/* Portaled to <body> and floated over the map, so it takes the raised glass
+   surface and the float shadow rather than the flat panel treatment. */
 .datePopover {
   position: fixed;
   z-index: 1100;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 12px;
-  box-shadow:
-    0 12px 32px -8px rgba(15, 23, 42, 0.18),
-    0 4px 10px -4px rgba(15, 23, 42, 0.08);
-  padding: 12px;
+  background: var(--surface-2);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-3);
   width: 248px;
-  font-size: 12px;
-  color: #1d1d1f;
+  font-size: var(--text-sm);
+  color: var(--text-1);
 }
 
 .popHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-1);
 }
 
 .popNav {
   width: 24px;
   height: 24px;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  color: #555;
-  border-radius: 4px;
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .popNav:hover {
-  background: #eee;
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.popNav:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .popTitle {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .popDows,
@@ -79,8 +104,8 @@
 }
 
 .popDow {
-  font-size: 11px;
-  color: #888;
+  font-size: var(--text-xs);
+  color: var(--text-2);
   text-align: center;
   padding: 2px 0;
 }
@@ -91,27 +116,39 @@
 
 .popDay {
   height: 26px;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 12px;
-  color: #333;
+  font-size: var(--text-sm);
+  color: var(--text-1);
   font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
   padding: 0;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .popDay:hover:not(:disabled) {
-  background: #eef3f9;
+  background: var(--surface-hover);
+}
+
+.popDay:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .popDay:disabled {
-  color: #ccc;
+  color: var(--text-3);
   cursor: default;
 }
 
 .popDaySelected,
-.popDaySelected:hover {
-  background: #3478f6;
-  color: #fff;
+.popDaySelected:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
 }

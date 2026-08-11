@@ -268,8 +268,22 @@
 .docTabs {
   display: flex;
   gap: var(--space-1);
-  padding: 0 var(--space-5);
+  /* Was `var(--space-5)`, a step that doesn't exist in the 4px scale, so the
+     declaration was invalid at computed-value time and dropped — the tabs
+     rendered flush against the card edge, out of line with the header above
+     and the body below. They share the card's content gutter instead. */
+  padding: 0 var(--space-8);
   border-bottom: 1px solid var(--hairline-strong);
+}
+
+/* Matches the .cardHeader/.body/.footer gutter reduction above. Declared
+   here rather than in that group because this rule block comes later in the
+   file, and an equal-specificity `padding` shorthand would otherwise win
+   over the earlier `padding-inline`. */
+@media (max-width: 640px) {
+  .docTabs {
+    padding-inline: var(--space-4);
+  }
 }
 
 .docTab {

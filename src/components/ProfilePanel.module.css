@@ -39,14 +39,14 @@
   align-self: flex-end;
   padding: 2px;
   gap: 2px;
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 8px;
+  background: var(--surface-hover);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
 }
 
 .aspectToggleBtn {
   appearance: none;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
   padding: 4px 10px;
@@ -57,17 +57,26 @@
   letter-spacing: 0.01em;
   white-space: nowrap;
   color: var(--text-2);
-  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
 .aspectToggleBtn:hover {
   color: var(--text-1);
 }
 
+.aspectToggleBtn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
 .aspectToggleBtnActive {
-  background: #ffffff;
+  background: var(--surface-2);
   color: var(--text-1);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--shadow-1);
 }
 
 .aspectToggleBtnActive:hover {
@@ -112,10 +121,10 @@
    Amber warning treatment so it reads as "caution", not decoration. */
 .dataWarning {
   font-size: var(--text-sm);
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-  border-radius: 8px;
+  color: var(--warning);
+  background: var(--warning-surface);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
   margin-top: var(--space-2);
   line-height: 1.4;
@@ -136,9 +145,9 @@
   border-radius: 10px;
   background:
     linear-gradient(180deg, rgba(248, 250, 252, 0.6) 0%, rgba(255, 255, 255, 0) 60%),
-    #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    var(--surface-2);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-1);
   /* No overflow:hidden — the hover tooltip must be able to escape the
      chart box vertically on flat (sliver-height) routes. The chart svg
      and canvas are sized exactly to the container, so nothing else
@@ -154,17 +163,18 @@
 }
 
 .chartTitle {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-2);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
 .chartHint {
-  font-size: 11px;
-  color: #9ca3af;
+  font-size: var(--text-xs);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
 }
 
 .overlay {

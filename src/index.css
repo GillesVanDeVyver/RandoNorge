@@ -40,6 +40,17 @@
      figures rather than against them. */
   --danger: #dd4a3c; /* = --descent-strong */
 
+  /* Caution — a data gap, a degraded offline tile, a detail cap that can't be
+     honoured. Distinct from --danger: nothing is being destroyed, but the
+     data can't be fully trusted, which on a backcountry tool matters.
+     The same story as --danger had: OfflineManager was already reaching for
+     `var(--warning, …)` against a token that had never been defined, so its
+     fallback was doing all the work, while ProfilePanel painted the same
+     signal in a different amber. Defined once, here. */
+  --warning: #b45309; /* text/icon on light surfaces */
+  --warning-surface: #fffbeb; /* tinted background for notice blocks */
+  --warning-border: #fcd34d; /* hairline for those blocks */
+
   /* --- Text (on light) ------------------------------------------------- */
   --text-1: rgba(20, 28, 38, 0.92);
   --text-2: rgba(20, 28, 38, 0.58);
