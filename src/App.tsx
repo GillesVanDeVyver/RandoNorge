@@ -21,6 +21,7 @@ import { AvalancheRisk } from './components/AvalancheRisk';
 import { TermsDialog } from './components/TermsDialog';
 import { DisclaimerModal } from './components/DisclaimerModal';
 import { SaveRouteDialog } from './components/SaveRouteDialog';
+import { BriefingDialog } from './briefing/BriefingDialog';
 import {
   BookmarkPlusIcon,
   PencilIcon,
@@ -433,6 +434,9 @@ function App({
     storeDraft(initialId, { route, savedMeta });
   }, [reviewing, isPublic, initialId, route, savedMeta]);
   const [saveOpen, setSaveOpen] = useState(false);
+  // The printable one-page tour briefing (map, steepness, profile, weather and
+  // the Varsom warning for the chosen day), opened from the drawing toolbar.
+  const [briefingOpen, setBriefingOpen] = useState(false);
   // Transient "Route saved" confirmation, mirroring the clear-undo toast.
   const [savedToast, setSavedToast] = useState(false);
   const savedToastTimer = useRef<number | null>(null);
@@ -1108,6 +1112,13 @@ function App({
             loading={loading}
             onImport={handleImportFile}
             onExport={handleExportRoute}
+            // The briefing is built from the elevation profile (steepness,
+            // runout, the profile chart, the weather anchor points), so the
+            // control only appears once that has been computed rather than
+            // offering a button that would open an empty page.
+            onPrintBriefing={
+              elevation.profile ? () => setBriefingOpen(true) : undefined
+            }
             collapsible={isMobile}
           />
         )}
@@ -1494,6 +1505,17 @@ function App({
             </SummaryCard>
           )}
         </SummaryPanel>
+        {/* Inside the provider so a saved or shared route prints the forecast
+            frozen at save time — the same numbers the panels are showing. */}
+        {briefingOpen && elevation.profile && (
+          <BriefingDialog
+            route={route}
+            profile={elevation.profile}
+            routeName={savedMeta?.name}
+            routeDescription={savedMeta?.description}
+            onClose={() => setBriefingOpen(false)}
+          />
+        )}
         </ForecastContext.Provider>
       )}
       </div>

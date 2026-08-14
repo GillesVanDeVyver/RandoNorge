@@ -8,6 +8,7 @@ import {
   FreehandIcon,
   PencilIcon,
   PolylineIcon,
+  PrinterIcon,
   TrashIcon,
   UploadIcon,
 } from './icons';
@@ -36,6 +37,9 @@ interface Props {
   // Called when the user asks to export the current route as GPX. Omit to hide
   // the export control; the button is also disabled while there is no route.
   onExport?: () => void;
+  // Called when the user asks for the printable one-page tour briefing. Omit
+  // to hide the control; disabled while there is no route to brief on.
+  onPrintBriefing?: () => void;
   // Mobile: collapse the four tools behind a single "Edit route" button.
   // Tapping it expands the stack; picking any tool (or the close button)
   // collapses it again, so the map keeps just one control by default.
@@ -74,6 +78,7 @@ export function Toolbar({
   loading,
   onImport,
   onExport,
+  onPrintBriefing,
   collapsible = false,
 }: Props) {
   const t = useT();
@@ -237,6 +242,24 @@ export function Toolbar({
           disabled={!hasRoute}
         >
           <DownloadIcon />
+        </button>
+      )}
+      {onPrintBriefing && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => {
+            onPrintBriefing();
+            collapse();
+          }}
+          title={t(
+            'Skriv ut turbriefing (én side, PDF)',
+            'Print tour briefing (one page, PDF)',
+          )}
+          aria-label={t('Turbriefing', 'Tour briefing')}
+          disabled={!hasRoute}
+        >
+          <PrinterIcon />
         </button>
       )}
     </div>

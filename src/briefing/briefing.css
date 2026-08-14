@@ -1,0 +1,596 @@
+/* Tour briefing: one printable A4 page.
+ *
+ * Deliberately a PLAIN stylesheet, not a CSS module. The print rules below
+ * have to reach outside the component tree — hiding the entire app so only the
+ * sheet reaches the paper — and that needs stable, unhashed selectors.
+ *
+ * Two rendering contexts share these styles:
+ *   - on screen, inside a preview dialog (the .briefingOverlay wrapper), and
+ *   - on paper, where the overlay chrome disappears and the sheet becomes the
+ *     whole document.
+ * The sheet itself is sized in millimetres so what the preview shows is what
+ * the printer lays out.
+ */
+
+:root {
+  --briefing-ink: #14202b;
+  --briefing-muted: #5c6b7a;
+  --briefing-rule: #d3dce5;
+  --briefing-tint: #f4f7fa;
+}
+
+/* ---------- Screen-only preview chrome ---------------------------------- */
+
+.briefingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(9, 16, 24, 0.72);
+  backdrop-filter: blur(3px);
+  overflow: auto;
+  padding: 16px;
+}
+
+.briefingBar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  max-width: 210mm;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+}
+
+.briefingBarGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.briefingBarLabel {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--briefing-muted);
+}
+
+/* Pushes the Close / Print pair to the right edge of the bar. */
+.briefingBarSpacer {
+  flex: 1 1 auto;
+}
+
+.briefingChip {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--briefing-rule);
+  background: #fff;
+  color: var(--briefing-muted);
+  cursor: pointer;
+}
+
+.briefingChip:hover {
+  background: var(--briefing-tint);
+}
+
+.briefingChipActive {
+  background: var(--briefing-ink);
+  border-color: var(--briefing-ink);
+  color: #fff;
+}
+
+.briefingBtn {
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--briefing-rule);
+  background: #fff;
+  color: var(--briefing-ink);
+  cursor: pointer;
+}
+
+.briefingBtn:hover {
+  background: var(--briefing-tint);
+}
+
+.briefingBtnPrimary {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.briefingBtnPrimary:hover {
+  background: #115e56;
+}
+
+.briefingBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---------- The sheet --------------------------------------------------- */
+
+.briefingSheet {
+  /* A4 minus the @page margin set below. */
+  width: 190mm;
+  min-height: 277mm;
+  box-sizing: border-box;
+  background: #fff;
+  color: var(--briefing-ink);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 8.6pt;
+  line-height: 1.35;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3.2mm;
+  /* Screen only — removed in print, where the paper is the edge. */
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+.briefingHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8mm;
+  padding-bottom: 2mm;
+  border-bottom: 1.6pt solid var(--briefing-ink);
+}
+
+.briefingTitle {
+  margin: 0;
+  font-size: 17pt;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.briefingSubtitle {
+  margin: 1mm 0 0;
+  font-size: 8.4pt;
+  color: var(--briefing-muted);
+}
+
+.briefingBrand {
+  text-align: right;
+  flex: none;
+}
+
+.briefingBrandName {
+  font-size: 11pt;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.briefingBrandKind {
+  font-size: 7.6pt;
+  color: var(--briefing-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+/* Section scaffolding */
+
+.briefingSection {
+  break-inside: avoid;
+}
+
+.briefingH2 {
+  margin: 0 0 1.4mm;
+  font-size: 8pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--briefing-muted);
+}
+
+.briefingEmpty {
+  margin: 0;
+  font-size: 8pt;
+  color: var(--briefing-muted);
+  font-style: italic;
+}
+
+/* Map + key facts */
+
+.briefingTop {
+  display: grid;
+  grid-template-columns: 1fr 58mm;
+  gap: 4mm;
+  align-items: stretch;
+}
+
+.briefingMapFrame {
+  position: relative;
+  border: 0.6pt solid var(--briefing-rule);
+  border-radius: 1.5mm;
+  overflow: hidden;
+  background: var(--briefing-tint);
+  aspect-ratio: 128 / 86;
+}
+
+.briefingMapCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.briefingNorth {
+  position: absolute;
+  top: 2mm;
+  right: 2mm;
+  width: 7mm;
+  height: 7mm;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 6.5pt;
+  font-weight: 700;
+}
+
+.briefingFacts {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 0.6pt solid var(--briefing-rule);
+  border-radius: 1.5mm;
+  overflow: hidden;
+}
+
+.briefingFact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 3mm;
+  padding: 1.5mm 2.5mm;
+  border-bottom: 0.6pt solid var(--briefing-rule);
+}
+
+.briefingFact:last-child {
+  border-bottom: 0;
+}
+
+.briefingFactLabel {
+  font-size: 7.6pt;
+  color: var(--briefing-muted);
+}
+
+.briefingFactValue {
+  font-size: 10pt;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+/* Danger banner */
+
+.briefingDanger {
+  display: flex;
+  gap: 3mm;
+  align-items: stretch;
+  border: 0.6pt solid var(--briefing-rule);
+  border-radius: 1.5mm;
+  overflow: hidden;
+}
+
+.briefingDangerBadge {
+  flex: none;
+  width: 20mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5mm;
+  padding: 2mm 1mm;
+  background: #e9edf1;
+  color: var(--briefing-ink);
+}
+
+.briefingDangerNum {
+  font-size: 21pt;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.briefingDangerOf {
+  font-size: 6.6pt;
+  opacity: 0.85;
+  letter-spacing: 0.04em;
+}
+
+.briefingDangerBody {
+  flex: 1;
+  padding: 2mm 2.5mm 2mm 0;
+  min-width: 0;
+}
+
+.briefingDangerLabel {
+  font-size: 11pt;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.briefingDangerRegion {
+  font-size: 8pt;
+  color: var(--briefing-muted);
+  margin-bottom: 1mm;
+}
+
+.briefingDangerText {
+  margin: 0;
+  font-size: 8.2pt;
+}
+
+/* Steepness bands */
+
+.briefingBands {
+  display: flex;
+  width: 100%;
+  height: 5mm;
+  border-radius: 1mm;
+  overflow: hidden;
+  border: 0.6pt solid var(--briefing-rule);
+}
+
+.briefingBandFill {
+  height: 100%;
+}
+
+.briefingBandKeys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1mm 4mm;
+  margin-top: 1.5mm;
+}
+
+.briefingBandKey {
+  display: flex;
+  align-items: center;
+  gap: 1.2mm;
+  font-size: 7.4pt;
+}
+
+.briefingSwatch {
+  width: 3mm;
+  height: 3mm;
+  border-radius: 0.6mm;
+  border: 0.4pt solid rgba(0, 0, 0, 0.25);
+  flex: none;
+}
+
+.briefingBandVal {
+  color: var(--briefing-muted);
+}
+
+.briefingTerrainNote {
+  margin: 1.5mm 0 0;
+  font-size: 7.6pt;
+  color: var(--briefing-muted);
+}
+
+/* Elevation profile */
+
+.briefingProfileSvg {
+  display: block;
+  width: 100%;
+  height: 34mm;
+}
+
+.briefingGrid {
+  stroke: #e3e9ef;
+  stroke-width: 1;
+}
+
+.briefingAxis {
+  stroke: #9aa8b5;
+  stroke-width: 1;
+}
+
+.briefingAxisText {
+  fill: #6b7885;
+  font-size: 11px;
+}
+
+.briefingAxisUnit {
+  fill: #9aa8b5;
+  font-size: 10px;
+}
+
+.briefingProfileArea {
+  fill: #eef2f6;
+}
+
+.briefingProfileLine {
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+/* Weather */
+
+.briefingTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8pt;
+}
+
+.briefingTable th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 7.4pt;
+  color: var(--briefing-muted);
+  padding: 0.8mm 1.5mm;
+  border-bottom: 0.8pt solid var(--briefing-rule);
+  white-space: nowrap;
+}
+
+.briefingTable td {
+  padding: 0.9mm 1.5mm;
+  border-bottom: 0.4pt solid #edf1f5;
+  white-space: nowrap;
+}
+
+.briefingTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.briefingNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Avalanche problems */
+
+.briefingProblems {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(56mm, 1fr));
+  gap: 2mm;
+}
+
+.briefingProblem {
+  display: flex;
+  gap: 2mm;
+  padding: 1.8mm 2mm;
+  border: 0.6pt solid var(--briefing-rule);
+  border-radius: 1.5mm;
+  break-inside: avoid;
+}
+
+.briefingProblemBody {
+  min-width: 0;
+}
+
+.briefingProblemName {
+  font-weight: 650;
+  font-size: 8.2pt;
+  line-height: 1.2;
+}
+
+.briefingProblemMeta {
+  font-size: 7.4pt;
+  color: var(--briefing-muted);
+  margin-top: 0.6mm;
+}
+
+.briefingRose {
+  flex: none;
+}
+
+.briefingRoseOn {
+  fill: #14202b;
+}
+
+.briefingRoseOff {
+  fill: #e5eaef;
+}
+
+.briefingRoseRing {
+  stroke: #9aa8b5;
+  stroke-width: 0.8;
+}
+
+/* Notes + footer */
+
+.briefingNotes {
+  border: 0.6pt solid var(--briefing-rule);
+  border-radius: 1.5mm;
+  padding: 2mm 2.5mm;
+}
+
+.briefingNoteLines {
+  margin-top: 1.5mm;
+  /* Ruled writing space for hand-written plan/turnaround notes. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 5.4mm,
+    var(--briefing-rule) 5.4mm,
+    var(--briefing-rule) 5.5mm
+  );
+  height: 16.5mm;
+}
+
+.briefingFooter {
+  margin-top: auto;
+  padding-top: 2mm;
+  border-top: 0.6pt solid var(--briefing-rule);
+  font-size: 6.8pt;
+  color: var(--briefing-muted);
+  line-height: 1.4;
+}
+
+.briefingWarn {
+  font-weight: 650;
+  color: var(--briefing-ink);
+}
+
+/* ---------- Print ------------------------------------------------------- */
+
+@page {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+@media print {
+  /* Everything that is not the briefing disappears: the map, the panels, any
+   * dialogs, toasts and skip links. The sheet is portalled to <body>, so
+   * hiding body's other children leaves exactly the page we want. */
+  body > *:not(.briefingOverlay) {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Undo any app-level scroll locking so the full sheet paginates. */
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .briefingOverlay {
+    position: static;
+    display: block;
+    inset: auto;
+    padding: 0;
+    margin: 0;
+    background: none;
+    backdrop-filter: none;
+    overflow: visible;
+  }
+
+  /* Preview-only chrome. */
+  .briefingBar {
+    display: none !important;
+  }
+
+  .briefingSheet {
+    width: auto;
+    min-height: 0;
+    box-shadow: none;
+    /* The @page margin supplies the paper edge. */
+    margin: 0;
+  }
+
+  /* Danger badges, steepness bars and the profile ramp are the whole point of
+   * the page — without this browsers drop their backgrounds when printing. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

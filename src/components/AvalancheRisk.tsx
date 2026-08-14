@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import type { AvalancheWarning } from '../avalanche/api';
 import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
+import { DANGER_LEVELS, dangerLevelLabel } from '../avalanche/dangerScale';
 import { ForecastContext } from '../forecast/snapshot';
 import { DatePopover } from './DatePopover';
 import { AvalancheProblems } from './AvalancheProblems';
@@ -47,38 +48,10 @@ function dayDate(ymd: string): string {
   return translate(`${d}. ${MONTHS_NO[m - 1]}`, `${MONTHS_EN[m - 1]} ${d}`);
 }
 
-// EAWS / Varsom danger levels, translated from the Norwegian "snøskredfare"
-// scale shown on senorge.no. Colours mirror the senorge legend.
-interface LevelInfo {
-  color: string; // badge background
-  onColor: string; // text on the badge
-}
-const LEVELS: Record<number, LevelInfo> = {
-  1: { color: '#6dbe45', onColor: '#0a2a06' },
-  2: { color: '#f4d63f', onColor: '#3a3000' },
-  3: { color: '#f0922f', onColor: '#3a1e00' },
-  4: { color: '#e23c34', onColor: '#ffffff' },
-  5: { color: '#3a464e', onColor: '#ffffff' },
-};
-
-// Localized danger-level label. Level 0 (or unknown) is the "not assessed"
-// state used by the legend and the no-forecast row.
-function levelLabel(level: number): string {
-  switch (level) {
-    case 1:
-      return translate('Liten skredfare', 'Low avalanche danger');
-    case 2:
-      return translate('Moderat skredfare', 'Moderate avalanche danger');
-    case 3:
-      return translate('Betydelig skredfare', 'Considerable avalanche danger');
-    case 4:
-      return translate('Stor skredfare', 'High avalanche danger');
-    case 5:
-      return translate('Meget stor skredfare', 'Very high avalanche danger');
-    default:
-      return translate('Ikke vurdert', 'Not assessed');
-  }
-}
+// The EAWS / Varsom danger colours and level names live in
+// avalanche/dangerScale.ts, shared with the printable tour briefing.
+const LEVELS = DANGER_LEVELS;
+const levelLabel = dangerLevelLabel;
 
 // Full danger scale, including the "not rated" state, for the reference
 // legend shown beneath the route's current risk.

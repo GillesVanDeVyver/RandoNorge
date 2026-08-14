@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import type { AvalancheProblem } from '../avalanche/api';
-import { translate } from '../i18n/locale.ts';
+import {
+  DIRS,
+  aspectList,
+  elevationText,
+  roseSectorPath,
+} from '../avalanche/problemText';
 import { useT } from '../i18n/index.ts';
 import styles from './AvalancheProblems.module.css';
 // Official EAWS avalanche-problem pictograms (the same five icons Varsom and
@@ -22,40 +27,8 @@ interface Props {
   regionName?: string;
 }
 
-// Compass aspects, clockwise from north, matching the order of the bits in
-// Varsom's ValidExpositions string ("11000111" → N, NE, SW, W, NW).
-const DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-const DIRS_NO = ['N', 'NØ', 'Ø', 'SØ', 'S', 'SV', 'V', 'NV'];
-
-function aspectList(expositions: string): string[] {
-  return DIRS.map((d, i) => translate(DIRS_NO[i], d)).filter(
-    (_, i) => expositions[i] === '1',
-  );
-}
-
-// Varsom encodes the danger band with two height lines and a "fill" code that
-// says which part of the mountain is affected (see AvalancheProblemType docs).
-function elevationText(p: AvalancheProblem): string | null {
-  const { exposedHeight1: h1, exposedHeight2: h2, exposedHeightFill: fill } = p;
-  switch (fill) {
-    case 1:
-      return translate(`Over ${h1} moh.`, `Above ${h1} m`);
-    case 2:
-      return translate(`Under ${h1} moh.`, `Below ${h1} m`);
-    case 3:
-      return translate(
-        `Over ${h1} moh. og under ${h2} moh.`,
-        `Above ${h1} m and below ${h2} m`,
-      );
-    case 4:
-      return translate(
-        `Mellom ${h2} moh. og ${h1} moh.`,
-        `Between ${h2} m and ${h1} m`,
-      );
-    default:
-      return null; // all elevations / not specified
-  }
-}
+// Aspect/elevation decoding lives in avalanche/problemText.ts so the printable
+// briefing describes each problem in exactly the same words as this panel.
 
 // Map each Varsom problem type to its EAWS pictogram. EAWS defines five
 // "typical problems"; Varsom's loose/slab split for new and wet snow collapses
@@ -80,15 +53,7 @@ function ProblemIcon({ typeId }: { typeId: number }) {
 function AspectRose({ expositions }: { expositions: string }) {
   const c = 13;
   const r = 11;
-  const sector = (i: number) => {
-    const a1 = ((i * 45 - 22.5) * Math.PI) / 180;
-    const a2 = ((i * 45 + 22.5) * Math.PI) / 180;
-    const x1 = c + r * Math.sin(a1);
-    const y1 = c - r * Math.cos(a1);
-    const x2 = c + r * Math.sin(a2);
-    const y2 = c - r * Math.cos(a2);
-    return `M${c} ${c} L${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
-  };
+  const sector = (i: number) => roseSectorPath(i, c, r);
   return (
     <svg
       viewBox="0 0 26 26"
