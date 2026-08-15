@@ -164,6 +164,7 @@ export function BriefingDialog({
     avalancheLevel: avalanche.level,
     avalancheRegions: avalanche.regions,
     avalancheLoading: avalanche.loading,
+    avalancheFetchedAt: avalanche.fetchedAt,
     weatherLow: {
       elevationM: low ? Math.round(low.elevation) : null,
       hours: hoursOnDate(weatherLow.hours, date),

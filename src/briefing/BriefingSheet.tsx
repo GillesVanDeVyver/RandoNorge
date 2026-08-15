@@ -54,12 +54,16 @@ export interface BriefingData {
   date: string;
   route: Route;
   profile: ProfileData;
-  /** Which sections to print. The map and the route facts are not optional. */
+  /** Which sections to print. Only the route's own facts are not optional. */
   options: BriefingOptions;
   /** Highest danger level along the route, and the regions it crosses. */
   avalancheLevel: number;
   avalancheRegions: AvalancheWarning[];
   avalancheLoading: boolean;
+  /** Epoch ms the bulletin was fetched from Varsom, or null when nothing was
+   *  retrieved. Printed instead of the tour date: bulletins are rewritten
+   *  during the day, and a saved route replays whatever was captured. */
+  avalancheFetchedAt: number | null;
   /** Forecast at both ends of the route, printed side by side: the difference
    *  between valley and summit is usually the decision-relevant part. */
   weatherLow: BriefingAnchor;
@@ -92,6 +96,17 @@ function longDate(ymd: string): string {
     `${DOW_NO[dow]} ${d}. ${MONTHS_NO[m - 1]} ${y}`,
     `${DOW_EN[dow]} ${d} ${MONTHS_EN[m - 1]} ${y}`,
   );
+}
+
+/** When a forecast was fetched, worded as the panels on screen word it, so a
+ *  printed sheet and the app never disagree about how old the data is. */
+function retrievedAt(ms: number): string {
+  return new Date(ms).toLocaleString(translate('nb-NO', 'en-GB'), {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function km(m: number): string {
@@ -294,6 +309,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
     avalancheLevel,
     avalancheRegions,
     avalancheLoading,
+    avalancheFetchedAt,
     weatherLow,
     weatherHigh,
     weatherLoading,
@@ -334,19 +350,19 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
 
   return (
     <div className="briefingSheet">
+      {/* The day is not stated once at the top: each forecast carries the date
+          it actually describes, which is the only place the reader can act on
+          it and the only way a weather day and a bulletin's retrieval time can
+          honestly differ. */}
       <header className="briefingHeader">
         <div>
           <h1 className="briefingTitle">{routeName}</h1>
-          <p className="briefingSubtitle">
-            {longDate(date)}
-            {routeDescription ? ` — ${routeDescription}` : ''}
-          </p>
+          {routeDescription && (
+            <p className="briefingSubtitle">{routeDescription}</p>
+          )}
         </div>
         <div className="briefingBrand">
           <div className="briefingBrandName">Fjellrute</div>
-          <div className="briefingBrandKind">
-            {t('Turbriefing', 'Tour briefing')}
-          </div>
         </div>
       </header>
 
@@ -400,8 +416,14 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           sits directly under the map with the level's own colour. */}
       {options.avalanche && (
       <section className="briefingSection">
+        {/* Retrieval time, not the tour date: a bulletin is rewritten during
+            the day, and a sheet printed from a saved route can be replaying
+            one that was fetched a week ago. */}
         <h2 className="briefingH2">
           {t('Snøskredvarsel', 'Avalanche forecast')} · Varsom
+          {avalancheFetchedAt != null &&
+            Number.isFinite(avalancheFetchedAt) &&
+            ` · ${t('hentet', 'retrieved')} ${retrievedAt(avalancheFetchedAt)}`}
         </h2>
         <div className="briefingDanger">
           <div
@@ -559,7 +581,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
       {options.snow && (
         <section className="briefingSection">
           <h2 className="briefingH2">
-            {t('Snødybde', 'Snow depth')} · seNorge {longDate(snowDate)}
+            {t('Snødybde', 'Snow depth')} · seNorge · {longDate(snowDate)}
           </h2>
           {snowSummary ? (
             <>
@@ -609,7 +631,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
       {options.weather && (
         <section className="briefingSection">
           <h2 className="briefingH2">
-            {t('Vær', 'Weather')} · MET {t('for turdagen', 'for the tour day')}
+            {t('Vær', 'Weather')} · MET · {longDate(date)}
           </h2>
           {rows.length > 0 ? (
             <table className="briefingTable briefingWeatherTable">

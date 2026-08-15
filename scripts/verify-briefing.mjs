@@ -266,6 +266,10 @@ const warning = {
 
 const profile = makeProfile(24, 420, 1480, { slope: 34, runout: 2 });
 
+// A fixed moment, so the retrieval line the sheet prints is something the
+// harness can actually look for. 13 March 2026, 18:20 local.
+const FETCHED_AT = new Date(2026, 2, 13, 18, 20, 0).getTime();
+
 function makeData(options, over = {}) {
   return {
     routeName: 'Skåla frå Loen',
@@ -277,6 +281,7 @@ function makeData(options, over = {}) {
     avalancheLevel: 3,
     avalancheRegions: [warning],
     avalancheLoading: false,
+    avalancheFetchedAt: FETCHED_AT,
     weatherLow: { elevationM: 420, hours: hours() },
     weatherHigh: { elevationM: 1480, hours: hours() },
     weatherLoading: false,
@@ -304,6 +309,11 @@ for (let mask = 0; mask < 128; mask++) {
 }
 
 const BAD = ['NaN', 'undefined', 'Infinity', 'null cm', '[object Object]'];
+
+/** React splices `<!-- -->` between adjacent text expressions. A reader sees
+ *  one continuous line, so the harness should read one too — otherwise a
+ *  heading like "Weather · MET · Sat 14 March 2026" is unmatchable. */
+const plain = (html) => html.replace(/<!--[\s\S]*?-->/g, '');
 
 let renderedAll = 0;
 for (const options of combos) {
@@ -359,6 +369,36 @@ for (const options of combos) {
   ok(
     options.notes === html.includes('briefingNoteLines'),
     `[${name}] the notes space follows its switch`,
+  );
+
+  // No date is stated once at the top any more, and the header does not
+  // announce the genre. A named route names itself; the word "briefing" is
+  // only ever a fallback for a route that has no name.
+  const header = plain(html).split('</header>')[0] ?? '';
+  ok(
+    !/Turbriefing|Tour briefing/.test(header),
+    `[${name}] the header does not label the sheet a briefing`,
+  );
+  ok(
+    !/2026/.test(header),
+    `[${name}] the header states no date — each forecast carries its own`,
+  );
+
+  // Each forecast says which day, or which moment, it speaks for. A sheet in a
+  // rucksack has no other way of telling the reader how old it is.
+  const flat = plain(html);
+  ok(
+    options.weather === /(V\u00e6r|Weather) \u00b7 MET \u00b7 [^<]*2026/.test(flat),
+    `[${name}] the weather heading carries the tour date`,
+  );
+  ok(
+    options.snow ===
+      /(Sn\u00f8dybde|Snow depth) \u00b7 seNorge \u00b7 [^<]*2026/.test(flat),
+    `[${name}] the snow heading carries the date it was modelled for`,
+  );
+  ok(
+    options.avalanche === /(hentet|retrieved) [^<]*18:20/.test(flat),
+    `[${name}] the avalanche heading carries the moment it was retrieved`,
   );
 
   // Attribution is a consequence of what is on the page, not a fixed line.
@@ -473,6 +513,36 @@ const degenerate = render(
 for (const bad of BAD) {
   ok(!degenerate.includes(bad), `a flat route never prints "${bad}"`);
 }
+
+// Varsom was never reached, so there is no moment to print. The heading has to
+// end after the source rather than trailing a separator into nothing.
+const noFetch = render(makeData(DEFAULT_OPTIONS, { avalancheFetchedAt: null }));
+const avHead = plain(noFetch).match(/<h2 class="briefingH2">([^<]*Varsom[^<]*)</);
+ok(Boolean(avHead), 'the avalanche heading still names its source');
+ok(
+  avHead != null && !/(hentet|retrieved)/.test(avHead[1]),
+  'with nothing retrieved the heading claims no retrieval time',
+);
+ok(
+  avHead != null && !/\u00b7\s*$/.test(avHead[1]),
+  'the heading does not trail a dangling separator',
+);
+for (const bad of BAD) {
+  ok(!noFetch.includes(bad), `an unfetched bulletin never prints "${bad}"`);
+}
+
+// An unsaved route has no name; the sheet is handed a generic title and must
+// print it as the heading rather than an empty rule.
+const unnamed = render(
+  makeData(DEFAULT_OPTIONS, {
+    routeName: 'Tour briefing',
+    routeDescription: null,
+  }),
+);
+ok(
+  /<h1 class="briefingTitle">Tour briefing<\/h1>/.test(plain(unnamed)),
+  'an unnamed route falls back to a titled heading, not a blank one',
+);
 
 rmSync(ENTRY, { force: true });
 rmSync(BUNDLE, { force: true });

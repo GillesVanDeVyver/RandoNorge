@@ -286,13 +286,6 @@
   letter-spacing: 0.02em;
 }
 
-.briefingBrandKind {
-  font-size: 7.6pt;
-  color: var(--briefing-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-}
-
 /* Section scaffolding */
 
 /* A section split across the fold is worse than a second page: half a weather
