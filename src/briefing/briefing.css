@@ -90,6 +90,29 @@
 
 /* ---------- Section switches -------------------------------------------- */
 
+/* The switches are behind the gear, not in the bar. Printing the whole sheet
+ * is what almost every export wants, and a row of seven toggles presented up
+ * front reads as a decision to make before you are allowed to continue. */
+.briefingSettings {
+  position: relative;
+  display: flex;
+}
+
+/* Anchored to the gear's right edge so the panel opens inwards over the sheet
+ * and cannot run off the side of a narrow window. */
+.briefingSettingsPanel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 2;
+  min-width: 264px;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--briefing-rule);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
 /* One switch per line, in print order. A row of switches invites reading them
  * as a toolbar of unrelated toggles; a column reads as the sheet's contents,
  * which is what it is. */
@@ -99,8 +122,6 @@
   align-items: flex-start;
   gap: 2px;
   width: 100%;
-  padding-top: 12px;
-  border-top: 1px solid var(--briefing-rule);
 }
 
 .briefingSwitches .briefingBarLabel {
@@ -227,6 +248,32 @@
 .briefingBtn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* Square, so the gear reads as an affordance rather than a word-less button
+ * that lost its label. */
+.briefingBtnIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--briefing-muted);
+}
+
+.briefingBtnIcon:hover,
+.briefingBtnIcon[aria-expanded='true'] {
+  color: var(--briefing-ink);
+}
+
+.briefingBtnIcon[aria-expanded='true'] {
+  background: var(--briefing-tint);
+  border-color: var(--briefing-ink);
+}
+
+.briefingGear {
+  display: block;
 }
 
 /* ---------- The sheet --------------------------------------------------- */

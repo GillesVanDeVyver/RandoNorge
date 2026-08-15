@@ -17,7 +17,14 @@
 // -side PDF library, so nothing here can drift out of sync with what the user
 // sees, and the app carries no extra dependency.
 
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import type { ProfileData } from '../elevation/profile';
 import type { Route } from '../types';
@@ -86,6 +93,21 @@ export function BriefingDialog({
   const [options, setOptions] = useState<BriefingOptions>(loadOptions);
   const [mapReady, setMapReady] = useState(false);
 
+  // The switches live behind the gear. Exporting the whole sheet is what almost
+  // everyone wants, so the bar asks nothing and the choice is there for the
+  // times it matters.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const gearRef = useRef<HTMLButtonElement | null>(null);
+  const settingsRef = useRef<HTMLDivElement | null>(null);
+
+  /** Close the popover, returning focus to the gear only when the keyboard
+   *  sent us back — a click elsewhere means the pointer has already moved on
+   *  and stealing focus would fight it. */
+  const closeSettings = useCallback((restoreFocus: boolean) => {
+    setSettingsOpen(false);
+    if (restoreFocus) gearRef.current?.focus();
+  }, []);
+
   // A guide printing a stack of briefings sets the switches once.
   useEffect(() => {
     storeOptions(options);
@@ -134,14 +156,42 @@ export function BriefingDialog({
 
   const onMapReady = useCallback(() => setMapReady(true), []);
 
-  // Escape closes, matching every other overlay in the app.
+  // Escape closes, matching every other overlay in the app — but it peels one
+  // layer at a time. Dismissing a popover should not also throw away the export
+  // behind it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (settingsOpen) closeSettings(true);
+      else onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, settingsOpen, closeSettings]);
+
+  // A click anywhere outside the popover dismisses it, including on the sheet
+  // behind — the preview is the thing being configured, so clicking it to look
+  // closer should not be blocked by a panel in the way.
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const el = settingsRef.current;
+      if (el && e.target instanceof Node && !el.contains(e.target)) {
+        closeSettings(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [settingsOpen, closeSettings]);
+
+  // Opening with the keyboard should land in the panel, not leave focus on a
+  // button in front of a list the reader cannot reach.
+  useEffect(() => {
+    if (!settingsOpen) return;
+    settingsRef.current
+      ?.querySelector<HTMLInputElement>('input:not(:disabled)')
+      ?.focus();
+  }, [settingsOpen]);
 
   // Only wait on the sources that are actually going to be printed: a guide
   // who switched weather off should not be held at "Preparing…" by MET.
@@ -183,6 +233,62 @@ export function BriefingDialog({
     onMapReady,
   };
 
+  // The list the gear reveals, in the order the sections print. Built here
+  // rather than inline so the popover markup stays readable at a glance.
+  const switches = (
+    <div
+      className="briefingSwitches"
+      role="group"
+      aria-label={t('Innhold på arket', 'What the sheet includes')}
+    >
+      <span className="briefingBarLabel">{t('Ta med', 'Include')}</span>
+      <Switch
+        label={t('Kart', 'Map')}
+        checked={options.map}
+        onChange={(on) => setOption('map', on)}
+      />
+      <Switch
+        label={t('Høydeprofil', 'Elevation')}
+        checked={options.elevation}
+        onChange={(on) => setOption('elevation', on)}
+      />
+      <Switch
+        label={t('Bratthet', 'Steepness')}
+        checked={options.steepness}
+        disabled={!options.elevation}
+        hint={
+          options.elevation
+            ? null
+            : t(
+                'Krever høydeprofilen den fargelegger',
+                'Needs the elevation profile it colours',
+              )
+        }
+        onChange={(on) => setOption('steepness', on)}
+      />
+      <Switch
+        label={t('Snøskredvarsel', 'Avalanche forecast')}
+        checked={options.avalanche}
+        onChange={(on) => setOption('avalanche', on)}
+      />
+      <Switch
+        label={t('Snødybde', 'Snow depth')}
+        checked={options.snow}
+        onChange={(on) => setOption('snow', on)}
+      />
+      <Switch
+        label={t('Vær', 'Weather')}
+        checked={options.weather}
+        onChange={(on) => setOption('weather', on)}
+      />
+      <Switch
+        label={t('Notatfelt', 'Notes')}
+        checked={options.notes}
+        onChange={(on) => setOption('notes', on)}
+      />
+    </div>
+  );
+
   // The overlay is portaled to <body> so the print stylesheet can hide every
   // other top-level node with one rule, instead of fighting the planner's
   // scroll-locked flex layout for control of the printed page.
@@ -200,6 +306,35 @@ export function BriefingDialog({
             <span className="briefingBarRoute">{title}</span>
           </h2>
           <div className="briefingBarActions">
+            <div className="briefingSettings" ref={settingsRef}>
+              <button
+                ref={gearRef}
+                type="button"
+                className="briefingBtn briefingBtnIcon"
+                aria-haspopup="dialog"
+                aria-expanded={settingsOpen}
+                aria-label={t(
+                  'Velg hva arket skal inneholde',
+                  'Choose what the sheet includes',
+                )}
+                title={t(
+                  'Velg hva arket skal inneholde',
+                  'Choose what the sheet includes',
+                )}
+                onClick={() => setSettingsOpen((open) => !open)}
+              >
+                <GearIcon />
+              </button>
+              {settingsOpen && (
+                <div
+                  className="briefingSettingsPanel"
+                  role="dialog"
+                  aria-label={t('Innhold på arket', 'What the sheet includes')}
+                >
+                  {switches}
+                </div>
+              )}
+            </div>
             <button type="button" className="briefingBtn" onClick={onClose}>
               {t('Lukk', 'Close')}
             </button>
@@ -223,62 +358,34 @@ export function BriefingDialog({
             </button>
           </div>
         </div>
-
-        <div
-          className="briefingSwitches"
-          role="group"
-          aria-label={t('Innhold på arket', 'What the sheet includes')}
-        >
-          <span className="briefingBarLabel">{t('Ta med', 'Include')}</span>
-          <Switch
-            label={t('Kart', 'Map')}
-            checked={options.map}
-            onChange={(on) => setOption('map', on)}
-          />
-          <Switch
-            label={t('Høydeprofil', 'Elevation')}
-            checked={options.elevation}
-            onChange={(on) => setOption('elevation', on)}
-          />
-          <Switch
-            label={t('Bratthet', 'Steepness')}
-            checked={options.steepness}
-            disabled={!options.elevation}
-            hint={
-              options.elevation
-                ? null
-                : t(
-                    'Krever høydeprofilen den fargelegger',
-                    'Needs the elevation profile it colours',
-                  )
-            }
-            onChange={(on) => setOption('steepness', on)}
-          />
-          <Switch
-            label={t('Snøskredvarsel', 'Avalanche forecast')}
-            checked={options.avalanche}
-            onChange={(on) => setOption('avalanche', on)}
-          />
-          <Switch
-            label={t('Snødybde', 'Snow depth')}
-            checked={options.snow}
-            onChange={(on) => setOption('snow', on)}
-          />
-          <Switch
-            label={t('Vær', 'Weather')}
-            checked={options.weather}
-            onChange={(on) => setOption('weather', on)}
-          />
-          <Switch
-            label={t('Notatfelt', 'Notes')}
-            checked={options.notes}
-            onChange={(on) => setOption('notes', on)}
-          />
-        </div>
       </div>
       <BriefingSheet data={data} />
     </div>,
     document.body,
+  );
+}
+
+/** The gear. Drawn rather than imported: one icon does not justify a font or a
+ *  dependency, and `currentColor` keeps it in step with the button around it.
+ *  aria-hidden because the button it sits in carries the label. */
+function GearIcon() {
+  return (
+    <svg
+      className="briefingGear"
+      viewBox="0 0 24 24"
+      width="17"
+      height="17"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.7a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.01a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03z" />
+    </svg>
   );
 }
 
