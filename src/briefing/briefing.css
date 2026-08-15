@@ -10,31 +10,28 @@
  * In sheet units an A4 page is 396 mm tall, less a 13.3 mm edge top and bottom,
  * leaving about 369 mm to spend. Nothing here guarantees one page — the guide
  * decides how many sections go on it, and no wording in the app promises a page
- * count — but the layout is budgeted so the common sheets land on one.
- * Roughly, with every section on (sheet mm; multiply by 0.75 for paper):
+ * count — but the layout is budgeted so the common sheets land on one,
+ * including the default with every section switched on. Roughly, with all of
+ * them on (sheet mm; multiply by 0.75 for paper):
  *
  *     header                14      map + key facts       68
  *     danger banner         30      avalanche problems    17
  *     profile + steepness   43      snow                  28
- *     weather table      30–140     notes                 17
+ *     weather table         33      notes                 17
  *     footer + gaps         33
- *                                        total    ~ 250–360 mm
+ *                                          total     ~ 263 mm
  *
- * The weather table is the one block with no ceiling, and it is the reason the
- * range is that wide. It prints one row per entry MET published, at whatever
- * resolution MET published it: about four rows for a day more than two days
- * out (MET drops to six-hourly there) and a full 24 for tomorrow. At roughly
- * 5.4 mm a row, a 24-hour day is ~140 mm and a sheet with every other section
- * switched on will run onto a second page. That is the intended trade — the
- * printed forecast has to match what the planner shows, and hiding hours to
- * protect a page count is how the table came to print nothing at all for tours
- * beyond the hourly window. A guide who wants the single sheet back switches a
- * section off.
+ * The weather table is a fixed four rows — the day in six-hour blocks, built in
+ * BriefingSheet.tsx — so it cannot grow with the forecast. That matters: it
+ * once printed a row per hour, which put a 24-row table on the page and pushed
+ * a fully switched-on sheet well past the fold.
  *
- * The blocks holding text of unknown length — a wordy Varsom bulletin, a long
- * route description — are clamped rather than trusted, at .briefingSubtitle and
- * .briefingDangerText. Headroom is the thing that gets spent first, and with
- * the weather table now free to grow there is much less of it to spend.
+ * That leaves roughly 105 sheet mm (79 mm of paper) of headroom, which is what
+ * absorbs the blocks holding text of unknown length — a wordy Varsom bulletin,
+ * a long route description. Those are clamped as well rather than trusted, at
+ * .briefingSubtitle and .briefingDangerText, because headroom is the thing that
+ * gets spent first and the clamps are what stop one verbose region from
+ * costing a second sheet.
  *
  * Deliberately a PLAIN stylesheet, not a CSS module. The print rules below
  * have to reach outside the component tree — hiding the entire app so only the

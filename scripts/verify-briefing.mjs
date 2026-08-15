@@ -249,7 +249,11 @@ function hours({ skip = [] } = {}) {
  *  happened by the time the sheet sees them. */
 function sixHourlyUTC() {
   const out = [];
-  for (let h = -6; h <= 30; h += 6) {
+  // Swept a full day either side of the target rather than a few hours, so the
+  // local day is covered whatever the offset. A narrower sweep silently loses
+  // the first block at large positive offsets — which is a fixture bug that
+  // looks exactly like a code bug.
+  for (let h = -24; h <= 48; h += 6) {
     const at = new Date(Date.UTC(2026, 2, 14, h, 0, 0));
     if (at.getDate() !== 14) continue; // local day, matching hoursOnDate
     out.push({
@@ -265,6 +269,30 @@ function sixHourlyUTC() {
     });
   }
   return out;
+}
+
+/** Six local hours, 12:00–17:00 — exactly the 12–18 block and nothing else, so
+ *  a row can be checked against arithmetic done by hand. Every field is given
+ *  per hour; the defaults are flat, so a test only has to state the one series
+ *  it cares about. */
+function block1218({
+  temps = [0, 0, 0, 0, 0, 0],
+  speeds = [5, 5, 5, 5, 5, 5],
+  gusts = [null, null, null, null, null, null],
+  degs = [180, 180, 180, 180, 180, 180],
+  precip = [0, 0, 0, 0, 0, 0],
+} = {}) {
+  return temps.map((_, i) => ({
+    time: new Date(2026, 2, 14, 12 + i, 0, 0).toISOString(),
+    temperature: temps[i],
+    windSpeed: speeds[i],
+    windGust: gusts[i],
+    windFromDeg: degs[i],
+    symbolCode: 'cloudy',
+    precipMm: precip[i],
+    precipMinMm: null,
+    precipMaxMm: null,
+  }));
 }
 
 const warning = {
@@ -370,6 +398,19 @@ const colWidths = (html) =>
   [...html.matchAll(/<col style="width:([\d.]+)%"\/?>/g)].map((m) =>
     Number(m[1]),
   );
+
+/** The cells of the weather row whose period column reads `label`, as plain
+ *  text, period column first. Reading a named row rather than a positional one
+ *  is what lets a test assert on arithmetic without also depending on how many
+ *  blocks happened to render. */
+const rowCells = (html, label) => {
+  const body = plain(html).split('<tbody>')[1]?.split('</tbody>')[0] ?? '';
+  const row = body
+    .split('<tr')
+    .find((r) => r.includes(`<td>${label}</td>`));
+  if (!row) return [];
+  return [...row.matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map((m) => m[1]);
+};
 
 /** Every section heading, as plain text. */
 const headings = (html) =>
@@ -553,25 +594,34 @@ ok(renderedAll === 128, 'every switch combination rendered');
 
 section('Rendered sheet: awkward inputs');
 
-// Both anchors present: the two forecasts share rows rather than stacking two
-// tables, and every hour handed in gets a row. The sheet prints the forecast at
-// whatever resolution MET published it — it used to thin to daylight hours at
-// three-hour steps, which threw away detail and, past MET's hourly window,
-// threw away the entire forecast (see below).
+// The day prints as four six-hour blocks, whatever resolution MET served. A
+// full hourly day and a six-hourly one both come to four rows — that is the
+// point of blocking, and it is what keeps the table from growing with the
+// forecast and pushing the sheet past the fold.
 const paired = render(makeData(DEFAULT_OPTIONS));
 const bodyRows = (paired.split('<tbody>')[1] ?? '').split('<tr').length - 1;
-ok(bodyRows === 24, `a full hourly day prints all 24 rows (got ${bodyRows})`);
+ok(bodyRows === 4, `a full hourly day collapses to four blocks (got ${bodyRows})`);
+ok(
+  ['00\u201306', '06\u201312', '12\u201318', '18\u201324'].every((l) =>
+    paired.includes(`<td>${l}</td>`),
+  ),
+  'the four blocks are labelled by period rather than by an instant',
+);
+ok(
+  !/<td>\d\d:\d\d<\/td>/.test(paired),
+  'no row is labelled with a clock time, which would read as a reading taken then',
+);
 ok(
   (paired.match(/briefingGroupHead/g) ?? []).length === 2,
   'both anchors get their own column group',
 );
 
-// The bug this fixture exists for: beyond roughly 48 hours MET stops publishing
-// hourly and switches to six-hourly entries stamped at 00/06/12/18 UTC, which
-// land on odd local hours in Norway. The sheet must print those rows like any
-// others — the old three-hour filter matched none of them, so a tour more than
-// two days out printed an empty weather section while the screen showed the
-// forecast in full.
+// Beyond roughly 48 hours MET stops publishing hourly and switches to entries
+// at 00/06/12/18 UTC, which land on odd local hours — 01/07/13/19 in Norwegian
+// winter, 02/08/14/20 in summer. One falls in each block, so a far-out forecast
+// fills the same four rows from a single reading apiece. This fixture also
+// guards the older bug underneath: a three-hourly filter matched none of these
+// instants, so a tour more than two days out printed nothing at all.
 const sixHourly = render(
   makeData(DEFAULT_OPTIONS, {
     weatherLow: { elevationM: 420, hours: sixHourlyUTC(), fetchedAt: LOW_FETCHED_AT },
@@ -580,30 +630,118 @@ const sixHourly = render(
 );
 const sixHourlyRows = (sixHourly.split('<tbody>')[1] ?? '').split('<tr').length - 1;
 ok(
-  sixHourlyRows === sixHourlyUTC().length,
-  `a six-hourly forecast prints every entry (got ${sixHourlyRows} of ${sixHourlyUTC().length})`,
+  sixHourlyRows === 4,
+  `a six-hourly forecast still fills four blocks (got ${sixHourlyRows})`,
 );
 ok(
-  !sixHourly.includes('briefingEmpty') || sixHourly.includes('briefingWeatherTable'),
+  sixHourly.includes('briefingWeatherTable') &&
+    !/briefingEmpty[\s\S]{0,400}(MET varsler|MET forecasts)/.test(sixHourly),
   'a six-hourly forecast renders a table rather than the empty-weather message',
 );
 
-// A hole in one anchor's series must leave a gap in that anchor's columns, not
-// pull the following hour's numbers up a row against the other anchor's.
+// The aggregation itself. Averaging everything would be wrong three ways, so
+// each rule is pinned to a hand-computed block: states average, accumulations
+// sum, and a peak stays a peak.
+const bloc = block1218({
+  temps: [7, 8, 9, 11, 12, 13], // mean exactly 10
+  speeds: [4, 4, 4, 6, 6, 6], // mean exactly 5
+  gusts: [9, null, 9, null, 22, null], // peak 22
+  degs: [90, 90, 90, 90, 90, 90], // due east
+  precip: [1, 1, 1, 1, 1, 1], // 6 mm across the block
+});
+const aggregated = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherLow: { elevationM: 420, hours: bloc, fetchedAt: LOW_FETCHED_AT },
+    weatherHigh: { elevationM: 1480, hours: bloc, fetchedAt: HIGH_FETCHED_AT },
+  }),
+);
+const aggCells = rowCells(aggregated, '12\u201318');
+ok(
+  aggCells[1] === '10\u00b0',
+  `temperature is the block's average (got ${aggCells[1]})`,
+);
+ok(
+  aggCells[2] === '\u00d8 5 (22)' || aggCells[2] === 'E 5 (22)',
+  `mean wind averages and the gust takes the block's peak (got ${aggCells[2]})`,
+);
+// 6.0 rather than 6: precipitation under 10 mm keeps one decimal, which is the
+// same rule the weather panel uses. What matters here is the 6 — averaging
+// would have printed 1.0, understating the block sixfold.
+ok(
+  Number(aggCells[3]) === 6,
+  `precipitation sums across the block rather than averaging (got ${aggCells[3]})`,
+);
+ok(
+  !aggregated.includes('(9)'),
+  'the gust column never prints a lesser gust from inside the block',
+);
+ok(
+  aggCells.length === 7,
+  `an aggregated row still carries a cell per column (got ${aggCells.length})`,
+);
+
+// Wind direction is an angle. Averaged as a plain number, 350° and 10° come to
+// 180° — the exact opposite of the wind that blew, and on a lee-slope decision
+// that is the worst single number the sheet could print.
+const wrapCells = rowCells(
+  render(
+    makeData(DEFAULT_OPTIONS, {
+      weatherLow: {
+        elevationM: 420,
+        hours: block1218({ degs: [350, 350, 350, 10, 10, 10] }),
+        fetchedAt: LOW_FETCHED_AT,
+      },
+      weatherHigh: { elevationM: null, hours: [], fetchedAt: null },
+    }),
+  ),
+  '12\u201318',
+);
+ok(
+  /^N /.test(wrapCells[2]),
+  `directions either side of north average to north (got ${wrapCells[2]})`,
+);
+ok(
+  !/^S /.test(wrapCells[2]),
+  'a wrapped direction is not averaged into its own opposite',
+);
+
+// A block neither anchor covers is dropped, not printed as a row of dashes: a
+// sheet for a half-day of forecast should be shorter, not emptier.
+const partial = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherLow: { elevationM: 420, hours: block1218({}), fetchedAt: LOW_FETCHED_AT },
+    weatherHigh: { elevationM: 1480, hours: block1218({}), fetchedAt: HIGH_FETCHED_AT },
+  }),
+);
+const partialRows = (partial.split('<tbody>')[1] ?? '').split('<tr').length - 1;
+ok(partialRows === 1, `an empty block is dropped rather than dashed (got ${partialRows})`);
+ok(
+  partial.includes('<td>12\u201318</td>'),
+  'the block that does have a forecast is the one that prints',
+);
+
+// One anchor short of a block, the other complete: the row stays, and the gap
+// shows as dashes in that anchor's columns rather than pulling the next block's
+// numbers up against the other anchor's.
 const gappy = render(
   makeData(DEFAULT_OPTIONS, {
     weatherHigh: {
       elevationM: 1480,
-      hours: hours({ skip: [12] }),
+      hours: hours({ skip: [12, 13, 14, 15, 16, 17] }),
       fetchedAt: HIGH_FETCHED_AT,
     },
   }),
 );
 const gappyRows = (gappy.split('<tbody>')[1] ?? '').split('<tr').length - 1;
-ok(gappyRows === 24, 'a missing hour on one anchor does not drop a row');
+ok(gappyRows === 4, 'a block missing from one anchor does not drop the row');
+const gappyCells = rowCells(gappy, '12\u201318');
 ok(
-  gappy.includes('\u2013'),
-  'the missing hour prints as a dash rather than the next hour\u2019s numbers',
+  gappyCells[4] === '\u2013' && gappyCells[5] === '\u2013' && gappyCells[6] === '\u2013',
+  'the anchor missing that block prints dashes across its three columns',
+);
+ok(
+  gappyCells[1] !== '\u2013',
+  'the anchor that does have the block keeps its numbers on the same row',
 );
 
 // One anchor missing (MET refused, or the route has no usable elevation at one
