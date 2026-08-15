@@ -375,7 +375,7 @@ export function DownloadIcon() {
 }
 
 export function PrinterIcon() {
-  // Lucide "printer": open the one-page tour briefing for printing. The
+  // Lucide "printer": open the printable tour briefing. The
   // browser's print dialog also offers "Save as PDF", which is how most
   // people will actually use it.
   return (

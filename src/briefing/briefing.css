@@ -1,4 +1,25 @@
-/* Tour briefing: one printable A4 page.
+/* Tour briefing: a printable A4 page.
+ *
+ * THE VERTICAL BUDGET
+ *
+ * A4 is 297 mm and the sheet keeps a 10 mm edge, so there are 277 mm to spend.
+ * Nothing here guarantees one page — the guide decides how many sections go on
+ * it, and no wording in the app promises a page count — but the layout is
+ * budgeted so that the common sheets land on one, including the default with
+ * every section switched on. Roughly, with all of them on:
+ *
+ *     header                14      map + key facts       68
+ *     danger banner         30      avalanche problems    17
+ *     profile + steepness   43      snow                  28
+ *     weather table         40      notes                 17
+ *     footer + gaps         33
+ *                                          total     ~ 270 mm
+ *
+ * The figures are approximate: several blocks hold text of unknown length, and
+ * those are the ones that used to push the sheet over. They are clamped rather
+ * than trusted — see .briefingSubtitle and .briefingDangerText. If a section
+ * needs to grow, take the height from somewhere else in this list rather than
+ * from the margin, which is thin on purpose.
  *
  * Deliberately a PLAIN stylesheet, not a CSS module. The print rules below
  * have to reach outside the component tree — hiding the entire app so only the
@@ -317,10 +338,19 @@
   letter-spacing: -0.01em;
 }
 
+/* The route description, typed by whoever saved the route, so its length is
+ * anyone's guess — two lines here, and the rest stays in the planner. A
+ * description long enough to need more than two lines is a plan, and the plan
+ * has its own ruled box at the foot of the sheet. */
 .briefingSubtitle {
   margin: 1mm 0 0;
   font-size: 8.4pt;
   color: var(--briefing-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .briefingBrand {
@@ -419,7 +449,8 @@
   border-radius: 1.5mm;
   overflow: hidden;
   background: var(--briefing-tint);
-  aspect-ratio: 128 / 86;
+  /* Must stay in step with MAP_W / MAP_H in BriefingSheet.tsx. */
+  aspect-ratio: 128 / 68;
 }
 
 .briefingMapCanvas {
@@ -530,9 +561,20 @@
   margin-bottom: 1mm;
 }
 
+/* Varsom's headline text runs from one sentence to a full paragraph depending
+ * on the day and the region, which made this the least predictable block on
+ * the sheet and the usual reason a briefing ran over. Three lines is enough
+ * for the assessment itself; what gets cut is the elaboration, and the
+ * decision-relevant part — level, region, problems — is set out around it in
+ * its own right rather than buried in this prose. */
 .briefingDangerText {
   margin: 0;
   font-size: 8.2pt;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Steepness bands */
@@ -587,7 +629,7 @@
 .briefingProfileSvg {
   display: block;
   width: 100%;
-  height: 34mm;
+  height: 29mm;
 }
 
 .briefingGrid {
@@ -625,7 +667,7 @@
 .briefingSnowSvg {
   display: block;
   width: 100%;
-  height: 20mm;
+  height: 16mm;
 }
 
 .briefingSnowLine {
@@ -708,9 +750,14 @@
 
 /* Avalanche problems */
 
+/* 44 mm rather than 56 mm so that the four problems the sheet is willing to
+ * print fit on one row across the 190 mm of text width. At 56 mm only three
+ * fitted, and a fourth problem started a second row that cost 17 mm to show
+ * one card. Bulletins with four problems are the serious ones, so this is
+ * exactly when the sheet could least afford to run over. */
 .briefingProblems {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(56mm, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(44mm, 1fr));
   gap: 2mm;
 }
 
@@ -774,7 +821,10 @@
     var(--briefing-rule) 5.4mm,
     var(--briefing-rule) 5.5mm
   );
-  height: 16.5mm;
+  /* Two ruled lines. Three was generous for what is written here in practice —
+   * a turnaround time and a bail-out — and the third line was being paid for
+   * out of the same 277 mm as the forecast. */
+  height: 11mm;
 }
 
 .briefingFooter {

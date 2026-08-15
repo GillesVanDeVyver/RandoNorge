@@ -434,8 +434,10 @@ function App({
     storeDraft(initialId, { route, savedMeta });
   }, [reviewing, isPublic, initialId, route, savedMeta]);
   const [saveOpen, setSaveOpen] = useState(false);
-  // The printable one-page tour briefing (map, steepness, profile, weather and
-  // the Varsom warning for the chosen day), opened from the drawing toolbar.
+  // The printable tour briefing (map, steepness, profile, weather and the
+  // Varsom warning for the chosen day), opened from the drawing toolbar. Laid
+  // out for a single A4 sheet, though with every section switched on it can
+  // run onto a second — which is why nothing promises a page count.
   const [briefingOpen, setBriefingOpen] = useState(false);
   // The tour date the briefing describes, captured when the dialog is opened.
   const [briefingDate, setBriefingDate] = useState<string>(todayIso);

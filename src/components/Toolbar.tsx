@@ -37,8 +37,8 @@ interface Props {
   // Called when the user asks to export the current route as GPX. Omit to hide
   // the export control; the button is also disabled while there is no route.
   onExport?: () => void;
-  // Called when the user asks for the printable one-page tour briefing. Omit
-  // to hide the control; disabled while there is no route to brief on.
+  // Called when the user asks for the printable tour briefing. Omit to hide
+  // the control; disabled while there is no route to brief on.
   onPrintBriefing?: () => void;
   // Mobile: collapse the four tools behind a single "Edit route" button.
   // Tapping it expands the stack; picking any tool (or the close button)
@@ -252,10 +252,12 @@ export function Toolbar({
             onPrintBriefing();
             collapse();
           }}
-          title={t(
-            'Skriv ut turbriefing (én side, PDF)',
-            'Print tour briefing (one page, PDF)',
-          )}
+          // Deliberately does not promise a page count. The briefing is laid
+          // out to fit one A4 sheet, but the guide chooses how many sections
+          // go on it, and with every section switched on it can run over. A
+          // tooltip that guaranteed one page would be wrong exactly when the
+          // sheet is fullest.
+          title={t('Skriv ut turbriefing (PDF)', 'Print tour briefing (PDF)')}
           aria-label={t('Turbriefing', 'Tour briefing')}
           disabled={!hasRoute}
         >

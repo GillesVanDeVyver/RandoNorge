@@ -36,8 +36,16 @@ import { translate } from '../i18n/locale.ts';
 // output at far more than the 96 dpi the CSS pixel implies, and a canvas sized
 // for the screen prints visibly soft. 1280x860 backing pixels across ~128 mm of
 // paper works out around 250 dpi — sharp enough for contour lines.
+// The map's backing pixels. The ratio between these two has to stay in step
+// with `aspect-ratio` on .briefingMapFrame — the frame decides the shape on
+// paper and the canvas fills it, so a mismatch stretches the terrain.
+//
+// 128:68 rather than a squarer frame because the map is the biggest single
+// block on the sheet and the cheapest to shorten: a route drawn across a
+// 128 mm-wide frame is nearly always wider than it is tall, so the height
+// mostly bought empty hillside. See the vertical budget in briefing.css.
 const MAP_W = 1280;
-const MAP_H = 860;
+const MAP_H = 680;
 const MAP_SCALE = 2;
 
 // Width of the weather table's time column, as a percentage; the forecast
