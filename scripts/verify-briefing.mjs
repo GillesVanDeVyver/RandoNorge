@@ -1,0 +1,461 @@
+// Guards the printable tour briefing.
+//
+// The briefing is the one part of the app that nobody can correct once it is
+// wrong: it leaves as paper, in a rucksack, often without signal, and it is
+// read by someone who was not there when it was made. A stale snow depth
+// printed as if it were a forecast, a runout figure with no slope angles to
+// read it against, or an "Infinity–-Infinity cm" where a range should be are
+// all things the screen would let you notice and paper will not.
+//
+// It is also the hardest part of the app to eyeball, because it only exists
+// once a route, a profile, three network sources and five switches have all
+// lined up. So this harness builds those inputs by hand and renders the sheet
+// for real, server-side, under every combination of switches.
+//
+// WHAT IS CHECKED, AND WHY THESE THINGS
+//
+//   1. The switch dependency. Avalanche terrain is an extra layer on top of
+//      steepness; a danger level next to a plain elevation line invites the
+//      reader to place it on terrain the sheet never coloured.
+//   2. The summary of a model with holes in it. seNorge answers on a 1 km
+//      grid and sometimes does not answer at all; the summary has to say so
+//      rather than average its way past it.
+//   3. That every switched-off section actually leaves. Not just its heading:
+//      its data, and its attribution, since crediting a source the reader
+//      cannot see is noise.
+//   4. That no combination prints NaN, undefined or Infinity. The formatting
+//      helpers all divide by something that can be zero on a flat or
+//      single-point route.
+//
+// Rendering is done by bundling the sheet with esbuild and importing it under
+// react-dom/server. The bundle is written into the repo (not /tmp) so Node can
+// resolve react from node_modules, and removed again afterwards.
+//
+// Run with:  node scripts/verify-briefing.mjs   (needs Node >= 22.18)
+// Wired into `pnpm test:briefing`.
+
+import { ensureTypeStripping } from './lib/type-stripping.mjs';
+ensureTypeStripping();
+
+import { writeFileSync, rmSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+let failures = 0;
+let checks = 0;
+
+function ok(cond, label) {
+  checks++;
+  if (cond) return;
+  failures++;
+  console.error(`  FAIL  ${label}`);
+}
+
+function section(name) {
+  console.log(`\n${name}`);
+}
+
+// ---------------------------------------------------------------------------
+// 1. The switch dependency
+// ---------------------------------------------------------------------------
+
+const { withDependencies, DEFAULT_OPTIONS, OPTION_KEYS } = await import(
+  pathToFileURL(join(ROOT, 'src/briefing/options.ts')).href
+);
+
+section('Section switches');
+
+const allOn = { ...DEFAULT_OPTIONS };
+ok(
+  OPTION_KEYS.every((k) => typeof DEFAULT_OPTIONS[k] === 'boolean'),
+  'defaults cover every option key',
+);
+ok(
+  withDependencies({ ...allOn, steepness: false }).avalanche === false,
+  'turning steepness off also turns avalanche terrain off',
+);
+ok(
+  withDependencies({ ...allOn, steepness: false }).snow === true,
+  'the dependency reaches avalanche terrain only, not the other sections',
+);
+ok(
+  withDependencies(allOn).avalanche === true,
+  'with steepness on, avalanche terrain is left alone',
+);
+
+// ---------------------------------------------------------------------------
+// 2. Reading a gridded model
+// ---------------------------------------------------------------------------
+
+const { summariseSnow } = await import(
+  pathToFileURL(join(ROOT, 'src/briefing/snowSummary.ts')).href
+);
+
+section('Snow summary');
+
+/** A profile of `n` points climbing linearly from `lo` to `hi` metres. */
+function makeProfile(n, lo, hi, { slope = 25, runout = 0 } = {}) {
+  const seg = [];
+  for (let i = 0; i < n; i++) {
+    const f = n === 1 ? 0 : i / (n - 1);
+    seg.push({
+      distance: f * 4000,
+      elevation: lo + (hi - lo) * f,
+      lat: 61.5 + f * 0.01,
+      lng: 8.5 + f * 0.01,
+      slopeDeg: slope,
+      runoutLevel: runout,
+    });
+  }
+  return {
+    segments: [seg],
+    stats: {
+      distance: 4000,
+      ascent: Math.max(0, hi - lo),
+      descent: 0,
+      minElevation: lo,
+      maxElevation: hi,
+    },
+    fetchedAt: Date.now(),
+  };
+}
+
+const p10 = makeProfile(10, 400, 1300);
+
+const evenSnow = summariseSnow(p10, {
+  depths: [[10, 20, 30, 40, 50, 60, 70, 80, 90, 100]],
+  date: '2026-02-01',
+  fetchedAt: 1,
+});
+ok(evenSnow.minCm === 10 && evenSnow.maxCm === 100, 'range spans the route');
+ok(evenSnow.meanCm === 55, 'mean is the mean');
+ok(evenSnow.coverage === 1, 'full coverage when the grid answered everywhere');
+ok(
+  evenSnow.atLowCm === 10 && evenSnow.atHighCm === 100,
+  'low/high readings are taken at the route\u2019s lowest and highest points, not its ends',
+);
+
+// Same depths, but the route descends: the low-point reading must follow
+// elevation rather than position in the array.
+const descending = makeProfile(10, 1300, 400);
+const desc = summariseSnow(descending, {
+  depths: [[10, 20, 30, 40, 50, 60, 70, 80, 90, 100]],
+  date: '2026-02-01',
+  fetchedAt: 1,
+});
+ok(
+  desc.atLowCm === 100 && desc.atHighCm === 10,
+  'on a descending route the low-point depth is the one at the low end',
+);
+
+const holes = summariseSnow(p10, {
+  depths: [[10, NaN, NaN, NaN, NaN, 60, 70, 80, 90, 100]],
+  date: '2026-02-01',
+  fetchedAt: 1,
+});
+ok(Math.abs(holes.coverage - 0.6) < 1e-9, 'coverage reports the grid\u2019s holes');
+ok(
+  holes.minCm === 10 && holes.maxCm === 100,
+  'missing cells are skipped, not read as zero depth',
+);
+
+ok(
+  summariseSnow(p10, {
+    depths: [[NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN]],
+    date: '2026-02-01',
+    fetchedAt: 1,
+  }) === null,
+  'a route entirely outside the grid summarises to nothing, not to \u00b1Infinity',
+);
+ok(summariseSnow(p10, null) === null, 'no snow data summarises to nothing');
+ok(
+  summariseSnow(p10, { depths: [[1, 2, 3]], date: '2026-02-01', fetchedAt: 1 }) ===
+    null,
+  'depths that do not match the profile are refused rather than zipped',
+);
+
+// ---------------------------------------------------------------------------
+// 3 & 4. The rendered sheet
+// ---------------------------------------------------------------------------
+
+section('Rendered sheet');
+
+const ENTRY = join(ROOT, '.briefing-ssr-entry.jsx');
+const BUNDLE = join(ROOT, '.briefing-ssr.mjs');
+
+writeFileSync(
+  ENTRY,
+  `import { renderToStaticMarkup } from 'react-dom/server';
+import { BriefingSheet } from './src/briefing/BriefingSheet';
+export function render(data) {
+  return renderToStaticMarkup(<BriefingSheet data={data} />);
+}
+`,
+);
+
+const esbuild = await import('esbuild');
+await esbuild.build({
+  entryPoints: [ENTRY],
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  outfile: BUNDLE,
+  // React comes from node_modules at run time; the CSS is a print concern and
+  // has no bearing on the markup.
+  external: ['react', 'react-dom', 'react-dom/server'],
+  loader: { '.css': 'empty' },
+  logLevel: 'silent',
+  jsx: 'automatic',
+});
+
+const { render } = await import(pathToFileURL(BUNDLE).href);
+
+/** A full local day of hourly forecast for 14 March 2026, minus any hours in
+ *  `skip`. Local, because the sheet slices the day in local time — the same
+ *  rule the on-screen weather panel uses, and the reason a UTC fixture would
+ *  quietly test a different set of hours in a different timezone. */
+function hours({ skip = [] } = {}) {
+  const out = [];
+  for (let h = 0; h < 24; h++) {
+    if (skip.includes(h)) continue;
+    out.push({
+      time: new Date(2026, 2, 14, h, 0, 0).toISOString(),
+      temperature: -4 + h * 0.5,
+      windSpeed: 6 + h,
+      windGust: h % 2 === 0 ? 11 + h : null,
+      windFromDeg: 315,
+      symbolCode: 'partlycloudy_day',
+      precipMm: h % 3 === 0 ? 0.4 : 0,
+      precipMinMm: null,
+      precipMaxMm: null,
+    });
+  }
+  return out;
+}
+
+const warning = {
+  regionId: 3029,
+  regionName: 'Indre Fjordane',
+  dangerLevel: 3,
+  mainText: 'Vedvarende svakt lag i snødekket.',
+  problems: [
+    {
+      typeId: 30,
+      typeName: 'Vedvarende svakt lag',
+      cause: 'Kantkornet snø over skarelag',
+      probability: 'Mulig',
+      sensitivity: 'Lett å løse ut',
+      size: '2 - Middels',
+      distribution: 'Noen bratte heng',
+      summary: 'Vær varsom i leheng.',
+      expositions: '11100001',
+      exposedHeight1: 700,
+      exposedHeight2: 0,
+      exposedHeightFill: 1,
+    },
+  ],
+  fetchedAt: Date.now(),
+};
+
+const profile = makeProfile(24, 420, 1480, { slope: 34, runout: 2 });
+
+function makeData(options, over = {}) {
+  return {
+    routeName: 'Skåla frå Loen',
+    routeDescription: 'Klassisk vårtur, tidleg start.',
+    date: '2026-03-14',
+    route: [profile.segments[0].map((p) => ({ lat: p.lat, lng: p.lng }))],
+    profile,
+    options,
+    avalancheLevel: 3,
+    avalancheRegions: [warning],
+    avalancheLoading: false,
+    weatherLow: { elevationM: 420, hours: hours() },
+    weatherHigh: { elevationM: 1480, hours: hours() },
+    weatherLoading: false,
+    snow: {
+      depths: [profile.segments[0].map((_, i) => 30 + i * 6)],
+      date: '2026-03-14',
+      fetchedAt: Date.now(),
+    },
+    snowLoading: false,
+    snowDate: '2026-03-14',
+    snowIsFallback: false,
+    ...over,
+  };
+}
+
+/** Every combination of the five switches, with the dependency applied — 32
+ *  nominal, fewer distinct, and all of them reachable by clicking. */
+const combos = [];
+for (let mask = 0; mask < 32; mask++) {
+  const raw = {};
+  OPTION_KEYS.forEach((k, i) => {
+    raw[k] = Boolean(mask & (1 << i));
+  });
+  combos.push(withDependencies(raw));
+}
+
+const BAD = ['NaN', 'undefined', 'Infinity', 'null cm', '[object Object]'];
+
+let renderedAll = 0;
+for (const options of combos) {
+  const html = render(makeData(options));
+  const name = OPTION_KEYS.filter((k) => options[k]).join('+') || 'map only';
+  renderedAll++;
+
+  for (const bad of BAD) {
+    ok(!html.includes(bad), `[${name}] never prints "${bad}"`);
+  }
+
+  // The map is the thing that makes the sheet legible as *this* tour.
+  ok(html.includes('briefingMapFrame'), `[${name}] the map is always drawn`);
+  ok(
+    html.includes('briefingProfileSvg'),
+    `[${name}] the elevation profile is always drawn`,
+  );
+
+  // Sections leave completely when switched off.
+  ok(
+    options.avalanche === html.includes('briefingDangerBadge'),
+    `[${name}] the danger banner follows its switch`,
+  );
+  ok(
+    options.avalanche === html.includes('briefingRose'),
+    `[${name}] the avalanche problems follow the same switch`,
+  );
+  ok(
+    options.steepness === html.includes('briefingBandFill'),
+    `[${name}] the steepness bands follow their switch`,
+  );
+  ok(
+    options.snow === html.includes('briefingSnowSvg'),
+    `[${name}] the snow chart follows its switch`,
+  );
+  ok(
+    options.weather === html.includes('briefingWeatherTable'),
+    `[${name}] the weather table follows its switch`,
+  );
+  ok(
+    options.notes === html.includes('briefingNoteLines'),
+    `[${name}] the notes space follows its switch`,
+  );
+
+  // Attribution is a consequence of what is on the page, not a fixed line.
+  ok(html.includes('Kartverket'), `[${name}] the map is always credited`);
+  ok(
+    options.avalanche === html.includes('Varsom'),
+    `[${name}] Varsom is credited when its warning is printed`,
+  );
+  ok(
+    options.snow === html.includes('seNorge'),
+    `[${name}] seNorge is credited when its depths are printed`,
+  );
+  ok(
+    options.weather === html.includes('MET Norway'),
+    `[${name}] MET is credited when its forecast is printed`,
+  );
+
+  // The profile is always drawn, but only coloured by slope when asked; the
+  // plain teal is the planner's own route colour.
+  const colouredBySlope = /stroke="#(?!0f766e)[0-9a-f]{6}"/i.test(html);
+  ok(
+    options.steepness === colouredBySlope,
+    `[${name}] the profile is coloured by slope only when steepness is on`,
+  );
+}
+ok(renderedAll === 32, 'every switch combination rendered');
+
+section('Rendered sheet: awkward inputs');
+
+// Both anchors present: the two forecasts share rows rather than stacking two
+// tables, and a full day is thinned to daylight hours at three-hour steps —
+// 06, 09, 12, 15, 18, 21. A briefing does not need 03:00.
+const paired = render(makeData(DEFAULT_OPTIONS));
+const bodyRows = (paired.split('<tbody>')[1] ?? '').split('<tr').length - 1;
+ok(bodyRows === 6, `a full day thins to six daylight rows (got ${bodyRows})`);
+ok(
+  (paired.match(/briefingGroupHead/g) ?? []).length === 2,
+  'both anchors get their own column group',
+);
+
+// A hole in one anchor's series must leave a gap in that anchor's columns, not
+// pull the following hour's numbers up a row against the other anchor's.
+const gappy = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherHigh: { elevationM: 1480, hours: hours({ skip: [12] }) },
+  }),
+);
+const gappyRows = (gappy.split('<tbody>')[1] ?? '').split('<tr').length - 1;
+ok(gappyRows === 6, 'a missing hour on one anchor does not drop a row');
+ok(
+  gappy.includes('\u2013'),
+  'the missing hour prints as a dash rather than the next hour\u2019s numbers',
+);
+
+// One anchor missing (MET refused, or the route has no usable elevation at one
+// end): the table narrows rather than printing empty columns.
+const oneAnchor = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherHigh: { elevationM: null, hours: [] },
+  }),
+);
+ok(
+  (oneAnchor.match(/briefingGroupHead/g) ?? []).length === 1,
+  'a missing anchor drops its column group instead of printing blanks',
+);
+
+// The tour is next week; seNorge cannot model it. The sheet must say which
+// date the depths actually describe.
+const fallback = render(
+  makeData(DEFAULT_OPTIONS, { snowDate: '2026-03-07', snowIsFallback: true }),
+);
+ok(
+  /mars 2026|March 2026/.test(fallback),
+  'the fallback snow date is spelled out on the page',
+);
+ok(
+  /ikke fra turdagen|rather than the tour date/.test(fallback),
+  'the sheet explains that the depths are not from the tour date',
+);
+
+// Nothing arrived at all.
+const empty = render(
+  makeData(DEFAULT_OPTIONS, {
+    avalancheLevel: 0,
+    avalancheRegions: [],
+    weatherLow: { elevationM: 420, hours: [] },
+    weatherHigh: { elevationM: 1480, hours: [] },
+    snow: null,
+  }),
+);
+for (const bad of BAD) {
+  ok(!empty.includes(bad), `an empty sheet never prints "${bad}"`);
+}
+ok(
+  empty.includes('briefingEmpty'),
+  'missing data is stated rather than left as a blank section',
+);
+
+// A single-point, zero-length route: every formatting helper divides by a
+// distance or an elevation span that is zero here.
+const degenerate = render(
+  makeData(DEFAULT_OPTIONS, {
+    profile: makeProfile(2, 600, 600),
+    snow: { depths: [[0, 0]], date: '2026-03-14', fetchedAt: 1 },
+  }),
+);
+for (const bad of BAD) {
+  ok(!degenerate.includes(bad), `a flat route never prints "${bad}"`);
+}
+
+rmSync(ENTRY, { force: true });
+rmSync(BUNDLE, { force: true });
+
+console.log(
+  `\n${checks - failures}/${checks} checks passed` +
+    (failures ? ` — ${failures} FAILED` : ''),
+);
+process.exit(failures ? 1 : 0);

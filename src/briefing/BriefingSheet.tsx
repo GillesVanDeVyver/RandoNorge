@@ -22,9 +22,13 @@ import {
   elevationText,
   roseSectorPath,
 } from '../avalanche/problemText';
+import type { SnowData } from '../snow/useSnow';
 import { summariseTerrain, runoutLevelLabel } from './terrain';
 import { ProfileSvg } from './ProfileSvg';
+import { SnowSvg } from './SnowSvg';
+import { summariseSnow } from './snowSummary';
 import { renderStaticMap } from './staticMap';
+import type { BriefingOptions } from './options';
 import { useT } from '../i18n/index.ts';
 import { translate } from '../i18n/locale.ts';
 
@@ -36,6 +40,13 @@ const MAP_W = 1280;
 const MAP_H = 860;
 const MAP_SCALE = 2;
 
+/** One end of the route as a weather anchor: the forecast, plus the elevation
+ *  it applies to (a summit reading means little without its height). */
+export interface BriefingAnchor {
+  elevationM: number | null;
+  hours: WeatherHour[];
+}
+
 export interface BriefingData {
   routeName: string;
   routeDescription: string | null;
@@ -43,16 +54,25 @@ export interface BriefingData {
   date: string;
   route: Route;
   profile: ProfileData;
+  /** Which sections to print. The map and the route facts are not optional. */
+  options: BriefingOptions;
   /** Highest danger level along the route, and the regions it crosses. */
   avalancheLevel: number;
   avalancheRegions: AvalancheWarning[];
   avalancheLoading: boolean;
-  /** Hourly forecast for the tour date at the chosen anchor point. */
-  weatherHours: WeatherHour[];
-  weatherLabel: string;
+  /** Forecast at both ends of the route, printed side by side: the difference
+   *  between valley and summit is usually the decision-relevant part. */
+  weatherLow: BriefingAnchor;
+  weatherHigh: BriefingAnchor;
   weatherLoading: boolean;
-  /** Elevation of the weather anchor, for the column header. */
-  weatherElevationM: number | null;
+  /** seNorge depths along the route, and the date they actually describe. */
+  snow: SnowData | null;
+  snowLoading: boolean;
+  snowDate: string;
+  /** True when snowDate had to fall back off the tour date because seNorge
+   *  models the past, not the future. Printed so nobody reads a stale depth
+   *  as a forecast. */
+  snowIsFallback: boolean;
   /** Fired once the map canvas has finished drawing (or has given up on the
    *  tiles). The dialog holds Print until then: printing while tiles are still
    *  arriving would put a half-drawn map on the paper. */
@@ -120,11 +140,58 @@ function briefingHours(hours: WeatherHour[]): WeatherHour[] {
   });
 }
 
+interface WeatherRow {
+  time: string;
+  low: WeatherHour | null;
+  high: WeatherHour | null;
+}
+
+/** One row per hour with the valley and summit readings side by side. Merged
+ *  on the timestamp rather than by position, so a gap in one anchor's series
+ *  can't silently shift the other's numbers up a row. */
+function weatherRows(
+  low: BriefingAnchor,
+  high: BriefingAnchor,
+): WeatherRow[] {
+  const byTime = new Map<string, WeatherRow>();
+  for (const h of briefingHours(low.hours)) {
+    byTime.set(h.time, { time: h.time, low: h, high: null });
+  }
+  for (const h of briefingHours(high.hours)) {
+    const row = byTime.get(h.time);
+    if (row) row.high = h;
+    else byTime.set(h.time, { time: h.time, low: null, high: h });
+  }
+  return [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time));
+}
+
+/** Wind as one cell: direction, speed, and the gust in parentheses. Three
+ *  separate columns per anchor would not fit twice across the page, and the
+ *  gust is only ever read next to the mean anyway. */
+function windCell(h: WeatherHour | null): string {
+  if (!h) return '–';
+  const gust = h.windGust == null ? '' : ` (${Math.round(h.windGust)})`;
+  return `${compass(h.windFromDeg)} ${Math.round(h.windSpeed)}${gust}`;
+}
+
+function tempCell(h: WeatherHour | null): string {
+  return h ? `${Math.round(h.temperature)}°` : '–';
+}
+
+function precipCell(h: WeatherHour | null): string {
+  const p = h ? precip(h) : null;
+  return p ?? '–';
+}
+
 function MapPicture({
   route,
+  steepness,
   onReady,
 }: {
   route: Route;
+  /** Paint NVE's steepness/runout layer over the topo tiles. Follows the
+   *  steepness switch, so a briefing without slope angles gets a clean map. */
+  steepness: boolean;
   onReady?: () => void;
 }) {
   const t = useT();
@@ -147,7 +214,7 @@ function MapPicture({
       height: MAP_H,
       scale: MAP_SCALE,
       padding: 0.1,
-      steepness: true,
+      steepness,
       routeWeight: 9,
       haloWeight: 17,
       endpoints: true,
@@ -165,7 +232,7 @@ function MapPicture({
     return () => {
       cancelled = true;
     };
-  }, [route]);
+  }, [route, steepness]);
 
   return (
     <div className="briefingMapFrame">
@@ -173,10 +240,14 @@ function MapPicture({
         ref={canvasRef}
         className="briefingMapCanvas"
         role="img"
-        aria-label={t(
-          'Kart over ruta med bratthetslag, nord opp',
-          'Route map with steepness overlay, north up',
-        )}
+        aria-label={
+          steepness
+            ? t(
+                'Kart over ruta med bratthetslag, nord opp',
+                'Route map with steepness overlay, north up',
+              )
+            : t('Kart over ruta, nord opp', 'Route map, north up')
+        }
       />
       <div className="briefingNorth" aria-hidden>
         ↑N
@@ -219,13 +290,17 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
     date,
     route,
     profile,
+    options,
     avalancheLevel,
     avalancheRegions,
     avalancheLoading,
-    weatherHours,
-    weatherLabel,
+    weatherLow,
+    weatherHigh,
     weatherLoading,
-    weatherElevationM,
+    snow,
+    snowLoading,
+    snowDate,
+    snowIsFallback,
     onMapReady,
   } = data;
 
@@ -236,7 +311,23 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
   // worst one, and any others are named underneath so nothing is hidden.
   const lead = avalancheRegions[0] ?? null;
   const otherRegions = avalancheRegions.slice(1);
-  const hours = briefingHours(weatherHours);
+  const rows = options.weather ? weatherRows(weatherLow, weatherHigh) : [];
+  const showLow = rows.some((r) => r.low);
+  const showHigh = rows.some((r) => r.high);
+  const snowSummary = options.snow ? summariseSnow(profile, snow) : null;
+  // Credit only the sources that actually contributed to this print: a footer
+  // citing Varsom on a sheet with no avalanche section is a small lie.
+  const credits = [
+    `${t('Kart', 'Map')} © Kartverket (CC BY 4.0)`,
+    options.steepness
+      ? `${t('Bratthet og utløp', 'Steepness and runout')} © NVE`
+      : null,
+    options.avalanche
+      ? `${t('Snøskredvarsel', 'Avalanche forecast')} © NVE / Varsom (NLOD)`
+      : null,
+    options.snow ? `${t('Snødybde', 'Snow depth')} © NVE / seNorge` : null,
+    options.weather ? `${t('Vær', 'Weather')} © MET Norway (CC BY 4.0)` : null,
+  ].filter(Boolean);
 
   return (
     <div className="briefingSheet">
@@ -257,7 +348,11 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
       </header>
 
       <section className="briefingTop briefingSection">
-        <MapPicture route={route} onReady={onMapReady} />
+        <MapPicture
+          route={route}
+          steepness={options.steepness}
+          onReady={onMapReady}
+        />
         <div className="briefingFacts">
           <Fact label={t('Lengde', 'Distance')} value={km(stats.distance)} />
           <Fact label={t('Stigning', 'Ascent')} value={metres(stats.ascent)} />
@@ -270,16 +365,22 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             label={t('Laveste punkt', 'Low point')}
             value={metres(stats.minElevation)}
           />
-          {terrain && Number.isFinite(terrain.maxSlopeDeg) && (
+          {options.steepness && terrain && Number.isFinite(terrain.maxSlopeDeg) && (
             <Fact
               label={t('Bratteste parti', 'Steepest section')}
               value={`${Math.round(terrain.maxSlopeDeg)}°`}
             />
           )}
-          {terrain && (
+          {options.steepness && terrain && (
             <Fact
               label={t('I skredterreng (≥30°)', 'In avalanche terrain (≥30°)')}
               value={`${Math.round(terrain.steepFraction * 100)} % · ${km(terrain.steepM)}`}
+            />
+          )}
+          {options.snow && snowSummary && (
+            <Fact
+              label={t('Snødybde', 'Snow depth')}
+              value={`${Math.round(snowSummary.minCm)}–${Math.round(snowSummary.maxCm)} cm`}
             />
           )}
         </div>
@@ -287,6 +388,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
 
       {/* Danger banner — the single most important line on the page, so it
           sits directly under the map with the level's own colour. */}
+      {options.avalanche && (
       <section className="briefingSection">
         <h2 className="briefingH2">
           {t('Snøskredvarsel', 'Avalanche forecast')} · Varsom
@@ -329,8 +431,9 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           </div>
         </div>
       </section>
+      )}
 
-      {lead && lead.problems.length > 0 && (
+      {options.avalanche && lead && lead.problems.length > 0 && (
         <section className="briefingSection">
           <h2 className="briefingH2">
             {t('Skredproblemer', 'Avalanche problems')}
@@ -364,12 +467,21 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         </section>
       )}
 
+      {/* The profile is route shape, not an add-on, so it prints either way —
+          the steepness switch decides whether it is coloured by slope angle or
+          drawn as a plain line. */}
       <section className="briefingSection">
         <h2 className="briefingH2">
-          {t('Høydeprofil og bratthet', 'Elevation profile and steepness')}
+          {options.steepness
+            ? t('Høydeprofil og bratthet', 'Elevation profile and steepness')
+            : t('Høydeprofil', 'Elevation profile')}
         </h2>
-        <ProfileSvg profile={profile} />
-        {terrain && !terrain.slopeUnknown && (
+        <ProfileSvg
+          profile={profile}
+          steepness={options.steepness}
+          runout={options.avalanche}
+        />
+        {options.steepness && terrain && !terrain.slopeUnknown && (
           <>
             <div className="briefingBands" aria-hidden>
               {terrain.bands.map((b) =>
@@ -403,7 +515,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             </div>
           </>
         )}
-        {terrain && (
+        {options.avalanche && terrain && (
           <p className="briefingTerrainNote">
             {terrain.runout.metres > 0 ? (
               <>
@@ -431,72 +543,168 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         )}
       </section>
 
-      <section className="briefingSection">
-        <h2 className="briefingH2">
-          {t('Vær', 'Weather')} · {weatherLabel}
-          {weatherElevationM != null && ` (${metres(weatherElevationM)})`}
-        </h2>
-        {hours.length > 0 ? (
-          <table className="briefingTable">
-            <thead>
-              <tr>
-                <th>{t('Tid', 'Time')}</th>
-                <th className="briefingNum">{t('Temp', 'Temp')}</th>
-                <th className="briefingNum">{t('Vind', 'Wind')}</th>
-                <th className="briefingNum">{t('Kast', 'Gust')}</th>
-                <th>{t('Retning', 'From')}</th>
-                <th className="briefingNum">{t('Nedbør', 'Precip')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hours.map((h) => {
-                const p = precip(h);
-                return (
-                  <tr key={h.time}>
+      {options.snow && (
+        <section className="briefingSection">
+          <h2 className="briefingH2">
+            {t('Snødybde', 'Snow depth')} · seNorge {longDate(snowDate)}
+          </h2>
+          {snowSummary ? (
+            <>
+              <SnowSvg profile={profile} snow={snow} />
+              <p className="briefingTerrainNote">
+                {t(
+                  `Modellert snødybde ${Math.round(snowSummary.minCm)}–${Math.round(snowSummary.maxCm)} cm langs ruta, i snitt ${Math.round(snowSummary.meanCm)} cm.`,
+                  `Modeled snow depth ${Math.round(snowSummary.minCm)}–${Math.round(snowSummary.maxCm)} cm along the route, averaging ${Math.round(snowSummary.meanCm)} cm.`,
+                )}
+                {snowSummary.atLowCm != null &&
+                  snowSummary.atHighCm != null &&
+                  ' ' +
+                    t(
+                      `Ved laveste punkt ${Math.round(snowSummary.atLowCm)} cm, ved høyeste ${Math.round(snowSummary.atHighCm)} cm.`,
+                      `${Math.round(snowSummary.atLowCm)} cm at the low point, ${Math.round(snowSummary.atHighCm)} cm at the high point.`,
+                    )}
+                {snowSummary.coverage < 0.98 &&
+                  ' ' +
+                    t(
+                      'Rutenettet manglet verdier for deler av ruta.',
+                      'The grid had no value for part of the route.',
+                    )}{' '}
+                {snowIsFallback
+                  ? t(
+                      `seNorge modellerer snø som har falt, ikke snø som skal komme, så tallene er fra ${longDate(snowDate)} og ikke fra turdagen.`,
+                      `seNorge models snow that has fallen, not snow to come, so these figures are from ${longDate(snowDate)} rather than the tour date.`,
+                    )
+                  : t(
+                      'Tallene er modellerte, ikke målte — behandle dem som et utgangspunkt.',
+                      'These are modeled, not measured — treat them as a starting point.',
+                    )}
+              </p>
+            </>
+          ) : (
+            <p className="briefingEmpty">
+              {snowLoading
+                ? t('Henter snødybde …', 'Loading snow depth…')
+                : t(
+                    'Ingen modellert snødybde for denne ruta og datoen.',
+                    'No modeled snow depth for this route and date.',
+                  )}
+            </p>
+          )}
+        </section>
+      )}
+
+      {options.weather && (
+        <section className="briefingSection">
+          <h2 className="briefingH2">
+            {t('Vær', 'Weather')} · MET {t('for turdagen', 'for the tour day')}
+          </h2>
+          {rows.length > 0 ? (
+            <table className="briefingTable briefingWeatherTable">
+              <thead>
+                {/* Two header rows: the anchors span their three columns, so
+                    the valley and summit readings can be compared down the
+                    page at a glance instead of on two separate tables. */}
+                <tr>
+                  <th rowSpan={2}>{t('Tid', 'Time')}</th>
+                  {showLow && (
+                    <th colSpan={3} className="briefingGroupHead">
+                      {t('Laveste punkt', 'Low point')}
+                      {weatherLow.elevationM != null &&
+                        ` · ${metres(weatherLow.elevationM)}`}
+                    </th>
+                  )}
+                  {showHigh && (
+                    <th colSpan={3} className="briefingGroupHead">
+                      {t('Høyeste punkt', 'High point')}
+                      {weatherHigh.elevationM != null &&
+                        ` · ${metres(weatherHigh.elevationM)}`}
+                    </th>
+                  )}
+                </tr>
+                <tr>
+                  {showLow && (
+                    <>
+                      <th className="briefingNum briefingGroupStart">°C</th>
+                      <th className="briefingNum">
+                        {t('Vind m/s', 'Wind m/s')}
+                      </th>
+                      <th className="briefingNum">mm</th>
+                    </>
+                  )}
+                  {showHigh && (
+                    <>
+                      <th className="briefingNum briefingGroupStart">°C</th>
+                      <th className="briefingNum">
+                        {t('Vind m/s', 'Wind m/s')}
+                      </th>
+                      <th className="briefingNum">mm</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.time}>
                     <td>
-                      {new Date(h.time).toLocaleTimeString([], {
+                      {new Date(r.time).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
                     </td>
-                    <td className="briefingNum">{Math.round(h.temperature)}°</td>
-                    <td className="briefingNum">
-                      {Math.round(h.windSpeed)} m/s
-                    </td>
-                    <td className="briefingNum">
-                      {h.windGust == null ? '–' : `${Math.round(h.windGust)} m/s`}
-                    </td>
-                    <td>{compass(h.windFromDeg)}</td>
-                    <td className="briefingNum">{p ? `${p} mm` : '–'}</td>
+                    {showLow && (
+                      <>
+                        <td className="briefingNum briefingGroupStart">
+                          {tempCell(r.low)}
+                        </td>
+                        <td className="briefingNum">{windCell(r.low)}</td>
+                        <td className="briefingNum">{precipCell(r.low)}</td>
+                      </>
+                    )}
+                    {showHigh && (
+                      <>
+                        <td className="briefingNum briefingGroupStart">
+                          {tempCell(r.high)}
+                        </td>
+                        <td className="briefingNum">{windCell(r.high)}</td>
+                        <td className="briefingNum">{precipCell(r.high)}</td>
+                      </>
+                    )}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : (
-          <p className="briefingEmpty">
-            {weatherLoading
-              ? t('Henter værvarsel …', 'Loading forecast…')
-              : t(
-                  'Ingen værvarsel for denne dagen. MET varsler omtrent ti døgn fram i tid.',
-                  'No forecast for this day. MET forecasts roughly ten days ahead.',
-                )}
-          </p>
-        )}
-      </section>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="briefingEmpty">
+              {weatherLoading
+                ? t('Henter værvarsel …', 'Loading forecast…')
+                : t(
+                    'Ingen værvarsel for denne dagen. MET varsler omtrent ti døgn fram i tid.',
+                    'No forecast for this day. MET forecasts roughly ten days ahead.',
+                  )}
+            </p>
+          )}
+          {rows.length > 0 && (
+            <p className="briefingTerrainNote">
+              {t(
+                'Vind oppgitt som retning, middelvind og kast i parentes.',
+                'Wind given as direction, mean speed, and gust in parentheses.',
+              )}
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Deliberate blank space: the briefing is a working document, and the
           decisions that matter (turnaround time, plan B, who carries what)
           are the ones made by the party, not by us. */}
-      <section className="briefingNotes briefingSection">
-        <h2 className="briefingH2">
-          {t(
-            'Plan, vendepunkt og notater',
-            'Plan, turnaround and notes',
-          )}
-        </h2>
-        <div className="briefingNoteLines" aria-hidden />
-      </section>
+      {options.notes && (
+        <section className="briefingNotes briefingSection">
+          <h2 className="briefingH2">
+            {t('Plan, vendepunkt og notater', 'Plan, turnaround and notes')}
+          </h2>
+          <div className="briefingNoteLines" aria-hidden />
+        </section>
+      )}
 
       <footer className="briefingFooter">
         <p style={{ margin: '0 0 1mm' }}>
@@ -511,12 +719,11 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             'This sheet is a planning aid, not a guarantee of safe conditions. Assessment in the field always takes precedence.',
           )}
         </p>
+        {/* Only credit what actually made it onto the page: an attribution for
+            a source the reader cannot see is noise, and in the licences' own
+            terms there is nothing to attribute. */}
         <p style={{ margin: 0 }}>
-          {t('Kart', 'Map')} © Kartverket (CC BY 4.0) ·{' '}
-          {t('Bratthet og utløp', 'Steepness and runout')} © NVE ·{' '}
-          {t('Snøskredvarsel', 'Avalanche forecast')} © NVE / Varsom (NLOD) ·{' '}
-          {t('Vær', 'Weather')} © MET Norway (CC BY 4.0) ·{' '}
-          {t('Generert', 'Generated')}{' '}
+          {credits.join(' · ')} · {t('Generert', 'Generated')}{' '}
           {new Date().toLocaleString([], {
             day: 'numeric',
             month: 'short',

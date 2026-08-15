@@ -70,25 +70,110 @@
   flex: 1 1 auto;
 }
 
-.briefingChip {
-  font: inherit;
-  font-size: 13px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--briefing-rule);
-  background: #fff;
-  color: var(--briefing-muted);
-  cursor: pointer;
+/* ---------- Section switches -------------------------------------------- */
+
+/* The switches wrap onto their own line so the bar reads top-to-bottom as
+ * "which day / what goes on it / print it" rather than as one long row. */
+.briefingSwitches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  width: 100%;
+  padding-top: 10px;
+  border-top: 1px solid var(--briefing-rule);
 }
 
-.briefingChip:hover {
+/* The map is not optional, so it is stated rather than offered. Showing it
+ * greyed-out next to the switches would invite clicking something inert. */
+.briefingAlways {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--briefing-muted);
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
   background: var(--briefing-tint);
 }
 
-.briefingChipActive {
-  background: var(--briefing-ink);
-  border-color: var(--briefing-ink);
-  color: #fff;
+.briefingAlwaysMark {
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.briefingSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--briefing-ink);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* The real checkbox stays in the accessibility tree and keeps keyboard and
+ * form semantics; only its default rendering is replaced. */
+.briefingSwitch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.briefingSwitchTrack {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: #cbd5df;
+  transition: background 120ms ease;
+}
+
+.briefingSwitchTrack::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 120ms ease;
+}
+
+.briefingSwitch input:checked + .briefingSwitchTrack {
+  background: #0f766e;
+}
+
+.briefingSwitch input:checked + .briefingSwitchTrack::after {
+  transform: translateX(14px);
+}
+
+.briefingSwitch input:focus-visible + .briefingSwitchTrack {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+/* Avalanche terrain with steepness off: still visible, so the dependency is
+ * discoverable, but plainly not available. */
+.briefingSwitch input:disabled + .briefingSwitchTrack {
+  background: #e2e8ee;
+}
+
+.briefingSwitchDisabled {
+  color: var(--briefing-muted);
+  cursor: not-allowed;
+}
+
+.briefingSwitchHint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--briefing-muted);
 }
 
 .briefingBtn {
@@ -185,11 +270,17 @@
 
 /* Section scaffolding */
 
+/* A section split across the fold is worse than a second page: half a weather
+ * table or a danger banner with its level on the previous sheet is exactly the
+ * kind of thing that gets misread in a car park. So sections stay whole and
+ * the overflow moves down. */
 .briefingSection {
   break-inside: avoid;
 }
 
 .briefingH2 {
+  /* Never let a heading be the last thing on a page. */
+  break-after: avoid;
   margin: 0 0 1.4mm;
   font-size: 8pt;
   font-weight: 700;
@@ -420,6 +511,20 @@
   stroke-linecap: round;
 }
 
+/* Snow depth — drawn shorter than the profile: it supports the day's picture
+ * rather than being it. */
+
+.briefingSnowSvg {
+  display: block;
+  width: 100%;
+  height: 20mm;
+}
+
+.briefingSnowLine {
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
 /* Weather */
 
 .briefingTable {
@@ -451,6 +556,27 @@
 .briefingNum {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Paired low/high columns. The two anchors are read against each other one
+ * hour at a time, so they share rows; a rule between the groups keeps the eye
+ * from sliding from the valley's wind into the summit's temperature. */
+.briefingWeatherTable th.briefingGroupHead {
+  text-align: center;
+  color: var(--briefing-ink);
+  font-weight: 700;
+  border-bottom: 0.4pt solid var(--briefing-rule);
+  padding-bottom: 0.4mm;
+}
+
+.briefingWeatherTable .briefingGroupStart {
+  border-left: 0.6pt solid var(--briefing-rule);
+}
+
+.briefingWeatherTable td,
+.briefingWeatherTable th {
+  padding-left: 1.2mm;
+  padding-right: 1.2mm;
 }
 
 /* Avalanche problems */
@@ -585,6 +711,23 @@
     box-shadow: none;
     /* The @page margin supplies the paper edge. */
     margin: 0;
+    /* Flex containers fragment unevenly across pages; with every section
+     * switched on the sheet is allowed to run onto a second page, so it
+     * becomes plain block flow for printing. `gap` goes with it, hence the
+     * explicit spacing below. */
+    display: block;
+  }
+
+  .briefingSheet > * + * {
+    margin-top: 3.2mm;
+  }
+
+  /* On screen `margin-top: auto` pins the footer to the bottom of the preview
+   * page; in block flow it simply follows the last section, which is where it
+   * belongs when the sheet has run over. */
+  .briefingFooter {
+    margin-top: 3.2mm;
+    break-inside: avoid;
   }
 
   /* Danger badges, steepness bars and the profile ramp are the whole point of

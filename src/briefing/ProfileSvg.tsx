@@ -14,6 +14,7 @@
 import type { ProfileData } from '../elevation/profile';
 import { RUNOUT_UNKNOWN } from '../elevation/runout';
 import { GRAY, RUNOUT_COLORS, steepnessColor } from '../elevation/steepness';
+import { ticks } from './axis';
 import { translate } from '../i18n/locale.ts';
 
 // Viewport units. The SVG is scaled to the page by CSS, so these are just the
@@ -28,8 +29,17 @@ const PAD_B = 26;
 const PLOT_W = W - PAD_L - PAD_R;
 const PLOT_H = H - PAD_T - PAD_B;
 
+/** Colour of the profile line when steepness is switched off: the planner's
+ *  own route teal, so the line reads as "the route" and nothing more. */
+const PLAIN_COLOR = '#0f766e';
+
 interface Props {
   profile: ProfileData;
+  /** Colour the line by slope angle. Off prints a plain elevation profile. */
+  steepness?: boolean;
+  /** Let NVE's runout blues override otherwise-benign terrain. Only meaningful
+   *  with `steepness` on; the sheet keeps the two switches in step. */
+  runout?: boolean;
 }
 
 interface Pt {
@@ -39,24 +49,11 @@ interface Pt {
   runout: number;
 }
 
-/** "Nice" tick step (1/2/5 x 10^n) giving roughly `target` ticks over `span`. */
-function tickStep(span: number, target: number): number {
-  const rough = span / Math.max(1, target);
-  const pow = 10 ** Math.floor(Math.log10(rough));
-  for (const mult of [1, 2, 5, 10]) {
-    if (pow * mult >= rough) return pow * mult;
-  }
-  return pow * 10;
-}
-
-function ticks(min: number, max: number, target: number): number[] {
-  const step = tickStep(max - min, target);
-  const out: number[] = [];
-  for (let v = Math.ceil(min / step) * step; v <= max; v += step) out.push(v);
-  return out;
-}
-
-export function ProfileSvg({ profile }: Props) {
+export function ProfileSvg({
+  profile,
+  steepness = true,
+  runout = true,
+}: Props) {
   // Only segments with usable elevations can be drawn.
   const segs: Pt[][] = profile.segments
     .map((seg) =>
@@ -113,6 +110,7 @@ export function ProfileSvg({ profile }: Props) {
   // runout blue overriding terrain that is otherwise flat enough to read as
   // benign. Unknown runout is left gray — never recoloured as "safe".
   const strokeFor = (a: Pt, b: Pt): string => {
+    if (!steepness) return PLAIN_COLOR;
     const aS = Number.isFinite(a.slope) ? a.slope : NaN;
     const bS = Number.isFinite(b.slope) ? b.slope : NaN;
     const slope = Number.isNaN(aS)
@@ -122,6 +120,7 @@ export function ProfileSvg({ profile }: Props) {
         : (aS + bS) / 2;
     let color = Number.isFinite(slope) ? steepnessColor(slope) : GRAY;
     if (
+      runout &&
       color === GRAY &&
       a.runout !== RUNOUT_UNKNOWN &&
       b.runout !== RUNOUT_UNKNOWN
@@ -138,10 +137,14 @@ export function ProfileSvg({ profile }: Props) {
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
       role="img"
-      aria-label={translate(
-        'Høydeprofil farget etter terrenghelling',
-        'Elevation profile coloured by terrain steepness',
-      )}
+      aria-label={
+        steepness
+          ? translate(
+              'Høydeprofil farget etter terrenghelling',
+              'Elevation profile coloured by terrain steepness',
+            )
+          : translate('Høydeprofil', 'Elevation profile')
+      }
     >
       {/* Horizontal guides + elevation labels */}
       {yTicks.map((e) => (
