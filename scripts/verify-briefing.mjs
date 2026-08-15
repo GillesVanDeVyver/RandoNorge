@@ -327,6 +327,20 @@ const BAD = ['NaN', 'undefined', 'Infinity', 'null cm', '[object Object]'];
  *  heading like "Weather · MET · Sat 14 March 2026" is unmatchable. */
 const plain = (html) => html.replace(/<!--[\s\S]*?-->/g, '');
 
+/** The text of every "Retrieved …" sub-line on the page. Reading them out of
+ *  their own element, rather than out of the page as a whole, is what proves
+ *  they sit under the headings instead of inside them. */
+const retrievedLines = (html) =>
+  [...plain(html).matchAll(/<p class="briefingRetrieved">([^<]*)<\/p>/g)].map(
+    (m) => m[1],
+  );
+
+/** Every section heading, as plain text. */
+const headings = (html) =>
+  [...plain(html).matchAll(/<h2 class="briefingH2">([^<]*)<\/h2>/g)].map(
+    (m) => m[1],
+  );
+
 let renderedAll = 0;
 for (const options of combos) {
   const html = render(makeData(options));
@@ -409,26 +423,38 @@ for (const options of combos) {
     `[${name}] the snow heading carries the date it was modelled for`,
   );
 
-  // Every forecast section states when it was retrieved, and states its own
-  // source's clock — each fixture uses a different minute, so a heading that
-  // borrowed another section's timestamp would fail here rather than pass.
+  // Every forecast section states when it was retrieved, on a line of its own
+  // below the heading. Each fixture uses a different minute, so a section that
+  // borrowed another's timestamp fails here rather than passing quietly.
+  const retrieved = retrievedLines(html).join('\n');
   ok(
-    options.avalanche === /(hentet|retrieved) [^<]*18:20/.test(flat),
-    `[${name}] the avalanche heading carries the moment it was retrieved`,
+    options.avalanche === /18:20/.test(retrieved),
+    `[${name}] the avalanche retrieval time prints below its heading`,
   );
   ok(
-    options.snow === /(hentet|retrieved) [^<]*05:41/.test(flat),
-    `[${name}] the snow heading carries the moment it was retrieved`,
+    options.snow === /05:41/.test(retrieved),
+    `[${name}] the snow retrieval time prints below its heading`,
   );
   // Two anchors, one line: the older fetch, so the sheet never reads fresher
   // than its stalest half.
   ok(
-    options.weather === /(hentet|retrieved) [^<]*07:32/.test(flat),
-    `[${name}] the weather heading carries the older of the two fetches`,
+    options.weather === /07:32/.test(retrieved),
+    `[${name}] the weather retrieval line carries the older of the two fetches`,
   );
   ok(
     !/09:53/.test(flat),
     `[${name}] the newer anchor's fetch is not the one printed`,
+  );
+  ok(
+    retrievedLines(html).every((line) => /(Hentet|Retrieved) \S/.test(line)),
+    `[${name}] every retrieval line is labelled, never a bare timestamp`,
+  );
+
+  // The headings themselves are now free of it: that was the point of moving
+  // it down, and an inline relapse would otherwise print it twice.
+  ok(
+    headings(html).every((h) => !/[Hh]entet|[Rr]etrieved/.test(h)),
+    `[${name}] no heading carries a retrieval time inline`,
   );
 
   // Attribution is a consequence of what is on the page, not a fixed line.
@@ -504,28 +530,29 @@ ok(
   'a missing anchor drops its column group instead of printing blanks',
 );
 ok(
-  /(hentet|retrieved) [^<]*07:32/.test(plain(oneAnchor)),
+  retrievedLines(oneAnchor).some((line) => /07:32/.test(line)),
   'the anchor that did answer supplies the retrieval time on its own',
 );
 
-// Neither anchor answered: no moment to print, and no dangling separator.
+// Neither anchor answered: there is no moment to print, so the sub-line must
+// be absent altogether rather than an empty or half-written label.
 const noWeatherFetch = render(
   makeData(DEFAULT_OPTIONS, {
     weatherLow: { elevationM: 420, hours: hours(), fetchedAt: null },
     weatherHigh: { elevationM: 1480, hours: hours(), fetchedAt: null },
   }),
 );
-const wxHead = plain(noWeatherFetch).match(
-  /<h2 class="briefingH2">([^<]*MET[^<]*)</,
-);
-ok(Boolean(wxHead), 'the weather heading still names MET and the tour date');
 ok(
-  wxHead != null && !/(hentet|retrieved)/.test(wxHead[1]),
-  'with no fetch time the weather heading claims no retrieval',
+  headings(noWeatherFetch).some((h) => /MET/.test(h)),
+  'the weather heading still names MET and the tour date',
 );
 ok(
-  wxHead != null && !/\u00b7\s*$/.test(wxHead[1]),
-  'the weather heading does not trail a dangling separator',
+  retrievedLines(noWeatherFetch).length === 2,
+  'the weather section drops its retrieval line while the others keep theirs',
+);
+ok(
+  !retrievedLines(noWeatherFetch).some((line) => /07:32|09:53/.test(line)),
+  'no other section inherits the weather timestamps',
 );
 
 // The tour is next week; seNorge cannot model it. The sheet must say which
@@ -572,18 +599,20 @@ for (const bad of BAD) {
   ok(!degenerate.includes(bad), `a flat route never prints "${bad}"`);
 }
 
-// Varsom was never reached, so there is no moment to print. The heading has to
-// end after the source rather than trailing a separator into nothing.
+// Varsom was never reached, so there is no moment to print and the sub-line
+// must be absent rather than empty.
 const noFetch = render(makeData(DEFAULT_OPTIONS, { avalancheFetchedAt: null }));
-const avHead = plain(noFetch).match(/<h2 class="briefingH2">([^<]*Varsom[^<]*)</);
-ok(Boolean(avHead), 'the avalanche heading still names its source');
 ok(
-  avHead != null && !/(hentet|retrieved)/.test(avHead[1]),
-  'with nothing retrieved the heading claims no retrieval time',
+  headings(noFetch).some((h) => /Varsom/.test(h)),
+  'the avalanche heading still names its source',
 );
 ok(
-  avHead != null && !/\u00b7\s*$/.test(avHead[1]),
-  'the heading does not trail a dangling separator',
+  retrievedLines(noFetch).length === 2,
+  'the avalanche section drops its retrieval line while the others keep theirs',
+);
+ok(
+  !retrievedLines(noFetch).some((line) => /18:20/.test(line)),
+  'no other section inherits the bulletin timestamp',
 );
 for (const bad of BAD) {
   ok(!noFetch.includes(bad), `an unfetched bulletin never prints "${bad}"`);

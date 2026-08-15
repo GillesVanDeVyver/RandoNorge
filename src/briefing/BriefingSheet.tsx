@@ -113,12 +113,18 @@ function retrievedAt(ms: number): string {
   });
 }
 
-/** " · retrieved <when>", or nothing when a source never answered: a heading
- *  must not trail a separator into a blank. Every forecast section carries one
- *  of these, because paper cannot say how old it is any other way. */
-function retrievedSuffix(ms: number | null | undefined): string {
-  if (ms == null || !Number.isFinite(ms)) return '';
-  return ` · ${translate('hentet', 'retrieved')} ${retrievedAt(ms)}`;
+/** The line under a forecast heading saying when that forecast was fetched.
+ *  It sits below the heading rather than inside it: the heading answers what
+ *  the section is and which day it speaks for, and the provenance is a quieter
+ *  question that should not compete with either. Renders nothing at all when a
+ *  source never answered, so no section is left with a stray label. */
+function Retrieved({ at }: { at: number | null | undefined }) {
+  if (at == null || !Number.isFinite(at)) return null;
+  return (
+    <p className="briefingRetrieved">
+      {translate('Hentet', 'Retrieved')} {retrievedAt(at)}
+    </p>
+  );
 }
 
 /** The older of two fetch times, ignoring the ones that never happened. The
@@ -438,13 +444,14 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           sits directly under the map with the level's own colour. */}
       {options.avalanche && (
       <section className="briefingSection">
-        {/* Retrieval time, not the tour date: a bulletin is rewritten during
-            the day, and a sheet printed from a saved route can be replaying
-            one that was fetched a week ago. */}
+        {/* No tour date on this one: a bulletin is rewritten during the day,
+            and a sheet printed from a saved route can be replaying one that
+            was fetched a week ago. The retrieval line below is the only honest
+            thing to date it by. */}
         <h2 className="briefingH2">
           {t('Snøskredvarsel', 'Avalanche forecast')} · Varsom
-          {retrievedSuffix(avalancheFetchedAt)}
         </h2>
+        <Retrieved at={avalancheFetchedAt} />
         <div className="briefingDanger">
           <div
             className="briefingDangerBadge"
@@ -602,8 +609,8 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         <section className="briefingSection">
           <h2 className="briefingH2">
             {t('Snødybde', 'Snow depth')} · seNorge · {longDate(snowDate)}
-            {retrievedSuffix(snow?.fetchedAt)}
           </h2>
+          <Retrieved at={snow?.fetchedAt} />
           {snowSummary ? (
             <>
               <SnowSvg profile={profile} snow={snow} />
@@ -653,10 +660,10 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         <section className="briefingSection">
           <h2 className="briefingH2">
             {t('Vær', 'Weather')} · MET · {longDate(date)}
-            {retrievedSuffix(
-              olderFetch(weatherLow.fetchedAt, weatherHigh.fetchedAt),
-            )}
           </h2>
+          <Retrieved
+            at={olderFetch(weatherLow.fetchedAt, weatherHigh.fetchedAt)}
+          />
           {rows.length > 0 ? (
             <table className="briefingTable briefingWeatherTable">
               <thead>

@@ -308,6 +308,24 @@
   color: var(--briefing-muted);
 }
 
+/* A heading that is followed by its retrieval line keeps almost no gap of its
+ * own: the two read as one block. Browsers without :has() simply leave the
+ * normal heading gap, which is loose rather than wrong. */
+.briefingH2:has(+ .briefingRetrieved) {
+  margin-bottom: 0.4mm;
+}
+
+/* When a forecast was fetched. Deliberately quieter than the heading and not
+ * in its uppercase — this is provenance, read only when someone is deciding
+ * whether to trust the page, and it must never compete with the danger level
+ * or the numbers underneath it. */
+.briefingRetrieved {
+  break-after: avoid;
+  margin: 0 0 1.4mm;
+  font-size: 7pt;
+  color: var(--briefing-muted);
+}
+
 .briefingEmpty {
   margin: 0;
   font-size: 8pt;
