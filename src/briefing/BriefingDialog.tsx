@@ -1,17 +1,17 @@
 // Screen-side wrapper around the printable tour briefing.
 //
-// The sheet itself is print-only in spirit, but showing it on screen first
-// matters: the guide sets the tour date, decides what belongs on the page, and
-// watches the map actually render before committing paper. Print is held until
-// the map canvas reports ready, because a briefing whose map frame prints
-// half-drawn is worse than no briefing.
+// The dialog asks one question — what goes on the sheet — and answers it with
+// a switch per section, listed one under another so the list reads as the
+// order the sections print in. Everything else it used to ask has been taken
+// away: the tour date is the day the planner is already showing, and the
+// weather is printed for both ends of the route rather than one chosen end,
+// because "which end?" is a planning question and this box is about
+// composition.
 //
-// Composition is by switches, not by pickers. A briefing is handed to someone
-// for a purpose, and the purposes differ — a skredkurs wall wants terrain and
-// the day's warning, a client handout is mostly route and weather. Asking
-// "which end of the route should the weather describe?" put a planning
-// question where an include/exclude question belonged; both ends are printed
-// side by side now, and the only question left is whether to print them.
+// Print is held until the map canvas reports ready. A briefing whose map frame
+// prints half-drawn is worse than no briefing — but only when the map is
+// switched on; nothing else here waits on the network for a picture it is not
+// going to print.
 //
 // PDF generation is the browser's: window.print() → "Save as PDF". No client
 // -side PDF library, so nothing here can drift out of sync with what the user
@@ -26,7 +26,6 @@ import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
 import { useWeather, weatherCandidates } from '../weather/useWeather';
 import { useSnow } from '../snow/useSnow';
 import type { WeatherHour } from '../weather/api';
-import { DatePopover } from '../components/DatePopover';
 import { BriefingSheet, type BriefingData } from './BriefingSheet';
 import {
   loadOptions,
@@ -43,6 +42,9 @@ import './briefing.css';
 interface Props {
   route: Route;
   profile: ProfileData;
+  /** Tour date (YYYY-MM-DD) the forecasts describe — the day the planner is
+   *  showing, captured when the dialog opened. */
+  date: string;
   /** Saved routes carry a name and description; an unsaved working route
    *  falls back to a generic title so the sheet never prints "undefined". */
   routeName?: string | null;
@@ -65,22 +67,22 @@ function hoursOnDate(hours: WeatherHour[] | null, ymd: string): WeatherHour[] {
 export function BriefingDialog({
   route,
   profile,
+  date,
   routeName,
   routeDescription,
   onClose,
 }: Props) {
   const t = useT();
 
-  // Frozen snapshot of a saved/shared route: open on the date its owner chose
-  // and print their captured numbers, so a briefing handed out today matches
-  // the route page everyone else is looking at.
+  // Frozen snapshot of a saved/shared route: print the numbers its owner
+  // captured, so a briefing handed out today matches the route page everyone
+  // else is looking at.
   const forecastCtx = useContext(ForecastContext);
   const snapshot = forecastCtx?.snapshot ?? null;
   const avalancheSnap = snapshot?.avalanche ?? null;
   const weatherSnap = snapshot?.weather ?? null;
   const snowSnap = snapshot?.snow ?? null;
 
-  const [date, setDate] = useState(() => avalancheSnap?.date ?? todayLocalYMD());
   const [options, setOptions] = useState<BriefingOptions>(loadOptions);
   const [mapReady, setMapReady] = useState(false);
 
@@ -90,8 +92,12 @@ export function BriefingDialog({
   }, [options]);
 
   const setOption = useCallback((key: keyof BriefingOptions, on: boolean) => {
-    // withDependencies keeps avalanche terrain from being stranded without the
-    // slope angles it has to be read against.
+    // Switching the map back on remounts the canvas and re-fetches its tiles,
+    // so readiness has to be earned again rather than inherited from the last
+    // time it was drawn.
+    if (key === 'map' && on) setMapReady(false);
+    // withDependencies keeps steepness from being stranded without the profile
+    // it colours.
     setOptions((prev) => withDependencies({ ...prev, [key]: on }));
   }, []);
 
@@ -99,7 +105,7 @@ export function BriefingDialog({
   const low = candidates?.lowest ?? null;
   const high = candidates?.highest ?? null;
 
-  // Frozen data only applies while the viewer stays on the captured date;
+  // Frozen data only applies while the sheet stays on the captured date;
   // anything else falls through to a live fetch, exactly as the on-screen
   // panels behave.
   const frozenAvalanche =
@@ -141,13 +147,15 @@ export function BriefingDialog({
   // who switched weather off should not be held at "Preparing…" by MET.
   const weatherLoading = weatherLow.loading || weatherHigh.loading;
   const canPrint =
-    mapReady &&
+    (!options.map || mapReady) &&
     !(options.avalanche && avalanche.loading) &&
     !(options.weather && weatherLoading) &&
     !(options.snow && snow.loading);
 
+  const title = routeName?.trim() || t('Turbriefing', 'Tour briefing');
+
   const data: BriefingData = {
-    routeName: routeName?.trim() || t('Turbriefing', 'Tour briefing'),
+    routeName: title,
     routeDescription: routeDescription?.trim() || null,
     date,
     route,
@@ -183,32 +191,35 @@ export function BriefingDialog({
       aria-label={t('Turbriefing for utskrift', 'Printable tour briefing')}
     >
       <div className="briefingBar">
-        <div className="briefingBarGroup">
-          <span className="briefingBarLabel">{t('Turdato', 'Tour date')}</span>
-          <DatePopover value={date} onChange={setDate} />
+        <div className="briefingBarHead">
+          <h2 className="briefingBarTitle">
+            {t('Eksporter tur', 'Export tour')}{' '}
+            <span className="briefingBarRoute">{title}</span>
+          </h2>
+          <div className="briefingBarActions">
+            <button type="button" className="briefingBtn" onClick={onClose}>
+              {t('Lukk', 'Close')}
+            </button>
+            <button
+              type="button"
+              className="briefingBtn briefingBtnPrimary"
+              onClick={() => window.print()}
+              disabled={!canPrint}
+              title={
+                canPrint
+                  ? t(
+                      'Skriv ut, eller velg «Lagre som PDF» i utskriftsdialogen',
+                      'Print, or choose “Save as PDF” in the print dialog',
+                    )
+                  : t('Forbereder briefingen …', 'Preparing the briefing…')
+              }
+            >
+              {canPrint
+                ? t('Skriv ut / PDF', 'Print / PDF')
+                : t('Forbereder …', 'Preparing…')}
+            </button>
+          </div>
         </div>
-        <div className="briefingBarSpacer" />
-        <button type="button" className="briefingBtn" onClick={onClose}>
-          {t('Lukk', 'Close')}
-        </button>
-        <button
-          type="button"
-          className="briefingBtn briefingBtnPrimary"
-          onClick={() => window.print()}
-          disabled={!canPrint}
-          title={
-            canPrint
-              ? t(
-                  'Skriv ut, eller velg «Lagre som PDF» i utskriftsdialogen',
-                  'Print, or choose “Save as PDF” in the print dialog',
-                )
-              : t('Forbereder briefingen …', 'Preparing the briefing…')
-          }
-        >
-          {canPrint
-            ? t('Skriv ut / PDF', 'Print / PDF')
-            : t('Forbereder …', 'Preparing…')}
-        </button>
 
         <div
           className="briefingSwitches"
@@ -216,24 +227,33 @@ export function BriefingDialog({
           aria-label={t('Innhold på arket', 'What the sheet includes')}
         >
           <span className="briefingBarLabel">{t('Ta med', 'Include')}</span>
-          {/* Stated, not offered: the map is what makes the sheet legible as
-              "this tour" rather than "a tour". A disabled switch here would
-              invite clicking something inert. */}
-          <span className="briefingAlways">
-            <span className="briefingAlwaysMark" aria-hidden>
-              ✓
-            </span>
-            {t('Kart (alltid med)', 'Map (always included)')}
-          </span>
+          <Switch
+            label={t('Kart', 'Map')}
+            checked={options.map}
+            onChange={(on) => setOption('map', on)}
+          />
+          <Switch
+            label={t('Høydeprofil', 'Elevation')}
+            checked={options.elevation}
+            onChange={(on) => setOption('elevation', on)}
+          />
           <Switch
             label={t('Bratthet', 'Steepness')}
             checked={options.steepness}
+            disabled={!options.elevation}
+            hint={
+              options.elevation
+                ? null
+                : t(
+                    'Krever høydeprofilen den fargelegger',
+                    'Needs the elevation profile it colours',
+                  )
+            }
             onChange={(on) => setOption('steepness', on)}
           />
           <Switch
-            label={t('Skredterreng', 'Avalanche terrain')}
+            label={t('Snøskredvarsel', 'Avalanche forecast')}
             checked={options.avalanche}
-            disabled={!options.steepness}
             onChange={(on) => setOption('avalanche', on)}
           />
           <Switch
@@ -251,14 +271,6 @@ export function BriefingDialog({
             checked={options.notes}
             onChange={(on) => setOption('notes', on)}
           />
-          {!options.steepness && (
-            <p className="briefingSwitchHint">
-              {t(
-                'Skredterreng krever bratthet — utløpssoner og faregrad betyr lite uten hellingene de gjelder for.',
-                'Avalanche terrain needs steepness — runout zones and a danger level mean little without the slope angles they apply to.',
-              )}
-            </p>
-          )}
         </div>
       </div>
       <BriefingSheet data={data} />
@@ -268,16 +280,20 @@ export function BriefingDialog({
 }
 
 /** A labelled on/off switch. A real checkbox underneath, so keyboard use,
- *  screen readers and the disabled state all behave without reimplementation. */
+ *  screen readers and the disabled state all behave without reimplementation.
+ *  A disabled switch says why on the same line: greying a control out without
+ *  a reason is how a tool comes to feel broken. */
 function Switch({
   label,
   checked,
   disabled = false,
+  hint = null,
   onChange,
 }: {
   label: string;
   checked: boolean;
   disabled?: boolean;
+  hint?: string | null;
   onChange: (on: boolean) => void;
 }) {
   return (
@@ -291,7 +307,8 @@ function Switch({
         onChange={(e) => onChange(e.target.checked)}
       />
       <span className="briefingSwitchTrack" aria-hidden />
-      {label}
+      <span className="briefingSwitchLabel">{label}</span>
+      {hint && <span className="briefingSwitchHint">{hint}</span>}
     </label>
   );
 }

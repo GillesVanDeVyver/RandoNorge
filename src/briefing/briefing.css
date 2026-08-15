@@ -28,33 +28,56 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 24px;
   background: rgba(9, 16, 24, 0.72);
   backdrop-filter: blur(3px);
   overflow: auto;
-  padding: 16px;
+  /* Room for the page to sit in rather than fill: the preview reads as a sheet
+   * of paper on a desk, not as a document that ran out of screen. */
+  padding: 28px 24px 48px;
 }
 
+/* The control box: what is being exported, how to export it, and what goes
+ * on it — in that order, top to bottom. */
 .briefingBar {
   position: sticky;
   top: 0;
   z-index: 1;
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+  flex-direction: column;
+  gap: 14px;
   width: 100%;
   max-width: 210mm;
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  border-radius: 10px;
+  padding: 16px 18px;
+  border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
 }
 
-.briefingBarGroup {
+.briefingBarHead {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+}
+
+.briefingBarTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--briefing-muted);
+}
+
+.briefingBarRoute {
+  font-weight: 700;
+  color: var(--briefing-ink);
+}
+
+.briefingBarActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .briefingBarLabel {
@@ -65,51 +88,47 @@
   color: var(--briefing-muted);
 }
 
-/* Pushes the Close / Print pair to the right edge of the bar. */
-.briefingBarSpacer {
-  flex: 1 1 auto;
-}
-
 /* ---------- Section switches -------------------------------------------- */
 
-/* The switches wrap onto their own line so the bar reads top-to-bottom as
- * "which day / what goes on it / print it" rather than as one long row. */
+/* One switch per line, in print order. A row of switches invites reading them
+ * as a toolbar of unrelated toggles; a column reads as the sheet's contents,
+ * which is what it is. */
 .briefingSwitches {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 14px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   width: 100%;
-  padding-top: 10px;
+  padding-top: 12px;
   border-top: 1px solid var(--briefing-rule);
 }
 
-/* The map is not optional, so it is stated rather than offered. Showing it
- * greyed-out next to the switches would invite clicking something inert. */
-.briefingAlways {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--briefing-muted);
-  padding: 4px 10px 4px 8px;
-  border-radius: 999px;
-  background: var(--briefing-tint);
-}
-
-.briefingAlwaysMark {
-  font-weight: 700;
-  color: #0f766e;
+.briefingSwitches .briefingBarLabel {
+  margin-bottom: 6px;
 }
 
 .briefingSwitch {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
+  gap: 9px;
+  /* A full-width hit area: on a phone the label is easier to hit than the
+   * 34-px track, and a list of switches is mostly label. */
+  align-self: stretch;
+  padding: 5px 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+  font-size: 14px;
   color: var(--briefing-ink);
   cursor: pointer;
   user-select: none;
+}
+
+.briefingSwitch:hover {
+  background: var(--briefing-tint);
+}
+
+.briefingSwitchLabel {
+  flex: none;
 }
 
 /* The real checkbox stays in the accessibility tree and keeps keyboard and
@@ -158,8 +177,8 @@
   outline-offset: 2px;
 }
 
-/* Avalanche terrain with steepness off: still visible, so the dependency is
- * discoverable, but plainly not available. */
+/* Steepness with the profile off: still visible, so the dependency is
+ * discoverable, but plainly not available — and saying so on the same line. */
 .briefingSwitch input:disabled + .briefingSwitchTrack {
   background: #e2e8ee;
 }
@@ -169,10 +188,13 @@
   cursor: not-allowed;
 }
 
+.briefingSwitchDisabled:hover {
+  background: none;
+}
+
 .briefingSwitchHint {
-  flex-basis: 100%;
-  margin: 0;
   font-size: 12px;
+  font-style: italic;
   color: var(--briefing-muted);
 }
 
@@ -210,16 +232,19 @@
 /* ---------- The sheet --------------------------------------------------- */
 
 .briefingSheet {
-  /* A4 minus the @page margin set below. */
-  width: 190mm;
-  min-height: 277mm;
+  /* Full A4 on screen, with the @page margin drawn as real white space, so
+   * the preview is a sheet of paper rather than ink running to the edge. In
+   * print the width and the padding both come off: @page supplies them, and
+   * doubling them would shrink the content by 20 mm. */
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm;
   box-sizing: border-box;
   background: #fff;
   color: var(--briefing-ink);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 8.6pt;
   line-height: 1.35;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 3.2mm;
@@ -303,6 +328,30 @@
   grid-template-columns: 1fr 58mm;
   gap: 4mm;
   align-items: stretch;
+}
+
+/* Without the map, the facts panel is the whole width — as a row of figures
+ * rather than a narrow column stranded against white space. */
+.briefingTopNoMap {
+  grid-template-columns: 1fr;
+}
+
+.briefingTopNoMap .briefingFacts {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.briefingTopNoMap .briefingFact {
+  flex: 1 1 34mm;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5mm;
+  border-bottom: 0;
+  border-right: 0.6pt solid var(--briefing-rule);
+}
+
+.briefingTopNoMap .briefingFact:last-child {
+  border-right: 0;
 }
 
 .briefingMapFrame {
@@ -709,7 +758,9 @@
     width: auto;
     min-height: 0;
     box-shadow: none;
-    /* The @page margin supplies the paper edge. */
+    /* The @page margin supplies the paper edge; the preview's own padding
+     * would otherwise be added to it. */
+    padding: 0;
     margin: 0;
     /* Flex containers fragment unevenly across pages; with every section
      * switched on the sheet is allowed to run onto a second page, so it

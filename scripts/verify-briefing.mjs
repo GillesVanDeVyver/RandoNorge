@@ -8,15 +8,15 @@
 // all things the screen would let you notice and paper will not.
 //
 // It is also the hardest part of the app to eyeball, because it only exists
-// once a route, a profile, three network sources and five switches have all
+// once a route, a profile, three network sources and seven switches have all
 // lined up. So this harness builds those inputs by hand and renders the sheet
 // for real, server-side, under every combination of switches.
 //
 // WHAT IS CHECKED, AND WHY THESE THINGS
 //
-//   1. The switch dependency. Avalanche terrain is an extra layer on top of
-//      steepness; a danger level next to a plain elevation line invites the
-//      reader to place it on terrain the sheet never coloured.
+//   1. The switch dependency. Steepness is a way of drawing the elevation
+//      profile, not a section of its own, so it cannot survive the profile
+//      being switched off.
 //   2. The summary of a model with holes in it. seNorge answers on a 1 km
 //      grid and sometimes does not answer at all; the summary has to say so
 //      rather than average its way past it.
@@ -73,16 +73,21 @@ ok(
   'defaults cover every option key',
 );
 ok(
-  withDependencies({ ...allOn, steepness: false }).avalanche === false,
-  'turning steepness off also turns avalanche terrain off',
+  withDependencies({ ...allOn, elevation: false }).steepness === false,
+  'turning the elevation profile off also turns steepness off',
 );
 ok(
-  withDependencies({ ...allOn, steepness: false }).snow === true,
-  'the dependency reaches avalanche terrain only, not the other sections',
+  withDependencies({ ...allOn, elevation: false }).avalanche === true &&
+    withDependencies({ ...allOn, elevation: false }).snow === true,
+  'the dependency reaches steepness only, not the other sections',
 );
 ok(
-  withDependencies(allOn).avalanche === true,
-  'with steepness on, avalanche terrain is left alone',
+  withDependencies(allOn).steepness === true,
+  'with the profile on, steepness is left alone',
+);
+ok(
+  withDependencies({ ...allOn, map: false }).elevation === true,
+  'the map carries no dependency: it can be dropped on its own',
 );
 
 // ---------------------------------------------------------------------------
@@ -287,10 +292,10 @@ function makeData(options, over = {}) {
   };
 }
 
-/** Every combination of the five switches, with the dependency applied — 32
+/** Every combination of the seven switches, with the dependency applied — 128
  *  nominal, fewer distinct, and all of them reachable by clicking. */
 const combos = [];
-for (let mask = 0; mask < 32; mask++) {
+for (let mask = 0; mask < 128; mask++) {
   const raw = {};
   OPTION_KEYS.forEach((k, i) => {
     raw[k] = Boolean(mask & (1 << i));
@@ -303,21 +308,30 @@ const BAD = ['NaN', 'undefined', 'Infinity', 'null cm', '[object Object]'];
 let renderedAll = 0;
 for (const options of combos) {
   const html = render(makeData(options));
-  const name = OPTION_KEYS.filter((k) => options[k]).join('+') || 'map only';
+  const name = OPTION_KEYS.filter((k) => options[k]).join('+') || 'facts only';
   renderedAll++;
 
   for (const bad of BAD) {
     ok(!html.includes(bad), `[${name}] never prints "${bad}"`);
   }
 
-  // The map is the thing that makes the sheet legible as *this* tour.
-  ok(html.includes('briefingMapFrame'), `[${name}] the map is always drawn`);
+  // The route's own numbers are what make the sheet this tour rather than a
+  // tour, so they print whatever else is switched off.
+  ok(html.includes('briefingFacts'), `[${name}] the route facts always print`);
   ok(
-    html.includes('briefingProfileSvg'),
-    `[${name}] the elevation profile is always drawn`,
+    html.includes('Sk\u00e5la'),
+    `[${name}] the route name always prints`,
   );
 
   // Sections leave completely when switched off.
+  ok(
+    options.map === html.includes('briefingMapFrame'),
+    `[${name}] the map follows its switch`,
+  );
+  ok(
+    options.elevation === html.includes('briefingProfileSvg'),
+    `[${name}] the elevation profile follows its switch`,
+  );
   ok(
     options.avalanche === html.includes('briefingDangerBadge'),
     `[${name}] the danger banner follows its switch`,
@@ -329,6 +343,10 @@ for (const options of combos) {
   ok(
     options.steepness === html.includes('briefingBandFill'),
     `[${name}] the steepness bands follow their switch`,
+  );
+  ok(
+    options.steepness === /Utl\u00f8pssoner|Runout zones/.test(html),
+    `[${name}] runout exposure follows steepness, not the Varsom switch`,
   );
   ok(
     options.snow === html.includes('briefingSnowSvg'),
@@ -344,7 +362,12 @@ for (const options of combos) {
   );
 
   // Attribution is a consequence of what is on the page, not a fixed line.
-  ok(html.includes('Kartverket'), `[${name}] the map is always credited`);
+  // Kartverket is the exception: the ascent and high point in the facts are
+  // its elevations, and those print on every sheet.
+  ok(
+    html.includes('Kartverket'),
+    `[${name}] Kartverket is credited for the elevations even with no map`,
+  );
   ok(
     options.avalanche === html.includes('Varsom'),
     `[${name}] Varsom is credited when its warning is printed`,
@@ -358,15 +381,15 @@ for (const options of combos) {
     `[${name}] MET is credited when its forecast is printed`,
   );
 
-  // The profile is always drawn, but only coloured by slope when asked; the
-  // plain teal is the planner's own route colour.
+  // When the profile is drawn it is coloured by slope only if asked; the plain
+  // teal is the planner's own route colour.
   const colouredBySlope = /stroke="#(?!0f766e)[0-9a-f]{6}"/i.test(html);
   ok(
     options.steepness === colouredBySlope,
     `[${name}] the profile is coloured by slope only when steepness is on`,
   );
 }
-ok(renderedAll === 32, 'every switch combination rendered');
+ok(renderedAll === 128, 'every switch combination rendered');
 
 section('Rendered sheet: awkward inputs');
 

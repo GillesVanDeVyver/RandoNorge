@@ -318,7 +318,10 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
   // Credit only the sources that actually contributed to this print: a footer
   // citing Varsom on a sheet with no avalanche section is a small lie.
   const credits = [
-    `${t('Kart', 'Map')} © Kartverket (CC BY 4.0)`,
+    // Kartverket is credited on every sheet, with or without the map: the
+    // ascent and the high point in the facts panel are its elevations, and
+    // those print whatever else is switched off.
+    `${options.map ? t('Kart og høyder', 'Map and elevations') : t('Høyder', 'Elevations')} © Kartverket (CC BY 4.0)`,
     options.steepness
       ? `${t('Bratthet og utløp', 'Steepness and runout')} © NVE`
       : null,
@@ -347,12 +350,19 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         </div>
       </header>
 
-      <section className="briefingTop briefingSection">
-        <MapPicture
-          route={route}
-          steepness={options.steepness}
-          onReady={onMapReady}
-        />
+      {/* The route's own numbers are not a section: they are what makes the
+          sheet this tour. With the map switched off they widen into a row
+          rather than leaving a column-shaped hole where it was. */}
+      <section
+        className={`briefingTop briefingSection ${options.map ? '' : 'briefingTopNoMap'}`}
+      >
+        {options.map && (
+          <MapPicture
+            route={route}
+            steepness={options.steepness}
+            onReady={onMapReady}
+          />
+        )}
         <div className="briefingFacts">
           <Fact label={t('Lengde', 'Distance')} value={km(stats.distance)} />
           <Fact label={t('Stigning', 'Ascent')} value={metres(stats.ascent)} />
@@ -467,9 +477,11 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         </section>
       )}
 
-      {/* The profile is route shape, not an add-on, so it prints either way —
-          the steepness switch decides whether it is coloured by slope angle or
-          drawn as a plain line. */}
+      {/* Steepness is a way of drawing the profile rather than a section of
+          its own: with it on, the line is coloured by slope angle and carries
+          the band breakdown and runout exposure; with it off, the same line is
+          drawn plain. */}
+      {options.elevation && (
       <section className="briefingSection">
         <h2 className="briefingH2">
           {options.steepness
@@ -479,7 +491,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         <ProfileSvg
           profile={profile}
           steepness={options.steepness}
-          runout={options.avalanche}
+          runout={options.steepness}
         />
         {options.steepness && terrain && !terrain.slopeUnknown && (
           <>
@@ -515,7 +527,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             </div>
           </>
         )}
-        {options.avalanche && terrain && (
+        {options.steepness && terrain && (
           <p className="briefingTerrainNote">
             {terrain.runout.metres > 0 ? (
               <>
@@ -542,6 +554,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           </p>
         )}
       </section>
+      )}
 
       {options.snow && (
         <section className="briefingSection">

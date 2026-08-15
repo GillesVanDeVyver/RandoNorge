@@ -437,6 +437,8 @@ function App({
   // The printable one-page tour briefing (map, steepness, profile, weather and
   // the Varsom warning for the chosen day), opened from the drawing toolbar.
   const [briefingOpen, setBriefingOpen] = useState(false);
+  // The tour date the briefing describes, captured when the dialog is opened.
+  const [briefingDate, setBriefingDate] = useState<string>(todayIso);
   // Transient "Route saved" confirmation, mirroring the clear-undo toast.
   const [savedToast, setSavedToast] = useState(false);
   const savedToastTimer = useRef<number | null>(null);
@@ -1117,7 +1119,19 @@ function App({
             // control only appears once that has been computed rather than
             // offering a button that would open an empty page.
             onPrintBriefing={
-              elevation.profile ? () => setBriefingOpen(true) : undefined
+              elevation.profile
+                ? () => {
+                    // The briefing describes the day the planner is already
+                    // showing, so it reads the avalanche panel's date at the
+                    // moment it opens instead of carrying a date control of
+                    // its own. Read here, in an event handler, because the
+                    // panels publish into a ref.
+                    setBriefingDate(
+                      forecastCapture.current.avalancheDate ?? todayIso(),
+                    );
+                    setBriefingOpen(true);
+                  }
+                : undefined
             }
             collapsible={isMobile}
           />
@@ -1511,6 +1525,7 @@ function App({
           <BriefingDialog
             route={route}
             profile={elevation.profile}
+            date={briefingDate}
             routeName={savedMeta?.name}
             routeDescription={savedMeta?.description}
             onClose={() => setBriefingOpen(false)}
