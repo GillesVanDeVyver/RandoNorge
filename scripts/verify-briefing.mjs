@@ -240,6 +240,33 @@ function hours({ skip = [] } = {}) {
   return out;
 }
 
+/** What MET actually serves past its hourly window: entries every six hours,
+ *  stamped at 00/06/12/18 **UTC**. Built in UTC on purpose — the point of this
+ *  fixture is that those instants fall on odd *local* hours (01/07/13/19 in
+ *  Norwegian winter, 02/08/14/20 in summer), which is what defeated the old
+ *  three-hourly thinning. Only the entries that land inside 14 March locally
+ *  are kept, because that day-slicing is the dialog's job and has already
+ *  happened by the time the sheet sees them. */
+function sixHourlyUTC() {
+  const out = [];
+  for (let h = -6; h <= 30; h += 6) {
+    const at = new Date(Date.UTC(2026, 2, 14, h, 0, 0));
+    if (at.getDate() !== 14) continue; // local day, matching hoursOnDate
+    out.push({
+      time: at.toISOString(),
+      temperature: -3 + h * 0.2,
+      windSpeed: 8,
+      windGust: 14,
+      windFromDeg: 290,
+      symbolCode: 'cloudy',
+      precipMm: 1.2,
+      precipMinMm: 0.4,
+      precipMaxMm: 2.6,
+    });
+  }
+  return out;
+}
+
 const warning = {
   regionId: 3029,
   regionName: 'Indre Fjordane',
@@ -297,6 +324,7 @@ function makeData(options, over = {}) {
       fetchedAt: HIGH_FETCHED_AT,
     },
     weatherLoading: false,
+    weatherDate: '2026-03-14',
     snow: {
       depths: [profile.segments[0].map((_, i) => 30 + i * 6)],
       date: '2026-03-14',
@@ -423,7 +451,7 @@ for (const options of combos) {
   const flat = plain(html);
   ok(
     options.weather === /(V\u00e6r|Weather) \u00b7 MET \u00b7 [^<]*2026/.test(flat),
-    `[${name}] the weather heading carries the tour date`,
+    `[${name}] the weather heading carries the day it forecasts`,
   );
   ok(
     options.snow ===
@@ -526,14 +554,38 @@ ok(renderedAll === 128, 'every switch combination rendered');
 section('Rendered sheet: awkward inputs');
 
 // Both anchors present: the two forecasts share rows rather than stacking two
-// tables, and a full day is thinned to daylight hours at three-hour steps —
-// 06, 09, 12, 15, 18, 21. A briefing does not need 03:00.
+// tables, and every hour handed in gets a row. The sheet prints the forecast at
+// whatever resolution MET published it — it used to thin to daylight hours at
+// three-hour steps, which threw away detail and, past MET's hourly window,
+// threw away the entire forecast (see below).
 const paired = render(makeData(DEFAULT_OPTIONS));
 const bodyRows = (paired.split('<tbody>')[1] ?? '').split('<tr').length - 1;
-ok(bodyRows === 6, `a full day thins to six daylight rows (got ${bodyRows})`);
+ok(bodyRows === 24, `a full hourly day prints all 24 rows (got ${bodyRows})`);
 ok(
   (paired.match(/briefingGroupHead/g) ?? []).length === 2,
   'both anchors get their own column group',
+);
+
+// The bug this fixture exists for: beyond roughly 48 hours MET stops publishing
+// hourly and switches to six-hourly entries stamped at 00/06/12/18 UTC, which
+// land on odd local hours in Norway. The sheet must print those rows like any
+// others — the old three-hour filter matched none of them, so a tour more than
+// two days out printed an empty weather section while the screen showed the
+// forecast in full.
+const sixHourly = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherLow: { elevationM: 420, hours: sixHourlyUTC(), fetchedAt: LOW_FETCHED_AT },
+    weatherHigh: { elevationM: 1480, hours: sixHourlyUTC(), fetchedAt: HIGH_FETCHED_AT },
+  }),
+);
+const sixHourlyRows = (sixHourly.split('<tbody>')[1] ?? '').split('<tr').length - 1;
+ok(
+  sixHourlyRows === sixHourlyUTC().length,
+  `a six-hourly forecast prints every entry (got ${sixHourlyRows} of ${sixHourlyUTC().length})`,
+);
+ok(
+  !sixHourly.includes('briefingEmpty') || sixHourly.includes('briefingWeatherTable'),
+  'a six-hourly forecast renders a table rather than the empty-weather message',
 );
 
 // A hole in one anchor's series must leave a gap in that anchor's columns, not
@@ -548,7 +600,7 @@ const gappy = render(
   }),
 );
 const gappyRows = (gappy.split('<tbody>')[1] ?? '').split('<tr').length - 1;
-ok(gappyRows === 6, 'a missing hour on one anchor does not drop a row');
+ok(gappyRows === 24, 'a missing hour on one anchor does not drop a row');
 ok(
   gappy.includes('\u2013'),
   'the missing hour prints as a dash rather than the next hour\u2019s numbers',
@@ -591,7 +643,7 @@ const noWeatherFetch = render(
 );
 ok(
   headings(noWeatherFetch).some((h) => /MET/.test(h)),
-  'the weather heading still names MET and the tour date',
+  'the weather heading still names MET and the day it forecasts',
 );
 ok(
   retrievedLines(noWeatherFetch).length === 2,
@@ -600,6 +652,31 @@ ok(
 ok(
   !retrievedLines(noWeatherFetch).some((line) => /07:32|09:53/.test(line)),
   'no other section inherits the weather timestamps',
+);
+
+// The weather panel keeps its own day selection, which need not be the tour
+// date the avalanche panel supplies. When the two differ the weather heading
+// has to name the day it is actually showing — a table of Sunday's forecast
+// under Saturday's date is worse than no heading, because it reads as fact.
+const otherDay = render(
+  makeData(DEFAULT_OPTIONS, { weatherDate: '2026-03-15' }),
+);
+const weatherHeading =
+  headings(otherDay).find((h) => /MET/.test(h)) ?? '';
+ok(
+  /15\.? mars|15 March/.test(weatherHeading),
+  `the weather heading follows the weather panel's day (got "${weatherHeading}")`,
+);
+ok(
+  !/14\.? mars|14 March/.test(weatherHeading),
+  'the weather heading does not fall back to the tour date once a day is chosen',
+);
+// The other two sections are on their own dates and must not have moved.
+ok(
+  headings(otherDay).some(
+    (h) => /Varsom/.test(h) && /14\.? mars|14 March/.test(h),
+  ),
+  'the avalanche heading keeps the tour date when the weather day differs',
 );
 
 // The tour is next week; seNorge cannot model it. The sheet must say which

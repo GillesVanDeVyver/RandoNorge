@@ -90,6 +90,11 @@ export interface BriefingData {
   weatherLow: BriefingAnchor;
   weatherHigh: BriefingAnchor;
   weatherLoading: boolean;
+  /** The day (YYYY-MM-DD) the weather rows were sliced to — whichever day the
+   *  weather panel is showing, which is usually but not always the tour date.
+   *  Printed in the heading so a briefing prepared while looking ahead at, say,
+   *  Sunday's forecast can't be mistaken for Saturday's. */
+  weatherDate: string;
   /** seNorge depths along the route, and the date they actually describe. */
   snow: SnowData | null;
   snowLoading: boolean;
@@ -191,15 +196,6 @@ function precip(h: WeatherHour): string | null {
   return null;
 }
 
-/** Daylight-hours slice of the forecast, every three hours. A tour briefing
- *  does not need 03:00. */
-function briefingHours(hours: WeatherHour[]): WeatherHour[] {
-  return hours.filter((h) => {
-    const hour = new Date(h.time).getHours();
-    return hour >= 6 && hour <= 21 && hour % 3 === 0;
-  });
-}
-
 interface WeatherRow {
   time: string;
   low: WeatherHour | null;
@@ -208,16 +204,25 @@ interface WeatherRow {
 
 /** One row per hour with the valley and summit readings side by side. Merged
  *  on the timestamp rather than by position, so a gap in one anchor's series
- *  can't silently shift the other's numbers up a row. */
+ *  can't silently shift the other's numbers up a row.
+ *
+ *  Every hour handed in gets a row — the sheet prints the forecast at exactly
+ *  the resolution MET published it, matching the panel on screen. This used to
+ *  thin the series to daylight hours divisible by three, which was wrong twice
+ *  over: it dropped detail MET had for the near days, and past the hourly
+ *  window (~48 h) MET switches to six-hourly entries at 00/06/12/18 UTC, which
+ *  land on odd local hours in Norway — 01/07/13/19 in winter, 02/08/14/20 in
+ *  summer. None of those divide by three, so a tour more than two days out
+ *  printed an empty weather section while the screen showed the forecast. */
 function weatherRows(
   low: BriefingAnchor,
   high: BriefingAnchor,
 ): WeatherRow[] {
   const byTime = new Map<string, WeatherRow>();
-  for (const h of briefingHours(low.hours)) {
+  for (const h of low.hours) {
     byTime.set(h.time, { time: h.time, low: h, high: null });
   }
-  for (const h of briefingHours(high.hours)) {
+  for (const h of high.hours) {
     const row = byTime.get(h.time);
     if (row) row.high = h;
     else byTime.set(h.time, { time: h.time, low: null, high: h });
@@ -358,6 +363,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
     weatherLow,
     weatherHigh,
     weatherLoading,
+    weatherDate,
     snow,
     snowLoading,
     snowDate,
@@ -679,8 +685,12 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
 
       {options.weather && (
         <section className="briefingSection">
+          {/* weatherDate, not the tour date: the rows are whatever day the
+              weather panel was showing when the briefing was opened, and a
+              heading that named a different day than the table would be worse
+              than no heading at all. */}
           <h2 className="briefingH2">
-            {t('Vær', 'Weather')} · MET · {longDate(date)}
+            {t('Vær', 'Weather')} · MET · {longDate(weatherDate)}
           </h2>
           <Retrieved
             at={olderFetch(weatherLow.fetchedAt, weatherHigh.fetchedAt)}

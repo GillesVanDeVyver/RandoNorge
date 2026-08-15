@@ -441,6 +441,15 @@ function App({
   const [briefingOpen, setBriefingOpen] = useState(false);
   // The tour date the briefing describes, captured when the dialog is opened.
   const [briefingDate, setBriefingDate] = useState<string>(todayIso);
+  // The day the weather table prints. Captured separately from the tour date
+  // because the weather panel has its own day chips: someone comparing
+  // Saturday's avalanche bulletin against Sunday's weather should get the
+  // forecast they are actually looking at, not a silent substitution. Null
+  // until the panel has published, and then the sheet falls back to the tour
+  // date.
+  const [briefingWeatherDate, setBriefingWeatherDate] = useState<string | null>(
+    null,
+  );
   // Transient "Route saved" confirmation, mirroring the clear-undo toast.
   const [savedToast, setSavedToast] = useState(false);
   const savedToastTimer = useRef<number | null>(null);
@@ -1131,6 +1140,9 @@ function App({
                     setBriefingDate(
                       forecastCapture.current.avalancheDate ?? todayIso(),
                     );
+                    setBriefingWeatherDate(
+                      forecastCapture.current.weatherDay ?? null,
+                    );
                     setBriefingOpen(true);
                   }
                 : undefined
@@ -1528,6 +1540,7 @@ function App({
             route={route}
             profile={elevation.profile}
             date={briefingDate}
+            weatherDate={briefingWeatherDate}
             routeName={savedMeta?.name}
             routeDescription={savedMeta?.description}
             onClose={() => setBriefingOpen(false)}

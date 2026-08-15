@@ -52,6 +52,10 @@ interface Props {
   /** Tour date (YYYY-MM-DD) the forecasts describe — the day the planner is
    *  showing, captured when the dialog opened. */
   date: string;
+  /** Day (YYYY-MM-DD) the weather table should cover, captured from the weather
+   *  panel's own day selection. Null when the panel has not published one, in
+   *  which case the tour date stands in. */
+  weatherDate?: string | null;
   /** Saved routes carry a name and description; an unsaved working route
    *  falls back to a generic title so the sheet never prints "undefined". */
   routeName?: string | null;
@@ -63,9 +67,12 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 const toYMDLocal = (d: Date) =>
   `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
-/** Hours of the forecast that fall on the tour date, in local time — the same
+/** Hours of the forecast that fall on the given date, in local time — the same
  *  local-day grouping the weather panel uses, so the printed table and the
- *  on-screen chart agree about which hours belong to the day. */
+ *  on-screen chart agree about which hours belong to the day. Every hour that
+ *  falls inside the day is kept: MET publishes hourly for the first couple of
+ *  days and six-hourly after that, and the sheet prints whatever resolution it
+ *  was given rather than deciding for the reader which hours matter. */
 function hoursOnDate(hours: WeatherHour[] | null, ymd: string): WeatherHour[] {
   if (!hours) return [];
   return hours.filter((h) => toYMDLocal(new Date(h.time)) === ymd);
@@ -75,6 +82,7 @@ export function BriefingDialog({
   route,
   profile,
   date,
+  weatherDate = null,
   routeName,
   routeDescription,
   onClose,
@@ -204,6 +212,12 @@ export function BriefingDialog({
 
   const title = routeName?.trim() || t('Turbriefing', 'Tour briefing');
 
+  // The weather panel keeps its own day selection, which need not be the tour
+  // date — the tour date comes from the avalanche panel. Follow the weather
+  // panel where it has one, and print the day in the heading so the two dates
+  // on the sheet are never ambiguous.
+  const weatherDay = weatherDate ?? date;
+
   const data: BriefingData = {
     routeName: title,
     routeDescription: routeDescription?.trim() || null,
@@ -217,15 +231,16 @@ export function BriefingDialog({
     avalancheFetchedAt: avalanche.fetchedAt,
     weatherLow: {
       elevationM: low ? Math.round(low.elevation) : null,
-      hours: hoursOnDate(weatherLow.hours, date),
+      hours: hoursOnDate(weatherLow.hours, weatherDay),
       fetchedAt: weatherLow.fetchedAt,
     },
     weatherHigh: {
       elevationM: high ? Math.round(high.elevation) : null,
-      hours: hoursOnDate(weatherHigh.hours, date),
+      hours: hoursOnDate(weatherHigh.hours, weatherDay),
       fetchedAt: weatherHigh.fetchedAt,
     },
     weatherLoading,
+    weatherDate: weatherDay,
     snow: snow.snow,
     snowLoading: snow.loading,
     snowDate,
