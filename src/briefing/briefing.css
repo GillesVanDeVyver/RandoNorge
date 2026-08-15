@@ -2,11 +2,17 @@
  *
  * THE VERTICAL BUDGET
  *
- * A4 is 297 mm and the sheet keeps a 10 mm edge, so there are 277 mm to spend.
- * Nothing here guarantees one page — the guide decides how many sections go on
- * it, and no wording in the app promises a page count — but the layout is
- * budgeted so that the common sheets land on one, including the default with
- * every section switched on. Roughly, with all of them on:
+ * Every length in this file is a SHEET millimetre, not a paper millimetre. The
+ * sheet is drawn at 75% (see --briefing-zoom on .briefingSheet), so 4 sheet mm
+ * reach the paper as 3. That is deliberate: the figures below stay the sizes
+ * the layout was reasoned in, and the shrink happens once, in one place.
+ *
+ * In sheet units an A4 page is 396 mm tall, less a 13.3 mm edge top and bottom,
+ * leaving about 369 mm to spend. Nothing here guarantees one page — the guide
+ * decides how many sections go on it, and no wording in the app promises a page
+ * count — but the layout is budgeted so the common sheets land on one,
+ * including the default with every section switched on. Roughly, with all of
+ * them on (sheet mm; multiply by 0.75 for paper):
  *
  *     header                14      map + key facts       68
  *     danger banner         30      avalanche problems    17
@@ -15,11 +21,12 @@
  *     footer + gaps         33
  *                                          total     ~ 270 mm
  *
- * The figures are approximate: several blocks hold text of unknown length, and
- * those are the ones that used to push the sheet over. They are clamped rather
- * than trusted — see .briefingSubtitle and .briefingDangerText. If a section
- * needs to grow, take the height from somewhere else in this list rather than
- * from the margin, which is thin on purpose.
+ * That leaves roughly 100 sheet mm (75 mm of paper) of headroom, which is what
+ * absorbs the blocks holding text of unknown length — a wordy Varsom bulletin,
+ * a long route description. Those are clamped as well rather than trusted, at
+ * .briefingSubtitle and .briefingDangerText, because headroom is the thing that
+ * gets spent first and the clamps are what stop one verbose region from
+ * costing a second sheet.
  *
  * Deliberately a PLAIN stylesheet, not a CSS module. The print rules below
  * have to reach outside the component tree — hiding the entire app so only the
@@ -300,14 +307,35 @@
 /* ---------- The sheet --------------------------------------------------- */
 
 .briefingSheet {
-  /* Full A4 on screen, with the paper edge drawn as real white space, so the
+  /* Everything on the sheet is drawn at 75% of its stated size, which buys
+   * back a third more room and is what gets most routes onto one page.
+   *
+   * It is done here, once, rather than by editing the forty-odd type sizes and
+   * millimetre figures further down. Those figures are how the layout was
+   * reasoned about — an 11 mm notes box is two ruled lines, the map frame is
+   * 128 mm wide because that is what is left beside a 58 mm facts panel — and
+   * rewriting them all as 0.75 of themselves would destroy that reasoning and
+   * quietly drift out of proportion the first time one was touched. So the
+   * sheet keeps describing itself at full size and is drawn small.
+   *
+   * `zoom` rather than `transform: scale()` on purpose: zoom reflows, so the
+   * content still paginates and a sheet that does overrun breaks across pages
+   * properly. A transform would draw a shrunken page and clip it.
+   *
+   * The sheet's own box is therefore stated 1/0.75 larger, so that once zoomed
+   * it lands on a real A4 with a real 10 mm edge. Change the one number and
+   * the whole sheet rescales in proportion.
+   *
+   * Full A4 on screen, with the paper edge drawn as real white space, so the
    * preview is a sheet rather than ink running to the trim. The same 10 mm is
    * kept in print — @page carries no margin there, to starve the browser's own
    * header and footer of the space they are drawn in. Only the fixed width
    * comes off, so the sheet takes the real paper size. */
-  width: 210mm;
-  min-height: 297mm;
-  padding: 10mm;
+  --briefing-zoom: 0.75;
+  zoom: var(--briefing-zoom);
+  width: calc(210mm / var(--briefing-zoom));
+  min-height: calc(297mm / var(--briefing-zoom));
+  padding: calc(10mm / var(--briefing-zoom));
   box-sizing: border-box;
   background: #fff;
   color: var(--briefing-ink);
@@ -892,10 +920,12 @@
     min-height: 0;
     box-shadow: none;
     /* @page has no margin, so the sheet draws the paper edge itself — the same
-     * 10 mm it shows on screen. `clone` asks for that padding on every
-     * fragment, so a briefing that runs onto a second page keeps its top edge
-     * there too; browsers that ignore it simply slice as before. */
-    padding: 10mm;
+     * 10 mm it shows on screen. Stated 1/zoom larger like everything else, so
+     * it comes out as a true 10 mm on paper rather than a shrunken 7.5. `clone`
+     * asks for that padding on every fragment, so a briefing that runs onto a
+     * second page keeps its top edge there too; browsers that ignore it simply
+     * slice as before. */
+    padding: calc(10mm / var(--briefing-zoom));
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
     margin: 0;

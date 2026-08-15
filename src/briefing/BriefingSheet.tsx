@@ -34,8 +34,11 @@ import { translate } from '../i18n/locale.ts';
 
 // The map canvas is rendered well above its printed size: print renderers
 // output at far more than the 96 dpi the CSS pixel implies, and a canvas sized
-// for the screen prints visibly soft. 1280x860 backing pixels across ~128 mm of
-// paper works out around 250 dpi — sharp enough for contour lines.
+// for the screen prints visibly soft. The frame is 128 sheet mm wide, which is
+// 96 mm on paper once the sheet's 75% zoom is applied, so 1280 backing pixels
+// land at well over 300 dpi — sharp enough for contour lines, and the shrink
+// only made it sharper.
+//
 // The map's backing pixels. The ratio between these two has to stay in step
 // with `aspect-ratio` on .briefingMapFrame — the frame decides the shape on
 // paper and the canvas fills it, so a mismatch stretches the terrain.
@@ -798,7 +801,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
       {options.notes && (
         <section className="briefingNotes briefingSection">
           <h2 className="briefingH2">
-            {t('Plan, vendepunkt og notater', 'Plan, turnaround and notes')}
+            {t('Notater', 'Notes')}
           </h2>
           <div className="briefingNoteLines" aria-hidden />
         </section>
