@@ -232,10 +232,11 @@
 /* ---------- The sheet --------------------------------------------------- */
 
 .briefingSheet {
-  /* Full A4 on screen, with the @page margin drawn as real white space, so
-   * the preview is a sheet of paper rather than ink running to the edge. In
-   * print the width and the padding both come off: @page supplies them, and
-   * doubling them would shrink the content by 20 mm. */
+  /* Full A4 on screen, with the paper edge drawn as real white space, so the
+   * preview is a sheet rather than ink running to the trim. The same 10 mm is
+   * kept in print — @page carries no margin there, to starve the browser's own
+   * header and footer of the space they are drawn in. Only the fixed width
+   * comes off, so the sheet takes the real paper size. */
   width: 210mm;
   min-height: 297mm;
   padding: 10mm;
@@ -708,9 +709,14 @@
 
 /* ---------- Print ------------------------------------------------------- */
 
+/* A zero page margin is the only way to be rid of the browser's own print
+ * header and footer — the page title, the print date, the planner URL and the
+ * page number that Chrome and Safari draw into that margin. There is no CSS
+ * that switches them off; leaving them no room is what works. The 10 mm paper
+ * edge is therefore drawn by the sheet itself in print (see below). */
 @page {
   size: A4 portrait;
-  margin: 10mm;
+  margin: 0;
 }
 
 @media print {
@@ -751,9 +757,13 @@
     width: auto;
     min-height: 0;
     box-shadow: none;
-    /* The @page margin supplies the paper edge; the preview's own padding
-     * would otherwise be added to it. */
-    padding: 0;
+    /* @page has no margin, so the sheet draws the paper edge itself — the same
+     * 10 mm it shows on screen. `clone` asks for that padding on every
+     * fragment, so a briefing that runs onto a second page keeps its top edge
+     * there too; browsers that ignore it simply slice as before. */
+    padding: 10mm;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
     margin: 0;
     /* Flex containers fragment unevenly across pages; with every section
      * switched on the sheet is allowed to run onto a second page, so it

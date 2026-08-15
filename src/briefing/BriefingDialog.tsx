@@ -168,10 +168,12 @@ export function BriefingDialog({
     weatherLow: {
       elevationM: low ? Math.round(low.elevation) : null,
       hours: hoursOnDate(weatherLow.hours, date),
+      fetchedAt: weatherLow.fetchedAt,
     },
     weatherHigh: {
       elevationM: high ? Math.round(high.elevation) : null,
       hours: hoursOnDate(weatherHigh.hours, date),
+      fetchedAt: weatherHigh.fetchedAt,
     },
     weatherLoading,
     snow: snow.snow,

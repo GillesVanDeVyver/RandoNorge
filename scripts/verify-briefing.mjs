@@ -266,9 +266,13 @@ const warning = {
 
 const profile = makeProfile(24, 420, 1480, { slope: 34, runout: 2 });
 
-// A fixed moment, so the retrieval line the sheet prints is something the
-// harness can actually look for. 13 March 2026, 18:20 local.
-const FETCHED_AT = new Date(2026, 2, 13, 18, 20, 0).getTime();
+// Fixed moments, so the retrieval lines the sheet prints are something the
+// harness can actually look for. Each source gets its own minute, which is
+// also how a heading that quoted the wrong source's clock would be caught.
+const FETCHED_AT = new Date(2026, 2, 13, 18, 20, 0).getTime(); // Varsom
+const SNOW_FETCHED_AT = new Date(2026, 2, 14, 5, 41, 0).getTime(); // seNorge
+const LOW_FETCHED_AT = new Date(2026, 2, 14, 7, 32, 0).getTime(); // MET, older
+const HIGH_FETCHED_AT = new Date(2026, 2, 14, 9, 53, 0).getTime(); // MET, newer
 
 function makeData(options, over = {}) {
   return {
@@ -282,13 +286,21 @@ function makeData(options, over = {}) {
     avalancheRegions: [warning],
     avalancheLoading: false,
     avalancheFetchedAt: FETCHED_AT,
-    weatherLow: { elevationM: 420, hours: hours() },
-    weatherHigh: { elevationM: 1480, hours: hours() },
+    weatherLow: {
+      elevationM: 420,
+      hours: hours(),
+      fetchedAt: LOW_FETCHED_AT,
+    },
+    weatherHigh: {
+      elevationM: 1480,
+      hours: hours(),
+      fetchedAt: HIGH_FETCHED_AT,
+    },
     weatherLoading: false,
     snow: {
       depths: [profile.segments[0].map((_, i) => 30 + i * 6)],
       date: '2026-03-14',
-      fetchedAt: Date.now(),
+      fetchedAt: SNOW_FETCHED_AT,
     },
     snowLoading: false,
     snowDate: '2026-03-14',
@@ -396,9 +408,27 @@ for (const options of combos) {
       /(Sn\u00f8dybde|Snow depth) \u00b7 seNorge \u00b7 [^<]*2026/.test(flat),
     `[${name}] the snow heading carries the date it was modelled for`,
   );
+
+  // Every forecast section states when it was retrieved, and states its own
+  // source's clock — each fixture uses a different minute, so a heading that
+  // borrowed another section's timestamp would fail here rather than pass.
   ok(
     options.avalanche === /(hentet|retrieved) [^<]*18:20/.test(flat),
     `[${name}] the avalanche heading carries the moment it was retrieved`,
+  );
+  ok(
+    options.snow === /(hentet|retrieved) [^<]*05:41/.test(flat),
+    `[${name}] the snow heading carries the moment it was retrieved`,
+  );
+  // Two anchors, one line: the older fetch, so the sheet never reads fresher
+  // than its stalest half.
+  ok(
+    options.weather === /(hentet|retrieved) [^<]*07:32/.test(flat),
+    `[${name}] the weather heading carries the older of the two fetches`,
+  );
+  ok(
+    !/09:53/.test(flat),
+    `[${name}] the newer anchor's fetch is not the one printed`,
   );
 
   // Attribution is a consequence of what is on the page, not a fixed line.
@@ -448,7 +478,11 @@ ok(
 // pull the following hour's numbers up a row against the other anchor's.
 const gappy = render(
   makeData(DEFAULT_OPTIONS, {
-    weatherHigh: { elevationM: 1480, hours: hours({ skip: [12] }) },
+    weatherHigh: {
+      elevationM: 1480,
+      hours: hours({ skip: [12] }),
+      fetchedAt: HIGH_FETCHED_AT,
+    },
   }),
 );
 const gappyRows = (gappy.split('<tbody>')[1] ?? '').split('<tr').length - 1;
@@ -462,12 +496,36 @@ ok(
 // end): the table narrows rather than printing empty columns.
 const oneAnchor = render(
   makeData(DEFAULT_OPTIONS, {
-    weatherHigh: { elevationM: null, hours: [] },
+    weatherHigh: { elevationM: null, hours: [], fetchedAt: null },
   }),
 );
 ok(
   (oneAnchor.match(/briefingGroupHead/g) ?? []).length === 1,
   'a missing anchor drops its column group instead of printing blanks',
+);
+ok(
+  /(hentet|retrieved) [^<]*07:32/.test(plain(oneAnchor)),
+  'the anchor that did answer supplies the retrieval time on its own',
+);
+
+// Neither anchor answered: no moment to print, and no dangling separator.
+const noWeatherFetch = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherLow: { elevationM: 420, hours: hours(), fetchedAt: null },
+    weatherHigh: { elevationM: 1480, hours: hours(), fetchedAt: null },
+  }),
+);
+const wxHead = plain(noWeatherFetch).match(
+  /<h2 class="briefingH2">([^<]*MET[^<]*)</,
+);
+ok(Boolean(wxHead), 'the weather heading still names MET and the tour date');
+ok(
+  wxHead != null && !/(hentet|retrieved)/.test(wxHead[1]),
+  'with no fetch time the weather heading claims no retrieval',
+);
+ok(
+  wxHead != null && !/\u00b7\s*$/.test(wxHead[1]),
+  'the weather heading does not trail a dangling separator',
 );
 
 // The tour is next week; seNorge cannot model it. The sheet must say which
@@ -489,8 +547,8 @@ const empty = render(
   makeData(DEFAULT_OPTIONS, {
     avalancheLevel: 0,
     avalancheRegions: [],
-    weatherLow: { elevationM: 420, hours: [] },
-    weatherHigh: { elevationM: 1480, hours: [] },
+    weatherLow: { elevationM: 420, hours: [], fetchedAt: null },
+    weatherHigh: { elevationM: 1480, hours: [], fetchedAt: null },
     snow: null,
   }),
 );

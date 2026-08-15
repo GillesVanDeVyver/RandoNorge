@@ -45,6 +45,10 @@ const MAP_SCALE = 2;
 export interface BriefingAnchor {
   elevationM: number | null;
   hours: WeatherHour[];
+  /** Epoch ms this anchor's forecast came back from MET, or null when nothing
+   *  arrived. The two anchors are asked for together, but either can be served
+   *  from cache, so the heading prints the older of the two. */
+  fetchedAt: number | null;
 }
 
 export interface BriefingData {
@@ -107,6 +111,24 @@ function retrievedAt(ms: number): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+/** " · retrieved <when>", or nothing when a source never answered: a heading
+ *  must not trail a separator into a blank. Every forecast section carries one
+ *  of these, because paper cannot say how old it is any other way. */
+function retrievedSuffix(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms)) return '';
+  return ` · ${translate('hentet', 'retrieved')} ${retrievedAt(ms)}`;
+}
+
+/** The older of two fetch times, ignoring the ones that never happened. The
+ *  weather section asks for both anchors together but either can come from
+ *  cache, and the honest single moment to print is the stalest one. */
+function olderFetch(a: number | null, b: number | null): number | null {
+  const known = [a, b].filter(
+    (n): n is number => n != null && Number.isFinite(n),
+  );
+  return known.length > 0 ? Math.min(...known) : null;
 }
 
 function km(m: number): string {
@@ -421,9 +443,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             one that was fetched a week ago. */}
         <h2 className="briefingH2">
           {t('Snøskredvarsel', 'Avalanche forecast')} · Varsom
-          {avalancheFetchedAt != null &&
-            Number.isFinite(avalancheFetchedAt) &&
-            ` · ${t('hentet', 'retrieved')} ${retrievedAt(avalancheFetchedAt)}`}
+          {retrievedSuffix(avalancheFetchedAt)}
         </h2>
         <div className="briefingDanger">
           <div
@@ -582,6 +602,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         <section className="briefingSection">
           <h2 className="briefingH2">
             {t('Snødybde', 'Snow depth')} · seNorge · {longDate(snowDate)}
+            {retrievedSuffix(snow?.fetchedAt)}
           </h2>
           {snowSummary ? (
             <>
@@ -632,6 +653,9 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         <section className="briefingSection">
           <h2 className="briefingH2">
             {t('Vær', 'Weather')} · MET · {longDate(date)}
+            {retrievedSuffix(
+              olderFetch(weatherLow.fetchedAt, weatherHigh.fetchedAt),
+            )}
           </h2>
           {rows.length > 0 ? (
             <table className="briefingTable briefingWeatherTable">
