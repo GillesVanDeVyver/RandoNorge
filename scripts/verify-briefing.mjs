@@ -335,6 +335,14 @@ const retrievedLines = (html) =>
     (m) => m[1],
   );
 
+/** The declared width of every column in the weather table, as a number of
+ *  percent. Under `table-layout: fixed` these widths are the whole story, so
+ *  they are worth checking as numbers rather than trusting the markup. */
+const colWidths = (html) =>
+  [...html.matchAll(/<col style="width:([\d.]+)%"\/?>/g)].map((m) =>
+    Number(m[1]),
+  );
+
 /** Every section heading, as plain text. */
 const headings = (html) =>
   [...plain(html).matchAll(/<h2 class="briefingH2">([^<]*)<\/h2>/g)].map(
@@ -422,6 +430,34 @@ for (const options of combos) {
       /(Sn\u00f8dybde|Snow depth) \u00b7 seNorge \u00b7 [^<]*2026/.test(flat),
     `[${name}] the snow heading carries the date it was modelled for`,
   );
+  ok(
+    options.avalanche ===
+      /(Sn\u00f8skredvarsel|Avalanche forecast) \u00b7 Varsom \u00b7 [^<]*2026/.test(
+        flat,
+      ),
+    `[${name}] the avalanche heading carries the date it was asked for`,
+  );
+
+  // The weather table is laid out fixed, so a colgroup that miscounts the
+  // anchors would push columns off the paper. One col per rendered column, and
+  // the widths have to come to a whole table.
+  const cols = colWidths(html);
+  if (options.weather) {
+    ok(
+      cols.length === 7,
+      `[${name}] the weather table declares a width for all seven columns`,
+    );
+    ok(
+      Math.abs(cols.reduce((a, b) => a + b, 0) - 100) < 0.001,
+      `[${name}] the declared column widths fill the table exactly`,
+    );
+    ok(
+      new Set(cols.slice(1).map((w) => w.toFixed(4))).size === 1,
+      `[${name}] the six forecast columns are equal, so the anchors line up`,
+    );
+  } else {
+    ok(cols.length === 0, `[${name}] no weather table, no colgroup`);
+  }
 
   // Every forecast section states when it was retrieved, on a line of its own
   // below the heading. Each fixture uses a different minute, so a section that
@@ -533,6 +569,17 @@ ok(
   retrievedLines(oneAnchor).some((line) => /07:32/.test(line)),
   'the anchor that did answer supplies the retrieval time on its own',
 );
+// The colgroup has to narrow with it. A six-column colgroup over a four-column
+// table is exactly the kind of overhang that only shows up on paper.
+const oneAnchorCols = colWidths(oneAnchor);
+ok(
+  oneAnchorCols.length === 4,
+  'a missing anchor narrows the colgroup to match the table',
+);
+ok(
+  Math.abs(oneAnchorCols.reduce((a, b) => a + b, 0) - 100) < 0.001,
+  'the narrowed columns still fill the table exactly',
+);
 
 // Neither anchor answered: there is no moment to print, so the sub-line must
 // be absent altogether rather than an empty or half-written label.
@@ -603,8 +650,8 @@ for (const bad of BAD) {
 // must be absent rather than empty.
 const noFetch = render(makeData(DEFAULT_OPTIONS, { avalancheFetchedAt: null }));
 ok(
-  headings(noFetch).some((h) => /Varsom/.test(h)),
-  'the avalanche heading still names its source',
+  headings(noFetch).some((h) => /Varsom \u00b7 [^<]*2026/.test(h)),
+  'the avalanche heading still names its source and the date it speaks for',
 );
 ok(
   retrievedLines(noFetch).length === 2,

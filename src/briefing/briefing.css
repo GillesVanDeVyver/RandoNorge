@@ -666,6 +666,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A numeric column has to align as one thing, header included. `.briefingTable
+ * th` is more specific than `.briefingNum` alone, so without this the headers
+ * stayed left while their figures sat right and every column printed as two
+ * ragged stacks. Both cell types are spelled out so neither can drift back. */
+.briefingTable th.briefingNum,
+.briefingTable td.briefingNum {
+  text-align: right;
+}
+
 /* Paired low/high columns. The two anchors are read against each other one
  * hour at a time, so they share rows; a rule between the groups keeps the eye
  * from sliding from the valley's wind into the summit's temperature. */
@@ -685,6 +694,16 @@
 .briefingWeatherTable th {
   padding-left: 1.2mm;
   padding-right: 1.2mm;
+}
+
+/* Fixed layout, with the widths coming from the colgroup the sheet emits. The
+ * automatic algorithm sizes each column to its own contents, so a two-digit
+ * temperature in the valley and a minus sign on the summit give the two trios
+ * different widths — and the one comparison this table exists to support is
+ * reading straight across from one anchor to the other. Equal columns also
+ * stop the rules between the groups from wandering down the page. */
+.briefingWeatherTable {
+  table-layout: fixed;
 }
 
 /* Avalanche problems */

@@ -40,6 +40,11 @@ const MAP_W = 1280;
 const MAP_H = 860;
 const MAP_SCALE = 2;
 
+// Width of the weather table's time column, as a percentage; the forecast
+// columns split what is left evenly between them. "06:00" needs very little
+// room, and every millimetre spent here is taken from the readings.
+const TIME_COL_PCT = 10;
+
 /** One end of the route as a weather anchor: the forecast, plus the elevation
  *  it applies to (a summit reading means little without its height). */
 export interface BriefingAnchor {
@@ -65,8 +70,9 @@ export interface BriefingData {
   avalancheRegions: AvalancheWarning[];
   avalancheLoading: boolean;
   /** Epoch ms the bulletin was fetched from Varsom, or null when nothing was
-   *  retrieved. Printed instead of the tour date: bulletins are rewritten
-   *  during the day, and a saved route replays whatever was captured. */
+   *  retrieved. Printed alongside the tour date, not instead of it: bulletins
+   *  are rewritten during the day, and a saved route replays whatever was
+   *  captured, so the day it describes and its age are separate facts. */
   avalancheFetchedAt: number | null;
   /** Forecast at both ends of the route, printed side by side: the difference
    *  between valley and summit is usually the decision-relevant part. */
@@ -358,6 +364,8 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
   const rows = options.weather ? weatherRows(weatherLow, weatherHigh) : [];
   const showLow = rows.some((r) => r.low);
   const showHigh = rows.some((r) => r.high);
+  // Three readings per anchor, and either anchor can be absent.
+  const weatherCols = (showLow ? 3 : 0) + (showHigh ? 3 : 0);
   const snowSummary = options.snow ? summariseSnow(profile, snow) : null;
   // Credit only the sources that actually contributed to this print: a footer
   // citing Varsom on a sheet with no avalanche section is a small lie.
@@ -444,12 +452,14 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           sits directly under the map with the level's own colour. */}
       {options.avalanche && (
       <section className="briefingSection">
-        {/* No tour date on this one: a bulletin is rewritten during the day,
-            and a sheet printed from a saved route can be replaying one that
-            was fetched a week ago. The retrieval line below is the only honest
-            thing to date it by. */}
+        {/* Dated like the weather and snow headings: the bulletin was asked for
+            on the tour date, so that is the day this section speaks for. It has
+            to be said out loud rather than assumed, because a bulletin is
+            rewritten during the day and a saved route can be replaying one
+            captured a week ago — which is what the retrieval line below is
+            for. Heading answers "which day", sub-line answers "how old". */}
         <h2 className="briefingH2">
-          {t('Snøskredvarsel', 'Avalanche forecast')} · Varsom
+          {t('Snøskredvarsel', 'Avalanche forecast')} · Varsom · {longDate(date)}
         </h2>
         <Retrieved at={avalancheFetchedAt} />
         <div className="briefingDanger">
@@ -666,6 +676,20 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           />
           {rows.length > 0 ? (
             <table className="briefingTable briefingWeatherTable">
+              {/* The table is laid out fixed, so the widths have to be stated
+                  here. They are counted rather than hard-coded because either
+                  anchor can be missing — a summit-only sheet gets three
+                  columns, not six, and a colgroup written for six would leave
+                  half the table hanging off the paper. */}
+              <colgroup>
+                <col style={{ width: `${TIME_COL_PCT}%` }} />
+                {Array.from({ length: weatherCols }, (_, i) => (
+                  <col
+                    key={i}
+                    style={{ width: `${(100 - TIME_COL_PCT) / weatherCols}%` }}
+                  />
+                ))}
+              </colgroup>
               <thead>
                 {/* Two header rows: the anchors span their three columns, so
                     the valley and summit readings can be compared down the
