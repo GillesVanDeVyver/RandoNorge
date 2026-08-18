@@ -15,22 +15,32 @@
  * them on (sheet mm; multiply by 0.75 for paper):
  *
  *     header                14      map + key facts       68
- *     danger banner         30      avalanche problems    17
- *     profile + steepness   43      snow                  28
- *     weather table         52      notes                 17
+ *     danger banner         24      avalanche problems    17
+ *     profile + steepness   46      snow                  31
+ *     weather table         53      notes                 17
  *     footer + gaps         33
- *                                          total     ~ 282 mm
+ *                                          total     ~ 303 mm
  *
  * The weather table is at most six rows — 06 to midnight in three-hour periods,
  * built in BriefingSheet.tsx — so it cannot grow with the forecast. That matters:
  * it once printed a row per hour, which put a 24-row table on the page and
- * pushed a fully switched-on sheet well past the fold. Its 52 mm is six body
+ * pushed a fully switched-on sheet well past the fold. Its 53 mm is six body
  * rows of 5 mm icon plus 1.8 mm of padding, over two header rows of about
- * 9.5 mm; that is roughly 19 mm more than the four denser six-hour rows it
- * replaced, and the one deliberate increase in this budget. A coarse far-out
+ * 9.5 mm, inside the card's two hairlines; that is roughly 20 mm more than the
+ * four denser six-hour rows it replaced, and the one deliberate increase in this
+ * budget that bought information rather than resemblance. A coarse far-out
  * forecast keeps MET's own longer periods and prints fewer rows still.
  *
- * That leaves roughly 86 sheet mm (65 mm of paper) of headroom, which is what
+ * The figures above are what the sheet costs once it is drawn as the planner's
+ * panels rather than as a document about them. Wrapping each chart in the app's
+ * card is +3 mm apiece, in padding and two hairlines, and the weather card is
+ * +0.5 mm. That is paid for out of the danger banner, which came down 6 mm when
+ * its badge stopped being a 20 mm colour bar running the full height of the box
+ * and became the app's 8.8 mm square: the banner's height is now set by the
+ * three clamped lines of bulletin text inside it, which is the only thing there
+ * whose length is not known in advance.
+ *
+ * That leaves roughly 66 sheet mm (50 mm of paper) of headroom, which is what
  * absorbs the blocks holding text of unknown length — a wordy Varsom bulletin,
  * a long route description. Those are clamped as well rather than trusted, at
  * .briefingSubtitle and .briefingDangerText, because headroom is the thing that
@@ -49,11 +59,69 @@
  * the printer lays out.
  */
 
+/* ---------- Print tokens ------------------------------------------------- */
+
+/* THE APP'S SCALE, IN SHEET MILLIMETRES
+ *
+ * The sheet is meant to read as the planner's own panels rather than as a
+ * report about them, so the shapes here are the app's shapes: rounded hairline
+ * cards, a tinted uppercase header band above a ruled table, the same tints on
+ * the same numbers. Only the units differ. The app is laid out in CSS pixels
+ * (src/index.css); this page is laid out in sheet millimetres.
+ *
+ * The conversion is fixed by the body text, which is the one length both sides
+ * had to choose independently: the app sets 13 px, the sheet 8 pt = 2.82 mm.
+ * That gives 0.217 mm per app pixel, rounded here to
+ *
+ *     1 app px = 0.2 sheet mm
+ *
+ * which is the same ratio to within a few percent and turns the app's 4-px grid
+ * into clean figures: 4 px = 0.8 mm, 8 px = 1.6 mm, 12 px = 2.4 mm, and a 1-px
+ * hairline = 0.2 mm, which is 0.57 pt and so the 0.6 pt rules already used
+ * throughout this file. Multiply by the sheet's 0.75 zoom for paper.
+ *
+ * Two things deliberately do NOT take the app's value, both for the same
+ * reason — a home printer at 0.75 zoom cannot resolve what a backlit screen
+ * can, and the point of this page is to be read in a car park:
+ *
+ *   - Type never goes below the sheet's existing 7.4 pt. The app's 11 px label
+ *     would map to 6.2 pt, which lands at 4.7 pt on paper. So the small
+ *     uppercase labels take the app's TREATMENT (caps, letter-spacing, weight,
+ *     muted colour) at the sheet's size.
+ *   - Faint greys stay at the sheet's values. The app's #f1f2f4 gridline and
+ *     #9ca3af tick label disappear on cheap paper; --briefing-grid and
+ *     --briefing-axis below are the same elements a shade or two darker.
+ *
+ * Everything else — radii, gaps, band tints, the chart gradients, the danger
+ * badge — is the app's, converted. */
 :root {
   --briefing-ink: #14202b;
   --briefing-muted: #5c6b7a;
   --briefing-rule: #d3dce5;
   --briefing-tint: #f4f7fa;
+
+  /* The app's --radius-md (12 px) and --radius-sm (8 px). Every card on the
+   * sheet is one of these two, as on screen. */
+  --briefing-radius-md: 2.4mm;
+  --briefing-radius-sm: 1.6mm;
+
+  /* The app's --space-1/2/3 (4 / 8 / 12 px). */
+  --briefing-gap-1: 0.8mm;
+  --briefing-gap-2: 1.6mm;
+  --briefing-gap-3: 2.4mm;
+
+  /* One hairline weight for every card edge and row rule, the printed
+   * equivalent of the app's 1px --hairline. */
+  --briefing-hairline: 0.6pt;
+
+  /* The app's --surface-3, flattened over white: the tint under a table's
+   * header row and behind an inset icon well. */
+  --briefing-band: #f5f7fa;
+
+  /* Chart furniture. See the note above on why these are darker than the
+   * screen's #f1f2f4 / #9ca3af. */
+  --briefing-grid: #e3e9ef;
+  --briefing-axis: #6b7885;
 }
 
 /* ---------- Screen-only preview chrome ---------------------------------- */
@@ -473,7 +541,7 @@
   align-items: flex-start;
   gap: 0.5mm;
   border-bottom: 0;
-  border-right: 0.6pt solid var(--briefing-rule);
+  border-right: var(--briefing-hairline) solid var(--briefing-rule);
 }
 
 .briefingTopNoMap .briefingFact:last-child {
@@ -482,8 +550,8 @@
 
 .briefingMapFrame {
   position: relative;
-  border: 0.6pt solid var(--briefing-rule);
-  border-radius: 1.5mm;
+  border: var(--briefing-hairline) solid var(--briefing-rule);
+  border-radius: var(--briefing-radius-md);
   overflow: hidden;
   background: var(--briefing-tint);
   /* Must stay in step with MAP_W / MAP_H in BriefingSheet.tsx. */
@@ -515,8 +583,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  border: 0.6pt solid var(--briefing-rule);
-  border-radius: 1.5mm;
+  border: var(--briefing-hairline) solid var(--briefing-rule);
+  border-radius: var(--briefing-radius-md);
   overflow: hidden;
 }
 
@@ -526,7 +594,7 @@
   justify-content: space-between;
   gap: 3mm;
   padding: 1.5mm 2.5mm;
-  border-bottom: 0.6pt solid var(--briefing-rule);
+  border-bottom: var(--briefing-hairline) solid var(--briefing-rule);
 }
 
 .briefingFact:last-child {
@@ -546,55 +614,78 @@
 
 /* Danger banner */
 
+/* The avalanche panel's own layout: a square tile in the level's colour beside
+ * the level's name, its region, and the forecaster's headline. It used to be a
+ * 20 mm colour bar running the full height of the box, which made the sheet's
+ * loudest element a shape the planner never shows. */
 .briefingDanger {
   display: flex;
-  gap: 3mm;
-  align-items: stretch;
-  border: 0.6pt solid var(--briefing-rule);
-  border-radius: 1.5mm;
-  overflow: hidden;
+  gap: var(--briefing-gap-3);
+  align-items: flex-start;
+  padding: var(--briefing-gap-2) var(--briefing-gap-3);
+  border: var(--briefing-hairline) solid var(--briefing-rule);
+  border-radius: var(--briefing-radius-md);
 }
 
+/* The app's 44-px badge: a --radius-md square of the level's colour with the
+ * figure centred in it. 8.8 mm here, 6.6 mm printed — still the largest single
+ * glyph on the page, which is right for the one number that decides whether
+ * the tour happens. */
 .briefingDangerBadge {
   flex: none;
-  width: 20mm;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5mm;
-  padding: 2mm 1mm;
-  background: #e9edf1;
-  color: var(--briefing-ink);
+  width: 8.8mm;
+  height: 8.8mm;
+  border-radius: var(--briefing-radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--briefing-band);
+  color: var(--briefing-muted);
+  font-variant-numeric: tabular-nums;
 }
 
+/* The app's --text-xl (26 px). No box-shadow to go with it: the app's
+ * --shadow-1 is a 1-px blur that a printer renders as a grey smudge along two
+ * edges of the tile, which reads as a printing fault rather than as depth. */
 .briefingDangerNum {
-  font-size: 21pt;
-  font-weight: 800;
+  font-size: 14.7pt;
+  font-weight: 700;
   line-height: 1;
 }
 
-.briefingDangerOf {
-  font-size: 6.6pt;
-  opacity: 0.85;
-  letter-spacing: 0.04em;
+/* An unrated level takes the app's .badgeUnrated: there is no colour to show,
+ * so the tile becomes a bordered well and stops claiming to be a danger level.
+ * The default colours above are already that state's; this only adds the edge
+ * the fill would otherwise have provided. */
+.briefingDangerUnrated {
+  border: var(--briefing-hairline) solid var(--briefing-rule);
 }
 
 .briefingDangerBody {
   flex: 1;
-  padding: 2mm 2.5mm 2mm 0;
   min-width: 0;
 }
 
+/* The app's .label (13 px / 600). The scale that the level belongs to follows
+ * it in the muted weight — "Betydelig · 3 av 5". On screen the badge is one of
+ * six sitting in a legend, so the reader can see what 3 is out of; on paper the
+ * only badge is this one, and the denominator has to be written down. */
 .briefingDangerLabel {
-  font-size: 11pt;
+  font-size: 9.4pt;
   font-weight: 700;
   line-height: 1.15;
 }
 
+.briefingDangerScale {
+  font-size: 8pt;
+  font-weight: 500;
+  color: var(--briefing-muted);
+}
+
+/* The app's .regions (11 px, muted). */
 .briefingDangerRegion {
   font-size: 8pt;
   color: var(--briefing-muted);
+  margin-top: 0.4mm;
   margin-bottom: 1mm;
 }
 
@@ -620,9 +711,9 @@
   display: flex;
   width: 100%;
   height: 5mm;
-  border-radius: 1mm;
+  border-radius: var(--briefing-radius-sm);
   overflow: hidden;
-  border: 0.6pt solid var(--briefing-rule);
+  border: var(--briefing-hairline) solid var(--briefing-rule);
 }
 
 .briefingBandFill {
@@ -632,7 +723,7 @@
 .briefingBandKeys {
   display: flex;
   flex-wrap: wrap;
-  gap: 1mm 4mm;
+  gap: var(--briefing-gap-1) 4mm;
   margin-top: 1.5mm;
 }
 
@@ -649,6 +740,31 @@
   border-radius: 0.6mm;
   border: 0.4pt solid rgba(0, 0, 0, 0.25);
   flex: none;
+}
+
+/* ---------- Chart cards -------------------------------------------------- */
+
+/* The frame the planner draws around a chart: a hairline card with the same
+ * --radius-sm corners and the faint top-down wash that lifts the plot off the
+ * page. Both charts on the sheet sit in one of these, as they do on screen,
+ * which is most of what makes them read as the app's charts rather than as
+ * figures in a document.
+ *
+ * The app's --shadow-1 is left off for the reason given at .briefingDangerNum.
+ * The asymmetric padding is the app's chart inset: room on the right for the
+ * last distance label to centre itself under its tick without touching the
+ * edge, and almost none at the bottom, where the labels already sit inside the
+ * SVG's own PAD_B. */
+.briefingChartCard {
+  padding: var(--briefing-gap-2) var(--briefing-gap-3) var(--briefing-gap-1)
+    var(--briefing-gap-1);
+  border: var(--briefing-hairline) solid var(--briefing-rule);
+  border-radius: var(--briefing-radius-sm);
+  background-image: linear-gradient(
+    180deg,
+    rgba(248, 250, 252, 0.85) 0%,
+    rgba(255, 255, 255, 0) 60%
+  );
 }
 
 .briefingBandVal {
@@ -669,33 +785,48 @@
   height: 29mm;
 }
 
+/* Horizontal-only, dashed, and no axis or frame lines at all — the planner's
+ * CartesianGrid, which dashes 2 on 4 off and draws neither an axis line nor a
+ * box. The sheet used to close the plot with a solid baseline; a frame is the
+ * detail that makes a chart look like a figure in a report, and dropping it is
+ * the single change that most makes these two read as the app's charts.
+ *
+ * The dash pattern is in viewBox units, and the SVG is stretched
+ * non-uniformly, so it prints a little wider than 2-on-4 — closer to the app's
+ * apparent rhythm than the nominal numbers suggest. */
 .briefingGrid {
-  stroke: #e3e9ef;
+  stroke: var(--briefing-grid);
   stroke-width: 1;
-}
-
-.briefingAxis {
-  stroke: #9aa8b5;
-  stroke-width: 1;
+  stroke-dasharray: 2 4;
 }
 
 .briefingAxisText {
-  fill: #6b7885;
+  fill: var(--briefing-axis);
   font-size: 11px;
 }
 
 .briefingAxisUnit {
-  fill: #9aa8b5;
+  fill: var(--briefing-axis);
   font-size: 10px;
+  opacity: 0.8;
 }
 
-.briefingProfileArea {
-  fill: #eef2f6;
-}
+/* The terrain fill is not here. It is a gradient whose stops live in
+ * ProfileSvg.tsx, and a rule that said only `fill: url(#briefingElevFill)`
+ * put the reference a file away from the definition — so the id had to agree
+ * across two languages, and the harness could not see the fill in the markup
+ * at all. The path names its own gradient inline instead, as SnowSvg's does.
+ * Only properties with no such tie stay in here. */
 
+/* The app draws its steepness line at 4 px with round joins. The sheet's SVG
+ * is stretched to the page, so a stroke stated in viewBox units lands thinner
+ * than the same number of pixels would on screen; 4 here prints at about the
+ * screen's weight, and this line is the one thing on the chart that has to
+ * survive a cheap printer. */
 .briefingProfileLine {
-  stroke-width: 3;
+  stroke-width: 4;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Snow depth — drawn shorter than the profile: it supports the day's picture
@@ -707,32 +838,65 @@
   height: 16mm;
 }
 
+/* The planner's snow surface line: #5b8bc5, thin, and the only firm edge on an
+ * otherwise pale chart, so it is what carries the depth reading. Set in
+ * SnowSvg.tsx alongside the fill it caps. */
 .briefingSnowLine {
   stroke-width: 2;
   stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 /* Weather */
+
+/* The weather panel's card, so the printed table is the screen's table: a
+ * hairline box with --radius-md corners, a tinted header band across the top,
+ * and hairline-ruled rows inside it. `overflow: hidden` is what clips the band
+ * to the rounded corners — a collapsed-border table cannot round its own
+ * outside edges, which is why the card is a wrapper rather than the table. */
+.briefingTableCard {
+  border: var(--briefing-hairline) solid var(--briefing-rule);
+  border-radius: var(--briefing-radius-md);
+  overflow: hidden;
+}
 
 .briefingTable {
   width: 100%;
   border-collapse: collapse;
   font-size: 8pt;
+  font-variant-numeric: tabular-nums;
 }
 
+/* The band. On screen this is --surface-3 under the column labels; here it is
+ * the flattened same tint, and it does the job the old 0.8 pt underline was
+ * doing — separating the labels from the readings — without drawing a line
+ * across the table to do it. */
+.briefingTableCard thead {
+  background: var(--briefing-band);
+}
+
+/* The app's column labels: small caps, letter-spaced, semibold, muted. The size
+ * is the sheet's 7.4 pt rather than the app's 11 px for the reason set out in
+ * the print-token note at the top of this file. */
 .briefingTable th {
   text-align: left;
   font-weight: 600;
   font-size: 7.4pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--briefing-muted);
   padding: 0.8mm 1.5mm;
-  border-bottom: 0.8pt solid var(--briefing-rule);
+  border-bottom: var(--briefing-hairline) solid var(--briefing-rule);
   white-space: nowrap;
 }
 
+/* One hairline between rows, none under the last — the app's .row rule exactly.
+ * This was a lighter #edf1f5 at 0.4 pt, chosen when the table had no card
+ * around it and needed to stay quiet; inside the card the rules are structure
+ * and take the same weight as its edge. */
 .briefingTable td {
   padding: 0.9mm 1.5mm;
-  border-bottom: 0.4pt solid #edf1f5;
+  border-bottom: var(--briefing-hairline) solid var(--briefing-rule);
   white-space: nowrap;
 }
 
@@ -757,16 +921,22 @@
 /* Paired low/high columns. The two anchors are read against each other one
  * hour at a time, so they share rows; a rule between the groups keeps the eye
  * from sliding from the valley's wind into the summit's temperature. */
+/* Not uppercase, unlike the column labels under it. This row names two places
+ * and their heights — "Laveste punkt · 420 m" — and small caps applied to a
+ * measurement makes it read as another label rather than as a value. It also
+ * has no counterpart in the app, which only ever shows one anchor. */
 .briefingWeatherTable th.briefingGroupHead {
   text-align: center;
   color: var(--briefing-ink);
   font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
   border-bottom: 0.4pt solid var(--briefing-rule);
   padding-bottom: 0.4mm;
 }
 
 .briefingWeatherTable .briefingGroupStart {
-  border-left: 0.6pt solid var(--briefing-rule);
+  border-left: var(--briefing-hairline) solid var(--briefing-rule);
 }
 
 .briefingWeatherTable td,
@@ -786,8 +956,9 @@
 }
 
 /* The sky column. MET's own icons, the same files the weather panel uses on
- * screen, which is most of what makes the printed table read as the app's table
- * rather than a spreadsheet of it.
+ * screen — along with the card, the header band and the tinted figures, what
+ * makes the printed table read as the app's table rather than a spreadsheet of
+ * it.
  *
  * Sized here in sheet millimetres rather than by the component's pixel props:
  * everything else on this page is reasoned in sheet mm and shrunk once by the
@@ -844,6 +1015,32 @@
   color: var(--briefing-muted);
 }
 
+/* The weather panel's wind cell, rebuilt for paper: compass letters, mean
+ * speed, the panel's own arrow pointing where the wind is blowing TO, then the
+ * gust. The arrow alone is what the screen shows, because a pointer there has a
+ * tooltip and a whole row of neighbours to be read against; on a sheet in a
+ * glove it has neither, so the letters stay and the arrow is confirmation of
+ * them rather than the only statement of direction.
+ *
+ * Muted like the app's .windArrow, and sized in millimetres for the same reason
+ * the sky icon is — see the note above it. 2.8 mm is the app's 14 px. */
+.briefingWindArrow {
+  display: inline-block;
+  /* Centred on the figures rather than sitting on their baseline, which is
+   * where an inline box lands by default and which left the arrow floating
+   * above the line. */
+  vertical-align: middle;
+  margin: 0 0.2mm;
+  color: var(--briefing-muted);
+  transform-origin: center;
+}
+
+.briefingWindArrow svg {
+  display: block;
+  width: 2.8mm;
+  height: 2.8mm;
+}
+
 /* Avalanche problems */
 
 /* 44 mm rather than 56 mm so that the four problems the sheet is willing to
@@ -857,12 +1054,14 @@
   gap: 2mm;
 }
 
+/* The app's problem card: hairline edge, --radius-md corners, --space-2 by
+ * --space-3 of padding and --space-3 between the rose and the text. */
 .briefingProblem {
   display: flex;
-  gap: 2mm;
-  padding: 1.8mm 2mm;
-  border: 0.6pt solid var(--briefing-rule);
-  border-radius: 1.5mm;
+  gap: var(--briefing-gap-3);
+  padding: var(--briefing-gap-2) var(--briefing-gap-3);
+  border: var(--briefing-hairline) solid var(--briefing-rule);
+  border-radius: var(--briefing-radius-md);
   break-inside: avoid;
 }
 
@@ -882,28 +1081,42 @@
   margin-top: 0.6mm;
 }
 
+/* The app's rose is 26 px across and its geometry is already shared, so the
+ * only thing to match is the size: stated in millimetres rather than left to
+ * the 26-px attributes on the <svg>, for the reason given at the sky icon —
+ * this is the one element on the sheet whose size would otherwise depend on the
+ * renderer's idea of a pixel. 5.2 mm is the app's 26 px. */
 .briefingRose {
   flex: none;
+  width: 5.2mm;
+  height: 5.2mm;
 }
 
 .briefingRoseOn {
-  fill: #14202b;
+  fill: #1f1f1f;
 }
 
+/* The app leaves an unexposed sector at 6% black. That is legible on a backlit
+ * screen beside a filled one; on paper it prints as nothing, and a rose whose
+ * empty sectors are invisible reads as a partial circle rather than as eight
+ * aspects of which three are named. Kept at the sheet's own light grey, which
+ * is the same idea one shade up. */
 .briefingRoseOff {
   fill: #e5eaef;
 }
 
+/* 1 unit in a 26-unit viewBox scaled to 5.2 mm is 0.2 mm — the app's 1-px
+ * hairline, arrived at from the other direction. */
 .briefingRoseRing {
-  stroke: #9aa8b5;
-  stroke-width: 0.8;
+  stroke: var(--briefing-rule);
+  stroke-width: 1;
 }
 
 /* Notes + footer */
 
 .briefingNotes {
-  border: 0.6pt solid var(--briefing-rule);
-  border-radius: 1.5mm;
+  border: var(--briefing-hairline) solid var(--briefing-rule);
+  border-radius: var(--briefing-radius-md);
   padding: 2mm 2.5mm;
 }
 
@@ -926,7 +1139,7 @@
 .briefingFooter {
   margin-top: auto;
   padding-top: 2mm;
-  border-top: 0.6pt solid var(--briefing-rule);
+  border-top: var(--briefing-hairline) solid var(--briefing-rule);
   font-size: 6.8pt;
   color: var(--briefing-muted);
   line-height: 1.4;

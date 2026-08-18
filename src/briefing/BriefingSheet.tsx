@@ -27,7 +27,7 @@ import { summariseTerrain, runoutLevelLabel } from './terrain';
 import { ProfileSvg } from './ProfileSvg';
 import { SnowSvg } from './SnowSvg';
 import { summariseSnow } from './snowSummary';
-import { WeatherSymbol } from '../components/WeatherIcons';
+import { WeatherSymbol, WindArrowIcon } from '../components/WeatherIcons';
 import { renderStaticMap } from './staticMap';
 import type { BriefingOptions } from './options';
 import { useT } from '../i18n/index.ts';
@@ -62,11 +62,17 @@ const TIME_COL_PCT = 10;
 // anchor when MET only answered for one end of the route, and weights rescale
 // where fixed percentages would leave half the paper blank.
 //
-// Unequal on purpose, because the columns are not: "NØ 12 (18)" is three times
+// Unequal on purpose, because the columns are not: "NØ 12 ↘ (18)" is three times
 // the width of "-4°", and the sky is an icon. What has to stay equal is the two
 // anchors, which are read straight across from one another — so both groups take
 // the same weights, and only the pair as a whole scales.
-const COL_WEIGHTS = { sky: 6.5, temp: 8.5, wind: 17, precip: 13 };
+//
+// Declared in the weather panel's own order — sky, temperature, precipitation,
+// wind — and read in that order everywhere below, so the printed columns come out
+// in the sequence someone who has been looking at the screen already expects.
+// Wind is last and widest there because it is the busiest cell, and it grew a
+// little here when the panel's direction arrow joined the compass letters.
+const COL_WEIGHTS = { sky: 6.5, temp: 8.5, precip: 12, wind: 18 };
 const ANCHOR_WEIGHT = Object.values(COL_WEIGHTS).reduce((a, b) => a + b, 0);
 
 /** One end of the route as a weather anchor: the forecast, plus the elevation
@@ -452,22 +458,36 @@ function weatherRows(low: BriefingAnchor, high: BriefingAnchor): WeatherRow[] {
     .filter((r) => r.low != null || r.high != null);
 }
 
-/** Wind as one cell: direction, speed, and the gust in parentheses — laid out
- *  and coloured the way the weather panel lays it out on screen, so a guide who
- *  has read the panel does not have to learn the sheet. Three separate columns
- *  per anchor would not fit twice across the page, and the gust is only ever
- *  read next to the mean anyway.
+/** Wind as one cell: direction in letters, mean speed, the panel's rotating
+ *  arrow, then the gust in parentheses — the weather panel's cell, with one
+ *  thing added. Three separate columns per anchor would not fit twice across the
+ *  page, and the gust is only ever read next to the mean anyway.
  *
- *  Direction is where the wind comes FROM, as MET reports it and as the app's
- *  compass letters say it. The panel's rotating arrow is deliberately left off:
- *  it points where the wind is blowing TO, which is the opposite convention, and
- *  on paper the two together would need a legend the sheet no longer has room
- *  for. Letters cannot be misread. */
+ *  The two direction cues use opposite conventions, which is why both are here
+ *  rather than either alone. MET reports where the wind comes FROM and the
+ *  compass letters say that; the arrow, as on screen, points where it is blowing
+ *  TO. On screen the arrow can be the whole statement, because it sits in a
+ *  column of twenty-four of them whose drift is the actual reading and because
+ *  hovering it names the direction. Paper has neither the column nor the
+ *  tooltip, so the letters carry the fact and the arrow carries the shape of the
+ *  day — which way the wind swings between morning and evening, visible down the
+ *  column at a glance. Letters cannot be misread; an arrow on its own can. */
 function WindCell({ h }: { h: WeatherHour | null }) {
   if (!h) return <>–</>;
+  // The panel's own rotation: the icon points east at rest, MET's angle is the
+  // direction the wind blows FROM, so add 180° to reverse it and subtract 90° to
+  // bring the icon's own zero onto north.
+  const rot = h.windFromDeg + 180 - 90;
   return (
     <>
       {compass(h.windFromDeg)} {Math.round(h.windSpeed)}
+      <span
+        className="briefingWindArrow"
+        style={{ transform: `rotate(${rot}deg)` }}
+        aria-hidden
+      >
+        <WindArrowIcon />
+      </span>
       {h.windGust != null && (
         <span className="briefingGust"> ({Math.round(h.windGust)})</span>
       )}
@@ -487,9 +507,19 @@ function TempCell({ h }: { h: WeatherHour | null }) {
   );
 }
 
+/** Precipitation, in the panel's blue. A dry period prints as nothing at all,
+ *  which is what the panel does and is the whole reason the column reads at a
+ *  glance: the blue figures are the weather, and the gaps between them are the
+ *  dry spells. Filling every dry period with a dash gives the eye six marks to
+ *  discount before it can see the two that matter.
+ *
+ *  A dash is kept for the other case — no reading for this period at all, which
+ *  is a different thing from "no rain" and is what the rest of the row shows too.
+ *  Blank means dry; dash means MET did not say. */
 function PrecipCell({ h }: { h: WeatherHour | null }) {
-  const p = h ? precip(h) : null;
-  if (p == null) return <>–</>;
+  if (!h) return <>–</>;
+  const p = precip(h);
+  if (p == null) return null;
   return <span className="briefingPrecip">{p}</span>;
 }
 
@@ -641,18 +671,18 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
   const rows = options.weather ? weatherRows(weatherLow, weatherHigh) : [];
   const showLow = rows.some((r) => r.low);
   const showHigh = rows.some((r) => r.high);
-  // Four columns per anchor — sky, temperature, wind, precipitation — and either
-  // anchor can be absent. The widths are stated as weights and normalised here,
-  // so one anchor's group takes half the table and two take a quarter each,
-  // while the shape of a group never changes.
+  // Four columns per anchor, in the weather panel's order — sky, temperature,
+  // precipitation, wind — and either anchor can be absent. The widths are stated
+  // as weights and normalised here, so one anchor's group takes half the table
+  // and two take a quarter each, while the shape of a group never changes.
   const anchorCount = (showLow ? 1 : 0) + (showHigh ? 1 : 0);
   const colPct = (weight: number) =>
     (weight * (100 - TIME_COL_PCT)) / (ANCHOR_WEIGHT * Math.max(anchorCount, 1));
   const anchorCols = [
     COL_WEIGHTS.sky,
     COL_WEIGHTS.temp,
-    COL_WEIGHTS.wind,
     COL_WEIGHTS.precip,
+    COL_WEIGHTS.wind,
   ];
   const snowSummary = options.snow ? summariseSnow(profile, snow) : null;
   // Credit only the sources that actually contributed to this print: a footer
@@ -751,8 +781,11 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         </h2>
         <Retrieved at={avalancheFetchedAt} />
         <div className="briefingDanger">
+          {/* The avalanche panel's badge: a square tile in the level's own colour
+              with the figure centred in it, from the same DANGER_LEVELS table the
+              screen reads. */}
           <div
-            className="briefingDangerBadge"
+            className={`briefingDangerBadge${badge ? '' : ' briefingDangerUnrated'}`}
             style={
               badge ? { background: badge.color, color: badge.onColor } : undefined
             }
@@ -760,13 +793,19 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             <span className="briefingDangerNum">
               {avalancheLevel > 0 ? avalancheLevel : '?'}
             </span>
-            <span className="briefingDangerOf">
-              {avalancheLevel > 0 ? t('av 5', 'of 5') : t('ikke vurdert', 'not rated')}
-            </span>
           </div>
           <div className="briefingDangerBody">
+            {/* The scale follows the level's name rather than sitting under the
+                figure as it used to. On screen the badge is one of six in a
+                legend, so what 3 is out of is visible; the sheet prints one
+                badge and no legend, so the denominator is written out. */}
             <div className="briefingDangerLabel">
               {dangerLevelLabel(avalancheLevel)}
+              <span className="briefingDangerScale">
+                {avalancheLevel > 0
+                  ? ` · ${avalancheLevel} ${t('av 5', 'of 5')}`
+                  : ` · ${t('ikke vurdert', 'not rated')}`}
+              </span>
             </div>
             <div className="briefingDangerRegion">
               {lead
@@ -835,11 +874,16 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             ? t('Høydeprofil og bratthet', 'Elevation profile and steepness')
             : t('Høydeprofil', 'Elevation profile')}
         </h2>
-        <ProfileSvg
-          profile={profile}
-          steepness={options.steepness}
-          runout={options.steepness}
-        />
+        {/* The planner's chart card around the planner's chart. Both charts on
+            the sheet get one, which is what supplies the edge now that neither
+            draws an axis line of its own. */}
+        <div className="briefingChartCard">
+          <ProfileSvg
+            profile={profile}
+            steepness={options.steepness}
+            runout={options.steepness}
+          />
+        </div>
         {options.steepness && terrain && !terrain.slopeUnknown && (
           <>
             <div className="briefingBands" aria-hidden>
@@ -911,7 +955,9 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           <Retrieved at={snow?.fetchedAt} />
           {snowSummary ? (
             <>
-              <SnowSvg profile={profile} snow={snow} />
+              <div className="briefingChartCard">
+                <SnowSvg profile={profile} snow={snow} />
+              </div>
               <p className="briefingTerrainNote">
                 {t(
                   `Modellert snødybde ${Math.round(snowSummary.minCm)}–${Math.round(snowSummary.maxCm)} cm langs ruta, i snitt ${Math.round(snowSummary.meanCm)} cm.`,
@@ -967,6 +1013,11 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             at={olderFetch(weatherLow.fetchedAt, weatherHigh.fetchedAt)}
           />
           {rows.length > 0 ? (
+            /* The weather panel's card. A table cannot round its own outside
+               corners once its borders are collapsed, and the tinted header band
+               has to be clipped to those corners, so the card is this wrapper
+               and the table inside it draws only its own rules. */
+            <div className="briefingTableCard">
             <table className="briefingTable briefingWeatherTable">
               {/* The table is laid out fixed, so the widths have to be stated
                   here. They are computed rather than hard-coded because either
@@ -1017,10 +1068,10 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
                       </th>
                       <th className="briefingNum">°C</th>
                       <th className="briefingNum">
-                        {t('Vind m/s (kast)', 'Wind m/s (gust)')}
+                        {t('mm i alt', 'mm total')}
                       </th>
                       <th className="briefingNum">
-                        {t('mm i alt', 'mm total')}
+                        {t('Vind m/s (kast)', 'Wind m/s (gust)')}
                       </th>
                     </Fragment>
                   ))}
@@ -1042,10 +1093,10 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
                             <TempCell h={h} />
                           </td>
                           <td className="briefingNum">
-                            <WindCell h={h} />
+                            <PrecipCell h={h} />
                           </td>
                           <td className="briefingNum">
-                            <PrecipCell h={h} />
+                            <WindCell h={h} />
                           </td>
                         </Fragment>
                       ))}
@@ -1053,6 +1104,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
                 ))}
               </tbody>
             </table>
+            </div>
           ) : (
             <p className="briefingEmpty">
               {weatherLoading

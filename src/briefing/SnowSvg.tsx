@@ -25,9 +25,31 @@ const PAD_B = 24;
 const PLOT_W = W - PAD_L - PAD_R;
 const PLOT_H = H - PAD_T - PAD_B;
 
-// Flat fills rather than the screen's gradient: gradients are the first thing
-// a printer driver renders badly, and they cost ink for no added meaning.
-const SNOW_FILL = '#cfe0f0';
+// The planner's snowpack fill: white at the surface deepening to a cold blue at
+// the ground, which is what makes a pale chart read as snow rather than as a
+// generic area plot. This was a flat #cfe0f0 — chosen on the theory that a
+// printer driver renders a gradient badly — but a four-stop vertical ramp is
+// the one gradient case drivers do handle, and losing it made the printed chart
+// the one panel on the sheet that looked nothing like the screen. The stops are
+// the app's #snowFill stops at the app's offsets, nudged lighter at the deep end
+// so the fill never competes with the surface line drawn on top of it.
+const SNOW_FILL_ID = 'briefingSnowFill';
+const SNOW_STOPS: { at: string; color: string; opacity: number }[] = [
+  { at: '0%', color: '#ffffff', opacity: 0.98 },
+  { at: '35%', color: '#eaf3fb', opacity: 0.95 },
+  { at: '70%', color: '#c8dcee', opacity: 0.9 },
+  { at: '100%', color: '#9dbedd', opacity: 0.9 },
+];
+
+// The snowpack's surface. Left at the app's exact colour and the only firm edge
+// on the chart, so it is what a depth is actually read off.
+//
+// The screen also lays a snowflake pattern over the fill — two flakes per 28-px
+// cell in white strokes. That is not carried over: the cell would come out
+// around 1.5 mm on paper, where two hairline flakes inside it stop being
+// snowflakes and become a grey stipple, and a stipple over a pale gradient is
+// how a chart acquires moire. The gradient and this line are what carry the
+// resemblance; the texture only carried the charm.
 const SNOW_LINE = '#5b8bc5';
 
 export function SnowSvg({
@@ -37,7 +59,8 @@ export function SnowSvg({
   profile: ProfileData;
   snow: SnowData | null;
 }) {
-  const pts = snowSamples(profile, snow).filter((p) => Number.isFinite(p.cm));
+  const all = snowSamples(profile, snow);
+  const pts = all.filter((p) => Number.isFinite(p.cm));
   if (pts.length < 2) return null;
 
   const maxD = profile.stats.distance || 1;
@@ -52,12 +75,27 @@ export function SnowSvg({
 
   // Runs of consecutive points that have data, so gaps in the seNorge grid
   // print as gaps instead of being bridged by an invented straight line.
+  //
+  // What counts as a gap is measured against this route's own sampling, not
+  // against a fraction of its length. The threshold used to be maxD / 40, which
+  // silently assumed every route has at least forty samples; profile.ts
+  // resamples at 20 m, so anything under about 800 m has fewer, every ordinary
+  // step counted as a gap, no run reached two points, and the chart printed
+  // nothing at all. The median step is taken over *all* samples including the
+  // ones the grid had nothing for, so a hole cannot inflate the yardstick it is
+  // about to be measured by. One dropped point leaves a step of twice the
+  // median, so 1.5x separates a real hole from ordinary jitter.
+  const steps: number[] = [];
+  for (let i = 1; i < all.length; i++) steps.push(all[i].d - all[i - 1].d);
+  steps.sort((a, b) => a - b);
+  const median = steps.length > 0 ? steps[steps.length >> 1] : maxD;
+  const maxStep = median * 1.5;
+
   const runs: SnowSample[][] = [];
   let run: SnowSample[] = [];
   let prevD = -Infinity;
   for (const p of pts) {
-    // A jump much larger than the route's own sampling implies dropped points.
-    if (run.length > 0 && p.d - prevD > maxD / 40) {
+    if (run.length > 0 && p.d - prevD > maxStep) {
       runs.push(run);
       run = [];
     }
@@ -77,6 +115,29 @@ export function SnowSvg({
         'Snow depth along the route',
       )}
     >
+      {/* Pinned to the plot's own top and bottom rather than to each path's
+          bounding box, so a run of deep snow and a run of shallow snow are
+          shaded on the same scale. Same reasoning as ProfileSvg's fill. */}
+      <defs>
+        <linearGradient
+          id={SNOW_FILL_ID}
+          gradientUnits="userSpaceOnUse"
+          x1={0}
+          y1={PAD_T}
+          x2={0}
+          y2={PAD_T + PLOT_H}
+        >
+          {SNOW_STOPS.map((s) => (
+            <stop
+              key={s.at}
+              offset={s.at}
+              stopColor={s.color}
+              stopOpacity={s.opacity}
+            />
+          ))}
+        </linearGradient>
+      </defs>
+
       {ticks(0, yMax, 3).map((cm) => (
         <g key={cm}>
           <line
@@ -109,7 +170,7 @@ export function SnowSvg({
             <g key={i}>
               <path
                 d={`M ${x(r[0].d)} ${base} L ${line} L ${x(r[r.length - 1].d)} ${base} Z`}
-                fill={SNOW_FILL}
+                fill={`url(#${SNOW_FILL_ID})`}
               />
               <path
                 d={`M ${line}`}
@@ -120,14 +181,12 @@ export function SnowSvg({
             </g>
           );
         })}
-
-      <line
-        x1={PAD_L}
-        x2={W - PAD_R}
-        y1={PAD_T + PLOT_H}
-        y2={PAD_T + PLOT_H}
-        className="briefingAxis"
-      />
+      {/* No ground line, for the same reason the profile has no baseline: the
+          planner's charts have no axis lines, and the card around this SVG
+          draws the edge. Here it also removes an ambiguity — a solid rule along
+          the bottom of a snow-depth chart looks like the ground, which would
+          make a gap in the seNorge grid read as bare ground rather than as no
+          data. */}
     </svg>
   );
 }

@@ -33,6 +33,25 @@ const PLOT_H = H - PAD_T - PAD_B;
  *  own route teal, so the line reads as "the route" and nothing more. */
 const PLAIN_COLOR = '#0f766e';
 
+/** The planner's terrain fill, lightened for paper.
+ *
+ *  The chart on screen runs a top-lit earth ramp — #a89072 at 55% opacity down
+ *  through #7a624a and #544334 to #332821 at 95% — and that ramp is most of what
+ *  makes the profile recognisable as the app's. Printed as-is it fails twice:
+ *  the bottom two-thirds become a solid block of toner across the widest
+ *  element on the page, and the dark red (#730000) and dark blue (#004DA8) ends
+ *  of the steepness and runout scales drawn on top of it stop being visible at
+ *  all. Every stop is therefore taken up in lightness and down in opacity,
+ *  keeping the ramp's direction and its warmth. The four stops are the app's
+ *  four, at the app's offsets. */
+const ELEV_FILL_ID = 'briefingElevFill';
+const ELEV_STOPS: { at: string; color: string; opacity: number }[] = [
+  { at: '0%', color: '#d8cbb8', opacity: 0.5 },
+  { at: '35%', color: '#c0ae97', opacity: 0.58 },
+  { at: '70%', color: '#a89681', opacity: 0.66 },
+  { at: '100%', color: '#8f7d6b', opacity: 0.72 },
+];
+
 interface Props {
   profile: ProfileData;
   /** Colour the line by slope angle. Off prints a plain elevation profile. */
@@ -146,6 +165,33 @@ export function ProfileSvg({
           : translate('Høydeprofil', 'Elevation profile')
       }
     >
+      {/* One gradient for the whole plot, in user space rather than the default
+          object-bounding-box units. A route with gaps is drawn as several area
+          paths, and a bounding-box gradient would restart in each of them — so
+          a short segment over a narrow height range would print the full ramp
+          in a few millimetres while the long segment beside it printed it over
+          thirty. Pinning the stops to the plot's own top and bottom makes the
+          shading mean elevation, which is what it means on screen. */}
+      <defs>
+        <linearGradient
+          id={ELEV_FILL_ID}
+          gradientUnits="userSpaceOnUse"
+          x1={0}
+          y1={PAD_T}
+          x2={0}
+          y2={PAD_T + PLOT_H}
+        >
+          {ELEV_STOPS.map((s) => (
+            <stop
+              key={s.at}
+              offset={s.at}
+              stopColor={s.color}
+              stopOpacity={s.opacity}
+            />
+          ))}
+        </linearGradient>
+      </defs>
+
       {/* Horizontal guides + elevation labels */}
       {yTicks.map((e) => (
         <g key={`y${e}`}>
@@ -179,8 +225,9 @@ export function ProfileSvg({
       </text>
 
       {segs.map((seg, si) => {
-        // Filled body under the line: neutral, so the coloured crest reads as
-        // the information-carrying element.
+        // Filled body under the line, in the earth ramp defined above. Pale
+        // enough throughout that the coloured crest still reads as the
+        // information-carrying element.
         const area =
           `M ${x(seg[0].d)} ${y(seg[0].e)} ` +
           seg
@@ -191,7 +238,7 @@ export function ProfileSvg({
           ` L ${x(seg[0].d)} ${PAD_T + PLOT_H} Z`;
         return (
           <g key={si}>
-            <path d={area} className="briefingProfileArea" />
+            <path d={area} fill={`url(#${ELEV_FILL_ID})`} />
             {seg.slice(1).map((p, i) => {
               const a = seg[i];
               return (
@@ -209,15 +256,10 @@ export function ProfileSvg({
           </g>
         );
       })}
-
-      {/* Plot frame drawn last so it sits above the fill */}
-      <line
-        x1={PAD_L}
-        x2={W - PAD_R}
-        y1={PAD_T + PLOT_H}
-        y2={PAD_T + PLOT_H}
-        className="briefingAxis"
-      />
+      {/* No baseline. The planner's chart draws neither axis lines nor a frame —
+          the dashed gridlines and the labels are the whole of its furniture —
+          and the card the sheet now puts around this SVG supplies the edge the
+          baseline was standing in for. */}
     </svg>
   );
 }

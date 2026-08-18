@@ -33,6 +33,16 @@
 //      coarse, it would read as a heavier or lighter forecast than MET gave.
 //      The aggregation is pinned to arithmetic done by hand for the same reason:
 //      states average, accumulations sum, and a gust stays a peak.
+//   6. That the sheet still wears the planner's clothes. The page is a
+//      re-presentation of panels the reader has already been looking at, and it
+//      only works as one if the columns come in the same order, the wind cell
+//      carries the same arrow and the charts are shaded the same way. None of
+//      that is load-bearing for correctness, which is exactly why it rots
+//      quietly: an ordinary-looking edit to the app's weather panel or to a
+//      chart's fill leaves this sheet looking like a spreadsheet of the app
+//      instead of the app, and nothing fails. So the resemblance is asserted —
+//      both in the markup and, where the look lives in CSS rather than in the
+//      DOM, in the stylesheet's text.
 //
 // Rendering is done by bundling the sheet with esbuild and importing it under
 // react-dom/server. The bundle is written into the repo (not /tmp) so Node can
@@ -44,7 +54,7 @@
 import { ensureTypeStripping } from './lib/type-stripping.mjs';
 ensureTypeStripping();
 
-import { writeFileSync, rmSync } from 'node:fs';
+import { writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -489,6 +499,24 @@ const rowCells = (html, label) => {
   );
 };
 
+/** Where each reading sits in the array `rowCells` returns.
+ *
+ *  Named rather than written out as 2, 3, 4 at each call site. The sheet prints
+ *  its columns in the weather panel's order, so this order is not the harness's
+ *  to choose — it follows the app — and it has already changed once, when the
+ *  sheet was rebuilt to look like the panel and precipitation moved in front of
+ *  wind. That change turned every numeric assertion below into a silent
+ *  comparison against the wrong column: the wind checks started reading
+ *  millimetres, and the one that survived did so because "" and a missing cell
+ *  both stringify to nothing. Six failures caught it; a seventh might not have.
+ *
+ *  Index 0 is the period label. The four readings then repeat per anchor, which
+ *  is what `anchor` is for: `cell(TEMP, 1)` is the high point's temperature. */
+const [SKY, TEMP, PRECIP, WIND] = [1, 2, 3, 4];
+const ANCHOR_COLS = 4;
+/** Column index for a reading at a given anchor (0 = low point, 1 = high). */
+const at = (col, anchor = 0) => col + anchor * ANCHOR_COLS;
+
 /** The MET symbol codes drawn in that row, in column order. The icons are the
  *  one thing on the sheet a reader takes in without reading, so which one a
  *  period chose is worth asserting on directly. */
@@ -743,7 +771,17 @@ for (const options of combos) {
 
   // When the profile is drawn it is coloured by slope only if asked; the plain
   // teal is the planner's own route colour.
-  const colouredBySlope = /stroke="#(?!0f766e)[0-9a-f]{6}"/i.test(html);
+  //
+  // Read out of the profile's own SVG, not the page. Scanning the whole page for
+  // a stroke that is not the teal worked only for as long as the profile was the
+  // one thing on the sheet that strokes a colour — the moment the snow chart
+  // started drawing its surface line (#5b8bc5) every snow-on, steepness-off
+  // sheet claimed to be coloured by slope. The wrong element answering a
+  // question about this one is the failure mode to design against here.
+  const profileSvg =
+    plain(html).match(/<svg class="briefingProfileSvg"[\s\S]*?<\/svg>/)?.[0] ??
+    '';
+  const colouredBySlope = /stroke="#(?!0f766e)[0-9a-f]{6}"/i.test(profileSvg);
   ok(
     options.steepness === colouredBySlope,
     `[${name}] the profile is coloured by slope only when steepness is on`,
@@ -840,8 +878,8 @@ ok(
 // built from a bare instant and printed a dash where snow was forecast.
 const coarseCells = rowCells(sixHourly, sixHourlyLabels[0]);
 ok(
-  coarseCells[4] === '0.4\u20132.6',
-  `a coarse row prints MET's six-hour precipitation band (got ${coarseCells[4]})`,
+  coarseCells[PRECIP] === '0.4\u20132.6',
+  `a coarse row prints MET's six-hour precipitation band (got ${coarseCells[PRECIP]})`,
 );
 // Read out of the table body rather than the page: the profile and snow charts
 // are SVG paths full of coordinates, and any three digits will turn up in one of
@@ -867,16 +905,16 @@ ok(
 );
 ok(overlapFree(rowLabels(mixed)), 'the coarse row and the grid do not overlap');
 ok(
-  rowCells(mixed, '18\u201324')[4] === '9.0',
-  `the coarse row prints its own total, not a rate (got ${rowCells(mixed, '18\u201324')[4]})`,
+  rowCells(mixed, '18\u201324')[PRECIP] === '9.0',
+  `the coarse row prints its own total, not a rate (got ${rowCells(mixed, '18\u201324')[PRECIP]})`,
 );
 ok(
-  rowCells(mixed, '18\u201324')[4] !== '1.5',
+  rowCells(mixed, '18\u201324')[PRECIP] !== '1.5',
   'a six-hour total is not divided down into the hours it covers',
 );
 ok(
-  rowCells(mixed, '06\u201309')[4] === '3.0',
-  `an hourly row still sums its three hours (got ${rowCells(mixed, '06\u201309')[4]})`,
+  rowCells(mixed, '06\u201309')[PRECIP] === '3.0',
+  `an hourly row still sums its three hours (got ${rowCells(mixed, '06\u201309')[PRECIP]})`,
 );
 
 // A fine reading whose grid slot is already claimed by a coarse block is left
@@ -937,6 +975,15 @@ ok(
   rowIcons(dry, '12\u201315')[0] === 'clearsky_day',
   `a dry period is drawn by its middle hour (got ${rowIcons(dry, '12\u201315')[0]})`,
 );
+// And its millimetres column is blank, not a dash — the weather panel's own
+// rule. The point of the column is that the blue figures are the weather and the
+// gaps between them are the dry spells; a dash in every dry period gives the eye
+// six marks to discount before it can find the two that matter. A dash there
+// means something else, and the gappy-anchor case below asserts that side.
+ok(
+  rowCells(dry, '12\u201315')[PRECIP] === '',
+  `a dry period leaves its precipitation cell empty (got ${rowCells(dry, '12\u201315')[PRECIP]})`,
+);
 
 // The aggregation itself. Averaging everything would be wrong three ways, so
 // each rule is pinned to a hand-computed block: states average, accumulations
@@ -955,21 +1002,21 @@ const aggregated = render(
   }),
 );
 const aggCells = rowCells(aggregated, '12\u201315');
-// Index 1 is the sky column, which holds an icon and so reads as empty text.
+// SKY holds an icon and so reads as empty text; rowIcons covers it instead.
 ok(
-  aggCells[2] === '10\u00b0',
-  `temperature is the period's average (got ${aggCells[2]})`,
+  aggCells[TEMP] === '10\u00b0',
+  `temperature is the period's average (got ${aggCells[TEMP]})`,
 );
 ok(
-  aggCells[3] === '\u00d8 5 (22)' || aggCells[3] === 'E 5 (22)',
-  `mean wind averages and the gust takes the period's peak (got ${aggCells[3]})`,
+  aggCells[WIND] === '\u00d8 5 (22)' || aggCells[WIND] === 'E 5 (22)',
+  `mean wind averages and the gust takes the period's peak (got ${aggCells[WIND]})`,
 );
 // 6.0 rather than 6: precipitation under 10 mm keeps one decimal, which is the
 // same rule the weather panel uses. What matters here is the 6 — averaging
 // would have printed 2.0, understating the period threefold.
 ok(
-  Number(aggCells[4]) === 6,
-  `precipitation sums across the period rather than averaging (got ${aggCells[4]})`,
+  Number(aggCells[PRECIP]) === 6,
+  `precipitation sums across the period rather than averaging (got ${aggCells[PRECIP]})`,
 );
 ok(
   !aggregated.includes('(9)'),
@@ -1004,14 +1051,14 @@ const wrapCells = rowCells(
   '12\u201315',
 );
 ok(
-  /^N /.test(wrapCells[3]),
-  `directions either side of north average to north (got ${wrapCells[3]})`,
+  /^N /.test(wrapCells[WIND]),
+  `directions either side of north average to north (got ${wrapCells[WIND]})`,
 );
 // Averaged as plain numbers these three come to 237° — a southwesterly, which is
 // the wrong half of the compass. Any southerly answer is the bug, so the check is
 // on the letter rather than on one wrong value.
 ok(
-  !/^S/.test(wrapCells[3]),
+  !/^S/.test(wrapCells[WIND]),
   'a wrapped direction is not averaged into a southerly',
 );
 
@@ -1046,19 +1093,28 @@ ok(
 );
 const gappyCells = rowCells(gappy, '12\u201315');
 ok(
-  gappyCells[6] === '\u2013' &&
-    gappyCells[7] === '\u2013' &&
-    gappyCells[8] === '\u2013',
+  gappyCells[at(TEMP, 1)] === '\u2013' &&
+    gappyCells[at(PRECIP, 1)] === '\u2013' &&
+    gappyCells[at(WIND, 1)] === '\u2013',
   "the anchor missing that period prints dashes across its figures",
+);
+// This is the other half of the dry-period check further up. A dash in the
+// millimetres column now means "MET said nothing for this period" and a blank
+// means "no rain", and the two cases have to be told apart from both sides or
+// the distinction is worth nothing: blank where there is a reading and it is
+// dry, dash — asserted above — where there is no reading at all.
+ok(
+  gappyCells[at(PRECIP, 1)] === '\u2013' && gappyCells[at(PRECIP, 0)] !== '\u2013',
+  'a dash in the millimetres column means no reading, not no rain',
 );
 // And no icon, rather than a stale or invented one: an icon with no reading
 // behind it is the one cell on the row that would look like data.
 ok(
-  gappyCells[5] === '' && rowIcons(gappy, '12\u201315').length === 1,
+  gappyCells[at(SKY, 1)] === '' && rowIcons(gappy, '12\u201315').length === 1,
   'the missing anchor draws no sky icon',
 );
 ok(
-  gappyCells[2] !== '\u2013',
+  gappyCells[at(TEMP, 0)] !== '\u2013',
   'the anchor that does have the period keeps its numbers on the same row',
 );
 
@@ -1211,6 +1267,310 @@ ok(
   'an unnamed route falls back to a titled heading, not a blank one',
 );
 
+section('Looks like the planner');
+
+// The sheet is meant to read as the app's own panels. Most of that lives in
+// briefing.css and cannot be rendered here — there is no browser in this harness
+// and no headless one in the sandbox — so it is checked in two halves: the
+// structure the CSS hangs on, out of the rendered markup, and the handful of
+// values that only exist as declarations, out of the stylesheet's text.
+//
+// Reading a stylesheet as a string is a blunt instrument and it is used
+// sparingly. Every check below is on something whose absence has a specific
+// visible consequence on paper, and each says what that consequence is.
+const full = render(makeData(DEFAULT_OPTIONS));
+const css = readFileSync(join(ROOT, 'src/briefing/briefing.css'), 'utf8');
+
+// --- The weather panel's table -------------------------------------------
+
+// The order of the four readings. This is the app's order, not the sheet's
+// choice, and getting it wrong is the failure that looks like nothing: the
+// numbers are all correct and all in the wrong columns, and the only person who
+// notices is the one comparing paper to screen in a car park. Read off the
+// second header row, whose labels are unambiguous.
+const headLabels = [
+  ...plain(full)
+    .split('<thead>')[1]
+    .split('</thead>')[0]
+    .matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g),
+].map((m) => m[1].replace(/<[^>]*>/g, '').trim());
+const readingHeads = headLabels.filter(
+  (l) => /Himmel|Sky/.test(l) || l === '\u00b0C' || /mm/.test(l) || /m\/s/.test(l),
+);
+ok(
+  readingHeads.slice(0, 4).join(' | ') ===
+    ['Himmel', '\u00b0C', 'mm i alt', 'Vind m/s (kast)'].join(' | ') ||
+    readingHeads.slice(0, 4).join(' | ') ===
+      ['Sky', '\u00b0C', 'mm total', 'Wind m/s (gust)'].join(' | '),
+  `the columns come in the weather panel's order (got ${readingHeads.slice(0, 4).join(' | ')})`,
+);
+// Both anchors, so the pair still reads straight across.
+ok(
+  readingHeads.length === 8 &&
+    readingHeads.slice(0, 4).join('|') === readingHeads.slice(4, 8).join('|'),
+  'both anchors carry the same four columns in the same order',
+);
+
+// The card. A collapsed-border table cannot round its own outside corners, so
+// without the wrapper the header band prints as a square-cornered grey bar and
+// the table stops looking like the panel at all.
+ok(
+  /<div class="briefingTableCard"><table class="briefingTable briefingWeatherTable"/.test(
+    plain(full),
+  ),
+  'the weather table sits inside the panel card that rounds and clips it',
+);
+ok(
+  /\.briefingTableCard thead \{\s*background: var\(--briefing-band\)/.test(css),
+  'the header row keeps the panel\u2019s tinted band behind it',
+);
+ok(
+  /\.briefingTable th \{[^}]*text-transform: uppercase/.test(css) &&
+    /\.briefingTable th \{[^}]*letter-spacing: 0\.06em/.test(css),
+  "the column labels keep the panel's small letter-spaced caps",
+);
+
+// The wind arrow. It is the one element of the panel's wind cell that had been
+// deliberately left off, so it is worth asserting that it is both present and
+// pointing the right way: the icon points east at rest, MET's angle says where
+// the wind comes FROM, and the panel reverses it to show where it is going.
+const windRots = [
+  ...full.matchAll(/briefingWindArrow" style="transform:rotate\((-?[\d.]+)deg\)/g),
+].map((m) => Number(m[1]));
+ok(windRots.length > 0, 'the wind cell draws the panel\u2019s direction arrow');
+ok(
+  windRots.every((r) => Number.isFinite(r)),
+  'every arrow gets a real rotation rather than NaNdeg',
+);
+// hours() blows from 315° all day, so the arrow reads 315 + 180 - 90 = 405 —
+// a northwesterly blowing southeast. Asserted on the arithmetic rather than
+// normalised into 0-360 on purpose: rotate() takes any angle, and a 405 here is
+// evidence the two corrections were both applied in the right direction. Drop
+// the +180 and this is 225, which points the arrow back into the wind.
+const noonWind = rowHtml(full, '12\u201315');
+ok(
+  /briefingWindArrow" style="transform:rotate\(405deg\)/.test(noonWind),
+  'the arrow points where the wind is blowing to, not where it comes from',
+);
+// Letters as well as the arrow, because paper has no tooltip. The user asked for
+// both; either alone would be a different sheet.
+ok(
+  /^[NSØEVW]{1,3} \d/.test(rowCells(full, '12\u201315')[WIND]),
+  `the wind cell keeps its compass letters beside the arrow (got ${rowCells(full, '12\u201315')[WIND]})`,
+);
+
+// --- The charts ----------------------------------------------------------
+
+ok(
+  (plain(full).match(/briefingChartCard/g) ?? []).length === 2,
+  'both charts sit in the panel card that now draws their edge',
+);
+// The baselines are gone, and with them the last axis line on the page. A frame
+// is the detail that makes a chart read as a figure in a report; the planner
+// draws none, and .briefingAxis was the class that did.
+ok(
+  !full.includes('briefingAxis"') && !css.includes('.briefingAxis {'),
+  'neither chart draws a baseline the planner has no counterpart for',
+);
+ok(
+  /\.briefingGrid \{[^}]*stroke-dasharray: 2 4/.test(css),
+  "the gridlines keep the planner's dashed rhythm",
+);
+// Gradient fills rather than the flat greys these had. Checked as a reference
+// from the path and a definition in the SVG, so a stop list that got dropped
+// would leave the fill pointing at nothing and fail here rather than print an
+// unfilled chart.
+for (const [id, what] of [
+  ['briefingElevFill', 'the terrain'],
+  ['briefingSnowFill', 'the snowpack'],
+]) {
+  ok(
+    full.includes(`url(#${id})`) && full.includes(`id="${id}"`),
+    `${what} is filled with the planner's gradient, and the gradient is defined`,
+  );
+  ok(
+    (full.match(new RegExp(`<linearGradient id="${id}"`, 'g')) ?? []).length === 1,
+    `${what} gradient is defined exactly once, so no id collides`,
+  );
+}
+// User space, not the default bounding box. A route with gaps is drawn as
+// several area paths; a bounding-box gradient restarts inside each of them, so
+// a short segment prints the whole ramp in a few millimetres while the long one
+// beside it spreads it over thirty, and the shading stops meaning elevation.
+ok(
+  (full.match(/gradientUnits="userSpaceOnUse"/g) ?? []).length === 2,
+  'both gradients are pinned to the plot rather than to each path they fill',
+);
+
+// --- The avalanche badge -------------------------------------------------
+
+// The colour comes from the same DANGER_LEVELS table the screen reads, and the
+// denominator is written out because the sheet prints one badge and no legend.
+ok(
+  /briefingDangerBadge" style="background:#f0922f;color:#3a1e00"/.test(full),
+  "the danger badge takes the level's own colour from the shared scale",
+);
+ok(
+  /briefingDangerScale">\s*\u00b7 3 (av 5|of 5)/.test(plain(full)),
+  'the level says what it is out of, which the screen shows in its legend',
+);
+// The old full-height colour bar had its caption inside it; that element is gone
+// and must not linger as dead CSS.
+ok(
+  !full.includes('briefingDangerOf') && !css.includes('.briefingDangerOf'),
+  'the colour-bar caption the square badge replaced is gone from both sides',
+);
+const unrated = render(makeData(DEFAULT_OPTIONS, { avalancheLevel: 0 }));
+ok(
+  /briefingDangerBadge briefingDangerUnrated"(?! style)/.test(unrated),
+  'an unrated level gets the bordered well rather than a colour it does not have',
+);
+ok(
+  /briefingDangerScale">\s*\u00b7 (ikke vurdert|not rated)/.test(plain(unrated)),
+  'an unrated level says so where the scale would be',
+);
+
+// --- The shared scale ----------------------------------------------------
+
+// One hairline weight and two radii, so a card added later cannot invent its
+// own. These went in as tokens precisely because the sheet had accumulated
+// 1.5 mm, 1 mm and 0.6 mm corners that no panel on screen has.
+for (const token of [
+  '--briefing-radius-md: 2.4mm',
+  '--briefing-radius-sm: 1.6mm',
+  '--briefing-hairline: 0.6pt',
+  '--briefing-band: #f5f7fa',
+]) {
+  ok(css.includes(token), `the print scale still defines ${token}`);
+}
+// The literals the tokens replaced. A stray 0.6pt is harmless on its own; a
+// stylesheet with both is one where the next change lands in whichever the
+// author happened to grep for.
+ok(
+  (css.match(/border[^:]*: 0\.6pt/g) ?? []).length === 0,
+  'no card edge is still written as a bare 0.6pt hairline',
+);
+ok(
+  (css.match(/border-radius: 1(\.5)?mm/g) ?? []).length === 0,
+  'no card still rounds itself to a radius the app has no counterpart for',
+);
+
+// --- The snowpack actually reaches the paper -------------------------------
+
+// This pair exists because the gradient check above found the chart printing
+// nothing whatsoever, and blamed the fixture before the code. SnowSvg breaks its
+// area into runs wherever the seNorge grid has a hole, and the old threshold for
+// "hole" was a fraction of the route length (maxD / 40), which assumed at least
+// forty samples. profile.ts resamples at 20 m, so a route under about 800 m has
+// fewer: every ordinary step counted as a hole, no run reached the two points a
+// path needs, and the snow section printed its heading, its date, its credit to
+// seNorge and an empty box. Every one of those was asserted. None of them was
+// the chart.
+//
+// So the first check counts surface lines on a route whose grid is complete —
+// one continuous snowpack, one line — and the second counts them on the same
+// route with a hole punched in the middle. Widening the threshold until the
+// chart appears would pass the first alone; it takes the second to show the
+// threshold still tells a hole from an ordinary step.
+const snowLines = (html) => (html.match(/briefingSnowLine/g) ?? []).length;
+ok(
+  snowLines(full) === 1,
+  `an unbroken snowpack prints as one surface line (got ${snowLines(full)})`,
+);
+const holed = render(
+  makeData(DEFAULT_OPTIONS, {
+    snow: {
+      depths: [
+        profile.segments[0].map((_, i) =>
+          i >= 10 && i <= 13 ? NaN : 30 + i * 6,
+        ),
+      ],
+      date: '2026-03-14',
+      fetchedAt: SNOW_FETCHED_AT,
+    },
+  }),
+);
+ok(
+  snowLines(holed) === 2,
+  `a hole in the grid still splits the snowpack rather than being bridged (got ${snowLines(holed)})`,
+);
+// --- The eyeball copy ------------------------------------------------------
+
+// Everything above asserts the sheet; none of it shows the sheet to anybody, and
+// several of the things that matter most about a printed page — whether it fits,
+// whether the shading is too heavy, whether the weather card looks like the
+// panel it re-presents — are only answerable by looking.
+//
+// briefing-preview.html used to be that look, made by hand: the stylesheet
+// pasted into a <style> block and four rendered sheets pasted under it. Having
+// no generator, it was a snapshot of the sheet as it stood on the afternoon
+// somebody assembled it, and by the time the charts had been restyled it showed
+// the old markup under the new CSS — worse than nothing, because it looked
+// current. So the harness writes it now, from the fixtures it already has, every
+// time it runs. A preview that regenerates itself alongside the assertions
+// cannot disagree with them.
+//
+// The variants are the four the sheet is most likely to be got wrong on rather
+// than four pretty ones: the ordinary hourly forecast, the coarse one MET serves
+// for a tour further out, a half-day of forecast (which should come out shorter,
+// not emptier), and the heaviest page the app can produce — danger 4, every
+// section on — which is the one that has to hold a single side of A4.
+const PREVIEW = join(ROOT, 'briefing-preview.html');
+const worstCase = render(
+  makeData(DEFAULT_OPTIONS, { avalancheLevel: 4 }),
+);
+const variants = [
+  [
+    'The ordinary case — MET is hourly, so each block averages its six readings.',
+    full,
+  ],
+  [
+    'Further out, where MET has dropped to six-hourly (00/06/12/18 UTC): one reading per block, and MET\u2019s own periods rather than the fixed grid.',
+    sixHourly,
+  ],
+  [
+    'Only the afternoon forecast. Periods neither anchor covers are dropped, not printed as rows of dashes.',
+    partial,
+  ],
+  [
+    'The heaviest sheet the app can produce: danger 4, a long bulletin, four problems, both charts and the full table. This is the one that has to stay above the fold.',
+    worstCase,
+  ],
+];
+writeFileSync(
+  PREVIEW,
+  `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Briefing preview</title>
+<!-- Generated by scripts/verify-briefing.mjs. Do not edit: run the harness. -->
+<style>
+${css}
+body { margin: 0; padding: 24px; background: #5b6875; font-family: Inter, system-ui, sans-serif; }
+.previewNote { max-width: 210mm; margin: 28px auto 8px; color: #fff; font-size: 13px; line-height: 1.5; }
+.previewWrap { position: relative; width: 210mm; margin: 0 auto 40px; background: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+/* The fold marker is a sibling of the sheet rather than a child, so it sits
+   outside --briefing-zoom and 297mm here really is one page of paper. */
+.previewFold { position: absolute; left: 0; right: 0; top: 297mm; border-top: 1px dashed #d33; pointer-events: none; }
+.previewFold span { position: absolute; right: 4px; top: 2px; font-size: 10px; color: #d33; }
+</style>
+</head>
+<body>
+${variants
+  .map(
+    ([note, html]) => `    <p class="previewNote">${note}</p>
+    <div class="previewWrap">
+      ${html}
+      <div class="previewFold"><span>A4 page 1 ends</span></div>
+    </div>
+`,
+  )
+  .join('\n')}</body>
+</html>
+`,
+);
+
 rmSync(ENTRY, { force: true });
 rmSync(BUNDLE, { force: true });
 
@@ -1218,4 +1578,5 @@ console.log(
   `\n${checks - failures}/${checks} checks passed` +
     (failures ? ` — ${failures} FAILED` : ''),
 );
+console.log('Wrote briefing-preview.html');
 process.exit(failures ? 1 : 0);
