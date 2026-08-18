@@ -26,6 +26,13 @@
 //   4. That no combination prints NaN, undefined or Infinity. The formatting
 //      helpers all divide by something that can be zero on a flat or
 //      single-point route.
+//   5. The weather table's periods, in the two resolutions MET serves and at the
+//      handover between them. Every millimetre on that table is a total for the
+//      period its row is labelled with, so a row that covered longer than its
+//      label says — or two rows covering the same hour — would not read as
+//      coarse, it would read as a heavier or lighter forecast than MET gave.
+//      The aggregation is pinned to arithmetic done by hand for the same reason:
+//      states average, accumulations sum, and a gust stays a peak.
 //
 // Rendering is done by bundling the sheet with esbuild and importing it under
 // react-dom/server. The bundle is written into the repo (not /tmp) so Node can
@@ -235,18 +242,26 @@ function hours({ skip = [] } = {}) {
       precipMm: h % 3 === 0 ? 0.4 : 0,
       precipMinMm: null,
       precipMaxMm: null,
+      // What MET publishes inside its hourly window: each figure covers the one
+      // hour it is stamped with.
+      precipHours: 1,
     });
   }
   return out;
 }
 
 /** What MET actually serves past its hourly window: entries every six hours,
- *  stamped at 00/06/12/18 **UTC**. Built in UTC on purpose — the point of this
- *  fixture is that those instants fall on odd *local* hours (01/07/13/19 in
- *  Norwegian winter, 02/08/14/20 in summer), which is what defeated the old
- *  three-hourly thinning. Only the entries that land inside 14 March locally
- *  are kept, because that day-slicing is the dialog's job and has already
- *  happened by the time the sheet sees them. */
+ *  stamped at 00/06/12/18 **UTC**, each carrying a six-hour total rather than an
+ *  hourly one. Built in UTC on purpose — the point of this fixture is that those
+ *  instants fall on odd *local* hours (01/07/13/19 in Norwegian winter,
+ *  02/08/14/20 in summer), which is what defeated the old three-hourly thinning.
+ *  Only the entries that land inside 14 March locally are kept, because that
+ *  day-slicing is the dialog's job and has already happened by the time the
+ *  sheet sees them.
+ *
+ *  Because the local hours depend on the machine's timezone, every assertion
+ *  made against this fixture has to be about the shape of the table — how many
+ *  rows, how long each covers — and never about a particular label. */
 function sixHourlyUTC() {
   const out = [];
   // Swept a full day either side of the target rather than a few hours, so the
@@ -266,21 +281,31 @@ function sixHourlyUTC() {
       precipMm: 1.2,
       precipMinMm: 0.4,
       precipMaxMm: 2.6,
+      // The whole point of the fixture: these millimetres are six hours' worth.
+      // A row that printed them under a three-hour heading would be overstating
+      // the rate fourfold, so the window travels with the number.
+      precipHours: 6,
     });
   }
   return out;
 }
 
-/** Six local hours, 12:00–17:00 — exactly the 12–18 block and nothing else, so
- *  a row can be checked against arithmetic done by hand. Every field is given
+/** Three local hours, 12:00–14:00 — exactly the 12–15 period and nothing else,
+ *  so a row can be checked against arithmetic done by hand. Every field is given
  *  per hour; the defaults are flat, so a test only has to state the one series
- *  it cares about. */
-function block1218({
-  temps = [0, 0, 0, 0, 0, 0],
-  speeds = [5, 5, 5, 5, 5, 5],
-  gusts = [null, null, null, null, null, null],
-  degs = [180, 180, 180, 180, 180, 180],
-  precip = [0, 0, 0, 0, 0, 0],
+ *  it cares about.
+ *
+ *  `precipHours` is deliberately left off, which is what a forecast snapshot
+ *  captured before that field existed looks like when it is replayed. Those
+ *  entries were always hourly, so the sheet has to read a missing window as one
+ *  hour — and every row built from this fixture proves it does. */
+function block1215({
+  temps = [0, 0, 0],
+  speeds = [5, 5, 5],
+  gusts = [null, null, null],
+  degs = [180, 180, 180],
+  precip = [0, 0, 0],
+  symbols = ['cloudy', 'cloudy', 'cloudy'],
 } = {}) {
   return temps.map((_, i) => ({
     time: new Date(2026, 2, 14, 12 + i, 0, 0).toISOString(),
@@ -288,11 +313,50 @@ function block1218({
     windSpeed: speeds[i],
     windGust: gusts[i],
     windFromDeg: degs[i],
-    symbolCode: 'cloudy',
+    symbolCode: symbols[i],
     precipMm: precip[i],
     precipMinMm: null,
     precipMaxMm: null,
   }));
+}
+
+/** The day after tomorrow, as MET actually hands it over: hourly entries from
+ *  06:00 up to and including `hourlyUntil`, then a single six-hour block stamped
+ *  at `coarseAt`. Local time, because what is under test here is the row grid
+ *  rather than timezone arithmetic — `sixHourlyUTC` covers that.
+ *
+ *  This is the case the sheet gets wrong most easily: the two resolutions have
+ *  to coexist on one table without a six-hour total ever being printed under a
+ *  three-hour heading, and without the grid laying a row across the block. */
+function mixedDay({ hourlyUntil = 17, coarseAt = 18 } = {}) {
+  const out = [];
+  for (let h = 6; h <= hourlyUntil; h++) {
+    out.push({
+      time: new Date(2026, 2, 14, h, 0, 0).toISOString(),
+      temperature: -2,
+      windSpeed: 5,
+      windGust: null,
+      windFromDeg: 180,
+      symbolCode: 'fair_day',
+      precipMm: 1,
+      precipMinMm: null,
+      precipMaxMm: null,
+      precipHours: 1,
+    });
+  }
+  out.push({
+    time: new Date(2026, 2, 14, coarseAt, 0, 0).toISOString(),
+    temperature: -6,
+    windSpeed: 12,
+    windGust: 20,
+    windFromDeg: 180,
+    symbolCode: 'snow',
+    precipMm: 9,
+    precipMinMm: null,
+    precipMaxMm: null,
+    precipHours: 6,
+  });
+  return out;
 }
 
 const warning = {
@@ -399,17 +463,63 @@ const colWidths = (html) =>
     Number(m[1]),
   );
 
-/** The cells of the weather row whose period column reads `label`, as plain
- *  text, period column first. Reading a named row rather than a positional one
- *  is what lets a test assert on arithmetic without also depending on how many
- *  blocks happened to render. */
-const rowCells = (html, label) => {
-  const body = plain(html).split('<tbody>')[1]?.split('</tbody>')[0] ?? '';
-  const row = body
+/** The body of the weather table, comments stripped. */
+const tbody = (html) =>
+  plain(html).split('<tbody>')[1]?.split('</tbody>')[0] ?? '';
+
+/** The markup of the weather row whose period column reads `label`. */
+const rowHtml = (html, label) =>
+  tbody(html)
     .split('<tr')
-    .find((r) => r.includes(`<td>${label}</td>`));
+    .find((r) => r.includes(`<td>${label}</td>`)) ?? '';
+
+/** The cells of that row as plain text, period column first.
+ *
+ *  Cells are no longer bare text: temperature, precipitation and the gust each
+ *  sit in a tinted span, and the sky column holds an `<img>`. Tags are stripped
+ *  rather than matched around, so the reading survives the next bit of styling
+ *  and still says what a person would see — the wind cell reads "Ø 5 (22)"
+ *  whether or not the gust is in its own element. A cell whose only content is
+ *  an icon reads as empty, which is what `rowIcons` is for. */
+const rowCells = (html, label) => {
+  const row = rowHtml(html, label);
   if (!row) return [];
-  return [...row.matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map((m) => m[1]);
+  return [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) =>
+    m[1].replace(/<[^>]*>/g, '').trim(),
+  );
+};
+
+/** The MET symbol codes drawn in that row, in column order. The icons are the
+ *  one thing on the sheet a reader takes in without reading, so which one a
+ *  period chose is worth asserting on directly. */
+const rowIcons = (html, label) =>
+  [...rowHtml(html, label).matchAll(/\/weather-icons\/([\w-]+)\.svg/g)].map(
+    (m) => m[1],
+  );
+
+/** Every row's period label, in the order they print. */
+const rowLabels = (html) =>
+  [...tbody(html).matchAll(/<td>(\d\d\u2013\d\d)<\/td>/g)].map((m) => m[1]);
+
+/** How many hours a period label claims to cover. "21–24" closes the day at
+ *  midnight and MET's evening block really does read "19–01", so the arithmetic
+ *  has to wrap — and a label covering nothing at all is a bug, not a zero. */
+const labelSpan = (label) => {
+  const [from, to] = label.split('\u2013').map(Number);
+  return ((to - from + 24) % 24) || 24;
+};
+
+/** Whether the rows tile the day without overlapping. Two rows that overlap
+ *  would print the same hour's rain twice under two different headings, which is
+ *  the one way this table can lie about a total rather than merely be coarse. */
+const overlapFree = (labels) => {
+  const spans = labels.map((l) => ({
+    start: Number(l.split('\u2013')[0]),
+    hours: labelSpan(l),
+  }));
+  return spans.every((a, i) =>
+    spans.every((b, j) => j <= i || !(b.start < a.start + a.hours)),
+  );
 };
 
 /** Every section heading, as plain text. */
@@ -513,16 +623,65 @@ for (const options of combos) {
   const cols = colWidths(html);
   if (options.weather) {
     ok(
-      cols.length === 7,
-      `[${name}] the weather table declares a width for all seven columns`,
+      cols.length === 9,
+      `[${name}] the weather table declares a width for all nine columns`,
     );
     ok(
       Math.abs(cols.reduce((a, b) => a + b, 0) - 100) < 0.001,
       `[${name}] the declared column widths fill the table exactly`,
     );
     ok(
-      new Set(cols.slice(1).map((w) => w.toFixed(4))).size === 1,
-      `[${name}] the six forecast columns are equal, so the anchors line up`,
+      cols.every((w) => w > 0),
+      `[${name}] no column is declared away to nothing`,
+    );
+    // Not all four columns within an anchor are the same width — an icon needs
+    // less room than "NØ 12 (24)" — but the two anchors must be identical, or
+    // the pair of groups stops reading straight across and the eye has to
+    // re-find the columns halfway over the page.
+    const group = (from) =>
+      cols.slice(from, from + 4).map((w) => w.toFixed(4)).join('/');
+    ok(
+      group(1) === group(5),
+      `[${name}] the two anchor groups take identical widths`,
+    );
+    // The group headings have to span exactly the columns the colgroup declares
+    // for them. A colSpan and a colgroup that disagree is the classic
+    // fixed-layout overhang: harmless on screen, off the paper in print.
+    // Matched case-insensitively because React writes the attribute out as
+    // `colSpan`, which is how the DOM spells it rather than how HTML does.
+    ok(
+      (html.match(/colspan="4"/gi) ?? []).length === 2,
+      `[${name}] each anchor heading spans its four columns`,
+    );
+    // The vertical budget in briefing.css allows the table six rows. More than
+    // that and the sheet runs past one page, which is the whole point of it.
+    const labels = rowLabels(html);
+    ok(
+      labels.length > 0 && labels.length <= 6,
+      `[${name}] the table prints between one and six rows (got ${labels.length})`,
+    );
+    ok(overlapFree(labels), `[${name}] no two rows cover the same hour`);
+
+    // The footnote that used to explain the table is gone, and with it the claim
+    // that every row was six hours — which stopped being true the moment the
+    // grid started following the forecast. The two things a reader genuinely
+    // cannot infer from the numbers now sit in the column headings, where they
+    // cannot drift out of step with the column beneath them.
+    ok(
+      !/[Hh]ver rad|[Ee]ach row/.test(flat),
+      `[${name}] the sheet no longer explains the rows in a footnote`,
+    );
+    ok(
+      !/seks timer|six hours/.test(flat),
+      `[${name}] nothing claims a fixed six-hour row any more`,
+    );
+    ok(
+      /mm i alt|mm total/.test(flat),
+      `[${name}] the precipitation heading says the figure is a period total`,
+    );
+    ok(
+      /\(kast\)|\(gust\)/.test(flat),
+      `[${name}] the wind heading says what the parenthesis is`,
     );
   } else {
     ok(cols.length === 0, `[${name}] no weather table, no colgroup`);
@@ -594,18 +753,25 @@ ok(renderedAll === 128, 'every switch combination rendered');
 
 section('Rendered sheet: awkward inputs');
 
-// The day prints as four six-hour blocks, whatever resolution MET served. A
-// full hourly day and a six-hourly one both come to four rows — that is the
-// point of blocking, and it is what keeps the table from growing with the
-// forecast and pushing the sheet past the fold.
+// An hourly day prints as the fixed daylight grid: three-hour periods from 06
+// to midnight. Three hours is the shortest period that still describes
+// something a party does in one go, and six rows is what the sheet's vertical
+// budget allows.
 const paired = render(makeData(DEFAULT_OPTIONS));
-const bodyRows = (paired.split('<tbody>')[1] ?? '').split('<tr').length - 1;
-ok(bodyRows === 4, `a full hourly day collapses to four blocks (got ${bodyRows})`);
 ok(
-  ['00\u201306', '06\u201312', '12\u201318', '18\u201324'].every((l) =>
-    paired.includes(`<td>${l}</td>`),
-  ),
-  'the four blocks are labelled by period rather than by an instant',
+  rowLabels(paired).join(' ') ===
+    '06\u201309 09\u201312 12\u201315 15\u201318 18\u201321 21\u201324',
+  `an hourly day prints the daylight grid in order (got ${rowLabels(paired).join(' ')})`,
+);
+ok(
+  !paired.includes('<td>21\u201300</td>'),
+  'the last row closes the day at 24 rather than reading as a typo for 21:00',
+);
+// The fixture is a full 24 hours; the hours before 06 are dropped on purpose.
+// Two rows of darkness cost the same paper as two rows of daylight.
+ok(
+  !/<td>0[0-5]\u2013/.test(paired),
+  'the night is left off the table rather than printed as empty rows',
 );
 ok(
   !/<td>\d\d:\d\d<\/td>/.test(paired),
@@ -616,38 +782,171 @@ ok(
   'both anchors get their own column group',
 );
 
+// The sky column is MET's own artwork, the same files the weather panel draws
+// on screen — which is what makes the sheet recognisable as this app's rather
+// than a table of numbers that happens to agree with it.
+ok(
+  rowIcons(paired, '12\u201315').length === 2,
+  'each anchor gets its own sky icon on every row',
+);
+ok(
+  rowIcons(paired, '12\u201315').every((c) => c === 'partlycloudy_day'),
+  'the icon drawn is the symbol code MET supplied',
+);
+ok(
+  (paired.match(/<img src="\/weather-icons\//g) ?? []).length === 12,
+  'twelve icons for six rows across two anchors, and none left over',
+);
+ok(
+  /<img src="\/weather-icons\/[\w-]+\.svg"[^>]*alt=""/.test(paired),
+  'the icons carry an empty alt: the row is already described by its figures',
+);
+
 // Beyond roughly 48 hours MET stops publishing hourly and switches to entries
-// at 00/06/12/18 UTC, which land on odd local hours — 01/07/13/19 in Norwegian
-// winter, 02/08/14/20 in summer. One falls in each block, so a far-out forecast
-// fills the same four rows from a single reading apiece. This fixture also
-// guards the older bug underneath: a three-hourly filter matched none of these
-// instants, so a tour more than two days out printed nothing at all.
+// at 00/06/12/18 UTC carrying six-hour totals. Those land on odd local hours —
+// 01/07/13/19 in Norwegian winter, 02/08/14/20 in summer — so the fixed grid
+// cannot hold them, and the sheet prints MET's own periods instead. Splitting a
+// six-hour total across two rows would invent a distribution inside it; putting
+// it in one three-hour row would put six hours of snow behind a three-hour
+// heading. This fixture also guards the older bug underneath: a three-hourly
+// filter matched none of these instants, so a tour more than two days out
+// printed nothing at all.
 const sixHourly = render(
   makeData(DEFAULT_OPTIONS, {
     weatherLow: { elevationM: 420, hours: sixHourlyUTC(), fetchedAt: LOW_FETCHED_AT },
     weatherHigh: { elevationM: 1480, hours: sixHourlyUTC(), fetchedAt: HIGH_FETCHED_AT },
   }),
 );
-const sixHourlyRows = (sixHourly.split('<tbody>')[1] ?? '').split('<tr').length - 1;
+const sixHourlyLabels = rowLabels(sixHourly);
 ok(
-  sixHourlyRows === 4,
-  `a six-hourly forecast still fills four blocks (got ${sixHourlyRows})`,
+  sixHourlyLabels.length === 3,
+  `a coarse forecast prints one row per MET block (got ${sixHourlyLabels.length})`,
+);
+ok(
+  sixHourlyLabels.every((l) => labelSpan(l) === 6),
+  `every coarse row is labelled with the six hours it covers (got ${sixHourlyLabels.join(' ')})`,
+);
+ok(
+  overlapFree(sixHourlyLabels),
+  'the coarse rows do not overlap, so no total is printed twice',
 );
 ok(
   sixHourly.includes('briefingWeatherTable') &&
     !/briefingEmpty[\s\S]{0,400}(MET varsler|MET forecasts)/.test(sixHourly),
   'a six-hourly forecast renders a table rather than the empty-weather message',
 );
+// The bug this whole change started from: MET's coarse entries carry their
+// precipitation in next_6_hours, which the app never read, so a far-out row was
+// built from a bare instant and printed a dash where snow was forecast.
+const coarseCells = rowCells(sixHourly, sixHourlyLabels[0]);
+ok(
+  coarseCells[4] === '0.4\u20132.6',
+  `a coarse row prints MET's six-hour precipitation band (got ${coarseCells[4]})`,
+);
+// Read out of the table body rather than the page: the profile and snow charts
+// are SVG paths full of coordinates, and any three digits will turn up in one of
+// them sooner or later.
+ok(
+  !tbody(sixHourly).includes('7.2'),
+  'a six-hour total is not multiplied out as if each hour carried it',
+);
+
+// The awkward middle case, and the common one two days out: hourly early,
+// coarse later, on one table. The grid fills in around the coarse block rather
+// than across it.
+const mixed = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherLow: { elevationM: 420, hours: mixedDay(), fetchedAt: LOW_FETCHED_AT },
+    weatherHigh: { elevationM: 1480, hours: mixedDay(), fetchedAt: HIGH_FETCHED_AT },
+  }),
+);
+ok(
+  rowLabels(mixed).join(' ') ===
+    '06\u201309 09\u201312 12\u201315 15\u201318 18\u201324',
+  `a day that turns coarse keeps three-hour rows while MET is hourly (got ${rowLabels(mixed).join(' ')})`,
+);
+ok(overlapFree(rowLabels(mixed)), 'the coarse row and the grid do not overlap');
+ok(
+  rowCells(mixed, '18\u201324')[4] === '9.0',
+  `the coarse row prints its own total, not a rate (got ${rowCells(mixed, '18\u201324')[4]})`,
+);
+ok(
+  rowCells(mixed, '18\u201324')[4] !== '1.5',
+  'a six-hour total is not divided down into the hours it covers',
+);
+ok(
+  rowCells(mixed, '06\u201309')[4] === '3.0',
+  `an hourly row still sums its three hours (got ${rowCells(mixed, '06\u201309')[4]})`,
+);
+
+// A fine reading whose grid slot is already claimed by a coarse block is left
+// out rather than given an overlapping row. It is one hour of a six-row table,
+// and the alternative is printing the coarse block's snow twice.
+const straddle = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherLow: {
+      elevationM: 420,
+      hours: mixedDay({ hourlyUntil: 18, coarseAt: 19 }),
+      fetchedAt: LOW_FETCHED_AT,
+    },
+    weatherHigh: { elevationM: null, hours: [], fetchedAt: null },
+  }),
+);
+ok(
+  overlapFree(rowLabels(straddle)),
+  'an hour the grid cannot place honestly is dropped rather than overlapped',
+);
+ok(
+  rowLabels(straddle).includes('19\u201301'),
+  "MET's evening block keeps its own label even when it runs past midnight",
+);
+
+// The sky icon is the period's worst hour, not its first. Of three hours, two
+// fair and one snowing, the snow is what changes the plan — and the icon is
+// read before any number on the row.
+const wettest = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherLow: {
+      elevationM: 420,
+      hours: block1215({
+        precip: [0, 3, 0],
+        symbols: ['fair_day', 'heavysnow', 'fair_day'],
+      }),
+      fetchedAt: LOW_FETCHED_AT,
+    },
+    weatherHigh: { elevationM: null, hours: [], fetchedAt: null },
+  }),
+);
+ok(
+  rowIcons(wettest, '12\u201315')[0] === 'heavysnow',
+  `the period's icon is its wettest hour (got ${rowIcons(wettest, '12\u201315')[0]})`,
+);
+// Nothing forecast: there is no worst hour, so the middle of the period stands
+// for it rather than whichever end the loop happened to start at.
+const dry = render(
+  makeData(DEFAULT_OPTIONS, {
+    weatherLow: {
+      elevationM: 420,
+      hours: block1215({ symbols: ['fog', 'clearsky_day', 'fog'] }),
+      fetchedAt: LOW_FETCHED_AT,
+    },
+    weatherHigh: { elevationM: null, hours: [], fetchedAt: null },
+  }),
+);
+ok(
+  rowIcons(dry, '12\u201315')[0] === 'clearsky_day',
+  `a dry period is drawn by its middle hour (got ${rowIcons(dry, '12\u201315')[0]})`,
+);
 
 // The aggregation itself. Averaging everything would be wrong three ways, so
 // each rule is pinned to a hand-computed block: states average, accumulations
 // sum, and a peak stays a peak.
-const bloc = block1218({
-  temps: [7, 8, 9, 11, 12, 13], // mean exactly 10
-  speeds: [4, 4, 4, 6, 6, 6], // mean exactly 5
-  gusts: [9, null, 9, null, 22, null], // peak 22
-  degs: [90, 90, 90, 90, 90, 90], // due east
-  precip: [1, 1, 1, 1, 1, 1], // 6 mm across the block
+const bloc = block1215({
+  temps: [8, 10, 12], // mean exactly 10
+  speeds: [4, 5, 6], // mean exactly 5
+  gusts: [9, 22, null], // peak 22
+  degs: [90, 90, 90], // due east
+  precip: [1, 2, 3], // 6 mm across the period
 });
 const aggregated = render(
   makeData(DEFAULT_OPTIONS, {
@@ -655,29 +954,37 @@ const aggregated = render(
     weatherHigh: { elevationM: 1480, hours: bloc, fetchedAt: HIGH_FETCHED_AT },
   }),
 );
-const aggCells = rowCells(aggregated, '12\u201318');
+const aggCells = rowCells(aggregated, '12\u201315');
+// Index 1 is the sky column, which holds an icon and so reads as empty text.
 ok(
-  aggCells[1] === '10\u00b0',
-  `temperature is the block's average (got ${aggCells[1]})`,
+  aggCells[2] === '10\u00b0',
+  `temperature is the period's average (got ${aggCells[2]})`,
 );
 ok(
-  aggCells[2] === '\u00d8 5 (22)' || aggCells[2] === 'E 5 (22)',
-  `mean wind averages and the gust takes the block's peak (got ${aggCells[2]})`,
+  aggCells[3] === '\u00d8 5 (22)' || aggCells[3] === 'E 5 (22)',
+  `mean wind averages and the gust takes the period's peak (got ${aggCells[3]})`,
 );
 // 6.0 rather than 6: precipitation under 10 mm keeps one decimal, which is the
 // same rule the weather panel uses. What matters here is the 6 — averaging
-// would have printed 1.0, understating the block sixfold.
+// would have printed 2.0, understating the period threefold.
 ok(
-  Number(aggCells[3]) === 6,
-  `precipitation sums across the block rather than averaging (got ${aggCells[3]})`,
+  Number(aggCells[4]) === 6,
+  `precipitation sums across the period rather than averaging (got ${aggCells[4]})`,
 );
 ok(
   !aggregated.includes('(9)'),
-  'the gust column never prints a lesser gust from inside the block',
+  'the gust column never prints a lesser gust from inside the period',
 );
 ok(
-  aggCells.length === 7,
+  aggCells.length === 9,
   `an aggregated row still carries a cell per column (got ${aggCells.length})`,
+);
+// The row is built from a fixture with no `precipHours` at all — an older
+// snapshot, replayed. Three millimetres coming to 6 mm rather than being read as
+// three six-hour blocks is what proves a missing window still means one hour.
+ok(
+  rowLabels(aggregated).join(' ') === '12\u201315',
+  'a snapshot without precipHours is still read as hourly readings',
 );
 
 // Wind direction is an angle. Averaged as a plain number, 350° and 10° come to
@@ -688,40 +995,41 @@ const wrapCells = rowCells(
     makeData(DEFAULT_OPTIONS, {
       weatherLow: {
         elevationM: 420,
-        hours: block1218({ degs: [350, 350, 350, 10, 10, 10] }),
+        hours: block1215({ degs: [350, 350, 10] }),
         fetchedAt: LOW_FETCHED_AT,
       },
       weatherHigh: { elevationM: null, hours: [], fetchedAt: null },
     }),
   ),
-  '12\u201318',
+  '12\u201315',
 );
 ok(
-  /^N /.test(wrapCells[2]),
-  `directions either side of north average to north (got ${wrapCells[2]})`,
+  /^N /.test(wrapCells[3]),
+  `directions either side of north average to north (got ${wrapCells[3]})`,
 );
+// Averaged as plain numbers these three come to 237° — a southwesterly, which is
+// the wrong half of the compass. Any southerly answer is the bug, so the check is
+// on the letter rather than on one wrong value.
 ok(
-  !/^S /.test(wrapCells[2]),
-  'a wrapped direction is not averaged into its own opposite',
+  !/^S/.test(wrapCells[3]),
+  'a wrapped direction is not averaged into a southerly',
 );
 
-// A block neither anchor covers is dropped, not printed as a row of dashes: a
+// A period neither anchor covers is dropped, not printed as a row of dashes: a
 // sheet for a half-day of forecast should be shorter, not emptier.
 const partial = render(
   makeData(DEFAULT_OPTIONS, {
-    weatherLow: { elevationM: 420, hours: block1218({}), fetchedAt: LOW_FETCHED_AT },
-    weatherHigh: { elevationM: 1480, hours: block1218({}), fetchedAt: HIGH_FETCHED_AT },
+    weatherLow: { elevationM: 420, hours: block1215({}), fetchedAt: LOW_FETCHED_AT },
+    weatherHigh: { elevationM: 1480, hours: block1215({}), fetchedAt: HIGH_FETCHED_AT },
   }),
 );
-const partialRows = (partial.split('<tbody>')[1] ?? '').split('<tr').length - 1;
-ok(partialRows === 1, `an empty block is dropped rather than dashed (got ${partialRows})`);
 ok(
-  partial.includes('<td>12\u201318</td>'),
-  'the block that does have a forecast is the one that prints',
+  rowLabels(partial).join(' ') === '12\u201315',
+  `an empty period is dropped rather than dashed (got ${rowLabels(partial).join(' ')})`,
 );
 
-// One anchor short of a block, the other complete: the row stays, and the gap
-// shows as dashes in that anchor's columns rather than pulling the next block's
+// One anchor short of a period, the other complete: the row stays, and the gap
+// shows as dashes in that anchor's columns rather than pulling the next period's
 // numbers up against the other anchor's.
 const gappy = render(
   makeData(DEFAULT_OPTIONS, {
@@ -732,16 +1040,26 @@ const gappy = render(
     },
   }),
 );
-const gappyRows = (gappy.split('<tbody>')[1] ?? '').split('<tr').length - 1;
-ok(gappyRows === 4, 'a block missing from one anchor does not drop the row');
-const gappyCells = rowCells(gappy, '12\u201318');
 ok(
-  gappyCells[4] === '\u2013' && gappyCells[5] === '\u2013' && gappyCells[6] === '\u2013',
-  'the anchor missing that block prints dashes across its three columns',
+  rowLabels(gappy).length === 6,
+  'a period missing from one anchor does not drop the row',
+);
+const gappyCells = rowCells(gappy, '12\u201315');
+ok(
+  gappyCells[6] === '\u2013' &&
+    gappyCells[7] === '\u2013' &&
+    gappyCells[8] === '\u2013',
+  "the anchor missing that period prints dashes across its figures",
+);
+// And no icon, rather than a stale or invented one: an icon with no reading
+// behind it is the one cell on the row that would look like data.
+ok(
+  gappyCells[5] === '' && rowIcons(gappy, '12\u201315').length === 1,
+  'the missing anchor draws no sky icon',
 );
 ok(
-  gappyCells[1] !== '\u2013',
-  'the anchor that does have the block keeps its numbers on the same row',
+  gappyCells[2] !== '\u2013',
+  'the anchor that does have the period keeps its numbers on the same row',
 );
 
 // One anchor missing (MET refused, or the route has no usable elevation at one
@@ -759,11 +1077,11 @@ ok(
   retrievedLines(oneAnchor).some((line) => /07:32/.test(line)),
   'the anchor that did answer supplies the retrieval time on its own',
 );
-// The colgroup has to narrow with it. A six-column colgroup over a four-column
+// The colgroup has to narrow with it. A nine-column colgroup over a five-column
 // table is exactly the kind of overhang that only shows up on paper.
 const oneAnchorCols = colWidths(oneAnchor);
 ok(
-  oneAnchorCols.length === 4,
+  oneAnchorCols.length === 5,
   'a missing anchor narrows the colgroup to match the table',
 );
 ok(

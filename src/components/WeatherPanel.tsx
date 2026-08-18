@@ -71,6 +71,12 @@ function groupByDay(hours: WeatherHour[]): Map<string, WeatherHour[]> {
 }
 
 function fmtPrecip(h: WeatherHour): string | null {
+  // This column is headed "mm" against an hour, so it prints hourly figures
+  // only. Past its hourly window MET serves six-hour totals instead, and those
+  // are left blank here rather than being shown as if an hour's worth: the
+  // printable briefing groups its rows into the periods those totals actually
+  // cover and prints them there.
+  if (h.precipHours != null && h.precipHours !== 1) return null;
   const lo = h.precipMinMm;
   const hi = h.precipMaxMm;
   const mid = h.precipMm;

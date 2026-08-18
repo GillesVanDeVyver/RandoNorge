@@ -8,10 +8,13 @@
 // because "which end?" is a planning question and this box is about
 // composition.
 //
-// Print is held until the map canvas reports ready. A briefing whose map frame
-// prints half-drawn is worse than no briefing — but only when the map is
-// switched on; nothing else here waits on the network for a picture it is not
-// going to print.
+// Print is held until every picture on the sheet is actually there: the map
+// canvas has to report ready, and the weather table's sky icons have to have
+// loaded. A briefing whose map frame prints half-drawn is worse than no
+// briefing, and a print fired in the same moment the icons were requested comes
+// out with a column of holes. Both waits are conditional on the section being
+// switched on; nothing here waits on the network for a picture it is not going
+// to print.
 //
 // PDF generation is the browser's: window.print() → "Save as PDF". No client
 // -side PDF library, so nothing here can drift out of sync with what the user
@@ -78,6 +81,29 @@ function hoursOnDate(hours: WeatherHour[] | null, ymd: string): WeatherHour[] {
   return hours.filter((h) => toYMDLocal(new Date(h.time)) === ymd);
 }
 
+/** Load every sky icon the day could ask for, resolving once they have all
+ *  either arrived or failed.
+ *
+ *  The sheet's weather table renders MET's icons as <img>, and an <img> that is
+ *  still in flight when window.print() runs prints as nothing. Everything else
+ *  the sheet draws is either text or a canvas the sheet waits for, so these are
+ *  the last thing that can be missing from an otherwise finished page. Failures
+ *  resolve like successes: an icon that 404s is never going to arrive, and
+ *  holding Print for it would trade a missing picture for a stuck button. */
+function preloadSymbols(codes: string[]): Promise<void> {
+  return Promise.all(
+    codes.map(
+      (code) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = `/weather-icons/${code}.svg`;
+        }),
+    ),
+  ).then(() => undefined);
+}
+
 export function BriefingDialog({
   route,
   profile,
@@ -100,6 +126,9 @@ export function BriefingDialog({
 
   const [options, setOptions] = useState<BriefingOptions>(loadOptions);
   const [mapReady, setMapReady] = useState(false);
+  const [loadedSymbols, setLoadedSymbols] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   // The switches live behind the gear. Exporting the whole sheet is what almost
   // everyone wants, so the bar asks nothing and the choice is there for the
@@ -201,15 +230,6 @@ export function BriefingDialog({
       ?.focus();
   }, [settingsOpen]);
 
-  // Only wait on the sources that are actually going to be printed: a guide
-  // who switched weather off should not be held at "Preparing…" by MET.
-  const weatherLoading = weatherLow.loading || weatherHigh.loading;
-  const canPrint =
-    (!options.map || mapReady) &&
-    !(options.avalanche && avalanche.loading) &&
-    !(options.weather && weatherLoading) &&
-    !(options.snow && snow.loading);
-
   const title = routeName?.trim() || t('Turbriefing', 'Tour briefing');
 
   // The weather panel keeps its own day selection, which need not be the tour
@@ -217,6 +237,49 @@ export function BriefingDialog({
   // panel where it has one, and print the day in the heading so the two dates
   // on the sheet are never ambiguous.
   const weatherDay = weatherDate ?? date;
+
+  // Every sky icon the table could reach for, from both anchors and the day the
+  // table is showing. Deliberately wider than the six or so the table will
+  // actually render: which reading represents a period is decided inside the
+  // sheet, and duplicating that rule here to preload a shorter list would be a
+  // second copy of it to keep in step for no gain — the files are a few hundred
+  // bytes each and are cached after the first sheet.
+  const symbolCodes = useMemo(() => {
+    const codes = new Set<string>();
+    for (const hours of [
+      hoursOnDate(weatherLow.hours, weatherDay),
+      hoursOnDate(weatherHigh.hours, weatherDay),
+    ]) {
+      for (const h of hours) if (h.symbolCode) codes.add(h.symbolCode);
+    }
+    return [...codes].sort();
+  }, [weatherLow.hours, weatherHigh.hours, weatherDay]);
+
+  // Which icons are known to be in the browser's cache, and from that whether
+  // the sheet's table can be printed. Kept as the set that has loaded rather
+  // than as a ready flag, so readiness is derived: a day whose icons have not
+  // arrived is not ready without anything having to reset a flag, and the ones
+  // already fetched stay counted, which is the truth — they are cached.
+  useEffect(() => {
+    let cancelled = false;
+    void preloadSymbols(symbolCodes).then(() => {
+      if (cancelled) return;
+      setLoadedSymbols((prev) => new Set([...prev, ...symbolCodes]));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [symbolCodes]);
+  const symbolsReady = symbolCodes.every((c) => loadedSymbols.has(c));
+
+  // Only wait on the sources that are actually going to be printed: a guide
+  // who switched weather off should not be held at "Preparing…" by MET.
+  const weatherLoading = weatherLow.loading || weatherHigh.loading;
+  const canPrint =
+    (!options.map || mapReady) &&
+    !(options.avalanche && avalanche.loading) &&
+    !(options.weather && (weatherLoading || !symbolsReady)) &&
+    !(options.snow && snow.loading);
 
   const data: BriefingData = {
     routeName: title,

@@ -17,16 +17,20 @@
  *     header                14      map + key facts       68
  *     danger banner         30      avalanche problems    17
  *     profile + steepness   43      snow                  28
- *     weather table         33      notes                 17
+ *     weather table         52      notes                 17
  *     footer + gaps         33
- *                                          total     ~ 263 mm
+ *                                          total     ~ 282 mm
  *
- * The weather table is a fixed four rows — the day in six-hour blocks, built in
- * BriefingSheet.tsx — so it cannot grow with the forecast. That matters: it
- * once printed a row per hour, which put a 24-row table on the page and pushed
- * a fully switched-on sheet well past the fold.
+ * The weather table is at most six rows — 06 to midnight in three-hour periods,
+ * built in BriefingSheet.tsx — so it cannot grow with the forecast. That matters:
+ * it once printed a row per hour, which put a 24-row table on the page and
+ * pushed a fully switched-on sheet well past the fold. Its 52 mm is six body
+ * rows of 5 mm icon plus 1.8 mm of padding, over two header rows of about
+ * 9.5 mm; that is roughly 19 mm more than the four denser six-hour rows it
+ * replaced, and the one deliberate increase in this budget. A coarse far-out
+ * forecast keeps MET's own longer periods and prints fewer rows still.
  *
- * That leaves roughly 105 sheet mm (79 mm of paper) of headroom, which is what
+ * That leaves roughly 86 sheet mm (65 mm of paper) of headroom, which is what
  * absorbs the blocks holding text of unknown length — a wordy Varsom bulletin,
  * a long route description. Those are clamped as well rather than trusted, at
  * .briefingSubtitle and .briefingDangerText, because headroom is the thing that
@@ -773,12 +777,71 @@
 
 /* Fixed layout, with the widths coming from the colgroup the sheet emits. The
  * automatic algorithm sizes each column to its own contents, so a two-digit
- * temperature in the valley and a minus sign on the summit give the two trios
+ * temperature in the valley and a minus sign on the summit give the two groups
  * different widths — and the one comparison this table exists to support is
- * reading straight across from one anchor to the other. Equal columns also
- * stop the rules between the groups from wandering down the page. */
+ * reading straight across from one anchor to the other. Identical groups also
+ * stop the rules between them from wandering down the page. */
 .briefingWeatherTable {
   table-layout: fixed;
+}
+
+/* The sky column. MET's own icons, the same files the weather panel uses on
+ * screen, which is most of what makes the printed table read as the app's table
+ * rather than a spreadsheet of it.
+ *
+ * Sized here in sheet millimetres rather than by the component's pixel props:
+ * everything else on this page is reasoned in sheet mm and shrunk once by the
+ * sheet's zoom, and an icon measured in CSS pixels would be the one element on
+ * the paper whose size depended on the renderer's idea of a pixel. 5 mm lands at
+ * 3.75 mm printed — about the height of the 8pt figures beside it. */
+.briefingSkyCell {
+  text-align: center;
+}
+
+/* A block, not an inline box, and centred by its own margins. An inline icon
+ * sits on the row's text baseline, which leaves room for a descender under it
+ * that nothing ever draws in — about 0.6 sheet mm per row, and this table has
+ * six of them. Taking the icon out of the line box makes the row exactly the
+ * icon plus its padding, which is what the vertical budget at the top of this
+ * file counts. */
+.briefingSky {
+  display: block;
+}
+
+.briefingSky img {
+  width: 5mm;
+  height: 5mm;
+  margin: 0 auto;
+}
+
+/* Centred over its column like the icons under it. Spelled out against
+ * `.briefingTable th`, which sets text-align: left and would otherwise win. */
+.briefingWeatherTable th.briefingSkyHead {
+  text-align: center;
+}
+
+/* The readings are tinted as the weather panel tints them, with the same hues:
+ * freezing and below is blue, above is warm, precipitation is the panel's blue,
+ * and the gust is quieter than the mean it follows. On paper this is not
+ * decoration — the sign of the temperature is the most consequential character
+ * in the table, and it is read as a colour before it is read as a minus. */
+.briefingTempWarm {
+  color: #d83a32;
+  font-weight: 600;
+}
+
+.briefingTempCold {
+  color: #2e7ae6;
+  font-weight: 600;
+}
+
+.briefingPrecip {
+  color: #2c8dde;
+  font-weight: 500;
+}
+
+.briefingGust {
+  color: var(--briefing-muted);
 }
 
 /* Avalanche problems */

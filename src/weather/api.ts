@@ -17,9 +17,26 @@ export interface WeatherHour {
   windGust: number | null; // m/s, if reported
   windFromDeg: number; // direction the wind is blowing FROM, degrees
   symbolCode: string | null; // e.g. "partlycloudy_day"
-  precipMm: number | null; // expected precipitation for the next 1 h
+  /** Expected precipitation over the next `precipHours` — usually one hour, but
+   *  not always, so read the two together. */
+  precipMm: number | null;
   precipMinMm: number | null;
   precipMaxMm: number | null;
+  /** How many hours the three precipitation figures above cover: 1 when MET
+   *  published a next_1_hours block for this entry, 6 when only the coarser
+   *  next_6_hours was available, null when neither was.
+   *
+   *  MET publishes hourly for roughly the first two days and then switches to
+   *  entries every six hours, and those carry no next_1_hours at all. Reading
+   *  only next_1_hours therefore left every far-out entry with no precipitation
+   *  whatsoever, which is what the fallback is for — but a six-hour total must
+   *  never be shown as an hourly rate, so the window travels with the numbers
+   *  instead of being assumed by whoever reads them.
+   *
+   *  Optional because snapshots captured before this field existed are replayed
+   *  exactly as they were stored; treat a missing value as 1, which is what
+   *  those entries always were. */
+  precipHours?: 1 | 6 | null;
 }
 
 interface MetNoTimeseries {
@@ -43,6 +60,11 @@ interface MetNoTimeseries {
     };
     next_6_hours?: {
       summary?: { symbol_code?: string };
+      details?: {
+        precipitation_amount?: number;
+        precipitation_amount_min?: number;
+        precipitation_amount_max?: number;
+      };
     };
   };
 }
@@ -89,8 +111,14 @@ export async function fetchForecast(
   const hours: WeatherHour[] = data.properties.timeseries.map((ts) => {
     const det = ts.data.instant.details;
     const n1 = ts.data.next_1_hours;
-    const sym =
-      n1?.summary?.symbol_code ?? ts.data.next_6_hours?.summary?.symbol_code ?? null;
+    const n6 = ts.data.next_6_hours;
+    const sym = n1?.summary?.symbol_code ?? n6?.summary?.symbol_code ?? null;
+    // Hourly where MET has it, its six-hour block where it does not. Never both
+    // added together: the blocks overlap the hours they contain, so preferring
+    // one and recording which is the only way the figure stays a fact.
+    const pDet = n1?.details ?? n6?.details;
+    const pHours: 1 | 6 | null =
+      n1?.details != null ? 1 : n6?.details != null ? 6 : null;
     return {
       time: ts.time,
       temperature: det.air_temperature,
@@ -98,9 +126,10 @@ export async function fetchForecast(
       windGust: typeof det.wind_speed_of_gust === 'number' ? det.wind_speed_of_gust : null,
       windFromDeg: det.wind_from_direction,
       symbolCode: sym,
-      precipMm: n1?.details?.precipitation_amount ?? null,
-      precipMinMm: n1?.details?.precipitation_amount_min ?? null,
-      precipMaxMm: n1?.details?.precipitation_amount_max ?? null,
+      precipMm: pDet?.precipitation_amount ?? null,
+      precipMinMm: pDet?.precipitation_amount_min ?? null,
+      precipMaxMm: pDet?.precipitation_amount_max ?? null,
+      precipHours: pHours,
     };
   });
 

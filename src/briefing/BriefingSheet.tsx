@@ -10,7 +10,7 @@
 // The page is intentionally NOT a dump of every panel. Anything a person can't
 // act on in the field is left off to keep it to a single sheet.
 
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import type { Route } from '../types';
 import type { AvalancheWarning } from '../avalanche/api';
@@ -27,6 +27,7 @@ import { summariseTerrain, runoutLevelLabel } from './terrain';
 import { ProfileSvg } from './ProfileSvg';
 import { SnowSvg } from './SnowSvg';
 import { summariseSnow } from './snowSummary';
+import { WeatherSymbol } from '../components/WeatherIcons';
 import { renderStaticMap } from './staticMap';
 import type { BriefingOptions } from './options';
 import { useT } from '../i18n/index.ts';
@@ -51,10 +52,22 @@ const MAP_W = 1280;
 const MAP_H = 680;
 const MAP_SCALE = 2;
 
-// Width of the weather table's period column, as a percentage; the forecast
-// columns split what is left evenly between them. "06–12" and its heading need
-// very little room, and every millimetre spent here is taken from the readings.
+// Width of the weather table's period column, as a percentage. "06–09" and its
+// heading need very little room, and every millimetre spent here is taken from
+// the readings.
 const TIME_COL_PCT = 10;
+
+// How the rest of the width is split between one anchor's four readings, in
+// arbitrary weights rather than percentages: the table narrows to a single
+// anchor when MET only answered for one end of the route, and weights rescale
+// where fixed percentages would leave half the paper blank.
+//
+// Unequal on purpose, because the columns are not: "NØ 12 (18)" is three times
+// the width of "-4°", and the sky is an icon. What has to stay equal is the two
+// anchors, which are read straight across from one another — so both groups take
+// the same weights, and only the pair as a whole scales.
+const COL_WEIGHTS = { sky: 6.5, temp: 8.5, wind: 17, precip: 13 };
+const ANCHOR_WEIGHT = Object.values(COL_WEIGHTS).reduce((a, b) => a + b, 0);
 
 /** One end of the route as a weather anchor: the forecast, plus the elevation
  *  it applies to (a summit reading means little without its height). */
@@ -196,26 +209,42 @@ function precip(h: WeatherHour): string | null {
   return null;
 }
 
-// The day prints as four six-hour blocks in LOCAL time: 00–06, 06–12, 12–18,
-// 18–24. A tour is planned in parts of a day, not hour by hour, and one row per
-// hour cost about 130 sheet mm — most of a page — to say something the reader
-// then had to average in their head anyway.
+// The day prints as three-hour periods in LOCAL time, from 06 to midnight:
+// 06–09, 09–12, 12–15, 15–18, 18–21, 21–24. A tour is planned in parts of a
+// day, not hour by hour, and one row per hour cost about 130 sheet mm — most of
+// a page — to say something the reader then had to average in their head
+// anyway. Three hours is the shortest period that still says something a party
+// can act on: it is roughly a climb, a summit stop, or a descent.
 //
-// Local, and aligned to the day, for two reasons. The hours handed in are
-// already sliced to one local day by the dialog, so a block reaching past
-// midnight would be permanently half empty. And past roughly 48 hours MET stops
-// publishing hourly and serves entries at 00/06/12/18 UTC, which land on
-// 01/07/13/19 local in Norwegian winter and 02/08/14/20 in summer — one inside
-// each of these blocks, either way. So a far-out forecast fills the same four
-// rows as a near one, from a single reading apiece rather than six.
-const BLOCK_HOURS = 6;
-const BLOCK_STARTS = [0, 6, 12, 18];
+// Local, because the hours handed in were already sliced to one local day by
+// the dialog. The night is left off: 06 is earlier than all but the most
+// committed starts, and two rows of darkness cost the same paper as two rows of
+// daylight.
+//
+// This grid is what MET's HOURLY forecast is grouped into. Past roughly two days
+// MET stops publishing hourly and serves entries every six hours instead, at
+// 00/06/12/18 UTC — 01/07/13/19 local in Norwegian winter, 02/08/14/20 in
+// summer. Forcing those into three-hour rows would leave half the table empty
+// and imply a resolution that does not exist, so a coarse forecast keeps MET's
+// own periods and prints as few, longer rows (07–13, 13–19, 19–01). The sheet
+// shows the resolution it was given rather than inventing one; see periodGrid.
+const BLOCK_HOURS = 3;
+const BLOCK_STARTS = [6, 9, 12, 15, 18, 21];
+/** First local hour the sheet prints. Readings before it are dropped. */
+const DAY_START_HOUR = BLOCK_STARTS[0];
+
+/** One row's period: the local hour it opens at and how many hours it covers.
+ *  A period may run past midnight (19–01) when that is the block MET served. */
+interface Period {
+  start: number;
+  hours: number;
+}
 
 interface WeatherRow {
-  /** Local hour the block starts at. Also its key: the blocks are fixed, so
-   *  this is stable in a way a timestamp taken from the data would not be. */
+  /** Local hour the period starts at. Also the row's key — one row per start
+   *  hour, so it is stable in a way an aggregate's timestamp would not be. */
   start: number;
-  /** "06–12". Printed instead of an instant because the numbers describe a
+  /** "06–09". Printed instead of an instant because the numbers describe a
    *  period, and a row labelled 06:00 would read as a reading taken then. */
   label: string;
   low: WeatherHour | null;
@@ -253,90 +282,230 @@ const sumOrNull = (xs: (number | null | undefined)[]): number | null => {
   return ns.length > 0 ? ns.reduce((a, b) => a + b, 0) : null;
 };
 
-/** Collapse the hours falling inside one block into a single reading.
+/** The hours a reading's precipitation figures cover, and with them the shortest
+ *  period the reading can honestly be printed against. One hour while MET is
+ *  publishing hourly, six once it has switched to blocks, and one for an entry
+ *  that carries no precipitation at all — an instant is a fine thing to put in
+ *  a three-hour row, it simply does not add up to a longer one.
+ *
+ *  Snapshots taken before the field existed have no value here; they were all
+ *  hourly, which is exactly what the fallback assumes. */
+const spanOf = (h: WeatherHour): number => h.precipHours ?? 1;
+
+/** Collapse the readings falling inside one period into a single reading.
  *
  *  Not everything averages, and pretending otherwise would print numbers that
  *  are quietly wrong:
  *
- *    - Temperature and mean wind are states, so the block's average state is
+ *    - Temperature and wind speed are states, so the period's average state is
  *      exactly what is wanted.
- *    - Precipitation is an accumulation, so it sums. Averaging six hourly
- *      millimetres would print 1 mm for a block in which 6 mm falls.
- *    - The gust takes the block's maximum. A gust is already a peak, and the
+ *    - Precipitation is an accumulation, so it sums. Averaging three hourly
+ *      millimetres would print 1 mm for a period in which 3 mm falls. The
+ *      readings' own windows never overlap — MET's entries are sequential, and
+ *      the grid is built so that no reading's window outruns its row — so the
+ *      sum is a true total for the period and not a double count.
+ *    - The gust takes the period's maximum. A gust is already a peak, and the
  *      only reason to print it is the worst the party will be standing in; an
- *      averaged gust is a speed nothing ever gusted to. */
+ *      averaged gust is a speed nothing ever gusted to.
+ *    - The sky symbol takes the wettest hour, falling back to the middle of the
+ *      period when nothing is forecast. Same reasoning as the gust: of three
+ *      hours, two clear and one snowing, the snow is the one that changes what
+ *      the party does, and an icon is read before any number on the row. */
 function blockReading(hours: WeatherHour[]): WeatherHour | null {
   if (hours.length === 0) return null;
   const gusts = known(hours.map((h) => h.windGust));
+  const wettest = hours.reduce((worst, h) =>
+    (h.precipMm ?? h.precipMaxMm ?? 0) > (worst.precipMm ?? worst.precipMaxMm ?? 0)
+      ? h
+      : worst,
+  );
+  const anyPrecip = (wettest.precipMm ?? wettest.precipMaxMm ?? 0) > 0;
   return {
-    // The first hour in the block. Nothing on the sheet reads this — the row is
-    // labelled by its block — but a WeatherHour without a time would be a trap
-    // for the next person to use one of these.
+    // The first reading in the period. Nothing on the sheet reads this — the row
+    // is labelled by its period — but a WeatherHour without a time would be a
+    // trap for the next person to use one of these.
     time: hours[0].time,
     temperature: mean(hours.map((h) => h.temperature)),
     windSpeed: mean(hours.map((h) => h.windSpeed)),
     windFromDeg: meanDirection(hours.map((h) => h.windFromDeg)),
     windGust: gusts.length > 0 ? Math.max(...gusts) : null,
-    // Unused by the sheet, which prints no weather symbol. The middle hour
-    // rather than the first, so if one is ever wanted it describes the block
-    // instead of its opening minute.
-    symbolCode: hours[Math.floor(hours.length / 2)].symbolCode,
+    symbolCode: (anyPrecip ? wettest : hours[Math.floor(hours.length / 2)])
+      .symbolCode,
     precipMm: sumOrNull(hours.map((h) => h.precipMm)),
     // The band sums with the total: its ends are accumulations over the same
-    // period, so a block's low and high are the sums of the hourly lows and
+    // period, so a period's low and high are the sums of the readings' lows and
     // highs, not their averages.
     precipMinMm: sumOrNull(hours.map((h) => h.precipMinMm)),
     precipMaxMm: sumOrNull(hours.map((h) => h.precipMaxMm)),
+    // Explicitly not an hourly figure: these millimetres are a total for
+    // whatever period the row covers, and null is how that is said. Left in
+    // rather than omitted so an aggregate can never be mistaken for one of
+    // MET's own hours by anything that reads one of these later.
+    precipHours: null,
   };
-}
-
-/** One aggregated reading per block, in block order, with nulls where an anchor
- *  had no hours at all in that part of the day. */
-function anchorBlocks(hours: WeatherHour[]): (WeatherHour | null)[] {
-  const buckets: WeatherHour[][] = BLOCK_STARTS.map(() => []);
-  for (const h of hours) {
-    // Local, matching how the dialog sliced the day. A UTC bucket here would
-    // put an evening reading in the morning block for half the year.
-    const i = Math.floor(new Date(h.time).getHours() / BLOCK_HOURS);
-    if (i >= 0 && i < buckets.length) buckets[i].push(h);
-  }
-  return buckets.map(blockReading);
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
-/** Four rows with the valley and summit readings side by side, aligned on the
- *  block rather than on a timestamp — the two anchors are read straight across,
- *  and blocks line up even when the anchors were served at different
- *  resolutions. A block neither anchor covered is dropped rather than printed
- *  as a row of dashes. */
+/** The hour a period ends at, as it is written on the row. Midnight is 24 at
+ *  the end of the day — "21–24" closes the day, where "21–00" reads like a typo
+ *  — but a period that genuinely runs into the next day wraps, because MET's
+ *  evening block really does cover 19–01. */
+const endLabel = (p: Period): string => {
+  const end = p.start + p.hours;
+  return end === 24 ? '24' : pad2(end % 24);
+};
+
+/** Local hours of the day, sorted and deduplicated, that either anchor has a
+ *  reading for — paired with the longest window any reading at that hour
+ *  covers. Both anchors together, because the two are printed on one row and a
+ *  period one of them cannot fill is still a period. */
+function readingHours(...anchors: BriefingAnchor[]): Period[] {
+  const spans = new Map<number, number>();
+  for (const anchor of anchors) {
+    for (const h of anchor.hours) {
+      // Local, matching how the dialog sliced the day. Bucketing in UTC would
+      // put an evening reading in the morning for half the year.
+      const hour = new Date(h.time).getHours();
+      if (hour < DAY_START_HOUR) continue;
+      spans.set(hour, Math.max(spans.get(hour) ?? 0, spanOf(h)));
+    }
+  }
+  return [...spans.entries()]
+    .map(([start, hours]) => ({ start, hours }))
+    .sort((a, b) => a.start - b.start);
+}
+
+/** The periods this day's forecast can be printed as, in order and never
+ *  overlapping.
+ *
+ *  Two kinds of row come out of this. A reading whose window fits inside three
+ *  hours is grouped into the fixed grid, which is what makes an hourly day read
+ *  as 06–09, 09–12 and so on however many hours actually arrived. A reading
+ *  covering more than that — MET's six-hour blocks, past its hourly window —
+ *  becomes a row of its own, labelled with the block it really is, because
+ *  splitting a six-hour total across two rows would invent a distribution
+ *  inside it and printing it in one three-hour row would put six hours of rain
+ *  behind a three-hour label.
+ *
+ *  Coarse periods are laid down first and the grid fills in around them, so a
+ *  day that turns coarse halfway through — the common case two days out — comes
+ *  out as three-hour rows while MET is hourly and six-hour rows after.
+ *
+ *  Where the two meet, an hourly reading whose grid slot is already taken by a
+ *  coarse block gets no row: at most an hour or two before the handover, left
+ *  out because both alternatives are worse. A row overlapping the block would
+ *  print its precipitation twice under two headings, and moving the grid to dodge
+ *  it would put a label on a period no reading covers. */
+function periodGrid(low: BriefingAnchor, high: BriefingAnchor): Period[] {
+  const readings = readingHours(low, high);
+  const periods: Period[] = [];
+  const overlaps = (start: number, hours: number) =>
+    periods.some((p) => start < p.start + p.hours && p.start < start + hours);
+
+  for (const r of readings) {
+    if (r.hours <= BLOCK_HOURS) continue;
+    if (!overlaps(r.start, r.hours)) periods.push({ start: r.start, hours: r.hours });
+  }
+  for (const r of readings) {
+    if (r.hours > BLOCK_HOURS) continue;
+    const start = BLOCK_STARTS.filter((s) => s <= r.start).pop();
+    if (start == null) continue;
+    if (!overlaps(start, BLOCK_HOURS)) periods.push({ start, hours: BLOCK_HOURS });
+  }
+  return periods.sort((a, b) => a.start - b.start);
+}
+
+/** One aggregated reading per period, in period order, with nulls where an
+ *  anchor had no readings at all in that part of the day. */
+function anchorPeriods(
+  hours: WeatherHour[],
+  periods: Period[],
+): (WeatherHour | null)[] {
+  const buckets: WeatherHour[][] = periods.map(() => []);
+  for (const h of hours) {
+    const hour = new Date(h.time).getHours();
+    const i = periods.findIndex(
+      (p) => hour >= p.start && hour < p.start + p.hours,
+    );
+    if (i >= 0) buckets[i].push(h);
+  }
+  return buckets.map(blockReading);
+}
+
+/** One row per period, with the valley and summit readings side by side and
+ *  aligned on the period rather than on a timestamp — the two anchors are read
+ *  straight across. A period neither anchor covered is dropped rather than
+ *  printed as a row of dashes: a sheet for half a day of forecast should be
+ *  shorter, not emptier. */
 function weatherRows(low: BriefingAnchor, high: BriefingAnchor): WeatherRow[] {
-  const lows = anchorBlocks(low.hours);
-  const highs = anchorBlocks(high.hours);
-  return BLOCK_STARTS.map((start, i) => ({
-    start,
-    label: `${pad2(start)}–${pad2(start + BLOCK_HOURS)}`,
-    low: lows[i],
-    high: highs[i],
-  })).filter((r) => r.low != null || r.high != null);
+  const periods = periodGrid(low, high);
+  const lows = anchorPeriods(low.hours, periods);
+  const highs = anchorPeriods(high.hours, periods);
+  return periods
+    .map((p, i) => ({
+      start: p.start,
+      label: `${pad2(p.start)}–${endLabel(p)}`,
+      low: lows[i],
+      high: highs[i],
+    }))
+    .filter((r) => r.low != null || r.high != null);
 }
 
-/** Wind as one cell: direction, speed, and the gust in parentheses. Three
- *  separate columns per anchor would not fit twice across the page, and the
- *  gust is only ever read next to the mean anyway. */
-function windCell(h: WeatherHour | null): string {
-  if (!h) return '–';
-  const gust = h.windGust == null ? '' : ` (${Math.round(h.windGust)})`;
-  return `${compass(h.windFromDeg)} ${Math.round(h.windSpeed)}${gust}`;
+/** Wind as one cell: direction, speed, and the gust in parentheses — laid out
+ *  and coloured the way the weather panel lays it out on screen, so a guide who
+ *  has read the panel does not have to learn the sheet. Three separate columns
+ *  per anchor would not fit twice across the page, and the gust is only ever
+ *  read next to the mean anyway.
+ *
+ *  Direction is where the wind comes FROM, as MET reports it and as the app's
+ *  compass letters say it. The panel's rotating arrow is deliberately left off:
+ *  it points where the wind is blowing TO, which is the opposite convention, and
+ *  on paper the two together would need a legend the sheet no longer has room
+ *  for. Letters cannot be misread. */
+function WindCell({ h }: { h: WeatherHour | null }) {
+  if (!h) return <>–</>;
+  return (
+    <>
+      {compass(h.windFromDeg)} {Math.round(h.windSpeed)}
+      {h.windGust != null && (
+        <span className="briefingGust"> ({Math.round(h.windGust)})</span>
+      )}
+    </>
+  );
 }
 
-function tempCell(h: WeatherHour | null): string {
-  return h ? `${Math.round(h.temperature)}°` : '–';
+/** Temperature, tinted as the panel tints it: freezing and below reads blue,
+ *  above reads warm. On a winter sheet the sign is the single most consequential
+ *  character in the table, and colour is read before the minus is. */
+function TempCell({ h }: { h: WeatherHour | null }) {
+  if (!h) return <>–</>;
+  return (
+    <span className={h.temperature <= 0 ? 'briefingTempCold' : 'briefingTempWarm'}>
+      {Math.round(h.temperature)}°
+    </span>
+  );
 }
 
-function precipCell(h: WeatherHour | null): string {
+function PrecipCell({ h }: { h: WeatherHour | null }) {
   const p = h ? precip(h) : null;
-  return p ?? '–';
+  if (p == null) return <>–</>;
+  return <span className="briefingPrecip">{p}</span>;
+}
+
+/** The period's sky, drawn with MET's own icons — the same artwork, from the
+ *  same files, as the weather panel on screen. It is the one thing on the row a
+ *  reader takes in without reading, which is worth a column on a sheet consulted
+ *  in wind with cold hands. */
+function SkyCell({ h }: { h: WeatherHour | null }) {
+  if (!h?.symbolCode) return null;
+  return (
+    <span className="briefingSky">
+      {/* Empty alt: the row is fully described by the figures beside it, so the
+          icon is decoration rather than a second, wordless data source. */}
+      <WeatherSymbol code={h.symbolCode} title="" />
+    </span>
+  );
 }
 
 function MapPicture({
@@ -472,8 +641,19 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
   const rows = options.weather ? weatherRows(weatherLow, weatherHigh) : [];
   const showLow = rows.some((r) => r.low);
   const showHigh = rows.some((r) => r.high);
-  // Three readings per anchor, and either anchor can be absent.
-  const weatherCols = (showLow ? 3 : 0) + (showHigh ? 3 : 0);
+  // Four columns per anchor — sky, temperature, wind, precipitation — and either
+  // anchor can be absent. The widths are stated as weights and normalised here,
+  // so one anchor's group takes half the table and two take a quarter each,
+  // while the shape of a group never changes.
+  const anchorCount = (showLow ? 1 : 0) + (showHigh ? 1 : 0);
+  const colPct = (weight: number) =>
+    (weight * (100 - TIME_COL_PCT)) / (ANCHOR_WEIGHT * Math.max(anchorCount, 1));
+  const anchorCols = [
+    COL_WEIGHTS.sky,
+    COL_WEIGHTS.temp,
+    COL_WEIGHTS.wind,
+    COL_WEIGHTS.precip,
+  ];
   const snowSummary = options.snow ? summariseSnow(profile, snow) : null;
   // Credit only the sources that actually contributed to this print: a footer
   // citing Varsom on a sheet with no avalanche section is a small lie.
@@ -789,83 +969,86 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           {rows.length > 0 ? (
             <table className="briefingTable briefingWeatherTable">
               {/* The table is laid out fixed, so the widths have to be stated
-                  here. They are counted rather than hard-coded because either
-                  anchor can be missing — a summit-only sheet gets three
-                  columns, not six, and a colgroup written for six would leave
-                  half the table hanging off the paper. */}
+                  here. They are computed rather than hard-coded because either
+                  anchor can be missing — a summit-only sheet gets four columns,
+                  not eight, and a colgroup written for eight would leave half
+                  the table hanging off the paper. */}
               <colgroup>
                 <col style={{ width: `${TIME_COL_PCT}%` }} />
-                {Array.from({ length: weatherCols }, (_, i) => (
-                  <col
-                    key={i}
-                    style={{ width: `${(100 - TIME_COL_PCT) / weatherCols}%` }}
-                  />
-                ))}
+                {Array.from({ length: anchorCount }, (_, group) =>
+                  anchorCols.map((weight, i) => (
+                    <col
+                      key={`${group}-${i}`}
+                      style={{ width: `${colPct(weight)}%` }}
+                    />
+                  )),
+                )}
               </colgroup>
               <thead>
-                {/* Two header rows: the anchors span their three columns, so
-                    the valley and summit readings can be compared down the
-                    page at a glance instead of on two separate tables. */}
+                {/* Two header rows: the anchors span their four columns, so the
+                    valley and summit readings can be compared down the page at a
+                    glance instead of on two separate tables. */}
                 <tr>
                   <th rowSpan={2}>{t('Periode', 'Period')}</th>
                   {showLow && (
-                    <th colSpan={3} className="briefingGroupHead">
+                    <th colSpan={4} className="briefingGroupHead">
                       {t('Laveste punkt', 'Low point')}
                       {weatherLow.elevationM != null &&
                         ` · ${metres(weatherLow.elevationM)}`}
                     </th>
                   )}
                   {showHigh && (
-                    <th colSpan={3} className="briefingGroupHead">
+                    <th colSpan={4} className="briefingGroupHead">
                       {t('Høyeste punkt', 'High point')}
                       {weatherHigh.elevationM != null &&
                         ` · ${metres(weatherHigh.elevationM)}`}
                     </th>
                   )}
                 </tr>
+                {/* The headings carry what a footnote used to: the wind's
+                    parenthesis is the gust, and the millimetres are a total for
+                    the period rather than a rate per hour. Said here because a
+                    heading cannot drift out of step with the column under it. */}
                 <tr>
-                  {showLow && (
-                    <>
-                      <th className="briefingNum briefingGroupStart">°C</th>
-                      <th className="briefingNum">
-                        {t('Vind m/s', 'Wind m/s')}
+                  {Array.from({ length: anchorCount }, (_, group) => (
+                    <Fragment key={group}>
+                      <th className="briefingSkyHead briefingGroupStart">
+                        {t('Himmel', 'Sky')}
                       </th>
-                      <th className="briefingNum">mm</th>
-                    </>
-                  )}
-                  {showHigh && (
-                    <>
-                      <th className="briefingNum briefingGroupStart">°C</th>
+                      <th className="briefingNum">°C</th>
                       <th className="briefingNum">
-                        {t('Vind m/s', 'Wind m/s')}
+                        {t('Vind m/s (kast)', 'Wind m/s (gust)')}
                       </th>
-                      <th className="briefingNum">mm</th>
-                    </>
-                  )}
+                      <th className="briefingNum">
+                        {t('mm i alt', 'mm total')}
+                      </th>
+                    </Fragment>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.start}>
                     <td>{r.label}</td>
-                    {showLow && (
-                      <>
-                        <td className="briefingNum briefingGroupStart">
-                          {tempCell(r.low)}
-                        </td>
-                        <td className="briefingNum">{windCell(r.low)}</td>
-                        <td className="briefingNum">{precipCell(r.low)}</td>
-                      </>
-                    )}
-                    {showHigh && (
-                      <>
-                        <td className="briefingNum briefingGroupStart">
-                          {tempCell(r.high)}
-                        </td>
-                        <td className="briefingNum">{windCell(r.high)}</td>
-                        <td className="briefingNum">{precipCell(r.high)}</td>
-                      </>
-                    )}
+                    {[
+                      ...(showLow ? [r.low] : []),
+                      ...(showHigh ? [r.high] : []),
+                    ].map((h, group) => (
+                        <Fragment key={group}>
+                          <td className="briefingSkyCell briefingGroupStart">
+                            <SkyCell h={h} />
+                          </td>
+                          <td className="briefingNum">
+                            <TempCell h={h} />
+                          </td>
+                          <td className="briefingNum">
+                            <WindCell h={h} />
+                          </td>
+                          <td className="briefingNum">
+                            <PrecipCell h={h} />
+                          </td>
+                        </Fragment>
+                      ))}
                   </tr>
                 ))}
               </tbody>
@@ -880,17 +1063,15 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
                   )}
             </p>
           )}
-          {/* The rows are aggregates, so the sheet says how. Without this a
-              reader takes 3 mm as an hourly rate and a gust as a mean, and both
-              mistakes point the wrong way for a decision made on a ridge. */}
-          {rows.length > 0 && (
-            <p className="briefingTerrainNote">
-              {t(
-                'Hver rad er seks timer: snitt for temperatur og middelvind, sum for nedbør, sterkeste kast i parentes.',
-                'Each row covers six hours: average temperature and mean wind, total precipitation, strongest gust in parentheses.',
-              )}
-            </p>
-          )}
+          {/* No footnote under the table. The rows are aggregates and the sheet
+              still has to say so, but a sentence sitting under the table is the
+              wrong place for it: it repeated in prose what the columns could say
+              themselves, it was read last if at all, and it drifted out of step
+              with the code the moment the periods changed. The two things it
+              carried that a reader cannot infer — the parenthesis is a gust, the
+              millimetres are a period total — are in the column headings above,
+              where they sit beside the figures they qualify and cannot be
+              separated from them. The period column states the rest. */}
         </section>
       )}
 
