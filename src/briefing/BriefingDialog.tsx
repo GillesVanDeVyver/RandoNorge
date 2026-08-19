@@ -23,6 +23,10 @@
 // title — so the title is swapped for "<tour>_Fjellrute" for the duration of
 // the print and put back afterwards.
 //
+// Two of the switches are not sections but ways of drawing one — steepness
+// colours the elevation profile, and 3D swaps the flat map for the planner's
+// terrain view — so they sit under what they modify and go out with it.
+//
 // One switch decides for itself: snow depth turns off when seNorge says there
 // is none along the route, because a page of zeroes is worse than no page. It
 // stays a switch, not a lock — the guide can turn it back on, and doing so is
@@ -176,8 +180,10 @@ export function BriefingDialog({
   const setOption = useCallback((key: keyof BriefingOptions, on: boolean) => {
     // Switching the map back on remounts the canvas and re-fetches its tiles,
     // so readiness has to be earned again rather than inherited from the last
-    // time it was drawn.
-    if (key === 'map' && on) setMapReady(false);
+    // time it was drawn. Switching between flat and 3D redraws it from a
+    // different renderer entirely — a whole WebGL map has to be built, loaded
+    // and photographed — so that waits too, in either direction.
+    if ((key === 'map' && on) || key === 'map3d') setMapReady(false);
     if (key === 'snow') setSnowChosen(true);
     // withDependencies keeps steepness from being stranded without the profile
     // it colours.
@@ -403,6 +409,21 @@ export function BriefingDialog({
         label={t('Kart', 'Map')}
         checked={options.map}
         onChange={(on) => setOption('map', on)}
+      />
+      {/* Not a section but a way of drawing one, which is why it sits under the
+          map rather than beside it — the same relationship steepness has to the
+          elevation profile. The preview redraws as soon as it is flipped, so
+          the choice is made by looking rather than by imagining. */}
+      <Switch
+        label={t('Vis kartet i 3D', 'Show the map in 3D')}
+        checked={options.map3d}
+        disabled={!options.map}
+        hint={
+          options.map
+            ? null
+            : t('Krever kartet det tegner', 'Needs the map it draws')
+        }
+        onChange={(on) => setOption('map3d', on)}
       />
       <Switch
         label={t('Høydeprofil', 'Elevation')}

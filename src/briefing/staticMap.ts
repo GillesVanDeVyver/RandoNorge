@@ -21,6 +21,7 @@
 
 import type { LatLng, Route } from '../types';
 import { OFFLINE_LAYERS } from '../offline/layers';
+import { routeEnds } from '../geometry';
 import {
   ROUTE_COLOR,
   ROUTE_WEIGHT,
@@ -115,15 +116,6 @@ function bounds(
     }
   }
   return seen > 0 ? [minLat, maxLat, minLng, maxLng] : null;
-}
-
-/** First and last point of the route, following segment order. */
-function endpointsOf(route: Route): { start: LatLng; end: LatLng } | null {
-  const drawn = route.filter((seg) => seg.length > 0);
-  if (drawn.length === 0) return null;
-  const first = drawn[0];
-  const last = drawn[drawn.length - 1];
-  return { start: first[0], end: last[last.length - 1] };
 }
 
 /**
@@ -282,7 +274,10 @@ export async function renderStaticMap(
   trace();
 
   if (endpoints) {
-    const ends = endpointsOf(route);
+    // Same rule as the planner's dots and the 3D view's, from geometry/
+    // routeEnds: first point of the first drawn segment, last of the last, and
+    // no finish at all until there is a second point to finish at.
+    const ends = routeEnds(route);
     if (ends) {
       const dot = (p: LatLng, fill: string) => {
         const [gx, gy] = project(p[0], p[1], zoom);
@@ -296,7 +291,7 @@ export async function renderStaticMap(
         ctx.stroke();
       };
       dot(ends.start, START_COLOR);
-      dot(ends.end, FINISH_COLOR);
+      if (ends.end) dot(ends.end, FINISH_COLOR);
     }
   }
 

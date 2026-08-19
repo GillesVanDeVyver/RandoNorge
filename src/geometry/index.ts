@@ -45,6 +45,28 @@ function perpendicularDistanceSq(
   return ex * ex + ey * ey;
 }
 
+/** Where a route starts and where it ends, following segment order.
+ *
+ *  Every map in the app marks these two points — the planner's Leaflet layer,
+ *  the printed north-up map, and the 3D terrain view — and they are the only
+ *  part of the picture that says which way round the tour is meant to be
+ *  walked. Which point is "the start" is therefore not a thing each map should
+ *  decide for itself.
+ *
+ *  `end` is null while the route is a single point: the first click of a stroke
+ *  is a start, and a finish dot drawn on top of it would say the tour ends
+ *  where it has not yet begun. An empty route has neither, and gets null. */
+export function routeEnds(
+  route: Route,
+): { start: LatLng; end: LatLng | null } | null {
+  const drawn = route.filter((seg) => seg.length > 0);
+  if (drawn.length === 0) return null;
+  const first = drawn[0];
+  const last = drawn[drawn.length - 1];
+  const points = drawn.reduce((n, seg) => n + seg.length, 0);
+  return { start: first[0], end: points > 1 ? last[last.length - 1] : null };
+}
+
 // Total length of a polyline in meters.
 export function segmentLength(seg: Segment): number {
   let total = 0;

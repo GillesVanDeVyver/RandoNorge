@@ -19,6 +19,10 @@
 export interface BriefingOptions {
   /** Static Kartverket map with the route drawn over it. */
   map: boolean;
+  /** Print that map as the planner's tilted 3D terrain view rather than the
+   *  flat north-up one. Not a section of its own — the same frame in the same
+   *  place, drawn from the same tiles by a different renderer. */
+  map3d: boolean;
   /** Elevation profile along the route. */
   elevation: boolean;
   /** Slope colouring on the profile and the map, the band breakdown, and
@@ -36,6 +40,11 @@ export interface BriefingOptions {
 
 export const DEFAULT_OPTIONS: BriefingOptions = {
   map: true,
+  // Off by default. A north-up map is the one a party can navigate from, and
+  // the 3D view is the one that explains the shape of the day — which of those
+  // a briefing needs is a judgement about its reader, so the sheet does not
+  // guess, and the plain answer is the one that is right more often.
+  map3d: false,
   elevation: true,
   steepness: true,
   avalanche: true,
@@ -47,6 +56,7 @@ export const DEFAULT_OPTIONS: BriefingOptions = {
 /** Print order, which is also the order the switches are listed in. */
 export const OPTION_KEYS = [
   'map',
+  'map3d',
   'elevation',
   'steepness',
   'avalanche',
@@ -56,18 +66,29 @@ export const OPTION_KEYS = [
 ] as const;
 
 /**
- * Apply the one rule between switches: steepness requires the elevation
- * profile. Turning the profile off therefore also turns steepness off, rather
- * than leaving a slope-angle breakdown on a page with no profile to read it
- * against.
+ * Apply the rules between switches. Both are of the same kind: a switch that
+ * describes *how* something else is drawn cannot outlive the thing it draws.
+ * Steepness is a way of colouring the elevation profile, and 3D is a way of
+ * rendering the map, so turning either of those off takes its modifier with it
+ * rather than leaving a slope-angle breakdown on a page with no profile, or a
+ * remembered "in 3D" waiting to surprise the next person who switches the map
+ * back on.
  */
 export function withDependencies(opts: BriefingOptions): BriefingOptions {
-  return opts.elevation ? opts : { ...opts, steepness: false };
+  const out = { ...opts };
+  if (!out.elevation) out.steepness = false;
+  if (!out.map) out.map3d = false;
+  return out;
 }
 
 // Bumped when the set of switches changed: a remembered selection from the
 // old set has no opinion about the map or the profile, and silently defaulting
 // those to "off" would hand someone a blank sheet.
+//
+// Not bumped for the 3D switch, deliberately: a v2 record has no opinion about
+// it either, and the default it falls back to — off — is precisely the sheet
+// that record was written to describe. Only a new switch whose default *adds*
+// or *removes* something needs everyone's preferences thrown away.
 const STORAGE_KEY = 'randonorge:briefing-sections-v2';
 
 /** Remembered selection, so a guide printing a stack of briefings sets the

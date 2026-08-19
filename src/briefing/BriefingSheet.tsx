@@ -10,7 +10,7 @@
 // The page is intentionally NOT a dump of every panel. Anything a person can't
 // act on in the field is left off to keep it to a single sheet.
 
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import type { Route } from '../types';
 import type { AvalancheWarning } from '../avalanche/api';
@@ -29,9 +29,17 @@ import { SnowSvg } from './SnowSvg';
 import { summariseSnow } from './snowSummary';
 import { WeatherSymbol, WindArrowIcon } from '../components/WeatherIcons';
 import { renderStaticMap } from './staticMap';
+import { TERRAIN_BEARING } from '../terrainView';
 import type { BriefingOptions } from './options';
-import { useT } from '../i18n/index.ts';
+import { useT, type Translate } from '../i18n/index.ts';
 import { translate } from '../i18n/locale.ts';
+
+/** Which of the planner's two maps the sheet prints. Flat and north-up reads
+ *  as a map and can be navigated from; the terrain view reads as a mountain and
+ *  is what makes a shoulder or a cornice line obvious to someone who has never
+ *  been there. Which one helps depends entirely on who the sheet is for, which
+ *  is why it is a switch and not a decision made here. */
+type MapView = '2d' | '3d';
 
 // The map canvas is rendered well above its printed size: print renderers
 // output at far more than the 96 dpi the CSS pixel implies, and a canvas sized
@@ -541,16 +549,26 @@ function SkyCell({ h }: { h: WeatherHour | null }) {
 function MapPicture({
   route,
   steepness,
+  view,
   onReady,
 }: {
   route: Route;
   /** Paint NVE's steepness/runout layer over the topo tiles. Follows the
    *  steepness switch, so a briefing without slope angles gets a clean map. */
   steepness: boolean;
+  /** Flat and north-up, or the planner's tilted terrain view. One frame, one
+   *  canvas, either way — the page does not change shape around the choice. */
+  view: MapView;
   onReady?: () => void;
 }) {
   const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  // What was actually drawn, which is not always what was asked for: a browser
+  // with no WebGL, or one that will not hand back the frame it drew, falls
+  // through to the flat map. The north mark follows this rather than the
+  // request, because a compass turned to a camera angle that was never used
+  // would be the one thing on the sheet that is wrong rather than missing.
+  const [drawn, setDrawn] = useState<MapView>(view);
   // Held in a ref so a caller passing a fresh closure each render can't
   // restart the (network-bound) tile fetch. Synced in its own effect, which
   // runs before the render effect below.
@@ -563,35 +581,62 @@ function MapPicture({
     const canvas = canvasRef.current;
     if (!canvas) return;
     let cancelled = false;
-    void renderStaticMap(canvas, {
-      route,
-      width: MAP_W,
-      height: MAP_H,
-      scale: MAP_SCALE,
-      padding: 0.1,
-      steepness,
-      // No weights passed, so the renderer's defaults apply — and those are the
-      // planner's own line and halo. MAP_W is within a hair of the width the
-      // planner map occupies on screen, so the same numbers put the printed
-      // line at the same proportion of the frame as the line the route was
-      // drawn with. The sheet used to ask for 9 and 17 here, which is why the
-      // export came out as a blunter drawing of the same tour.
-      endpoints: true,
-      scaleBar: true,
-      cancelled: () => cancelled,
-    })
+    const flat = () =>
+      renderStaticMap(canvas, {
+        route,
+        width: MAP_W,
+        height: MAP_H,
+        scale: MAP_SCALE,
+        padding: 0.1,
+        steepness,
+        // No weights passed, so the renderer's defaults apply — and those are
+        // the planner's own line and halo. MAP_W is within a hair of the width
+        // the planner map occupies on screen, so the same numbers put the
+        // printed line at the same proportion of the frame as the line the
+        // route was drawn with. The sheet used to ask for 9 and 17 here, which
+        // is why the export came out as a blunter drawing of the same tour.
+        endpoints: true,
+        scaleBar: true,
+        cancelled: () => cancelled,
+      }).then(() => '2d' as const);
+
+    // The terrain view arrives with MapLibre behind it, so it is fetched only
+    // when it is asked for — see terrainMap.ts. A failure there is not a failed
+    // export: the flat map draws the same tour from the same tiles, and the
+    // reader gets a sheet instead of a hole.
+    const picture =
+      view === '3d'
+        ? import('./terrainMap')
+            .then((m) =>
+              m.renderTerrainMap(canvas, {
+                route,
+                width: MAP_W,
+                height: MAP_H,
+                scale: MAP_SCALE,
+                steepness,
+                cancelled: () => cancelled,
+              }),
+            )
+            .then(() => '3d' as const)
+            .catch(() => flat())
+        : flat();
+
+    void picture
       .catch(() => {
         // Tiles unavailable (offline, no coverage): the neutral backdrop and
         // the traced route still print, which beats an empty frame. Still
         // "ready" — waiting longer would not produce a better page.
+        return '2d' as const;
       })
-      .finally(() => {
-        if (!cancelled) onReadyRef.current?.();
+      .then((shown) => {
+        if (cancelled) return;
+        setDrawn(shown);
+        onReadyRef.current?.();
       });
     return () => {
       cancelled = true;
     };
-  }, [route, steepness]);
+  }, [route, steepness, view]);
 
   return (
     <div className="briefingMapFrame">
@@ -599,20 +644,45 @@ function MapPicture({
         ref={canvasRef}
         className="briefingMapCanvas"
         role="img"
-        aria-label={
-          steepness
-            ? t(
-                'Kart over ruta med bratthetslag, nord opp',
-                'Route map with steepness overlay, north up',
-              )
-            : t('Kart over ruta, nord opp', 'Route map, north up')
-        }
+        aria-label={mapLabel(t, drawn, steepness)}
       />
-      <div className="briefingNorth" aria-hidden>
+      {/* North, turned by the camera's bearing. The flat map is north-up and
+          the mark points straight up; the terrain view is turned anticlockwise
+          to keep ridges from being seen end-on, which puts north that far
+          clockwise of the top of the frame. */}
+      <div
+        className="briefingNorth"
+        style={
+          drawn === '3d'
+            ? { transform: `rotate(${-TERRAIN_BEARING}deg)` }
+            : undefined
+        }
+        aria-hidden
+      >
         ↑N
       </div>
     </div>
   );
+}
+
+/** What the map is, for a reader who cannot see it. Spelled out per case
+ *  rather than assembled from fragments, because the two languages do not
+ *  agree on where the clauses go. */
+function mapLabel(t: Translate, view: MapView, steepness: boolean): string {
+  if (view === '3d') {
+    return steepness
+      ? t(
+          'Terrengkart i 3D over ruta med bratthetslag',
+          '3D terrain map of the route with steepness overlay',
+        )
+      : t('Terrengkart i 3D over ruta', '3D terrain map of the route');
+  }
+  return steepness
+    ? t(
+        'Kart over ruta med bratthetslag, nord opp',
+        'Route map with steepness overlay, north up',
+      )
+    : t('Kart over ruta, nord opp', 'Route map, north up');
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
@@ -696,6 +766,13 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
     // ascent and the high point in the facts panel are its elevations, and
     // those print whatever else is switched off.
     `${options.map ? t('Kart og høyder', 'Map and elevations') : t('Høyder', 'Elevations')} © Kartverket (CC BY 4.0)`,
+    // The relief is a second dataset, and only the 3D sheet is standing on it.
+    // /terrain-dem serves Kartverket NDH-derived tiles from R2 with an AWS
+    // Terrarium fallback (worker/terrain.js), so both are named — the same
+    // pair the planner's own attribution bar credits in 3D.
+    options.map && options.map3d
+      ? `${t('Terreng', 'Terrain')} © Kartverket (CC BY 4.0) / Mapzen, AWS Open Data`
+      : null,
     options.steepness
       ? `${t('Bratthet og utløp', 'Steepness and runout')} © NVE`
       : null,
@@ -734,6 +811,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           <MapPicture
             route={route}
             steepness={options.steepness}
+            view={options.map3d ? '3d' : '2d'}
             onReady={onMapReady}
           />
         )}

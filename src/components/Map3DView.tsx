@@ -32,6 +32,16 @@ import {
 import { subscribeNetworkMode } from '../offline/networkMode';
 import { clamp, subtractRects, MASK_TINT, type Rect } from '../offline/maskGeometry';
 import { Map3DCursorReadout } from './Map3DCursorReadout';
+import {
+  TERRAIN_BEARING,
+  TERRAIN_ENDPOINT_PAINT,
+  TERRAIN_EXAGGERATION,
+  TERRAIN_FIT_PADDING,
+  TERRAIN_PITCH,
+  TERRAIN_ROUTE_PAINT,
+  TERRAIN_SKY,
+  routeEndpointsGeoJSON,
+} from '../terrainView';
 import { useT } from '../i18n/index.ts';
 import styles from './Map3DView.module.css';
 
@@ -51,9 +61,12 @@ registerOfflineMapProtocol();
 // cache keys in lockstep. Terrain is optional to download: if its tiles aren't
 // cached, the mesh flattens offline and the draped map still works.
 
-// Vertical exaggeration of the terrain mesh. 1.0 is true-to-life; a small
-// bump makes ridgelines and couloirs read more clearly without looking fake.
-const TERRAIN_EXAGGERATION = 1.4;
+// The camera, the mesh exaggeration, the sky and the route's own styling come
+// from terrainView.ts, because the briefing now prints a still frame of this
+// same view (briefing/terrainMap.ts) and a picture that opened at a different
+// angle, or drew the route a different width, would stop being the view the
+// guide had just been looking at. Everything specific to *interacting* with the
+// map — drawing, erasing, the region overlay — stays here.
 
 // Drawing/erasing constants — mirror the 2D DrawingHandler so freehand edits
 // behave identically in 3D.
@@ -62,7 +75,6 @@ const RDP_EPSILON_M = 8;
 // the ground-distance reach scales proportionally as the user zooms out.
 // Keep in sync with DrawingHandler.tsx.
 const ERASER_RADIUS_PX = 32;
-const ROUTE_COLOR = '#2dd4bf'; // matches --accent (alpine/glacier teal)
 // Travelled-track styling, mirroring the 2D NavigationLayer: a warm orange
 // line over a white halo so the recorded tour reads clearly against the teal
 // plan and the terrain drape when reviewing a completed route in 3D.
@@ -301,6 +313,13 @@ export function Map3DView({
             maxzoom: 16,
           },
           route: { type: 'geojson', data: routeToGeoJSON(routeRef.current) },
+          // The route's two ends, in their own source so the dots can be
+          // repainted with the line without the line's geometry deciding where
+          // they go. Same green and red as the 2D map's.
+          ends: {
+            type: 'geojson',
+            data: routeEndpointsGeoJSON(routeRef.current),
+          },
           track: { type: 'geojson', data: routeToGeoJSON(trackRef.current) },
           regions: {
             type: 'geojson',
@@ -373,10 +392,13 @@ export function Map3DView({
             type: 'line',
             source: 'route',
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: {
-              'line-color': ROUTE_COLOR,
-              'line-width': 4,
-            },
+            paint: TERRAIN_ROUTE_PAINT,
+          },
+          {
+            id: 'ends',
+            type: 'circle',
+            source: 'ends',
+            paint: TERRAIN_ENDPOINT_PAINT,
           },
           // Travelled track (review mode): white halo beneath, orange line on
           // top, drawn above the plan so the recorded tour stays visible.
@@ -403,14 +425,7 @@ export function Map3DView({
           },
         ],
         terrain: { source: 'terrain', exaggeration: TERRAIN_EXAGGERATION },
-        sky: {
-          'sky-color': '#9ec8f0',
-          'sky-horizon-blend': 0.6,
-          'horizon-color': '#e6eef5',
-          'horizon-fog-blend': 0.5,
-          'fog-color': '#ffffff',
-          'fog-ground-blend': 0.4,
-        },
+        sky: TERRAIN_SKY,
       },
       // With a route present, start framed on it (tilted + slightly rotated,
       // matching the `load` fit below); otherwise fall back to the whole-of-
@@ -418,9 +433,17 @@ export function Map3DView({
       ...(initialBounds
         ? {
             bounds: initialBounds,
-            fitBoundsOptions: { padding: 80, pitch: 62, bearing: -20 },
+            fitBoundsOptions: {
+              padding: TERRAIN_FIT_PADDING,
+              pitch: TERRAIN_PITCH,
+              bearing: TERRAIN_BEARING,
+            },
           }
-        : { center: [13, 65] as [number, number], zoom: 5, pitch: 62 }),
+        : {
+            center: [13, 65] as [number, number],
+            zoom: 5,
+            pitch: TERRAIN_PITCH,
+          }),
       maxPitch: 85,
       // Attribution is rendered by the shared <MapAttribution/> component
       // (App.tsx): always-visible pill on desktop, collapsible © chip on
@@ -471,6 +494,10 @@ export function Map3DView({
           ? drawingRef.current
           : undefined;
       src.setData(routeToGeoJSON(base, live));
+      // The dots follow the same geometry, live stroke included, so the finish
+      // travels with the pen instead of jumping to it on mouse-up.
+      const ends = map.getSource('ends') as maplibregl.GeoJSONSource | undefined;
+      if (ends) ends.setData(routeEndpointsGeoJSON(live ? [...base, live] : base));
     };
     renderRef.current = renderRoute;
 
@@ -730,9 +757,9 @@ export function Map3DView({
           new maplibregl.LngLatBounds(pts[0], pts[0]),
         );
         map.fitBounds(bounds, {
-          padding: 80,
-          pitch: 62,
-          bearing: -20,
+          padding: TERRAIN_FIT_PADDING,
+          pitch: TERRAIN_PITCH,
+          bearing: TERRAIN_BEARING,
           duration: 0,
         });
       }
@@ -760,6 +787,8 @@ export function Map3DView({
     const apply = () => {
       const src = map.getSource('route') as maplibregl.GeoJSONSource | undefined;
       if (src) src.setData(routeToGeoJSON(route));
+      const ends = map.getSource('ends') as maplibregl.GeoJSONSource | undefined;
+      if (ends) ends.setData(routeEndpointsGeoJSON(route));
     };
     if (map.isStyleLoaded()) apply();
     else map.once('load', apply);
@@ -929,7 +958,7 @@ export function Map3DView({
         new maplibregl.LngLatBounds(pts[0], pts[0]),
       );
       map.fitBounds(bounds, {
-        padding: 80,
+        padding: TERRAIN_FIT_PADDING,
         pitch: map.getPitch(),
         bearing: map.getBearing(),
         duration: 600,

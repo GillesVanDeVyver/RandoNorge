@@ -8,7 +8,7 @@ import {
   Polyline,
 } from 'react-leaflet';
 import type { DrawStyle, LatLng, Mode, Route, Segment } from '../types';
-import { simplify } from '../geometry';
+import { routeEnds, simplify } from '../geometry';
 // The route's colour, widths and endpoint dots. Shared with the canvas
 // renderer behind the printed briefing, so the exported map is a miniature of
 // this one rather than a second, heavier drawing of the same tour.
@@ -811,26 +811,14 @@ export function DrawingHandler({
   // right now, which is the order publishDraft stacks them in — so the finish
   // dot follows the pen instead of waiting for the stroke to be committed.
   //
-  // Deliberately the same rule as the static renderer's endpointsOf(): first
-  // point of the first drawn segment, last point of the last. An out-and-back
-  // therefore puts both dots in the same place, red over green, on screen and
-  // on paper alike.
-  // The finish waits for a second point: the first click of a straight line is
-  // a start and nothing else, and marking it as both would put a red dot under
-  // the cursor before there is anything to finish.
-  const endpoints = useMemo(() => {
-    const drawn = [...displayRoute, previewDraft, livePoints].filter(
-      (seg) => seg.length > 0,
-    );
-    if (drawn.length === 0) return null;
-    const first = drawn[0];
-    const last = drawn[drawn.length - 1];
-    const points = drawn.reduce((n, seg) => n + seg.length, 0);
-    return {
-      start: first[0],
-      end: points > 1 ? last[last.length - 1] : null,
-    };
-  }, [displayRoute, previewDraft, livePoints]);
+  // The rule itself lives in geometry/routeEnds, because the printed map and
+  // the 3D view mark the same two places and three copies of "first point of
+  // the first drawn segment, last point of the last" would eventually disagree
+  // about an out-and-back, which puts both dots in one spot, red over green.
+  const endpoints = useMemo(
+    () => routeEnds([...displayRoute, previewDraft, livePoints]),
+    [displayRoute, previewDraft, livePoints],
+  );
 
   return (
     <>

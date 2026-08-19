@@ -106,6 +106,18 @@ ok(
   withDependencies({ ...allOn, map: false }).elevation === true,
   'the map carries no dependency: it can be dropped on its own',
 );
+ok(
+  withDependencies({ ...allOn, map: false, map3d: true }).map3d === false,
+  'switching the map off takes 3D with it, rather than remembering it',
+);
+ok(
+  withDependencies({ ...allOn, map: true, map3d: true }).map3d === true,
+  'with the map on, 3D is left alone',
+);
+ok(
+  DEFAULT_OPTIONS.map3d === false,
+  'the sheet defaults to the flat north-up map a party can navigate from',
+);
 
 // ---------------------------------------------------------------------------
 // 2. Reading a gridded model
@@ -257,8 +269,11 @@ await esbuild.build({
   platform: 'node',
   outfile: BUNDLE,
   // React comes from node_modules at run time; the CSS is a print concern and
-  // has no bearing on the markup.
-  external: ['react', 'react-dom', 'react-dom/server'],
+  // has no bearing on the markup. MapLibre is external for a different reason:
+  // the 3D capture reaches it through a dynamic import that server rendering
+  // never evaluates, and bundling a megabyte of WebGL into this harness — where
+  // it would try to touch `window` at module scope — buys nothing.
+  external: ['react', 'react-dom', 'react-dom/server', 'maplibre-gl'],
   loader: { '.css': 'empty' },
   logLevel: 'silent',
   jsx: 'automatic',
@@ -471,10 +486,12 @@ function makeData(options, over = {}) {
   };
 }
 
-/** Every combination of the seven switches, with the dependency applied — 128
- *  nominal, fewer distinct, and all of them reachable by clicking. */
+/** Every combination of the switches, with the dependencies applied — fewer
+ *  distinct than nominal, and all of them reachable by clicking. Counted from
+ *  OPTION_KEYS rather than written down, so adding a switch extends the sweep
+ *  instead of silently leaving half of it untested. */
 const combos = [];
-for (let mask = 0; mask < 128; mask++) {
+for (let mask = 0; mask < 2 ** OPTION_KEYS.length; mask++) {
   const raw = {};
   OPTION_KEYS.forEach((k, i) => {
     raw[k] = Boolean(mask & (1 << i));
@@ -819,7 +836,10 @@ for (const options of combos) {
     `[${name}] the profile is coloured by slope only when steepness is on`,
   );
 }
-ok(renderedAll === 128, 'every switch combination rendered');
+ok(
+  renderedAll === 2 ** OPTION_KEYS.length,
+  `every switch combination rendered (${renderedAll})`,
+);
 
 section('Rendered sheet: awkward inputs');
 
@@ -1591,6 +1611,137 @@ ok(
 ok(
   routeStyle.ENDPOINT_RADIUS > routeStyle.ROUTE_WEIGHT / 2,
   'the endpoint dots are wider than the line, or they vanish into it',
+);
+
+// --- One rule for where a route starts and ends ---------------------------
+
+// Four pictures mark the same two points: the planner's Leaflet layer, the
+// printed flat map, the planner's 3D view and the printed 3D frame. They used
+// to work it out separately, which is fine until one of them decides an
+// out-and-back has no finish.
+const geometrySrc = readFileSync(join(ROOT, 'src/geometry/index.ts'), 'utf8');
+const terrainViewSrc = readFileSync(join(ROOT, 'src/terrainView.ts'), 'utf8');
+ok(
+  /export function routeEnds/.test(geometrySrc),
+  'the start/finish rule is stated once, in geometry',
+);
+for (const [name, src] of [
+  ['the planner', plannerSrc],
+  ['the printed map', staticSrc],
+  ['the 3D view', terrainViewSrc],
+]) {
+  ok(
+    /\brouteEnds\b/.test(src) && !/function endpointsOf/.test(src),
+    `${name} reads the shared start/finish rule rather than its own`,
+  );
+}
+
+// --- The 3D map ------------------------------------------------------------
+
+// The switch prints the planner's terrain view instead of the flat map. Its
+// failure mode is not an ugly page but a wrong one: a picture drawn with a
+// different camera, a different exaggeration or a different route colour is
+// still a plausible-looking map of the same tour, and nobody checks it against
+// the screen they drew it on. So the numbers live in terrainView.ts, and both
+// renderers are checked to be reading them rather than repeating them.
+const terrainMapSrc = readFileSync(
+  join(ROOT, 'src/briefing/terrainMap.ts'),
+  'utf8',
+);
+const plannerThreeD = readFileSync(
+  join(ROOT, 'src/components/Map3DView.tsx'),
+  'utf8',
+);
+for (const [name, src] of [
+  ['the planner\u2019s 3D view', plannerThreeD],
+  ['the printed 3D frame', terrainMapSrc],
+]) {
+  ok(
+    /from '\.\.\/terrainView'/.test(src),
+    `${name} takes its camera and colours from the shared module`,
+  );
+  ok(
+    !/^const TERRAIN_(EXAGGERATION|PITCH|BEARING) =/m.test(src),
+    `${name} keeps no second copy of the terrain numbers`,
+  );
+}
+ok(
+  /TERRAIN_ENDPOINT_PAINT/.test(plannerThreeD) &&
+    /TERRAIN_ENDPOINT_PAINT/.test(terrainMapSrc),
+  'the 3D views mark start and finish too, in the same colours as the flat map',
+);
+ok(
+  terrainViewSrc.includes('START_COLOR') &&
+    terrainViewSrc.includes('FINISH_COLOR') &&
+    /from '\.\/routeStyle'/.test(terrainViewSrc),
+  'those colours are the shared pair, not a third opinion about green and red',
+);
+
+// The capture, and the two ways it can spoil a page: a WebGL canvas printed
+// live comes out black, and a GL context left behind by an export nobody
+// finished is taken from the map the user is still looking at.
+ok(
+  /preserveDrawingBuffer: true/.test(terrainMapSrc),
+  'the frame is kept long enough to be read back, or the print comes out blank',
+);
+ok(
+  /map\?\.remove\(\)/.test(terrainMapSrc) &&
+    /finally \{/.test(terrainMapSrc),
+  'the off-screen map is destroyed even when the capture fails',
+);
+ok(
+  /await import\('maplibre-gl'\)|import\('maplibre-gl'\)/.test(terrainMapSrc) &&
+    !/^import maplibregl from 'maplibre-gl'/m.test(terrainMapSrc),
+  'MapLibre is fetched only when 3D is asked for, not by every flat export',
+);
+ok(
+  /CAPTURE_TIMEOUT_MS/.test(terrainMapSrc),
+  'a tile source that is simply down cannot hold the Print button hostage',
+);
+ok(
+  /catch\(\(\) => flat\(\)\)/.test(sheetSrc),
+  'a browser that cannot draw terrain falls back to the flat map of the right tour',
+);
+ok(
+  /import\('\.\/terrainMap'\)/.test(sheetSrc),
+  'the sheet reaches the capture through an import it only makes when asked',
+);
+
+// The switch itself. Its one trap is being reachable while the thing it
+// modifies is off, which would offer a way to draw a map that is not printed.
+const dialogSrc = readFileSync(
+  join(ROOT, 'src/briefing/BriefingDialog.tsx'),
+  'utf8',
+);
+ok(
+  /'map3d'/.test(dialogSrc) && /disabled=\{!options\.map\}/.test(dialogSrc),
+  'the 3D switch is offered, and greys out when there is no map to draw',
+);
+ok(
+  /key === 'map3d'/.test(dialogSrc),
+  'flipping 3D makes the sheet wait for the new picture before Print is offered',
+);
+
+// The sheet credits what it actually drew. The DEM is not Kartverket's, so a
+// 3D sheet owes a line the flat one does not.
+const flatSheet = render(makeData({ ...DEFAULT_OPTIONS, map3d: false }));
+const threeDSheet = render(makeData({ ...DEFAULT_OPTIONS, map3d: true }));
+const noMapSheet = render(
+  makeData(withDependencies({ ...DEFAULT_OPTIONS, map: false, map3d: true })),
+);
+ok(
+  plain(threeDSheet).includes('Mapzen') &&
+    !plain(flatSheet).includes('Mapzen'),
+  'the terrain sheet credits the elevation data it is drawn from',
+);
+ok(
+  !plain(noMapSheet).includes('Mapzen'),
+  'a sheet with no map credits no terrain',
+);
+ok(
+  plain(threeDSheet).includes('Kartverket') &&
+    plain(flatSheet).includes('Kartverket'),
+  'the topo credit survives either way of drawing the map',
 );
 
 // --- The name the browser suggests ---------------------------------------
