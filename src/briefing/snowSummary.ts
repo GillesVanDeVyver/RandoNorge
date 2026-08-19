@@ -48,6 +48,14 @@ export function snowSamples(
   return out;
 }
 
+/** Whether there is any snow at all along the route. False both when seNorge
+ *  modelled 0 cm the whole way and when it had nothing to say about any point
+ *  on it (no summary): the chart is the same empty band either way, which is
+ *  why the briefing's snow section defaults off on both. */
+export function hasSnowOnRoute(summary: SnowSummary | null): boolean {
+  return summary !== null && summary.maxCm > 0;
+}
+
 export function summariseSnow(
   profile: ProfileData,
   snow: SnowData | null,

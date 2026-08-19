@@ -21,6 +21,13 @@
 
 import type { LatLng, Route } from '../types';
 import { OFFLINE_LAYERS } from '../offline/layers';
+import {
+  ROUTE_COLOR,
+  ROUTE_WEIGHT,
+  HALO_WEIGHT,
+  START_COLOR,
+  FINISH_COLOR,
+} from '../routeStyle';
 
 const TILE_SIZE = 256;
 const MIN_ZOOM = 3;
@@ -29,9 +36,10 @@ const MIN_ZOOM = 3;
 // rendered map reads like a miniature of the map the user was just looking at.
 const STEEPNESS_OPACITY = 0.6;
 
-// Route styling: the app's accent teal (DrawingHandler's ROUTE_COLOR) over a
-// white halo, so the line stays readable on the red/orange steepness ramps.
-export const ROUTE_COLOR = '#2dd4bf';
+// Route styling — colour, widths and endpoint dots — comes from routeStyle.ts,
+// the same module the planner's Leaflet layer reads. Re-exported here because
+// this file is the map's public face for its two callers.
+export { ROUTE_COLOR };
 
 // Neutral fill behind the tiles, so gaps (no coverage, failed fetch) read as
 // "blank map" rather than transparent black.
@@ -73,7 +81,10 @@ export interface StaticMapOptions {
   padding?: number;
   /** Draw the NVE steepness overlay over the topo base. */
   steepness?: boolean;
-  /** Route line width, in logical pixels. */
+  /** Route line width, in logical pixels. Defaults to the planner's own, which
+   *  is what makes a full-size render read as the map on screen; the tiny
+   *  thumbnails override it, because proportion is what carries across sizes,
+   *  not the number. */
   routeWeight?: number;
   /** Halo width under the route line, in logical pixels. */
   haloWeight?: number;
@@ -132,8 +143,8 @@ export async function renderStaticMap(
     scale,
     padding = 0.12,
     steepness = true,
-    routeWeight = 2.5,
-    haloWeight = 5,
+    routeWeight = ROUTE_WEIGHT,
+    haloWeight = HALO_WEIGHT,
     endpoints = false,
     scaleBar = false,
     cancelled = () => false,
@@ -284,8 +295,8 @@ export async function renderStaticMap(
         ctx.strokeStyle = '#ffffff';
         ctx.stroke();
       };
-      dot(ends.start, '#16a34a'); // start
-      dot(ends.end, '#dc2626'); // finish
+      dot(ends.start, START_COLOR);
+      dot(ends.end, FINISH_COLOR);
     }
   }
 

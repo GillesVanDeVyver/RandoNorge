@@ -1,8 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
-import { useMap, useMapEvents, Marker, Polyline } from 'react-leaflet';
+import {
+  useMap,
+  useMapEvents,
+  CircleMarker,
+  Marker,
+  Polyline,
+} from 'react-leaflet';
 import type { DrawStyle, LatLng, Mode, Route, Segment } from '../types';
 import { simplify } from '../geometry';
+// The route's colour, widths and endpoint dots. Shared with the canvas
+// renderer behind the printed briefing, so the exported map is a miniature of
+// this one rather than a second, heavier drawing of the same tour.
+import {
+  ROUTE_COLOR,
+  ROUTE_WEIGHT,
+  HALO_COLOR,
+  HALO_WEIGHT,
+  HALO_OPACITY,
+  START_COLOR,
+  FINISH_COLOR,
+  ENDPOINT_RADIUS,
+  ENDPOINT_RING,
+} from '../routeStyle';
 import { useT } from '../i18n/index.ts';
 import styles from './DrawingHandler.module.css';
 
@@ -20,14 +40,6 @@ const RDP_EPSILON_M = 8;
 // screen — so the ground-distance radius automatically scales up
 // proportionally as the user zooms out.
 const ERASER_RADIUS_PX = 32;
-const ROUTE_COLOR = '#2dd4bf'; // matches --accent (alpine/glacier teal)
-const ROUTE_WEIGHT = 4;
-// White halo drawn beneath the teal line so the route stays readable on top
-// of busy overlays (e.g. the red/orange steepness ramp) — matching the white
-// band in the saved-route thumbnails (RouteThumbnail.tsx).
-const HALO_COLOR = '#ffffff';
-const HALO_WEIGHT = ROUTE_WEIGHT + 3;
-const HALO_OPACITY = 0.9;
 // Minimum pixel distance between consecutive accepted points while drawing.
 // Caps the number of accumulated points to be proportional to stroke length
 // rather than stroke duration, which otherwise blows up O(N²) work on long
@@ -63,6 +75,22 @@ const RUBBER_BAND_STYLE = {
   weight: ROUTE_WEIGHT - 1,
   opacity: 0.75,
   dashArray: '6 7',
+} as const;
+// Start and finish dots, white-ringed so they read against both the topo base
+// and the steepness ramp. Non-interactive, like every other decoration on this
+// layer: a dot that swallowed a click would put a hole in the drawing surface
+// exactly where a route most often needs extending.
+const START_STYLE = {
+  color: '#ffffff',
+  weight: ENDPOINT_RING,
+  fillColor: START_COLOR,
+  fillOpacity: 1,
+} as const;
+const FINISH_STYLE = {
+  color: '#ffffff',
+  weight: ENDPOINT_RING,
+  fillColor: FINISH_COLOR,
+  fillOpacity: 1,
 } as const;
 
 // ---- Straight-line mode ---------------------------------------------------
@@ -778,6 +806,32 @@ export function DrawingHandler({
   const showRubberBand =
     linesActive && !handleDrag && cursor !== null && draft.length > 0;
 
+  // Where the day starts and where it ends. Read off the geometry actually on
+  // screen — committed segments first, then whatever is being placed or drawn
+  // right now, which is the order publishDraft stacks them in — so the finish
+  // dot follows the pen instead of waiting for the stroke to be committed.
+  //
+  // Deliberately the same rule as the static renderer's endpointsOf(): first
+  // point of the first drawn segment, last point of the last. An out-and-back
+  // therefore puts both dots in the same place, red over green, on screen and
+  // on paper alike.
+  // The finish waits for a second point: the first click of a straight line is
+  // a start and nothing else, and marking it as both would put a red dot under
+  // the cursor before there is anything to finish.
+  const endpoints = useMemo(() => {
+    const drawn = [...displayRoute, previewDraft, livePoints].filter(
+      (seg) => seg.length > 0,
+    );
+    if (drawn.length === 0) return null;
+    const first = drawn[0];
+    const last = drawn[drawn.length - 1];
+    const points = drawn.reduce((n, seg) => n + seg.length, 0);
+    return {
+      start: first[0],
+      end: points > 1 ? last[last.length - 1] : null,
+    };
+  }, [displayRoute, previewDraft, livePoints]);
+
   return (
     <>
       {/* White halos first, so every teal line renders on top of every halo. */}
@@ -804,6 +858,27 @@ export function DrawingHandler({
       )}
       {livePoints.length >= 2 && (
         <Polyline positions={livePoints} pathOptions={LIVE_LINE_STYLE} />
+      )}
+      {/* Start green, finish red — over the lines so they aren't buried by a
+          route that doubles back, under the editing handles so they never
+          take a grab away from a vertex. */}
+      {endpoints && (
+        <>
+          <CircleMarker
+            center={endpoints.start}
+            radius={ENDPOINT_RADIUS}
+            pathOptions={START_STYLE}
+            interactive={false}
+          />
+          {endpoints.end && (
+            <CircleMarker
+              center={endpoints.end}
+              radius={ENDPOINT_RADIUS}
+              pathOptions={FINISH_STYLE}
+              interactive={false}
+            />
+          )}
+        </>
       )}
       {/* Editable handles for the line being placed. Midpoints render below
           the vertices so overlapping dots stay grabbable.

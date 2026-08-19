@@ -111,7 +111,7 @@ ok(
 // 2. Reading a gridded model
 // ---------------------------------------------------------------------------
 
-const { summariseSnow } = await import(
+const { summariseSnow, hasSnowOnRoute } = await import(
   pathToFileURL(join(ROOT, 'src/briefing/snowSummary.ts')).href
 );
 
@@ -196,6 +196,38 @@ ok(
   summariseSnow(p10, { depths: [[1, 2, 3]], date: '2026-02-01', fetchedAt: 1 }) ===
     null,
   'depths that do not match the profile are refused rather than zipped',
+);
+
+// Whether there is a snowpack to print at all. The briefing's snow switch
+// defaults off when there is not, so this predicate decides whether a section
+// appears on a sheet nobody re-reads — and it has to say "no snow" for the two
+// different ways seNorge can report none.
+const snowOf = (depths) =>
+  summariseSnow(p10, { depths: [depths], date: '2026-02-01', fetchedAt: 1 });
+const bare = new Array(10).fill(0);
+ok(
+  hasSnowOnRoute(snowOf(bare)) === false,
+  'a route the model puts at 0 cm end to end counts as having no snow',
+);
+ok(
+  hasSnowOnRoute(null) === false,
+  'a route the grid answered for nowhere counts as having no snow',
+);
+ok(
+  hasSnowOnRoute(snowOf([...bare.slice(0, 9), 4])) === true,
+  'four centimetres at one point on the route is still snow, and prints',
+);
+// The distinction the switch turns on: bare ground reads 0, and a point the
+// model has nothing for reads NaN. Neither is snow, and a route made of both
+// must not summarise its way into looking like one that has some.
+ok(
+  hasSnowOnRoute(snowOf([0, NaN, 0, NaN, 0, NaN, 0, NaN, 0, NaN])) === false,
+  'zeroes mixed with holes in the grid still add up to no snow',
+);
+ok(
+  hasSnowOnRoute(snowOf([NaN, NaN, NaN, NaN, 12, NaN, NaN, NaN, NaN, NaN])) ===
+    true,
+  'one modelled reading in a route of holes is enough to keep the section',
 );
 
 // ---------------------------------------------------------------------------
@@ -1494,6 +1526,132 @@ ok(
   snowLines(holed) === 2,
   `a hole in the grid still splits the snowpack rather than being bridged (got ${snowLines(holed)})`,
 );
+// ---------------------------------------------------------------------------
+// 7. The exported map, and what the export is called
+// ---------------------------------------------------------------------------
+
+section('The exported map and its file name');
+
+// The map is a canvas, drawn by a renderer that needs tiles and a browser, so
+// the picture itself cannot be rendered in this harness. What can be checked is
+// the thing that made it wrong before: the sheet and the planner each carrying
+// their own copy of the route's weights, drifting apart, and the export coming
+// out as a heavier drawing of the same tour. Those numbers now live in one
+// module, and the two renderers are checked to be reading it.
+const { briefingFileName } = await import(
+  pathToFileURL(join(ROOT, 'src/briefing/fileName.ts')).href
+);
+const routeStyle = await import(
+  pathToFileURL(join(ROOT, 'src/routeStyle.ts')).href
+);
+const sheetSrc = readFileSync(join(ROOT, 'src/briefing/BriefingSheet.tsx'), 'utf8');
+const staticSrc = readFileSync(join(ROOT, 'src/briefing/staticMap.ts'), 'utf8');
+const plannerSrc = readFileSync(
+  join(ROOT, 'src/components/DrawingHandler.tsx'),
+  'utf8',
+);
+
+ok(
+  !/routeWeight:/.test(sheetSrc) && !/haloWeight:/.test(sheetSrc),
+  'the sheet asks for no weights of its own, so the printed line is the planner\u2019s',
+);
+ok(
+  /routeWeight = ROUTE_WEIGHT/.test(staticSrc) &&
+    /haloWeight = HALO_WEIGHT/.test(staticSrc),
+  'the renderer falls back to the shared weights rather than numbers of its own',
+);
+ok(
+  /from '\.\.\/routeStyle'/.test(plannerSrc) &&
+    !/^const ROUTE_WEIGHT =/m.test(plannerSrc),
+  'the planner reads the same widths rather than keeping a second copy',
+);
+// The dots. They are the one part of the picture that says which way round the
+// route is meant to be walked, and they were on paper before they were on
+// screen — a reader comparing the two found a green and a red dot on the sheet
+// that the map they had drawn it from did not have.
+ok(
+  /<CircleMarker/.test(plannerSrc) &&
+    plannerSrc.includes('START_COLOR') &&
+    plannerSrc.includes('FINISH_COLOR'),
+  'the planner marks the start and the finish, as the printed map does',
+);
+ok(
+  /dot\(ends\.start, START_COLOR\)/.test(staticSrc) &&
+    /dot\(ends\.end, FINISH_COLOR\)/.test(staticSrc),
+  'both dots take their colour from the shared pair, so screen and paper agree',
+);
+ok(
+  routeStyle.START_COLOR !== routeStyle.FINISH_COLOR,
+  'start and finish are told apart by colour, not just by position',
+);
+ok(
+  routeStyle.HALO_WEIGHT > routeStyle.ROUTE_WEIGHT,
+  'the halo is wider than the line it sits under, or it does nothing',
+);
+ok(
+  routeStyle.ENDPOINT_RADIUS > routeStyle.ROUTE_WEIGHT / 2,
+  'the endpoint dots are wider than the line, or they vanish into it',
+);
+
+// --- The name the browser suggests ---------------------------------------
+
+// The sheet is saved through the browser's own "Save as PDF", which names the
+// file after the document title. Everything the user sees is right by the time
+// they get there, so this is the last thing on the export that can be wrong —
+// and the only one they will not notice until they are looking for the file.
+ok(
+  briefingFileName('Sk\u00e5la') === 'Sk\u00e5la_Fjellrute',
+  'a named tour saves as <tour>_Fjellrute',
+);
+ok(
+  briefingFileName('  Sk\u00e5la  ') === 'Sk\u00e5la_Fjellrute',
+  'stray spaces around the name do not become part of the file name',
+);
+ok(
+  briefingFileName('Romsdalseggen 25/2') === 'Romsdalseggen 25-2_Fjellrute',
+  'a slash in the name is replaced, not dropped: 25/2 is a date, 252 is not',
+);
+for (const bad of ['\\', '/', ':', '*', '?', '"', '<', '>', '|', '\u0007']) {
+  ok(
+    !briefingFileName(`Tur${bad}navn`).includes(bad),
+    `a ${JSON.stringify(bad)} in the tour name never reaches the file name`,
+  );
+}
+ok(
+  briefingFileName('') === 'Fjellrute' &&
+    briefingFileName('   ') === 'Fjellrute' &&
+    briefingFileName(null) === 'Fjellrute' &&
+    briefingFileName(undefined) === 'Fjellrute',
+  'an unsaved route saves as plain Fjellrute rather than as _Fjellrute',
+);
+ok(
+  briefingFileName('...') === 'Fjellrute' &&
+  !briefingFileName('.skjult').startsWith('.'),
+  'a name of dots does not save a hidden file, or one the OS refuses',
+);
+ok(
+  ['Sk\u00e5la', 'a b', '2026-02-01', '\u00c5rdal / Hurrungane', null]
+    .map(briefingFileName)
+    .every((n) => n.endsWith('Fjellrute') && !/[\\/:*?"<>|]/.test(n)),
+  'every name ends in Fjellrute and is legal on both Windows and macOS',
+);
+// A route name is free text, and someone will paste a paragraph into it. The
+// cap is in characters and the limit that matters is in bytes, so it is checked
+// against the alphabet that costs the most: three bytes a letter.
+// Room is left for the " (1)" a browser appends when the same tour is exported
+// twice into one folder, since that is the export that would fail rather than
+// the first.
+const essay = briefingFileName('\u5c71'.repeat(400));
+const essayBytes = Buffer.byteLength(`${essay} (1).pdf`, 'utf8');
+ok(
+  essayBytes < 255,
+  `a very long tour name still saves, twice over (${essayBytes} bytes)`,
+);
+ok(
+  briefingFileName(`${'a'.repeat(62)}  . `) === `${'a'.repeat(62)}_Fjellrute`,
+  'a name cut to length does not end in the space or dot the cut landed on',
+);
+
 // --- The eyeball copy ------------------------------------------------------
 
 // Everything above asserts the sheet; none of it shows the sheet to anybody, and

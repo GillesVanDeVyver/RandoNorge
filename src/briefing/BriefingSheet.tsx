@@ -570,8 +570,12 @@ function MapPicture({
       scale: MAP_SCALE,
       padding: 0.1,
       steepness,
-      routeWeight: 9,
-      haloWeight: 17,
+      // No weights passed, so the renderer's defaults apply — and those are the
+      // planner's own line and halo. MAP_W is within a hair of the width the
+      // planner map occupies on screen, so the same numbers put the printed
+      // line at the same proportion of the frame as the line the route was
+      // drawn with. The sheet used to ask for 9 and 17 here, which is why the
+      // export came out as a blunter drawing of the same tour.
       endpoints: true,
       scaleBar: true,
       cancelled: () => cancelled,

@@ -18,7 +18,15 @@
 //
 // PDF generation is the browser's: window.print() → "Save as PDF". No client
 // -side PDF library, so nothing here can drift out of sync with what the user
-// sees, and the app carries no extra dependency.
+// sees, and the app carries no extra dependency. The one thing the browser
+// gets wrong on its own is the file name, which it takes from the document
+// title — so the title is swapped for "<tour>_Fjellrute" for the duration of
+// the print and put back afterwards.
+//
+// One switch decides for itself: snow depth turns off when seNorge says there
+// is none along the route, because a page of zeroes is worse than no page. It
+// stays a switch, not a lock — the guide can turn it back on, and doing so is
+// what stops the sheet second-guessing them again.
 
 import {
   useCallback,
@@ -37,6 +45,8 @@ import { useWeather, weatherCandidates } from '../weather/useWeather';
 import { useSnow } from '../snow/useSnow';
 import type { WeatherHour } from '../weather/api';
 import { BriefingSheet, type BriefingData } from './BriefingSheet';
+import { hasSnowOnRoute, summariseSnow } from './snowSummary';
+import { briefingFileName } from './fileName';
 import {
   loadOptions,
   storeOptions,
@@ -124,7 +134,16 @@ export function BriefingDialog({
   const weatherSnap = snapshot?.weather ?? null;
   const snowSnap = snapshot?.snow ?? null;
 
-  const [options, setOptions] = useState<BriefingOptions>(loadOptions);
+  // What the guide has asked for, which is not quite what the sheet prints:
+  // the snow section also answers to the snow itself (see `options` below).
+  // Keeping the two apart means the remembered selection stays a record of
+  // choices actually made, and the sheet never has to un-remember one.
+  const [chosen, setChosen] = useState<BriefingOptions>(loadOptions);
+  // Whether the snow switch has been touched in this dialog, either way. Once
+  // it has, the automatic default steps aside for good: a guide who asked for
+  // the snow section on a bare route has a reason, and one who turned it off
+  // does not need it turned off again.
+  const [snowChosen, setSnowChosen] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [loadedSymbols, setLoadedSymbols] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -145,19 +164,24 @@ export function BriefingDialog({
     if (restoreFocus) gearRef.current?.focus();
   }, []);
 
-  // A guide printing a stack of briefings sets the switches once.
+  // A guide printing a stack of briefings sets the switches once. Only the
+  // chosen selection is written: a section the sheet turned off by itself is
+  // an observation about today's snow, not a preference, and storing it would
+  // carry a bare January route's answer into a February one that has a
+  // snowpack — the section would go missing with nothing to say why.
   useEffect(() => {
-    storeOptions(options);
-  }, [options]);
+    storeOptions(chosen);
+  }, [chosen]);
 
   const setOption = useCallback((key: keyof BriefingOptions, on: boolean) => {
     // Switching the map back on remounts the canvas and re-fetches its tiles,
     // so readiness has to be earned again rather than inherited from the last
     // time it was drawn.
     if (key === 'map' && on) setMapReady(false);
+    if (key === 'snow') setSnowChosen(true);
     // withDependencies keeps steepness from being stranded without the profile
     // it colours.
-    setOptions((prev) => withDependencies({ ...prev, [key]: on }));
+    setChosen((prev) => withDependencies({ ...prev, [key]: on }));
   }, []);
 
   const candidates = useMemo(() => weatherCandidates(profile), [profile]);
@@ -189,7 +213,33 @@ export function BriefingDialog({
   const avalanche = useAvalanche(profile, date, frozenAvalanche);
   const weatherLow = useWeather(low, weatherSnap?.lowest ?? null);
   const weatherHigh = useWeather(high, weatherSnap?.highest ?? null);
-  const snow = useSnow(options.snow ? profile : null, snowDate, frozenSnow);
+  // Asked for whether or not the section is switched on: the switch's own
+  // default depends on the answer, so "is there snow on this route?" has to be
+  // settled before the guide opens the gear, not after they turn the section
+  // on to find out. One seNorge request, cached for an hour and shared with
+  // the panel on screen.
+  const snow = useSnow(profile, snowDate, frozenSnow);
+  const snowSummary = useMemo(
+    () => summariseSnow(profile, snow.snow),
+    [profile, snow.snow],
+  );
+  // A bare route: the grid either said 0 cm the whole way or had nothing to say
+  // about any point on it, and both print the same empty chart. An error is not
+  // an answer, and neither is a request still in flight — until seNorge has
+  // replied the switch is left exactly where the guide left it.
+  const snowlessTour =
+    !snow.loading && snow.snow !== null && !hasSnowOnRoute(snowSummary);
+
+  // What the sheet actually prints: the guide's selection, with the snow
+  // section defaulted off on a route that has no snow on it. Derived rather
+  // than written back into `chosen`, so the switch reflects the tour in front
+  // of it without the dialog having to remember that it once disagreed with
+  // the stored preference — and so touching the switch simply takes the
+  // override away.
+  const options = useMemo(
+    () => (snowlessTour && !snowChosen ? { ...chosen, snow: false } : chosen),
+    [chosen, snowlessTour, snowChosen],
+  );
 
   const onMapReady = useCallback(() => setMapReady(true), []);
 
@@ -231,6 +281,35 @@ export function BriefingDialog({
   }, [settingsOpen]);
 
   const title = routeName?.trim() || t('Turbriefing', 'Tour briefing');
+
+  // What the saved PDF is called. "Save as PDF" suggests the document title,
+  // so the title becomes the file name for as long as the print lasts. The
+  // name itself is built in fileName.ts.
+  const fileName = useMemo(() => briefingFileName(routeName), [routeName]);
+
+  // The title the app had before this dialog opened, and the two ways it comes
+  // back: when the print dialog closes, and when the briefing does. Both,
+  // because Safari has been known not to fire afterprint, and a tab left
+  // reading "Skåla_Fjellrute" would follow the user around for the rest of the
+  // session. Captured once on open rather than at each print, so a second
+  // print restores the app's title and not the first print's file name.
+  const appTitleRef = useRef<string | null>(null);
+  useEffect(() => {
+    appTitleRef.current = document.title;
+    const restore = () => {
+      if (appTitleRef.current !== null) document.title = appTitleRef.current;
+    };
+    window.addEventListener('afterprint', restore);
+    return () => {
+      window.removeEventListener('afterprint', restore);
+      restore();
+    };
+  }, []);
+
+  const printSheet = useCallback(() => {
+    document.title = fileName;
+    window.print();
+  }, [fileName]);
 
   // The weather panel keeps its own day selection, which need not be the tour
   // date — the tour date comes from the avalanche panel. Follow the weather
@@ -352,6 +431,14 @@ export function BriefingDialog({
       <Switch
         label={t('Snødybde', 'Snow depth')}
         checked={options.snow}
+        // Says why it is off rather than leaving the guide to wonder whether
+        // the section is broken. Kept switchable: seNorge models a 1 km grid,
+        // and a guide who wants the zeroes on the page is entitled to them.
+        hint={
+          snowlessTour
+            ? t('seNorge melder ingen snø', 'seNorge reports no snow')
+            : null
+        }
         onChange={(on) => setOption('snow', on)}
       />
       <Switch
@@ -419,7 +506,7 @@ export function BriefingDialog({
             <button
               type="button"
               className="briefingBtn briefingBtnPrimary"
-              onClick={() => window.print()}
+              onClick={printSheet}
               disabled={!canPrint}
               title={
                 canPrint
