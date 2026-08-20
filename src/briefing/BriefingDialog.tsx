@@ -419,9 +419,11 @@ export function BriefingDialog({
         checked={options.map3d}
         disabled={!options.map}
         hint={
-          options.map
-            ? null
-            : t('Krever kartet det tegner', 'Needs the map it draws')
+          !options.map
+            ? t('Krever kartet det tegner', 'Needs the map it draws')
+            : options.map3d
+              ? t('Dra i kartet for å snu det', 'Drag the map to turn it')
+              : null
         }
         onChange={(on) => setOption('map3d', on)}
       />

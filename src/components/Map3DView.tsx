@@ -42,6 +42,7 @@ import {
   TERRAIN_SKY,
   routeEndpointsGeoJSON,
 } from '../terrainView';
+import { rememberTerrainCamera } from '../terrainCamera';
 import { useT } from '../i18n/index.ts';
 import styles from './Map3DView.module.css';
 
@@ -738,6 +739,21 @@ export function Map3DView({
     map.on('touchend', onTouchEnd);
     map.on('touchcancel', onTouchEnd);
     map.on('rotate', () => setBearing(map.getBearing()));
+
+    // Hand the camera on to whoever asks for it next — in practice the export
+    // dialog, which opens its own terrain view on this angle instead of a
+    // default one, so the printed sheet shows the hillside the way the guide
+    // had just turned it. Recorded when the camera comes to rest rather than on
+    // every frame of a drag: what the export wants is the view they settled on.
+    map.on('moveend', () => {
+      const { lng, lat } = map.getCenter();
+      rememberTerrainCamera({
+        center: [lng, lat],
+        zoom: map.getZoom(),
+        pitch: map.getPitch(),
+        bearing: map.getBearing(),
+      });
+    });
 
     map.on('load', () => {
       // Once the style is up, force one more resize so the initial fitBounds

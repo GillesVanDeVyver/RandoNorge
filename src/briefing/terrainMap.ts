@@ -1,32 +1,45 @@
-// The 3D half of the printed map: one frame of the planner's terrain view,
-// built off-screen, photographed, and drawn into the sheet's canvas.
+// The 3D half of the printed map: the planner's terrain view, live in the
+// sheet's map frame, and a still copy of it kept in step for the printer.
 //
 // The flat map next door (staticMap.ts) stitches tiles by hand, because a
 // north-up drawing of a route is a few dozen lines of canvas work. A draped,
 // shaded, exaggerated mesh is not — the only thing that renders it is MapLibre,
-// with WebGL, on screen. So this builds exactly the map Map3DView builds, waits
-// for it to finish arriving, takes its picture, and throws it away. What is
-// left is a still image in the same <canvas> the flat map would have used, so
-// the sheet, the print CSS and the page's vertical budget do not know or care
-// which of the two drew it.
+// with WebGL, on screen. So this builds exactly the map Map3DView builds, in
+// the frame the flat map would have filled, and lets the guide turn it until
+// the tour reads: a face seen end-on says nothing about how steep it is.
 //
-// WHY A PHOTOGRAPH AND NOT THE LIVE MAP
+// WHY THERE ARE TWO PICTURES AND NOT ONE
 //
 // A WebGL canvas is not reliably reproduced by a browser's print renderer: the
 // drawing buffer belongs to the compositor and is routinely cleared after each
 // frame, so what prints is often black or blank. `preserveDrawingBuffer` keeps
-// the last frame long enough to read it back, and once it has been read back
-// there is no reason to keep a GL context, a tile pipeline and a render loop
-// alive underneath a picture that will never move again. Capturing also gives
-// us the one guarantee the sheet actually needs: by the time Print is enabled,
-// the picture on the page is finished, not merely started.
+// the last frame long enough to copy it, and copy it we do — into the same
+// plain 2D <canvas> the flat map draws into, which is what actually goes on
+// paper. The live map is a screen-only luxury; the canvas underneath it is the
+// export. Every time the camera comes to rest the copy is retaken, and it is
+// retaken once more when the print dialog opens, so "what you see is what
+// prints" holds however the page is reached.
+//
+// It also gives the sheet the one guarantee it needs before enabling Print: by
+// then a finished frame exists on the canvas, rather than a map that has merely
+// started arriving.
 //
 // Note the difference from staticMap.ts, whose canvas is deliberately tainted:
 // MapLibre fetches its tiles with CORS (it has to, to upload them as WebGL
-// textures), so this canvas is clean and toDataURL is allowed. That is a
-// property of MapLibre's loader, not a choice made here — if a tile source ever
-// stops sending the header, the tile fails to load rather than quietly poisoning
-// the export, and the capture below still produces a page.
+// textures), so drawing its canvas into ours does not taint ours either. That
+// is a property of MapLibre's loader, not a choice made here — if a tile source
+// ever stops sending the header, the tile fails to load rather than quietly
+// poisoning the export, and the copy below still produces a page.
+//
+// WHY THE MAP IS BIGGER THAN THE FRAME IT APPEARS IN
+//
+// Tiles are chosen for the size of the map's container, so a map built at the
+// ~360 screen pixels the frame occupies would be photographed at ~360 pixels
+// and printed at 128 mm: about 70 dpi, and a legible screen map becomes a mushy
+// paper one. The map is therefore built at the print size (width × height ×
+// scale) and shown scaled down by the caller — see TerrainPicture.tsx. What
+// prints is the resolution it was rendered at, not the resolution it was
+// watched at.
 
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import type { Route } from '../types';
@@ -40,20 +53,34 @@ import {
   TERRAIN_SKY,
   routeEndpointsGeoJSON,
 } from '../terrainView';
+import { recallTerrainCamera } from '../terrainCamera';
 
-/** How long the capture waits for tiles, the DEM and the first paint before
- *  photographing whatever has arrived. Long enough for a cold cache on a slow
+/** How long the first copy waits for tiles, the DEM and the first paint before
+ *  taking whatever has arrived. Long enough for a cold cache on a slow
  *  connection; short enough that a source which is simply down cannot hold the
  *  Print button hostage. A partly-loaded terrain still prints the route over
  *  the right valley, which is the same bargain the flat renderer strikes when
  *  a tile 404s. */
 const CAPTURE_TIMEOUT_MS = 20000;
 
+/** A drag across the full width of the frame turns the map a half-circle, and
+ *  one up its full height tilts it from flat-on to overhead. Stated per frame
+ *  rather than per pixel so the map turns by the same amount under the same
+ *  gesture whatever size the frame is drawn at — which matters here, where the
+ *  map is rendered several times larger than it is shown. */
+const TURN_PER_FRAME = 180;
+const TILT_PER_FRAME = 90;
+
+/** MapLibre's own ceiling for this style, matching the planner's. Below it the
+ *  camera is looking at sky. */
+const MAX_PITCH = 85;
+const MIN_PITCH = 0;
+
 export interface TerrainMapOptions {
   /** Route geometry to frame, drape and mark. */
   route: Route;
-  /** Logical (CSS pixel) size of the drawing — the same frame the flat map
-   *  fills, so the two are interchangeable on the page. */
+  /** Logical size of the drawing — the same frame the flat map fills, so the
+   *  two are interchangeable on the page. */
   width: number;
   height: number;
   /** Backing-store multiplier, passed to MapLibre as its device pixel ratio so
@@ -63,8 +90,36 @@ export interface TerrainMapOptions {
   /** Drape NVE's steepness layer over the topo tiles, following the sheet's
    *  steepness switch exactly as the flat map does. */
   steepness?: boolean;
+  /** The still copy that actually prints. Redrawn whenever the camera rests. */
+  canvas: HTMLCanvasElement;
+  /** Told the compass bearing whenever it changes, so the sheet's north mark
+   *  can keep pointing north while the map turns under it. */
+  onBearing?: (deg: number) => void;
   /** Abort check, polled at each step that follows an await. */
   cancelled?: () => boolean;
+}
+
+export interface TerrainMapHandle {
+  /**
+   * Turn and tilt the camera by a drag, given as fractions of the frame's
+   * width and height. Fractions rather than pixels because the frame on screen
+   * and the map behind it are different sizes; the caller measures the gesture
+   * against what the user can see.
+   */
+  turn(dxFraction: number, dyFraction: number): void;
+  /**
+   * Frame the whole route again, from the standard angle.
+   *
+   * The way back from an inherited camera. A view carried over from the
+   * planner can be zoomed into one bowl of a long tour, which is the right
+   * picture on a screen you can pan and the wrong one on a sheet — and turning
+   * and tilting alone cannot undo it.
+   */
+  reset(): void;
+  /** Redraw the still copy from the frame currently on screen. */
+  capture(): void;
+  /** Tear down the GL context, the tile pipeline and the render loop. */
+  destroy(): void;
 }
 
 /** The GeoJSON MapLibre draws the route from. Route points are [lat, lng];
@@ -98,33 +153,29 @@ function whenSettled(map: MapLibreMap): Promise<void> {
   });
 }
 
-function decode(url: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('captured frame failed to decode'));
-    img.src = url;
-  });
-}
-
 /**
- * Draw one frame of the planner's 3D terrain view of `route` into `canvas`.
+ * Build the planner's 3D terrain view of `route` inside `holder`, and keep
+ * `opts.canvas` showing a still copy of it.
  *
- * Rejects if the browser cannot give us a terrain view at all — no WebGL, a
- * lost context, a frame that cannot be read back. The caller is expected to
- * fall back to the flat map rather than print an empty frame: a north-up map of
- * the right tour beats a beautiful one of nothing.
+ * Resolves once that first copy exists, so the caller can enable Print knowing
+ * the page has a finished picture on it. Rejects if the browser cannot give us
+ * a terrain view at all — no WebGL, a lost context, a frame that cannot be
+ * copied. The caller is expected to fall back to the flat map rather than print
+ * an empty frame: a north-up map of the right tour beats a beautiful one of
+ * nothing.
  */
-export async function renderTerrainMap(
-  canvas: HTMLCanvasElement,
+export async function createTerrainMap(
+  holder: HTMLElement,
   opts: TerrainMapOptions,
-): Promise<void> {
+): Promise<TerrainMapHandle> {
   const {
     route,
     width,
     height,
     scale,
     steepness = true,
+    canvas,
+    onBearing,
     cancelled = () => false,
   } = opts;
 
@@ -140,29 +191,24 @@ export async function renderTerrainMap(
     import('maplibre-gl'),
     import('../offline/maplibreOffline'),
   ]);
-  if (cancelled()) return;
+  if (cancelled()) throw new Error('export closed while the map was loading');
 
   // The same protocol the planner's 3D view registers, so a downloaded region
   // exports without a network the way it draws without one. Idempotent.
   offline.registerOfflineMapProtocol();
 
-  // MapLibre needs a laid-out container to size its drawing buffer from, and
-  // this one must never be seen: it is parked off-screen rather than hidden,
-  // because `display: none` gives it no size and `visibility: hidden` invites
-  // a browser to skip painting the very frame we came for.
-  const holder = document.createElement('div');
-  holder.style.cssText = [
-    'position: fixed',
-    'left: -20000px',
-    'top: 0',
-    `width: ${width}px`,
-    `height: ${height}px`,
-    'pointer-events: none',
-  ].join('; ');
-  document.body.appendChild(holder);
+  // The map is built at print size and shown small, so the container carries
+  // the print size and the caller does the shrinking. See the header.
+  holder.style.width = `${width}px`;
+  holder.style.height = `${height}px`;
 
   let map: MapLibreMap | null = null;
   try {
+    // The angle the guide left the planner's 3D view at, when there is one for
+    // this tour. Otherwise the route's own framing, from the standard angle —
+    // which is what someone who has never opened the 3D view has been shown of
+    // this route, and so is what they expect to see here.
+    const camera = recallTerrainCamera(route);
     const bounds = points.reduce(
       (b, p) => b.extend(p),
       new maplibregl.LngLatBounds(points[0], points[0]),
@@ -225,51 +271,107 @@ export async function renderTerrainMap(
         terrain: { source: 'terrain', exaggeration: TERRAIN_EXAGGERATION },
         sky: TERRAIN_SKY,
       },
-      bounds,
-      fitBoundsOptions: {
-        padding: TERRAIN_FIT_PADDING,
-        pitch: TERRAIN_PITCH,
-        bearing: TERRAIN_BEARING,
-      },
-      // Nothing here is ever touched, seen, or credited in place: the sheet
-      // prints its own attribution line, and the map is gone a second later.
+      ...(camera
+        ? camera
+        : {
+            bounds,
+            fitBoundsOptions: {
+              padding: TERRAIN_FIT_PADDING,
+              pitch: TERRAIN_PITCH,
+              bearing: TERRAIN_BEARING,
+            },
+          }),
+      // MapLibre's own handlers stay off and the turning below is done by hand.
+      // Two reasons: the frame is drawn inside a `zoom`-ed sheet and shown at a
+      // fraction of the size it is rendered at, which is exactly the situation
+      // in which a library's pointer arithmetic quietly disagrees with the
+      // pointer; and a drag here should turn the map, where in the planner the
+      // primary button draws a route. Panning and zooming are left out on
+      // purpose — the frame is a picture of one tour, and there is nothing
+      // useful off the edge of it.
       interactive: false,
+      // Attribution is printed by the sheet, in a line that also credits the
+      // elevation data this view is the only one to use.
       attributionControl: false,
       // Render at the sheet's oversample rather than the screen's, so the mesh
       // is drawn at print resolution instead of being enlarged into it.
       pixelRatio: scale,
-      // Raster layers cross-fade in by default, which on a map captured the
-      // instant it settles means photographing a half-faded tile.
+      // Raster layers cross-fade in by default, which on a map copied the
+      // instant it settles means printing a half-faded tile.
       fadeDuration: 0,
       canvasContextAttributes: {
-        // The whole reason this is a photograph: without it the frame we want
-        // to read back has already been discarded by the time we ask for it.
+        // The whole reason the still copy is possible: without it the frame we
+        // want to copy has already been discarded by the time we ask for it.
         preserveDrawingBuffer: true,
-        // Off by default, and worth the cost exactly once: this context renders
-        // a single frame that then goes on paper, where a stair-stepped ridge
-        // line has nowhere to hide.
+        // Off by default, and worth the cost here: this map ends up on paper,
+        // where a stair-stepped ridge line has nowhere to hide.
         antialias: true,
       },
-      maxPitch: 85,
+      maxPitch: MAX_PITCH,
     });
 
-    await whenSettled(map);
-    if (cancelled()) return;
-
-    const frame = map.getCanvas().toDataURL('image/png');
-    const image = await decode(frame);
-    if (cancelled()) return;
-
-    canvas.width = Math.round(width * scale);
-    canvas.height = Math.round(height * scale);
+    const gl = map;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('no 2d context to draw the captured frame into');
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  } finally {
+    if (!ctx) throw new Error('no 2d context to copy the frame into');
+
+    const capture = () => {
+      const source = gl.getCanvas();
+      // A zero-sized drawing buffer means the context is gone (or was never
+      // there). Copying it would wipe the last good frame off the page.
+      if (source.width === 0 || source.height === 0) return;
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    };
+
+    // Every time the camera comes to rest — after a turn, and after the last
+    // tile of a newly revealed hillside lands — the printable copy catches up.
+    gl.on('idle', capture);
+    if (onBearing) {
+      onBearing(gl.getBearing());
+      gl.on('rotate', () => onBearing(gl.getBearing()));
+    }
+
+    await whenSettled(gl);
+    if (cancelled()) throw new Error('export closed while the map was loading');
+    capture();
+
+    return {
+      turn(dxFraction, dyFraction) {
+        gl.jumpTo({
+          bearing: gl.getBearing() + dxFraction * TURN_PER_FRAME,
+          // Up is further from the ground, matching every other map with a
+          // tilt: drag towards the horizon and the horizon comes into view.
+          pitch: Math.min(
+            MAX_PITCH,
+            Math.max(MIN_PITCH, gl.getPitch() - dyFraction * TILT_PER_FRAME),
+          ),
+        });
+      },
+      reset() {
+        // The same framing the map would have opened on had the planner's 3D
+        // view never been used: the whole route, from the standard angle. Done
+        // instantly rather than flown, because the frame is a picture being
+        // composed, not a place being travelled to — and because the still copy
+        // is retaken when the camera rests, a flight would print whichever
+        // frame the animation happened to be on if Print were hit mid-flight.
+        gl.fitBounds(bounds, {
+          padding: TERRAIN_FIT_PADDING,
+          pitch: TERRAIN_PITCH,
+          bearing: TERRAIN_BEARING,
+          duration: 0,
+        });
+      },
+      capture,
+      destroy() {
+        gl.remove();
+      },
+    };
+  } catch (err) {
     // Even on the failure path: a GL context left behind by an export nobody
     // completed is a context the browser will eventually take from a map the
     // user is still using.
     map?.remove();
-    holder.remove();
+    throw err;
   }
 }

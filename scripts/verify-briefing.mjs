@@ -1677,17 +1677,35 @@ ok(
   'those colours are the shared pair, not a third opinion about green and red',
 );
 
-// The capture, and the two ways it can spoil a page: a WebGL canvas printed
+// The still copy, and the two ways it can spoil a page: a WebGL canvas printed
 // live comes out black, and a GL context left behind by an export nobody
 // finished is taken from the map the user is still looking at.
+const pictureSrc = readFileSync(
+  join(ROOT, 'src/briefing/TerrainPicture.tsx'),
+  'utf8',
+);
 ok(
   /preserveDrawingBuffer: true/.test(terrainMapSrc),
-  'the frame is kept long enough to be read back, or the print comes out blank',
+  'the frame is kept long enough to be copied, or the print comes out blank',
+);
+ok(
+  /briefingMapLive/.test(css) &&
+    /@media print[\s\S]*\.briefingMapLive\s*\{[^}]*display:\s*none/.test(css),
+  'the live map is preview-only: what prints is the still copy underneath it',
+);
+ok(
+  /gl\.on\('idle', capture\)/.test(terrainMapSrc),
+  'the copy is retaken every time the camera comes to rest',
+);
+ok(
+  /'beforeprint'/.test(pictureSrc),
+  'and once more as the print dialog opens, so the page cannot lag the screen',
 );
 ok(
   /map\?\.remove\(\)/.test(terrainMapSrc) &&
-    /finally \{/.test(terrainMapSrc),
-  'the off-screen map is destroyed even when the capture fails',
+    /gl\.remove\(\)/.test(terrainMapSrc) &&
+    /handle\?\.destroy\(\)/.test(pictureSrc),
+  'the GL context goes when the export fails and when the export closes',
 );
 ok(
   /await import\('maplibre-gl'\)|import\('maplibre-gl'\)/.test(terrainMapSrc) &&
@@ -1699,12 +1717,172 @@ ok(
   'a tile source that is simply down cannot hold the Print button hostage',
 );
 ok(
-  /catch\(\(\) => flat\(\)\)/.test(sheetSrc),
+  /onFailed=\{fallBack\}/.test(sheetSrc) && /setFailed\(request\)/.test(sheetSrc),
   'a browser that cannot draw terrain falls back to the flat map of the right tour',
 );
 ok(
-  /import\('\.\/terrainMap'\)/.test(sheetSrc),
-  'the sheet reaches the capture through an import it only makes when asked',
+  /failed !== request/.test(sheetSrc),
+  'and flipping a switch asks again, rather than sulking for the rest of the export',
+);
+ok(
+  /import\('\.\/terrainMap'\)/.test(pictureSrc),
+  'the live map is reached through an import only made when it is asked for',
+);
+
+// --- Turning it ------------------------------------------------------------
+
+// The map is aimed by dragging it. Everything below is a way of getting that
+// wrong that would still look plausible in a screenshot.
+ok(
+  /interactive: false/.test(terrainMapSrc),
+  'MapLibre\u2019s own handlers stay off, so a drag turns the map and nothing else',
+);
+ok(
+  /turn\(dxFraction, dyFraction\)/.test(terrainMapSrc) &&
+    /box\.width/.test(pictureSrc) &&
+    /box\.height/.test(pictureSrc),
+  'the gesture is measured against the frame on screen, not the map behind it',
+);
+ok(
+  /Math\.min\(\s*MAX_PITCH/.test(terrainMapSrc) &&
+    /Math\.max\(MIN_PITCH/.test(terrainMapSrc),
+  'the tilt stops at the ground and at the sky, wherever the drag keeps going',
+);
+ok(
+  /ArrowLeft/.test(pictureSrc) &&
+    /ArrowRight/.test(pictureSrc) &&
+    /ArrowUp/.test(pictureSrc) &&
+    /ArrowDown/.test(pictureSrc) &&
+    /tabIndex=\{0\}/.test(pictureSrc),
+  'the map can be aimed from the keyboard as well as with a pointer',
+);
+// Resolution. The live map is shown at a fraction of the size it is rendered
+// at, precisely so that what goes on paper is the big one.
+ok(
+  /width=\{MAP_W\}/.test(sheetSrc) &&
+    /scale=\{MAP_SCALE\}/.test(sheetSrc) &&
+    /transform: `scale\(\$\{shrink/.test(pictureSrc),
+  'the map is rendered at print size and shrunk to fit, not rendered small',
+);
+ok(
+  /transform-origin: top left/.test(css),
+  'and shrunk from the corner it is positioned by, or it slides out of frame',
+);
+// The north mark is the only thing on paper that says which way the mountain
+// is being seen from, so it has to follow the camera rather than the default.
+ok(
+  /onBearing=\{setBearing\}/.test(sheetSrc) &&
+    /rotate\(\$\{-bearing\}deg\)/.test(sheetSrc),
+  'the north mark turns with the map, rather than pointing at the angle it opened on',
+);
+
+// --- The angle it opens on -------------------------------------------------
+
+// "The same orientation the user had in the planner" is the whole request, and
+// its failure mode is silent: a camera left over from another tour prints a
+// beautifully angled photograph of the wrong valley.
+const {
+  rememberTerrainCamera,
+  recallTerrainCamera,
+  forgetTerrainCamera,
+} = await import(pathToFileURL(join(ROOT, 'src/terrainCamera.ts')).href);
+
+const skala = [
+  [
+    [62.4, 7.6],
+    [62.42, 7.66],
+    [62.45, 7.7],
+  ],
+];
+const camera = {
+  center: [7.65, 62.42],
+  zoom: 13.4,
+  pitch: 48,
+  bearing: 112,
+};
+
+ok(
+  /rememberTerrainCamera/.test(plannerThreeD) && /moveend/.test(plannerThreeD),
+  'the planner hands on its camera whenever it comes to rest',
+);
+ok(
+  /recallTerrainCamera/.test(terrainMapSrc),
+  'and the export opens on it rather than on the default angle',
+);
+forgetTerrainCamera();
+ok(
+  recallTerrainCamera(skala) === null,
+  'a guide who has never opened the 3D view gets the route\u2019s own framing',
+);
+rememberTerrainCamera(camera);
+ok(
+  recallTerrainCamera(skala) === camera,
+  'having turned the tour in the planner, the export opens facing the same way',
+);
+ok(
+  ['zoom', 'pitch', 'bearing'].every((k) => recallTerrainCamera(skala)[k] === camera[k]) &&
+    recallTerrainCamera(skala).center[0] === camera.center[0],
+  'the whole camera carries over, not just the compass direction',
+);
+// An edit is not a new tour: extending the route by a leg should not cost the
+// guide the angle they just chose.
+const extended = [[...skala[0], [62.47, 7.8]]];
+ok(
+  recallTerrainCamera(extended) === camera,
+  'editing the route keeps the angle it was last looked at from',
+);
+// A different tour is a different tour, however similar the numbers look.
+ok(
+  recallTerrainCamera([
+    [
+      [61.0, 8.4],
+      [61.05, 8.5],
+    ],
+  ]) === null,
+  'a camera left over from another tour is not offered for this one',
+);
+// A tour inside a single cirque has a bounding box a few hundred metres wide,
+// and a camera sitting back from it is still looking at it.
+rememberTerrainCamera({ ...camera, center: [7.63, 62.401] });
+ok(
+  recallTerrainCamera([
+    [
+      [62.4, 7.6],
+      [62.401, 7.602],
+    ],
+  ]) !== null,
+  'a tiny tour does not reject a camera standing back from it',
+);
+ok(
+  recallTerrainCamera([]) === null && recallTerrainCamera([[]]) === null,
+  'a route with no points asks for no camera',
+);
+forgetTerrainCamera();
+ok(
+  recallTerrainCamera(skala) === null,
+  'and the angle can be dropped when it stops belonging to anything',
+);
+
+// The way back. Inheriting the planner's camera means inheriting its zoom and
+// centre too, which on a long tour can be one bowl of it — the right picture on
+// a screen you can pan, the wrong one on a sheet. Turning and tilting cannot
+// undo that, and panning and zooming are deliberately not offered, so without
+// this the inherited view is a dead end.
+ok(
+  /reset\(\)\s*\{[\s\S]*?fitBounds\(bounds/.test(terrainMapSrc),
+  'the whole route can be framed again after arriving zoomed into part of it',
+);
+ok(
+  /reset\(\)\s*\{[\s\S]*?duration: 0/.test(terrainMapSrc),
+  'and it lands there at once, so Print cannot catch it mid-flight',
+);
+ok(
+  /handle\.reset\(\)/.test(pictureSrc) && /briefingMapRefit/.test(pictureSrc),
+  'the sheet offers that as something to press, not just as something to call',
+);
+ok(
+  /onPointerDown=\{\(e\) => e\.stopPropagation\(\)\}/.test(pictureSrc),
+  'pressing it does not also start a drag on the map underneath it',
 );
 
 // The switch itself. Its one trap is being reachable while the thing it
@@ -1742,6 +1920,33 @@ ok(
   plain(threeDSheet).includes('Kartverket') &&
     plain(flatSheet).includes('Kartverket'),
   'the topo credit survives either way of drawing the map',
+);
+// And the frame itself: one canvas either way, with the turnable map added on
+// top of it only when there is terrain to turn.
+ok(
+  threeDSheet.includes('briefingMapLive') &&
+    !flatSheet.includes('briefingMapLive') &&
+    !noMapSheet.includes('briefingMapLive'),
+  'the map is turnable exactly when it is a 3D map',
+);
+ok(
+  (flatSheet.match(/briefingMapCanvas/g) ?? []).length === 1 &&
+    (threeDSheet.match(/briefingMapCanvas/g) ?? []).length === 1,
+  'both draw into one canvas, so the page has the same shape either way',
+);
+ok(
+  /Dra for \u00e5 snu|Drag to turn/.test(plain(threeDSheet)),
+  'and it says so, because a map that can be turned looks like one that cannot',
+);
+// The refit button is markup inside the live map, so the print rule that hides
+// the live map is what keeps a control off the paper. If it ever moves out of
+// that element it will start printing, silently.
+ok(
+  threeDSheet.includes('briefingMapRefit') &&
+    !flatSheet.includes('briefingMapRefit') &&
+    threeDSheet.indexOf('briefingMapLive') <
+      threeDSheet.indexOf('briefingMapRefit'),
+  'the refit button lives inside the live map, which is what keeps it off paper',
 );
 
 // --- The name the browser suggests ---------------------------------------

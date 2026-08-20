@@ -564,6 +564,83 @@
   height: 100%;
 }
 
+/* THE LIVE TERRAIN VIEW, ON SCREEN ONLY
+ *
+ * Sits over the canvas while the sheet is being looked at, and disappears for
+ * the print (see @media print at the foot of this file), where the canvas — a
+ * still copy of this same map, retaken whenever the camera rests — is what goes
+ * on paper. A WebGL canvas is not reliably reproduced by a print renderer, so
+ * the thing that prints is deliberately not this.
+ *
+ * MapLibre's own stylesheet is not imported: it is 70 kB of control, popup and
+ * marker styling for a map that has none of those. What it does that matters
+ * here is stop the canvas sitting on a text baseline, which is two lines. */
+.briefingMapLive {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  /* The gesture is a drag, so the browser must not read it as a scroll. */
+  touch-action: none;
+}
+
+.briefingMapLive:active {
+  cursor: grabbing;
+}
+
+.briefingMapLive canvas {
+  display: block;
+}
+
+/* The map is rendered at print size and shrunk to fit the frame — tiles are
+ * chosen for the size of the box they are drawn in, so a map built at the ~360
+ * screen pixels this frame occupies would print at about 70 dpi. The scale
+ * factor is measured and set inline by TerrainPicture.tsx. */
+.briefingMapLiveInner {
+  transform-origin: top left;
+}
+
+/* Says what can be done here, because nothing else does: a map that can be
+ * turned looks exactly like one that cannot. Also says what the turning is
+ * for, which is the part a first-time exporter would otherwise have to
+ * discover by printing. */
+.briefingMapHint {
+  position: absolute;
+  left: 2mm;
+  bottom: 2mm;
+  margin: 0;
+  padding: 0.8mm 1.6mm;
+  border-radius: var(--briefing-radius-sm);
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 6pt;
+  color: var(--briefing-muted);
+  pointer-events: none;
+}
+
+/* The way back to the whole tour, for a camera inherited from the planner that
+ * was aimed at one part of it. Sits inside .briefingMapLive, so the print rule
+ * that hides the live map hides this with it — paper gets the picture, never
+ * the controls. Opposite corner from the hint and clear of the north mark, so
+ * nothing the guide reads sits under something they press. */
+.briefingMapRefit {
+  position: absolute;
+  right: 2mm;
+  bottom: 2mm;
+  padding: 0.8mm 1.8mm;
+  border: var(--briefing-hairline) solid var(--briefing-rule);
+  border-radius: var(--briefing-radius-sm);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 6pt;
+  color: var(--briefing-muted);
+  cursor: pointer;
+}
+
+.briefingMapRefit:hover {
+  background: #fff;
+  color: var(--briefing-ink);
+}
+
 .briefingNorth {
   position: absolute;
   top: 2mm;
@@ -1193,6 +1270,15 @@
 
   /* Preview-only chrome. */
   .briefingBar {
+    display: none !important;
+  }
+
+  /* The live terrain map is preview-only too, and for a harder reason than
+   * tidiness: browsers do not reliably print a WebGL canvas. What is left in
+   * the frame is the still copy underneath it, taken from this very map the
+   * last time its camera came to rest — so the page prints the view on screen
+   * without asking the printer to render it. */
+  .briefingMapLive {
     display: none !important;
   }
 

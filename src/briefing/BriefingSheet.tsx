@@ -10,7 +10,7 @@
 // The page is intentionally NOT a dump of every panel. Anything a person can't
 // act on in the field is left off to keep it to a single sheet.
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import type { Route } from '../types';
 import type { AvalancheWarning } from '../avalanche/api';
@@ -29,6 +29,7 @@ import { SnowSvg } from './SnowSvg';
 import { summariseSnow } from './snowSummary';
 import { WeatherSymbol, WindArrowIcon } from '../components/WeatherIcons';
 import { renderStaticMap } from './staticMap';
+import { TerrainPicture } from './TerrainPicture';
 import { TERRAIN_BEARING } from '../terrainView';
 import type { BriefingOptions } from './options';
 import { useT, type Translate } from '../i18n/index.ts';
@@ -563,12 +564,23 @@ function MapPicture({
 }) {
   const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  // What was actually drawn, which is not always what was asked for: a browser
-  // with no WebGL, or one that will not hand back the frame it drew, falls
-  // through to the flat map. The north mark follows this rather than the
+
+  // What was asked for, as one value. A browser with no WebGL, or one that
+  // will not hand back the frame it drew, falls through to the flat map — and
+  // records *which request* failed, so that flipping a switch is a fresh ask
+  // rather than a permanently disappointed one. Nothing here is set from an
+  // effect body: the request is derived, and the disappointment arrives from a
+  // promise.
+  const request = `${view}:${steepness}`;
+  const [failed, setFailed] = useState<string | null>(null);
+  const terrain = view === '3d' && failed !== request;
+  // What is actually in the frame. The north mark follows this rather than the
   // request, because a compass turned to a camera angle that was never used
   // would be the one thing on the sheet that is wrong rather than missing.
-  const [drawn, setDrawn] = useState<MapView>(view);
+  const drawn: MapView = terrain ? '3d' : '2d';
+  // Which way the terrain view is facing, as the guide turns it.
+  const [bearing, setBearing] = useState(TERRAIN_BEARING);
+
   // Held in a ref so a caller passing a fresh closure each render can't
   // restart the (network-bound) tile fetch. Synced in its own effect, which
   // runs before the render effect below.
@@ -576,87 +588,77 @@ function MapPicture({
   useEffect(() => {
     onReadyRef.current = onReady;
   }, [onReady]);
+  const ready = useCallback(() => onReadyRef.current?.(), []);
+  const fallBack = useCallback(() => setFailed(request), [request]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    // The terrain view paints this same canvas itself, from its own live map.
+    if (!canvas || terrain) return;
     let cancelled = false;
-    const flat = () =>
-      renderStaticMap(canvas, {
-        route,
-        width: MAP_W,
-        height: MAP_H,
-        scale: MAP_SCALE,
-        padding: 0.1,
-        steepness,
-        // No weights passed, so the renderer's defaults apply — and those are
-        // the planner's own line and halo. MAP_W is within a hair of the width
-        // the planner map occupies on screen, so the same numbers put the
-        // printed line at the same proportion of the frame as the line the
-        // route was drawn with. The sheet used to ask for 9 and 17 here, which
-        // is why the export came out as a blunter drawing of the same tour.
-        endpoints: true,
-        scaleBar: true,
-        cancelled: () => cancelled,
-      }).then(() => '2d' as const);
-
-    // The terrain view arrives with MapLibre behind it, so it is fetched only
-    // when it is asked for — see terrainMap.ts. A failure there is not a failed
-    // export: the flat map draws the same tour from the same tiles, and the
-    // reader gets a sheet instead of a hole.
-    const picture =
-      view === '3d'
-        ? import('./terrainMap')
-            .then((m) =>
-              m.renderTerrainMap(canvas, {
-                route,
-                width: MAP_W,
-                height: MAP_H,
-                scale: MAP_SCALE,
-                steepness,
-                cancelled: () => cancelled,
-              }),
-            )
-            .then(() => '3d' as const)
-            .catch(() => flat())
-        : flat();
-
-    void picture
+    void renderStaticMap(canvas, {
+      route,
+      width: MAP_W,
+      height: MAP_H,
+      scale: MAP_SCALE,
+      padding: 0.1,
+      steepness,
+      // No weights passed, so the renderer's defaults apply — and those are
+      // the planner's own line and halo. MAP_W is within a hair of the width
+      // the planner map occupies on screen, so the same numbers put the
+      // printed line at the same proportion of the frame as the line the
+      // route was drawn with. The sheet used to ask for 9 and 17 here, which
+      // is why the export came out as a blunter drawing of the same tour.
+      endpoints: true,
+      scaleBar: true,
+      cancelled: () => cancelled,
+    })
       .catch(() => {
         // Tiles unavailable (offline, no coverage): the neutral backdrop and
         // the traced route still print, which beats an empty frame. Still
         // "ready" — waiting longer would not produce a better page.
-        return '2d' as const;
       })
-      .then((shown) => {
-        if (cancelled) return;
-        setDrawn(shown);
-        onReadyRef.current?.();
+      .then(() => {
+        if (!cancelled) onReadyRef.current?.();
       });
     return () => {
       cancelled = true;
     };
-  }, [route, steepness, view]);
+  }, [route, steepness, terrain]);
 
   return (
     <div className="briefingMapFrame">
+      {/* The picture that prints, in both cases: the flat renderer draws
+          straight onto it, and the terrain view copies its live frame onto it
+          whenever the camera comes to rest. */}
       <canvas
         ref={canvasRef}
         className="briefingMapCanvas"
         role="img"
         aria-label={mapLabel(t, drawn, steepness)}
       />
+      {/* On top of it on screen, and gone by the time anything is printed: the
+          live map the guide turns. */}
+      {terrain && (
+        <TerrainPicture
+          route={route}
+          steepness={steepness}
+          width={MAP_W}
+          height={MAP_H}
+          scale={MAP_SCALE}
+          canvasRef={canvasRef}
+          onReady={ready}
+          onFailed={fallBack}
+          onBearing={setBearing}
+        />
+      )}
       {/* North, turned by the camera's bearing. The flat map is north-up and
-          the mark points straight up; the terrain view is turned anticlockwise
-          to keep ridges from being seen end-on, which puts north that far
-          clockwise of the top of the frame. */}
+          the mark points straight up; the terrain view can be facing anywhere
+          the guide has turned it to, and the mark turns with it — on paper it
+          is the only thing left saying which way the mountain is seen from. */}
       <div
         className="briefingNorth"
-        style={
-          drawn === '3d'
-            ? { transform: `rotate(${-TERRAIN_BEARING}deg)` }
-            : undefined
-        }
+        style={drawn === '3d' ? { transform: `rotate(${-bearing}deg)` } : undefined}
         aria-hidden
       >
         ↑N
