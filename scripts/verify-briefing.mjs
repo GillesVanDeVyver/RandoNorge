@@ -2242,6 +2242,89 @@ ok(
   'a name cut to length does not end in the space or dot the cut landed on',
 );
 
+// ---------------------------------------------------------------------------
+// 8. The two sections that decide for themselves
+// ---------------------------------------------------------------------------
+
+section('Sections that decide for themselves');
+
+// Snow depth and the avalanche forecast are the only sections whose default
+// depends on the day rather than on the guide: seNorge finding no snow along
+// the route, and Varsom having rated none of the regions it crosses, both
+// produce a section that prints but says nothing.
+//
+// Everything that can go wrong here is quiet. Deciding before the source has
+// answered turns the section off on a day that does have a forecast. Writing
+// the decision back into the remembered selection carries one tour's answer
+// into the next, where it looks like a preference nobody set. Locking the
+// switch instead of defaulting it takes away the one sheet a guide might
+// actually want it for — the one that says the day is unrated.
+ok(
+  DEFAULT_OPTIONS.avalanche === true && DEFAULT_OPTIONS.snow === true,
+  'both sections are on by default: what they answer to is the day, not the sheet',
+);
+const unratedTest = /const unratedTour =[\s\S]*?;/.exec(dialogSrc)?.[0] ?? '';
+ok(
+  /!avalanche\.loading/.test(unratedTest) &&
+    /avalanche\.error === null/.test(unratedTest),
+  'a forecast still in flight, or one that failed, is not read as an unrated day',
+);
+ok(
+  /avalanche\.fetchedAt !== null/.test(unratedTest),
+  'and neither is a hook that has not asked Varsom anything yet',
+);
+ok(
+  /avalanche\.level === 0/.test(unratedTest),
+  'only a day nobody rated turns the section off — a quiet day is still a day',
+);
+ok(
+  /if \(unratedTour && !touched\.avalanche\) out\.avalanche = false/.test(
+    dialogSrc,
+  ) && /if \(snowlessTour && !touched\.snow\) out\.snow = false/.test(dialogSrc),
+  'each section is defaulted off by its own observation and nothing else',
+);
+ok(
+  /key === 'snow' \|\| key === 'avalanche'/.test(dialogSrc),
+  'turning either back on retires its automatic default for the rest of the dialog',
+);
+ok(
+  /storeOptions\(chosen\)/.test(dialogSrc) && !/storeOptions\(options\)/.test(dialogSrc),
+  'what is remembered is what the guide chose, not what the day decided',
+);
+const avalancheSwitch =
+  /<Switch\s+label=\{t\('Snøskredvarsel'[\s\S]*?\/>/.exec(dialogSrc)?.[0] ?? '';
+ok(
+  /unratedTour/.test(avalancheSwitch) && !/disabled/.test(avalancheSwitch),
+  'the switch says why it is off and stays switchable, as the snow one does',
+);
+ok(
+  /!\(options\.avalanche && avalanche\.loading\)/.test(dialogSrc),
+  'and Print is never held for a forecast this sheet is not going to print',
+);
+
+// The sheet itself, on a day Varsom has not rated. The section is off by
+// default now, so both of its states have to hold: switched back on it must
+// print the absence rather than an empty frame — a briefing that quietly omits
+// the section reads as one nobody finished — and left off it must take the
+// credit line with it, since citing Varsom for a page it did not appear on is
+// a small lie. (`unrated` is the level-0 sheet built for the badge checks
+// above; the same page answers both questions.)
+ok(
+  !/\b0 av 5\b|\b0 of 5\b/.test(plain(unrated)),
+  'an unrated day is never printed as a danger level, which 0 is not',
+);
+ok(
+  !plain(
+    render(
+      makeData(
+        { ...DEFAULT_OPTIONS, avalanche: false },
+        { avalancheLevel: 0, avalancheRegions: [] },
+      ),
+    ),
+  ).includes('Varsom'),
+  'and with the section off the sheet credits Varsom for nothing it printed',
+);
+
 // --- The eyeball copy ------------------------------------------------------
 
 // Everything above asserts the sheet; none of it shows the sheet to anybody, and

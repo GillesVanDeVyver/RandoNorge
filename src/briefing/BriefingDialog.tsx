@@ -27,10 +27,17 @@
 // colours the elevation profile, and 3D swaps the flat map for the planner's
 // terrain view — so they sit under what they modify and go out with it.
 //
-// One switch decides for itself: snow depth turns off when seNorge says there
-// is none along the route, because a page of zeroes is worse than no page. It
-// stays a switch, not a lock — the guide can turn it back on, and doing so is
-// what stops the sheet second-guessing them again.
+// Two switches decide for themselves, on the same principle: a section with
+// nothing to say is worse than no section. Snow depth turns off when seNorge
+// says there is none along the route, and the avalanche forecast turns off when
+// Varsom has not assessed any region the route crosses — out of season, or off
+// the edge of the forecast area — where the section prints as a question mark
+// and the words "ikke vurdert".
+//
+// Both stay switches, not locks. The guide can turn either back on, and doing
+// so is what stops the sheet second-guessing them again: an unrated day on the
+// page is a legitimate thing to want, since "Varsom says nothing about today"
+// is itself something a briefing can be for.
 
 import {
   useCallback,
@@ -139,15 +146,18 @@ export function BriefingDialog({
   const snowSnap = snapshot?.snow ?? null;
 
   // What the guide has asked for, which is not quite what the sheet prints:
-  // the snow section also answers to the snow itself (see `options` below).
-  // Keeping the two apart means the remembered selection stays a record of
-  // choices actually made, and the sheet never has to un-remember one.
+  // the snow and avalanche sections also answer to the day itself (see
+  // `options` below). Keeping the two apart means the remembered selection
+  // stays a record of choices actually made, and the sheet never has to
+  // un-remember one.
   const [chosen, setChosen] = useState<BriefingOptions>(loadOptions);
-  // Whether the snow switch has been touched in this dialog, either way. Once
-  // it has, the automatic default steps aside for good: a guide who asked for
-  // the snow section on a bare route has a reason, and one who turned it off
-  // does not need it turned off again.
-  const [snowChosen, setSnowChosen] = useState(false);
+  // Which of the two self-deciding switches have been touched in this dialog,
+  // either way. Once one has, its automatic default steps aside for good: a
+  // guide who asked for the snow section on a bare route has a reason, and one
+  // who turned it off does not need it turned off again.
+  const [touched, setTouched] = useState<{ snow: boolean; avalanche: boolean }>(
+    { snow: false, avalanche: false },
+  );
   const [mapReady, setMapReady] = useState(false);
   const [loadedSymbols, setLoadedSymbols] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -170,9 +180,10 @@ export function BriefingDialog({
 
   // A guide printing a stack of briefings sets the switches once. Only the
   // chosen selection is written: a section the sheet turned off by itself is
-  // an observation about today's snow, not a preference, and storing it would
-  // carry a bare January route's answer into a February one that has a
-  // snowpack — the section would go missing with nothing to say why.
+  // an observation about today's snow or today's forecast, not a preference,
+  // and storing it would carry a bare January route's answer into a February
+  // one that has a snowpack, or a July tour's answer into the winter — the
+  // section would go missing with nothing to say why.
   useEffect(() => {
     storeOptions(chosen);
   }, [chosen]);
@@ -184,7 +195,9 @@ export function BriefingDialog({
     // different renderer entirely — a whole WebGL map has to be built, loaded
     // and photographed — so that waits too, in either direction.
     if ((key === 'map' && on) || key === 'map3d') setMapReady(false);
-    if (key === 'snow') setSnowChosen(true);
+    if (key === 'snow' || key === 'avalanche') {
+      setTouched((prev) => ({ ...prev, [key]: true }));
+    }
     // withDependencies keeps steepness from being stranded without the profile
     // it colours.
     setChosen((prev) => withDependencies({ ...prev, [key]: on }));
@@ -236,16 +249,36 @@ export function BriefingDialog({
   const snowlessTour =
     !snow.loading && snow.snow !== null && !hasSnowOnRoute(snowSummary);
 
+  // An unrated day: Varsom has answered, and not one of the regions the route
+  // crosses is assessed — a summer tour, or a route outside the forecast area.
+  // The section can still be printed, and prints honestly (a question mark and
+  // "ikke vurdert"), but as a default it is two centimetres of paper saying
+  // nothing, which pushes the sections that do say something further down.
+  //
+  // Read the same way the snow test is: an error is not an answer, and neither
+  // is a request still in flight. `fetchedAt` is what tells "assessed nowhere"
+  // apart from "not asked yet" — a fresh hook reports level 0 before it has
+  // reached Varsom at all, and defaulting off on that would flick the switch
+  // in front of anyone quick enough to open the gear.
+  const unratedTour =
+    !avalanche.loading &&
+    avalanche.error === null &&
+    avalanche.fetchedAt !== null &&
+    avalanche.level === 0;
+
   // What the sheet actually prints: the guide's selection, with the snow
-  // section defaulted off on a route that has no snow on it. Derived rather
-  // than written back into `chosen`, so the switch reflects the tour in front
-  // of it without the dialog having to remember that it once disagreed with
-  // the stored preference — and so touching the switch simply takes the
-  // override away.
-  const options = useMemo(
-    () => (snowlessTour && !snowChosen ? { ...chosen, snow: false } : chosen),
-    [chosen, snowlessTour, snowChosen],
-  );
+  // section defaulted off on a route that has no snow on it and the avalanche
+  // section defaulted off on a day nobody has rated. Derived rather than
+  // written back into `chosen`, so the switches reflect the tour in front of
+  // them without the dialog having to remember that it once disagreed with the
+  // stored preference — and so touching a switch simply takes its override
+  // away.
+  const options = useMemo(() => {
+    const out = { ...chosen };
+    if (snowlessTour && !touched.snow) out.snow = false;
+    if (unratedTour && !touched.avalanche) out.avalanche = false;
+    return out;
+  }, [chosen, snowlessTour, unratedTour, touched]);
 
   const onMapReady = useCallback(() => setMapReady(true), []);
 
@@ -449,6 +482,14 @@ export function BriefingDialog({
       <Switch
         label={t('Snøskredvarsel', 'Avalanche forecast')}
         checked={options.avalanche}
+        // Says why it is off, the same way the snow switch does. Kept
+        // switchable: "Varsom has not rated this day" is itself something a
+        // briefing can be handed out to say.
+        hint={
+          unratedTour
+            ? t('Varsom har ingen vurdering', 'Varsom has no assessment')
+            : null
+        }
         onChange={(on) => setOption('avalanche', on)}
       />
       <Switch
