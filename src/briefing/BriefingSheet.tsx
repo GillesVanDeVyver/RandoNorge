@@ -11,6 +11,7 @@
 // act on in the field is left off to keep it to a single sheet.
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import type { Route } from '../types';
 import type { AvalancheWarning } from '../avalanche/api';
@@ -30,6 +31,16 @@ import { summariseSnow } from './snowSummary';
 import { WeatherSymbol, WindArrowIcon } from '../components/WeatherIcons';
 import { renderStaticMap } from './staticMap';
 import { TerrainPicture } from './TerrainPicture';
+import { MapZoomControls } from './MapZoomControls';
+import {
+  FIT,
+  isFit,
+  panBy,
+  useWheelZoom,
+  zoomBy,
+  ZOOM_STEP,
+  type Framing,
+} from './mapFraming';
 import { TERRAIN_BEARING } from '../terrainView';
 import type { BriefingOptions } from './options';
 import { useT, type Translate } from '../i18n/index.ts';
@@ -60,6 +71,11 @@ type MapView = '2d' | '3d';
 const MAP_W = 1280;
 const MAP_H = 680;
 const MAP_SCALE = 2;
+
+// How far an arrow key moves the flat map: an eighth of the frame. Coarse
+// enough to cross it in a few presses, fine enough to place a col where you
+// wanted it.
+const KEY_PAN = 1 / 8;
 
 // Width of the weather table's period column, as a percentage. "06–09" and its
 // heading need very little room, and every millimetre spent here is taken from
@@ -564,6 +580,7 @@ function MapPicture({
 }) {
   const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
 
   // What was asked for, as one value. A browser with no WebGL, or one that
   // will not hand back the frame it drew, falls through to the flat map — and
@@ -580,6 +597,76 @@ function MapPicture({
   const drawn: MapView = terrain ? '3d' : '2d';
   // Which way the terrain view is facing, as the guide turns it.
   const [bearing, setBearing] = useState(TERRAIN_BEARING);
+
+  // How close the flat map is drawn, and where it is pointed. Starts at the
+  // fit — the whole tour — and is dropped back there whenever the route
+  // changes: a framing is composed for one route, and a zoom that put the
+  // crux of Skåla in the middle of the frame means nothing on the next tour.
+  // The 3D view keeps its own, for the same reason and in its own terms; see
+  // mapFraming.ts.
+  const [framing, setFraming] = useState<Framing>(FIT);
+  // Dropped during render rather than from an effect, which is React's own
+  // advice for state that has to follow a prop: an effect would render the new
+  // route once through the old route's framing, and that first render is the
+  // one that fires off a screenful of tile requests for a frame nobody asked
+  // for.
+  const [framedRoute, setFramedRoute] = useState(route);
+  if (route !== framedRoute) {
+    setFramedRoute(route);
+    setFraming(FIT);
+  }
+
+  // The pan gesture. Only the flat map is dragged to move it — on the terrain
+  // view a drag already turns the mountain, and giving one gesture two
+  // meanings would cost more than panning there is worth.
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
+
+  useWheelZoom(
+    frameRef,
+    useCallback(
+      (delta: number, anchor: { x: number; y: number }) => {
+        // The terrain view is a different camera with a different idea of
+        // closer, and it hears the same wheel for itself through the live map
+        // sitting over this frame. Swallowing the event here regardless is the
+        // point of listening at all in that case: whichever map is on show, a
+        // wheel aimed at it must not scroll the sheet out from under it.
+        if (terrain) return;
+        // Zoom about the pointer, because a map that zooms away from the thing
+        // being pointed at has to be chased across the frame afterwards.
+        setFraming((f) => zoomBy(f, delta, anchor));
+      },
+      [terrain],
+    ),
+  );
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (terrain) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const from = dragRef.current;
+    if (!from) return;
+    // Measured against the frame on screen rather than the drawing behind it:
+    // the canvas is rendered several times the size it is shown at, so a
+    // gesture counted in its pixels would move the map by a fraction of what
+    // the pointer did.
+    const box = e.currentTarget.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const dx = (e.clientX - from.x) / box.width;
+    const dy = (e.clientY - from.y) / box.height;
+    dragRef.current = { x: e.clientX, y: e.clientY };
+    setFraming((f) => panBy(f, dx, dy));
+  };
+
+  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
 
   // Held in a ref so a caller passing a fresh closure each render can't
   // restart the (network-bound) tile fetch. Synced in its own effect, which
@@ -602,6 +689,12 @@ function MapPicture({
       height: MAP_H,
       scale: MAP_SCALE,
       padding: 0.1,
+      // The whole tour until the guide says otherwise. A redraw only paints
+      // once every tile has settled, so the canvas keeps the last finished
+      // picture while a new framing loads — which is also why nothing has to
+      // hold Print during a zoom: what is on screen is what is on the canvas
+      // is what goes on paper, at every moment in between.
+      framing,
       steepness,
       // No weights passed, so the renderer's defaults apply — and those are
       // the planner's own line and halo. MAP_W is within a hair of the width
@@ -624,10 +717,57 @@ function MapPicture({
     return () => {
       cancelled = true;
     };
-  }, [route, steepness, terrain]);
+  }, [route, steepness, terrain, framing]);
 
   return (
-    <div className="briefingMapFrame">
+    <div
+      ref={frameRef}
+      className={`briefingMapFrame ${terrain ? '' : 'briefingMapDraggable'}`}
+      // The flat map is aimed from the keyboard as well as with a pointer, the
+      // same way the terrain view is. Only when it is the one on show: in 3D
+      // the live map above carries the focus and the arrow keys turn it.
+      tabIndex={terrain ? undefined : 0}
+      role={terrain ? undefined : 'group'}
+      aria-label={
+        terrain
+          ? undefined
+          : t(
+              'Flytt kartet: dra det eller bruk piltastene. Zoom med rullehjulet eller + og −',
+              'Move the map: drag it or use the arrow keys. Zoom with the wheel or + and −',
+            )
+      }
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onKeyDown={(e) => {
+        if (terrain) return;
+        // A press moves an eighth of a frame, or half a zoom level — the same
+        // step the buttons take, so the two ways of asking agree.
+        const pans: Record<string, [number, number]> = {
+          ArrowLeft: [KEY_PAN, 0],
+          ArrowRight: [-KEY_PAN, 0],
+          ArrowUp: [0, KEY_PAN],
+          ArrowDown: [0, -KEY_PAN],
+        };
+        const pan = pans[e.key];
+        if (pan) {
+          e.preventDefault();
+          setFraming((f) => panBy(f, pan[0], pan[1]));
+          return;
+        }
+        const zooms: Record<string, number> = {
+          '+': ZOOM_STEP,
+          '=': ZOOM_STEP,
+          '-': -ZOOM_STEP,
+          _: -ZOOM_STEP,
+        };
+        const step = zooms[e.key];
+        if (step === undefined) return;
+        e.preventDefault();
+        setFraming((f) => zoomBy(f, step));
+      }}
+    >
       {/* The picture that prints, in both cases: the flat renderer draws
           straight onto it, and the terrain view copies its live frame onto it
           whenever the camera comes to rest. */}
@@ -651,6 +791,39 @@ function MapPicture({
           onFailed={fallBack}
           onBearing={setBearing}
         />
+      )}
+      {/* The flat map's own controls, and the note that says the map can be
+          moved at all — a map that can be is indistinguishable from one that
+          cannot. The terrain view brings its own pair, positioned the same
+          way, because the way back means something different there. Both are
+          screen-only: see the print rules in briefing.css, which is the single
+          thing keeping a button off the paper. */}
+      {!terrain && (
+        <>
+          <p className="briefingMapHint briefingMapHintTop" aria-hidden>
+            {t(
+              'Dra for å flytte · rull for å zoome · skrives ut slik det vises',
+              'Drag to move · scroll to zoom · prints as shown',
+            )}
+          </p>
+          <MapZoomControls
+            zoom={framing.zoom}
+            onZoom={(delta) => setFraming((f) => zoomBy(f, delta))}
+            // A press on a button must not also be the beginning of a drag on
+            // the map behind it, which would slide the map on the way to
+            // zooming it.
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="briefingMapFit"
+              disabled={isFit(framing)}
+              onClick={() => setFraming(FIT)}
+            >
+              {t('Vis hele ruta', 'Fit the route')}
+            </button>
+          </MapZoomControls>
+        </>
       )}
       {/* North, turned by the camera's bearing. The flat map is north-up and
           the mark points straight up; the terrain view can be facing anywhere

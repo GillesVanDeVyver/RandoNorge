@@ -108,12 +108,25 @@ export interface TerrainMapHandle {
    */
   turn(dxFraction: number, dyFraction: number): void;
   /**
+   * Draw the map `offset` zoom levels closer than the framing it settled on —
+   * negative for wider. Stated as an offset rather than as a zoom level so
+   * that a press means the same amount of closer here as it does on the flat
+   * map, on a 2 km tour and a 20 km one alike; see mapFraming.ts.
+   *
+   * Absolute rather than incremental, so the caller's number is the truth
+   * about where the camera is. Asking twice for the same offset is a no-op
+   * rather than a second step.
+   */
+  setZoom(offset: number): void;
+  /**
    * Frame the whole route again, from the standard angle.
    *
    * The way back from an inherited camera. A view carried over from the
    * planner can be zoomed into one bowl of a long tour, which is the right
    * picture on a screen you can pan and the wrong one on a sheet — and turning
-   * and tilting alone cannot undo it.
+   * and tilting alone cannot undo it. It is also the way back from a zoom
+   * asked for here, which is why it re-reads the framing everything else is
+   * measured from.
    */
   reset(): void;
   /** Redraw the still copy from the frame currently on screen. */
@@ -286,9 +299,11 @@ export async function createTerrainMap(
       // fraction of the size it is rendered at, which is exactly the situation
       // in which a library's pointer arithmetic quietly disagrees with the
       // pointer; and a drag here should turn the map, where in the planner the
-      // primary button draws a route. Panning and zooming are left out on
-      // purpose — the frame is a picture of one tour, and there is nothing
-      // useful off the edge of it.
+      // primary button draws a route. Zooming is offered, but through setZoom
+      // below rather than through MapLibre, so that a press means the same
+      // amount of closer here as on the flat map. Panning is left out on
+      // purpose: the drag is spoken for, and a picture of one tour has nothing
+      // useful off the edge of it that turning cannot reach.
       interactive: false,
       // Attribution is printed by the sheet, in a line that also credits the
       // elevation data this view is the only one to use.
@@ -336,6 +351,13 @@ export async function createTerrainMap(
     if (cancelled()) throw new Error('export closed while the map was loading');
     capture();
 
+    // The framing every zoom the guide asks for is measured from: whatever the
+    // map settled on, which is the route's own fit unless a camera was
+    // inherited from the planner. Re-read on reset, because that is precisely
+    // the moment it changes — and if it were not, a reset from three steps in
+    // would land three steps in.
+    let baseZoom = gl.getZoom();
+
     return {
       turn(dxFraction, dyFraction) {
         gl.jumpTo({
@@ -345,6 +367,18 @@ export async function createTerrainMap(
           pitch: Math.min(
             MAX_PITCH,
             Math.max(MIN_PITCH, gl.getPitch() - dyFraction * TILT_PER_FRAME),
+          ),
+        });
+      },
+      setZoom(offset) {
+        // MapLibre's own ceiling and floor still apply: a short tour fits at a
+        // zoom that has only a step or two of headroom left above it, and
+        // asking for more than the style can give would silently land
+        // somewhere other than where the buttons say.
+        gl.jumpTo({
+          zoom: Math.min(
+            gl.getMaxZoom(),
+            Math.max(gl.getMinZoom(), baseZoom + offset),
           ),
         });
       },
@@ -361,6 +395,7 @@ export async function createTerrainMap(
           bearing: TERRAIN_BEARING,
           duration: 0,
         });
+        baseZoom = gl.getZoom();
       },
       capture,
       destroy() {

@@ -7,6 +7,12 @@
 // Both want "the planner map, fitted to this route, north up", just at wildly
 // different sizes, so the only differences are parameters.
 //
+// The briefing additionally lets its reader move and close in on that framing,
+// which is the `framing` option: an offset from the fit rather than a zoom and
+// a centre of its own, so that leaving it out — as the thumbnails do — gives
+// back exactly the fitted map this file has always drawn. What that offset
+// means, and what bounds it, is in mapFraming.ts.
+//
 // Tiles come from the same sources as Map.tsx via OFFLINE_LAYERS, which keeps
 // the URL scheme (and its licensing notes) in exactly one place. Web-Mercator
 // tiles are north-up by construction, so the result is always oriented north.
@@ -22,6 +28,7 @@
 import type { LatLng, Route } from '../types';
 import { OFFLINE_LAYERS } from '../offline/layers';
 import { routeEnds } from '../geometry';
+import { clampZoom, FIT, type Framing } from './mapFraming';
 import {
   ROUTE_COLOR,
   ROUTE_WEIGHT,
@@ -80,6 +87,15 @@ export interface StaticMapOptions {
   scale: number;
   /** Fraction of each side kept clear around the route. */
   padding?: number;
+  /**
+   * How close to draw, and where to point — as an offset from the fit-to-route
+   * framing this renderer works out for itself. Omitting it, which is what the
+   * thumbnails do and what a briefing nobody has touched does, gives exactly
+   * the fit: the whole route, centred.
+   *
+   * See mapFraming.ts for what the two numbers mean and what bounds them.
+   */
+  framing?: Framing;
   /** Draw the NVE steepness overlay over the topo base. */
   steepness?: boolean;
   /** Route line width, in logical pixels. Defaults to the planner's own, which
@@ -134,6 +150,7 @@ export async function renderStaticMap(
     height,
     scale,
     padding = 0.12,
+    framing = FIT,
     steepness = true,
     routeWeight = ROUTE_WEIGHT,
     haloWeight = HALO_WEIGHT,
@@ -165,50 +182,80 @@ export async function renderStaticMap(
     : OFFLINE_LAYERS.topo.maxNativeZoom;
   const availW = width * (1 - 2 * padding);
   const availH = height * (1 - 2 * padding);
-  let zoom = maxZoom;
-  for (; zoom > MIN_ZOOM; zoom--) {
-    const [x0, y0] = project(maxLat, minLng, zoom);
-    const [x1, y1] = project(minLat, maxLng, zoom);
+  let fitZoom = maxZoom;
+  for (; fitZoom > MIN_ZOOM; fitZoom--) {
+    const [x0, y0] = project(maxLat, minLng, fitZoom);
+    const [x1, y1] = project(minLat, maxLng, fitZoom);
     if (x1 - x0 <= availW && y1 - y0 <= availH) break;
   }
 
-  // Global-pixel frame of the drawing, centred on the route.
+  // What was asked for on top of that fit. Fractional, because the wheel that
+  // asks for it is.
+  const wanted = fitZoom + clampZoom(framing.zoom);
+  // Tiles exist only at whole zooms, so one is picked and the drawing scaled to
+  // meet the fraction. The *nearest* whole zoom rather than the one below it:
+  // half a step of shrinking a tile is sharper on paper than a full step of
+  // enlarging one. Clamping at maxZoom is what lets a guide keep going past
+  // the deepest zoom the servers publish — the planner's own map overzooms the
+  // same way, off the same maxNativeZoom, so the two stay recognisable.
+  const zoom = Math.max(MIN_ZOOM, Math.min(maxZoom, Math.round(wanted)));
+  const magnify = 2 ** (wanted - zoom);
+
+  // Global-pixel frame of the drawing: centred on the route, then moved by the
+  // pan. `magnify` is applied when drawing rather than baked in here, so the
+  // frame covers fewer global pixels the further in the guide has gone while
+  // the route line, the dots and the scale bar keep their printed widths.
+  const spanX = width / magnify;
+  const spanY = height / magnify;
   const [x0, y0] = project(maxLat, minLng, zoom);
   const [x1, y1] = project(minLat, maxLng, zoom);
-  const left = (x0 + x1) / 2 - width / 2;
-  const top = (y0 + y1) / 2 - height / 2;
+  const left = (x0 + x1) / 2 + framing.pan.x * spanX - spanX / 2;
+  const top = (y0 + y1) / 2 + framing.pan.y * spanY - spanY / 2;
+  /** Global pixel to logical pixel in the drawing. */
+  const px = (gx: number) => (gx - left) * magnify;
+  const py = (gy: number) => (gy - top) * magnify;
 
   // Fetch every tile intersecting the frame, for each active layer.
   const maxTile = 2 ** zoom - 1;
   const txMin = Math.floor(left / TILE_SIZE);
-  const txMax = Math.floor((left + width) / TILE_SIZE);
+  const txMax = Math.floor((left + spanX) / TILE_SIZE);
   const tyMin = Math.max(0, Math.floor(top / TILE_SIZE));
-  const tyMax = Math.min(maxTile, Math.floor((top + height) / TILE_SIZE));
+  const tyMax = Math.min(maxTile, Math.floor((top + spanY) / TILE_SIZE));
 
   interface Tile {
     img: HTMLImageElement;
-    dx: number;
-    dy: number;
+    /** Where this tile goes, in logical pixels: left, top, width, height. */
+    at: [number, number, number, number];
   }
   const base: Promise<Tile>[] = [];
   const steep: Promise<Tile>[] = [];
   for (let tx = txMin; tx <= txMax; tx++) {
     for (let ty = tyMin; ty <= tyMax; ty++) {
-      const dx = tx * TILE_SIZE - left;
-      const dy = ty * TILE_SIZE - top;
+      // Both edges are rounded and the width taken as the difference, so a
+      // tile ends exactly where its neighbour begins. Placing each tile at a
+      // fractional offset with an exact width instead leaves hairline seams
+      // once `magnify` is not 1 — white threads across the base map, and
+      // double-darkened ones through the half-transparent steepness layer.
+      const l = Math.round(px(tx * TILE_SIZE));
+      const t = Math.round(py(ty * TILE_SIZE));
+      const at: [number, number, number, number] = [
+        l,
+        t,
+        Math.round(px((tx + 1) * TILE_SIZE)) - l,
+        Math.round(py((ty + 1) * TILE_SIZE)) - t,
+      ];
       // Wrap x so a frame straddling the antimeridian still addresses tiles.
       const wx = ((tx % (maxTile + 1)) + maxTile + 1) % (maxTile + 1);
       base.push(
         loadImage(OFFLINE_LAYERS.topo.tileUrl(zoom, wx, ty)).then((img) => ({
           img,
-          dx,
-          dy,
+          at,
         })),
       );
       if (steepness) {
         steep.push(
           loadImage(OFFLINE_LAYERS.steepness.tileUrl(zoom, wx, ty)).then(
-            (img) => ({ img, dx, dy }),
+            (img) => ({ img, at }),
           ),
         );
       }
@@ -227,26 +274,14 @@ export async function renderStaticMap(
   ctx.fillRect(0, 0, width, height);
   for (const tile of baseTiles) {
     if (tile.status === 'fulfilled') {
-      ctx.drawImage(
-        tile.value.img,
-        tile.value.dx,
-        tile.value.dy,
-        TILE_SIZE,
-        TILE_SIZE,
-      );
+      ctx.drawImage(tile.value.img, ...tile.value.at);
     }
   }
   if (steepness) {
     ctx.globalAlpha = STEEPNESS_OPACITY;
     for (const tile of steepTiles) {
       if (tile.status === 'fulfilled') {
-        ctx.drawImage(
-          tile.value.img,
-          tile.value.dx,
-          tile.value.dy,
-          TILE_SIZE,
-          TILE_SIZE,
-        );
+        ctx.drawImage(tile.value.img, ...tile.value.at);
       }
     }
     ctx.globalAlpha = 1;
@@ -260,8 +295,8 @@ export async function renderStaticMap(
     for (const seg of route) {
       seg.forEach(([lat, lng], i) => {
         const [gx, gy] = project(lat, lng, zoom);
-        if (i === 0) ctx.moveTo(gx - left, gy - top);
-        else ctx.lineTo(gx - left, gy - top);
+        if (i === 0) ctx.moveTo(px(gx), py(gy));
+        else ctx.lineTo(px(gx), py(gy));
       });
     }
     ctx.stroke();
@@ -283,7 +318,7 @@ export async function renderStaticMap(
         const [gx, gy] = project(p[0], p[1], zoom);
         const r = Math.max(4, routeWeight * 1.6);
         ctx.beginPath();
-        ctx.arc(gx - left, gy - top, r, 0, Math.PI * 2);
+        ctx.arc(px(gx), py(gy), r, 0, Math.PI * 2);
         ctx.fillStyle = fill;
         ctx.fill();
         ctx.lineWidth = Math.max(1.5, r * 0.4);
@@ -295,7 +330,15 @@ export async function renderStaticMap(
     }
   }
 
-  if (scaleBar) drawScaleBar(ctx, width, height, zoom, (minLat + maxLat) / 2);
+  if (scaleBar) {
+    // Metres per *drawn* pixel, at the latitude in the middle of the frame.
+    // Both corrections matter once the frame can be moved and closed in: the
+    // drawing is magnified relative to its tiles, and a panned frame need not
+    // be centred on the route it was fitted to — and Mercator's scale is a
+    // function of where you are looking, not of what you were framing.
+    const centreLat = unprojectLat(top + spanY / 2, zoom);
+    drawScaleBar(ctx, width, height, metresPerPixel(centreLat, zoom) / magnify);
+  }
 }
 
 // Ground resolution (metres per pixel) at a given latitude and zoom.
@@ -303,6 +346,13 @@ function metresPerPixel(lat: number, zoom: number): number {
   return (
     (156543.03392804097 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom
   );
+}
+
+/** The inverse of `project`'s y: global pixel back to latitude. */
+function unprojectLat(y: number, z: number): number {
+  const scale = TILE_SIZE * 2 ** z;
+  const n = Math.PI * (1 - (2 * y) / scale);
+  return (180 / Math.PI) * Math.atan(Math.sinh(n));
 }
 
 // A "nice" round distance at or below `max` metres: 1/2/5 x 10^n.
@@ -318,10 +368,9 @@ function drawScaleBar(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  zoom: number,
-  lat: number,
+  /** Ground resolution of the drawing, in metres per logical pixel. */
+  mpp: number,
 ): void {
-  const mpp = metresPerPixel(lat, zoom);
   // Aim for a bar about a fifth of the map width, rounded to a nice number.
   const metres = niceDistance(width * 0.2 * mpp);
   const barPx = metres / mpp;

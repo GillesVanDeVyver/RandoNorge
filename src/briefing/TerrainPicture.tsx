@@ -4,8 +4,14 @@
 // Everything to do with MapLibre lives next door in terrainMap.ts, which is
 // reached through a dynamic import so that a guide exporting the ordinary flat
 // map never downloads a megabyte of WebGL. This file is the thin part: a box to
-// build the map in, a drag to turn it with, and the plumbing that keeps the
-// printable copy and the sheet's compass in step with wherever it ends up.
+// build the map in, a drag to turn it with, two buttons to draw it closer or
+// wider, and the plumbing that keeps the printable copy and the sheet's compass
+// in step with wherever it ends up.
+//
+// The zoom is deliberately not MapLibre's. It is an offset from the framing the
+// map settled on, shared with the flat renderer through mapFraming.ts, so that
+// one press means the same amount of closer whichever way the map is being
+// drawn — and so that 0 always means the picture the sheet opened on.
 //
 // Two things about the box are load-bearing, and both are explained where they
 // are done: the map is built at print size and shown shrunk (so what prints is
@@ -17,6 +23,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import type { Route } from '../types';
 import type { TerrainMapHandle } from './terrainMap';
+import { MapZoomControls } from './MapZoomControls';
+import { clampZoom, useWheelZoom, ZOOM_STEP } from './mapFraming';
 import { useT } from '../i18n/index.ts';
 
 /** A key press turns the map by a twelfth of a frame — 15° round, 7.5° up —
@@ -56,6 +64,24 @@ export function TerrainPicture({
   const holderRef = useRef<HTMLDivElement | null>(null);
   const handleRef = useRef<TerrainMapHandle | null>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
+
+  // How close the camera is drawn, as an offset from the framing it settled
+  // on. Kept here rather than inside the map so the buttons can grey out at
+  // the limits, and so that a rebuild — a flipped steepness switch, a new
+  // route — starts from the whole tour again rather than from wherever the
+  // last one was left. The flat map keeps its own, in its own terms; the two
+  // are never on screen at the same time. See mapFraming.ts.
+  const [zoom, setZoom] = useState(0);
+  // Whether there is a map to say any of this to yet. A zoom asked for while
+  // the terrain is still being built has to be applied when it arrives, and
+  // this is what makes the effect below run again at that moment.
+  const [built, setBuilt] = useState(false);
+
+  const zoomByStep = useCallback(
+    (delta: number) => setZoom((z) => clampZoom(z + delta)),
+    [],
+  );
+  useWheelZoom(frameRef, zoomByStep);
 
   // How far down the map has to be drawn to fit the frame: the frame's own
   // width over the width the map is rendered at. Measured rather than
@@ -110,6 +136,7 @@ export function TerrainPicture({
         }
         handle = built;
         handleRef.current = built;
+        setBuilt(true);
         cbRef.current.onReady();
       })
       .catch(() => {
@@ -120,8 +147,24 @@ export function TerrainPicture({
       cancelled = true;
       handle?.destroy();
       handleRef.current = null;
+      setBuilt(false);
     };
   }, [route, steepness, width, height, scale, canvasRef]);
+
+  // Put the asked-for zoom on the camera — when it is asked for, and again as
+  // soon as there is a camera to put it on. Not folded into the button's own
+  // handler because those two moments are different, and a press that landed
+  // while the terrain was still arriving would otherwise be forgotten while
+  // the buttons went on claiming it had happened.
+  useEffect(() => {
+    const handle = handleRef.current;
+    if (!built || !handle) return;
+    handle.setZoom(zoom);
+    // The still copy follows on idle anyway, once the newly revealed hillside
+    // has its tiles; this is the same "be right immediately" belt-and-braces
+    // the drag does, for a guide who presses + and then Print.
+    handle.capture();
+  }, [zoom, built]);
 
   // The last thing between the picture and the paper. The copy is already
   // retaken every time the camera comes to rest, so this is belt and braces —
@@ -171,8 +214,8 @@ export function TerrainPicture({
       tabIndex={0}
       role="group"
       aria-label={t(
-        'Snu kartet: dra det, eller bruk piltastene',
-        'Turn the map: drag it, or use the arrow keys',
+        'Snu kartet: dra det, eller bruk piltastene. Zoom med rullehjulet eller + og −',
+        'Turn the map: drag it, or use the arrow keys. Zoom with the wheel or + and −',
       )}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -188,10 +231,24 @@ export function TerrainPicture({
           ArrowDown: [0, KEY_STEP],
         };
         const move = step[e.key];
-        if (!move) return;
+        if (move) {
+          e.preventDefault();
+          handle.turn(move[0], move[1]);
+          handle.capture();
+          return;
+        }
+        // Closer and wider, in the same step the buttons take, so the two ways
+        // of asking cannot disagree about what one press is worth.
+        const zooms: Record<string, number> = {
+          '+': ZOOM_STEP,
+          '=': ZOOM_STEP,
+          '-': -ZOOM_STEP,
+          _: -ZOOM_STEP,
+        };
+        const delta = zooms[e.key];
+        if (delta === undefined) return;
         e.preventDefault();
-        handle.turn(move[0], move[1]);
-        handle.capture();
+        zoomByStep(delta);
       }}
     >
       <div
@@ -206,29 +263,46 @@ export function TerrainPicture({
         }}
       />
       <p className="briefingMapHint" aria-hidden>
-        {t('Dra for å snu · skrives ut slik det vises', 'Drag to turn · prints as shown')}
+        {t(
+          'Dra for å snu · rull for å zoome · skrives ut slik det vises',
+          'Drag to turn · scroll to zoom · prints as shown',
+        )}
       </p>
-      {/* The way back. The sheet opens on whatever camera the planner was left
-       *  at, which can be halfway up one bowl of a long tour — the right
-       *  picture on a screen you can pan, the wrong one on a single sheet. Since
-       *  panning and zooming are deliberately not offered here, without this
-       *  button that view would be a dead end. */}
-      <button
-        type="button"
-        className="briefingMapRefit"
-        // A press on the button must not also be the beginning of a drag on the
-        // map behind it, which would turn the map on the way to resetting it.
+      {/* Closer and wider, and the way back from both. The sheet opens on
+       *  whatever camera the planner was left at, which can be halfway up one
+       *  bowl of a long tour — the right picture on a screen you can pan, the
+       *  wrong one on a single sheet. Turning and tilting cannot undo that, and
+       *  neither can zooming, so without the button that view is a dead end.
+       *
+       *  All of it lives inside .briefingMapLive on purpose: the print rule
+       *  that hides the live map is the single thing keeping these controls off
+       *  the paper. Move them out of this element and they start printing,
+       *  silently. */}
+      <MapZoomControls
+        zoom={zoom}
+        onZoom={zoomByStep}
+        // A press on a button must not also be the beginning of a drag on the
+        // map behind it, which would turn the map on the way to zooming it.
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          const handle = handleRef.current;
-          if (!handle) return;
-          handle.reset();
-          handle.capture();
-        }}
       >
-        {t('Vis hele ruta', 'Fit the route')}
-      </button>
+        <button
+          type="button"
+          className="briefingMapRefit"
+          onClick={(e) => {
+            e.stopPropagation();
+            const handle = handleRef.current;
+            if (!handle) return;
+            handle.reset();
+            handle.capture();
+            // The camera is home; the number the buttons read from has to
+            // follow it, or the next press would be counted from a framing
+            // that is no longer on screen.
+            setZoom(0);
+          }}
+        >
+          {t('Vis hele ruta', 'Fit the route')}
+        </button>
+      </MapZoomControls>
     </div>
   );
 }

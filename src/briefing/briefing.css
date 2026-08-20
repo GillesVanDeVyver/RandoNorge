@@ -600,10 +600,25 @@
   transform-origin: top left;
 }
 
+/* THE FLAT MAP, WHEN IT IS THE ONE ON SHOW
+ *
+ * It is moved by dragging it, so it wants the cursor the live map has and the
+ * same instruction to the browser not to read the gesture as a scroll. Applied
+ * by a class rather than to the frame itself because in 3D the live map lies
+ * over this one and brings its own. */
+.briefingMapDraggable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.briefingMapDraggable:active {
+  cursor: grabbing;
+}
+
 /* Says what can be done here, because nothing else does: a map that can be
- * turned looks exactly like one that cannot. Also says what the turning is
- * for, which is the part a first-time exporter would otherwise have to
- * discover by printing. */
+ * turned or moved looks exactly like one that cannot. Also says what the
+ * turning is for, which is the part a first-time exporter would otherwise have
+ * to discover by printing. */
 .briefingMapHint {
   position: absolute;
   left: 2mm;
@@ -617,28 +632,71 @@
   pointer-events: none;
 }
 
-/* The way back to the whole tour, for a camera inherited from the planner that
- * was aimed at one part of it. Sits inside .briefingMapLive, so the print rule
- * that hides the live map hides this with it — paper gets the picture, never
- * the controls. Opposite corner from the hint and clear of the north mark, so
- * nothing the guide reads sits under something they press. */
-.briefingMapRefit {
+/* The flat map's hint moves to the top, because the bottom-left corner of that
+ * frame is already spoken for by the scale bar the renderer draws into the
+ * canvas. Clear of the north mark, which is top-right. */
+.briefingMapHintTop {
+  bottom: auto;
+  top: 2mm;
+}
+
+/* THE CONTROLS: CLOSER, WIDER, AND THE WAY BACK
+ *
+ * One row, bottom-right: opposite corner from the hint and below the north
+ * mark, so nothing the guide reads sits under something they press.
+ *
+ * Both frames put their controls in this element, and both keep it off the
+ * paper — but by different means, which is worth knowing before moving either.
+ * The 3D frame's copy is inside .briefingMapLive and goes when that does; the
+ * flat frame's has no live map to hide behind, so the print rule at the foot of
+ * this file names it directly. */
+.briefingMapControls {
   position: absolute;
   right: 2mm;
   bottom: 2mm;
+  display: flex;
+  align-items: stretch;
+  gap: 1mm;
+}
+
+.briefingMapZoom,
+.briefingMapRefit,
+.briefingMapFit {
   padding: 0.8mm 1.8mm;
   border: var(--briefing-hairline) solid var(--briefing-rule);
   border-radius: var(--briefing-radius-sm);
   background: rgba(255, 255, 255, 0.85);
   font: inherit;
   font-size: 6pt;
+  line-height: 1;
   color: var(--briefing-muted);
   cursor: pointer;
 }
 
-.briefingMapRefit:hover {
+/* Square, and wide enough that a plus and a minus are the same size target —
+ * a pair of buttons that disagree about their width reads as two controls
+ * rather than one pair. */
+.briefingMapZoom {
+  width: 5mm;
+  font-size: 8pt;
+  font-weight: 600;
+}
+
+.briefingMapZoom:hover:not(:disabled),
+.briefingMapRefit:hover:not(:disabled),
+.briefingMapFit:hover:not(:disabled) {
   background: #fff;
   color: var(--briefing-ink);
+}
+
+/* Run out of room, or already showing the whole route. Greyed rather than
+ * removed: a control that disappears when it stops working takes with it the
+ * only sign of how far there is left to go. */
+.briefingMapZoom:disabled,
+.briefingMapRefit:disabled,
+.briefingMapFit:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .briefingNorth {
@@ -1279,6 +1337,15 @@
    * last time its camera came to rest — so the page prints the view on screen
    * without asking the printer to render it. */
   .briefingMapLive {
+    display: none !important;
+  }
+
+  /* The flat map's controls and note. In 3D these sit inside the live map and
+   * the rule above already takes them; the flat map has no live map to hide
+   * behind, so they are named here. Both are named, rather than only the flat
+   * frame's, so that neither starts printing if the markup is ever moved. */
+  .briefingMapControls,
+  .briefingMapHint {
     display: none !important;
   }
 

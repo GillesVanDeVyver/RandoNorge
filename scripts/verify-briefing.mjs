@@ -1949,6 +1949,240 @@ ok(
   'the refit button lives inside the live map, which is what keeps it off paper',
 );
 
+// --- How close it is drawn, and where it is pointed -----------------------
+
+// The fit is the right picture often enough to be the default and wrong often
+// enough to need a way out: a long traverse fitted into 128 mm of paper is a
+// line, and the col the party has to judge is four pixels of it. So the frame
+// can be moved and closed in — on the flat map with both, on the terrain view
+// with the zoom only, because a drag there already turns the mountain.
+//
+// None of that is visible in a screenshot of a working case. The ways it goes
+// wrong are: a printed scale bar that no longer matches the picture above it, a
+// framing composed for one tour surviving into the next, a control that stops
+// being screen-only, and a fit that is no longer byte-for-byte the picture the
+// sheet drew before any of this existed.
+const framingSrc = readFileSync(
+  join(ROOT, 'src/briefing/mapFraming.ts'),
+  'utf8',
+);
+const controlsSrc = readFileSync(
+  join(ROOT, 'src/briefing/MapZoomControls.tsx'),
+  'utf8',
+);
+const thumbSrc = readFileSync(
+  join(ROOT, 'src/components/RouteThumbnail.tsx'),
+  'utf8',
+);
+const framing = await import(
+  pathToFileURL(join(ROOT, 'src/briefing/mapFraming.ts')).href
+);
+
+// The untouched picture. Everything else on this sheet is drawn from data; the
+// framing is the one thing the reader composes, so "nothing asked of it" has to
+// be a state the code can recognise rather than a number that happens to be 0.
+ok(
+  framing.isFit(framing.FIT),
+  'the framing every briefing opens on is the one the way back leads to',
+);
+ok(
+  !framing.isFit(framing.zoomBy(framing.FIT, framing.ZOOM_STEP)) &&
+    !framing.isFit(framing.panBy(framing.FIT, 0.1, 0)),
+  'and a frame that has been closed in or moved knows it is no longer that',
+);
+// The fit has to survive as *the same picture*, or every thumbnail in the app
+// and every export nobody touched quietly changes on the day this landed.
+ok(
+  /framing = FIT/.test(staticSrc),
+  'a caller that asks for no framing gets the fit, as every caller used to',
+);
+ok(
+  !/framing/.test(thumbSrc),
+  'the route thumbnails ask for none, so they draw what they always drew',
+);
+
+// The two ends. Past the far end the route is a scratch on an empty map; past
+// the near end Kartverket's and NVE's deepest tiles have given out and the
+// picture gains only blur.
+ok(
+  framing.ZOOM_MIN < 0 && framing.ZOOM_MAX > 0,
+  'the fit sits between the limits, with room to go either way from it',
+);
+ok(
+  framing.clampZoom(framing.ZOOM_MAX + 5) === framing.ZOOM_MAX &&
+    framing.clampZoom(framing.ZOOM_MIN - 5) === framing.ZOOM_MIN,
+  'a wheel spun on past either end stops there rather than running off',
+);
+ok(
+  Number.isInteger(framing.ZOOM_MAX / framing.ZOOM_STEP) &&
+    Number.isInteger(framing.ZOOM_MIN / framing.ZOOM_STEP),
+  'both ends are a whole number of presses away, so a button can reach them',
+);
+// Reaching a limit must not cost a redraw: a new framing object is a new
+// render, and a new render refetches every tile in the frame.
+const atMax = framing.zoomBy(framing.FIT, framing.ZOOM_MAX);
+ok(
+  framing.zoomBy(atMax, framing.ZOOM_STEP) === atMax,
+  'and pressing on at the limit hands back the same framing, refetching nothing',
+);
+
+// The gesture. The map follows the pointer, which means the frame's own centre
+// goes the other way — the sign error here is the kind that looks like a
+// working feature until somebody tries to use it.
+ok(
+  framing.panBy(framing.FIT, 0.25, 0.25).pan.x < 0 &&
+    framing.panBy(framing.FIT, 0.25, 0.25).pan.y < 0,
+  'dragging right and down brings the ground right and down with the pointer',
+);
+// Reach is measured in fits, not in frames. Stated in frames, a fitted map —
+// which already shows everything and has nowhere to go — could wander a whole
+// tour clear of the route while a closely zoomed one, which is the one that
+// needs to walk the length of the route to the crux, could travel a fraction of
+// it.
+const reachAt = (zoom) =>
+  framing.panBy(framing.zoomBy(framing.FIT, zoom), -99, 0).pan.x;
+ok(
+  reachAt(0) < 1,
+  'a fitted map can be nudged off centre but not walked off its own route',
+);
+ok(
+  reachAt(2) > 3 * reachAt(0),
+  'and the closer it is drawn the further it may travel, in ground rather than frames',
+);
+// Zooming about the pointer. Expressed as: whatever ground lay under the
+// anchor before the wheel turned still lies under it afterwards. A map that
+// zooms away from the thing being pointed at has to be chased across the frame.
+const anchor = { x: 0.3, y: -0.2 };
+const groundUnder = (f, a) => (f.pan.x + a.x) / 2 ** f.zoom;
+const zoomed = framing.zoomBy(framing.FIT, 1, anchor);
+ok(
+  Math.abs(groundUnder(zoomed, anchor) - groundUnder(framing.FIT, anchor)) < 1e-9,
+  'the wheel closes in on what the pointer is over, not on the middle of the frame',
+);
+ok(
+  framing.zoomBy(framing.FIT, 1).pan.x === 0 &&
+    framing.zoomBy(framing.FIT, 1).pan.y === 0,
+  'a button, having nothing to aim at, closes in on the middle and stays centred',
+);
+
+// One press means the same amount of closer on both maps, which is only true
+// while both take the step from the same place.
+for (const [name, src] of [
+  ['the flat map', sheetSrc],
+  ['the terrain view', pictureSrc],
+  ['the buttons themselves', controlsSrc],
+]) {
+  ok(
+    /from '\.\/mapFraming'/.test(src) &&
+      /ZOOM_STEP/.test(src) &&
+      !/^const ZOOM_(STEP|MIN|MAX) =/m.test(src),
+    `${name} takes the step and the limits from the shared module`,
+  );
+}
+ok(
+  /disabled=\{zoom <= ZOOM_MIN\}/.test(controlsSrc) &&
+    /disabled=\{zoom >= ZOOM_MAX\}/.test(controlsSrc),
+  'a control with nowhere left to go greys, rather than quietly doing nothing',
+);
+ok(
+  /\{ passive: false \}/.test(framingSrc) &&
+    /preventDefault\(\)/.test(framingSrc),
+  'the wheel listener is the non-passive kind, or the sheet scrolls instead of zooming',
+);
+
+// The flat renderer. The scale bar is the one thing on the page that a reader
+// measures with, so a zoom the bar does not know about does not make the sheet
+// look wrong — it makes it lie.
+ok(
+  /metresPerPixel\(centreLat, zoom\) \/ magnify/.test(staticSrc),
+  'the printed scale bar is drawn for the picture above it, not for the fit',
+);
+ok(
+  /unprojectLat\(top \+ spanY \/ 2, zoom\)/.test(staticSrc),
+  'and for the latitude the frame ended up at, which is what sets the scale',
+);
+ok(
+  /const zoom = Math\.max\(MIN_ZOOM, Math\.min\(maxZoom, Math\.round\(wanted\)\)\)/.test(
+    staticSrc,
+  ),
+  'tiles come from the nearest zoom, so nothing is blown up more than half a level',
+);
+ok(
+  /Math\.round\(px\(\(tx \+ 1\) \* TILE_SIZE\)\) - l/.test(staticSrc),
+  'neighbouring tiles are given a shared edge, or the seams print as white threads',
+);
+ok(
+  /\[route, steepness, terrain, framing\]/.test(sheetSrc),
+  'moving the frame redraws the map that is printed, not just the one on screen',
+);
+
+// A framing belongs to a route. Carrying one into the next tour would open a
+// briefing on a close-up of somewhere the party is not going — and, because
+// the sheet is a picture rather than a number, would look entirely deliberate.
+ok(
+  /route !== framedRoute/.test(sheetSrc) && /setFraming\(FIT\)/.test(sheetSrc),
+  'a new route opens on its own whole tour, not on the last one\u2019s close-up',
+);
+ok(
+  !/localStorage/.test(sheetSrc) &&
+    !/localStorage/.test(framingSrc) &&
+    !/localStorage/.test(pictureSrc),
+  'and nothing about the framing is remembered between briefings',
+);
+
+// The terrain camera. Its zoom is an offset from wherever the map settled, so
+// that 0 is the picture the sheet opened on however the planner was left.
+ok(
+  /baseZoom \+ offset/.test(terrainMapSrc),
+  'closer means closer than the framing this sheet opened on, not a zoom level',
+);
+ok(
+  /gl\.getMaxZoom\(\)/.test(terrainMapSrc) && /gl\.getMinZoom\(\)/.test(terrainMapSrc),
+  'and it stops where the map itself stops, rather than asking for tiles that end',
+);
+ok(
+  /reset\(\)\s*\{[\s\S]*?baseZoom = gl\.getZoom\(\)/.test(terrainMapSrc),
+  'coming home rebases it, so the next press counts from the frame on screen',
+);
+ok(
+  /\[zoom, built\]/.test(pictureSrc),
+  'a press that landed while the terrain was still arriving is applied when it does',
+);
+ok(
+  /handle\.setZoom\(zoom\);\s*\n[\s\S]{0,400}?handle\.capture\(\)/.test(pictureSrc),
+  'and the still copy is retaken after it, so Print cannot lag the picture',
+);
+
+// Both frames' controls, and the single thing keeping them off the paper.
+ok(
+  flatSheet.includes('briefingMapControls') &&
+    threeDSheet.includes('briefingMapControls') &&
+    !noMapSheet.includes('briefingMapControls'),
+  'both maps are offered the buttons, and a sheet with no map is offered none',
+);
+ok(
+  flatSheet.includes('briefingMapFit') && !flatSheet.includes('briefingMapRefit'),
+  'the flat map\u2019s way back drops a framing, which is not the 3D one\u2019s',
+);
+ok(
+  /@media print[\s\S]*\.briefingMapControls,\s*\n\s*\.briefingMapHint\s*\{[^}]*display:\s*none/.test(
+    css,
+  ),
+  'no button and no hint reaches the paper, whichever map drew the picture',
+);
+ok(
+  /Dra for \u00e5 flytte|Drag to move/.test(plain(flatSheet)),
+  'the flat map says it can be moved, since one that can looks like one that cannot',
+);
+ok(
+  /touch-action: none/.test(css),
+  'a drag on a touchscreen moves the map rather than scrolling the sheet past it',
+);
+ok(
+  /tabIndex=\{terrain \? undefined : 0\}/.test(sheetSrc),
+  'the flat map is aimed from the keyboard too, and hands focus over in 3D',
+);
+
 // --- The name the browser suggests ---------------------------------------
 
 // The sheet is saved through the browser's own "Save as PDF", which names the
