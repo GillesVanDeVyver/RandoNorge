@@ -451,12 +451,13 @@ export function BriefingDialog({
         label={t('Vis kartet i 3D', 'Show the map in 3D')}
         checked={options.map3d}
         disabled={!options.map}
+        // The one thing left to say here is why the switch is greyed out. How
+        // the map is turned is said on the map itself, where the hand already
+        // is.
         hint={
           !options.map
             ? t('Krever kartet det tegner', 'Needs the map it draws')
-            : options.map3d
-              ? t('Dra i kartet for å snu det', 'Drag the map to turn it')
-              : null
+            : null
         }
         onChange={(on) => setOption('map3d', on)}
       />
