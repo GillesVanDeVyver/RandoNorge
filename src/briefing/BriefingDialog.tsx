@@ -23,11 +23,15 @@
 // title — so the title is swapped for "<tour>_Fjellrute" for the duration of
 // the print and put back afterwards.
 //
-// Two of the switches are not sections but ways of drawing one — steepness
-// colours the elevation profile, and 3D swaps the flat map for the planner's
-// terrain view — so they sit under what they modify and go out with it.
+// Some of the controls are not sections but ways of drawing one — steepness
+// colours the elevation profile, 3D swaps the flat map for the planner's
+// terrain view, and the map layer decides what is draped over it — so they sit
+// under what they modify and go out with it. The map layer is also the one
+// control here that is not a switch: it has three states, the planner's own
+// three, and the third of them (the bare topo sheet) is a real answer rather
+// than the absence of one.
 //
-// Four switches decide for themselves rather than opening where the last export
+// Five controls decide for themselves rather than opening where the last export
 // left them. Three do it on one principle — a section with nothing to say is
 // worse than no section. Snow depth turns off when seNorge says there is none
 // along the route; the avalanche forecast turns off when Varsom has not assessed
@@ -37,13 +41,17 @@
 // since a guide who wrote nothing down is not asking for a page of ruled lines
 // under a heading that says Notes.
 //
-// The fourth is different: the profile's vertical scale is not a judgement
-// about the tour but a judgement about how to read it, and it has already been
-// made — on the panel on screen. So the dialog opens on whichever scale the
-// profile is currently being read at, the same way the 3D map opens on the
-// camera the planner was left at. See profileScale.ts.
+// The other two are different: the profile's vertical scale and the map's
+// overlay are not judgements about the tour but judgements about how to read
+// it, and both have already been made — on the panel and the map on screen. So
+// the dialog opens on whichever scale the profile is being read at and whatever
+// layer the planner has draped over its map, the same way the 3D map opens on
+// the camera the planner was left at. See profileScale.ts and the `overlay`
+// prop. Neither is remembered between exports, because a remembered answer
+// would eventually contradict the screen behind the dialog, and the screen is
+// the more recent statement of what the guide wants to see.
 //
-// All four stay switches, not locks. The guide can turn any of them back, and
+// All five stay adjustable, not locks. The guide can turn any of them back, and
 // doing so is what stops the sheet second-guessing them again: an unrated day on
 // the page is a legitimate thing to want, since "Varsom says nothing about
 // today" is itself something a briefing can be for.
@@ -52,13 +60,14 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { ProfileData } from '../elevation/profile';
-import type { Route } from '../types';
+import type { Overlay, Route } from '../types';
 import { ForecastContext } from '../forecast/snapshot';
 import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
 import { useWeather, weatherCandidates } from '../weather/useWeather';
@@ -71,6 +80,7 @@ import {
   loadOptions,
   storeOptions,
   withDependencies,
+  type BooleanOptionKey,
   type BriefingOptions,
 } from './options';
 import { recallProfileScale } from '../profileScale';
@@ -90,6 +100,13 @@ interface Props {
    *  panel's own day selection. Null when the panel has not published one, in
    *  which case the tour date stands in. */
   weatherDate?: string | null;
+  /** What the planner is currently draping over its map. The sheet opens on
+   *  the same thing, so the printed picture is the one the guide has been
+   *  looking at rather than whichever layer this dialog happens to prefer.
+   *  Read live rather than captured: the planner's own layer buttons are behind
+   *  this modal and cannot be reached while it is open, so "live" and "captured
+   *  when it opened" are the same value — and one of them needs no state. */
+  overlay?: Overlay;
   /** Saved routes carry a name and description; an unsaved working route
    *  falls back to a generic title so the sheet never prints "undefined". */
   routeName?: string | null;
@@ -100,7 +117,13 @@ interface Props {
 /** The switches whose opening position is decided by the tour, or by the panel
  *  behind the dialog, rather than by the last export. Touching one in this
  *  dialog puts it back under the guide's control for good — see `touched`. */
-const SELF_DECIDING = ['snow', 'avalanche', 'notes', 'trueScale'] as const;
+const SELF_DECIDING = [
+  'snow',
+  'avalanche',
+  'notes',
+  'trueScale',
+  'mapOverlay',
+] as const;
 type SelfDeciding = (typeof SELF_DECIDING)[number];
 
 const isSelfDeciding = (key: keyof BriefingOptions): key is SelfDeciding =>
@@ -149,6 +172,7 @@ export function BriefingDialog({
   profile,
   date,
   weatherDate = null,
+  overlay: plannerOverlay,
   routeName,
   routeDescription,
   onClose,
@@ -179,6 +203,7 @@ export function BriefingDialog({
     avalanche: false,
     notes: false,
     trueScale: false,
+    mapOverlay: false,
   });
   // How the profile is being read on the panel behind this dialog, captured
   // when it opened — the same moment the tour date is captured, and for the
@@ -216,7 +241,7 @@ export function BriefingDialog({
     storeOptions(chosen);
   }, [chosen]);
 
-  const setOption = useCallback((key: keyof BriefingOptions, on: boolean) => {
+  const setOption = useCallback((key: BooleanOptionKey, on: boolean) => {
     // Switching the map back on remounts the canvas and re-fetches its tiles,
     // so readiness has to be earned again rather than inherited from the last
     // time it was drawn. Switching between flat and 3D redraws it from a
@@ -322,6 +347,7 @@ export function BriefingDialog({
     if (plannerScale && !touched.trueScale) {
       out.trueScale = plannerScale === 'true';
     }
+    if (plannerOverlay && !touched.mapOverlay) out.mapOverlay = plannerOverlay;
     return withDependencies(out);
   }, [
     chosen,
@@ -329,8 +355,30 @@ export function BriefingDialog({
     unratedTour,
     unwrittenTour,
     plannerScale,
+    plannerOverlay,
     touched,
   ]);
+
+  // The map's overlay is picked rather than switched, so it needs its own
+  // setter — the same two moves as setOption (retire the inherited default,
+  // record the choice) without the boolean.
+  //
+  // The wait for a fresh picture is only needed in 3D, and the difference is
+  // which canvas the guide is looking at. The flat map draws into the very
+  // canvas that prints, so a redraw is visible as it happens and a print fired
+  // mid-redraw produces the picture that was on screen when it was fired. The
+  // 3D view draws into a live GL map *over* that canvas and copies itself down
+  // when it settles, so between the choice and the copy the screen and the
+  // paper genuinely disagree.
+  const rebuildsFor3D = options.map && options.map3d;
+  const setMapOverlay = useCallback(
+    (next: Overlay) => {
+      if (rebuildsFor3D) setMapReady(false);
+      setTouched((prev) => ({ ...prev, mapOverlay: true }));
+      setChosen((prev) => withDependencies({ ...prev, mapOverlay: next }));
+    },
+    [rebuildsFor3D],
+  );
 
   const onMapReady = useCallback(() => setMapReady(true), []);
 
@@ -513,11 +561,42 @@ export function BriefingDialog({
         }
         onChange={(on) => setOption('map3d', on)}
       />
+      {/* Not a switch, because the map has three states and not two — and the
+          third, the bare topo sheet, is a real answer rather than the absence
+          of one: it is the map a party draws their own line on. Sits with 3D
+          under the map for the same reason, as a way of drawing it.
+
+          What it is *not* is the steepness switch below. That one colours the
+          profile and puts the slope bands and the runout exposure in the text,
+          and the two used to be one control, which meant the numbers and the
+          picture could not be asked for separately. A guide handing out a clean
+          map to draw on, with the slope-angle breakdown printed beside it, is a
+          perfectly ordinary thing to want. */}
+      <Choice
+        label={t('Kartlag', 'Map layer')}
+        value={options.mapOverlay}
+        disabled={!options.map}
+        hint={
+          options.map
+            ? t('Som i planleggeren', 'As in the planner')
+            : t('Krever kartet det legges på', 'Needs the map it is drawn on')
+        }
+        options={[
+          { value: 'steepness', label: t('Bratthet', 'Steepness') },
+          { value: 'snowdepth', label: t('Snødybde', 'Snow depth') },
+          { value: 'none', label: t('Bare kart', 'Map only') },
+        ]}
+        onChange={setMapOverlay}
+      />
       <Switch
         label={t('Høydeprofil', 'Elevation')}
         checked={options.elevation}
         onChange={(on) => setOption('elevation', on)}
       />
+      {/* The profile's colouring and the numbers that go with it — the slope-band
+          breakdown and the runout exposure. Named for what it is about rather
+          than where it is drawn, because it is no longer about the map: that is
+          the Kartlag choice above. */}
       <Switch
         label={t('Bratthet', 'Steepness')}
         checked={options.steepness}
@@ -729,5 +808,62 @@ function Switch({
       <span className="briefingSwitchLabel">{label}</span>
       {hint && <span className="briefingSwitchHint">{hint}</span>}
     </label>
+  );
+}
+
+/**
+ * One row of the same list, for the one setting that is a choice among three
+ * rather than an on and an off. Drawn as a segmented strip under its own label
+ * so it reads as a row of the list rather than as a control that wandered in
+ * from somewhere else.
+ *
+ * Real radio inputs underneath, for the same reason the switches are real
+ * checkboxes: arrow keys move between the options, the group announces itself
+ * as a group, and only the default rendering is replaced.
+ */
+function Choice<T extends string>({
+  label,
+  value,
+  options,
+  disabled = false,
+  hint = null,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: readonly { value: T; label: string }[];
+  disabled?: boolean;
+  hint?: string | null;
+  onChange: (value: T) => void;
+}) {
+  // A radio-group name unique to this mounted dialog, so a second one on the
+  // page could never capture this one's clicks.
+  const name = useId();
+  return (
+    <div
+      className={`briefingChoice ${disabled ? 'briefingChoiceDisabled' : ''}`}
+      role="group"
+      aria-label={label}
+    >
+      <span className="briefingChoiceHead">
+        <span className="briefingChoiceLabel">{label}</span>
+        {hint && <span className="briefingSwitchHint">{hint}</span>}
+      </span>
+      <span className="briefingChoiceOptions">
+        {options.map((opt) => (
+          <label key={opt.value} className="briefingChoiceOption">
+            <input
+              type="radio"
+              name={name}
+              value={opt.value}
+              checked={value === opt.value}
+              disabled={disabled}
+              onChange={() => onChange(opt.value)}
+            />
+            <span className="briefingChoiceChip">{opt.label}</span>
+          </label>
+        ))}
+      </span>
+    </div>
   );
 }

@@ -56,6 +56,16 @@ export const TERRAIN_SKY: SkySpecification = {
   'fog-ground-blend': 0.4,
 };
 
+/** How strongly each thematic layer is draped over the terrain. Stated here for
+ *  the same reason the camera is: the printed 3D map and the planner's are
+ *  meant to be the same picture, and an opacity that lived in only one of them
+ *  would drift. Steepness sits lighter than snow because it is a shading with
+ *  contours of its own to show through, where snow is a flat 1 km ramp; both
+ *  are heavier than they would be on the flat map, because the mesh's own
+ *  shading is under them. */
+export const TERRAIN_STEEPNESS_OPACITY = 0.6;
+export const TERRAIN_SNOW_OPACITY = 0.8;
+
 /** The route line, in the planner's accent teal at the planner's width. Drawn
  *  without the white halo the 2D maps put under it: on a shaded, draped mesh
  *  the halo reads as a second line rather than as contrast. */

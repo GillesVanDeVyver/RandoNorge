@@ -13,7 +13,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { ProfileData } from '../elevation/profile';
-import type { Route } from '../types';
+import type { Overlay, Route } from '../types';
 import type { AvalancheWarning } from '../avalanche/api';
 import type { WeatherHour } from '../weather/api';
 import { DANGER_LEVELS, dangerLevelLabel } from '../avalanche/dangerScale';
@@ -565,14 +565,22 @@ function SkyCell({ h }: { h: WeatherHour | null }) {
 
 function MapPicture({
   route,
-  steepness,
+  overlay,
+  snowDate,
   view,
   onReady,
 }: {
   route: Route;
-  /** Paint NVE's steepness/runout layer over the topo tiles. Follows the
-   *  steepness switch, so a briefing without slope angles gets a clean map. */
-  steepness: boolean;
+  /** What is draped over the topo tiles: NVE's steepness/runout shading,
+   *  seNorge's snow depth, or nothing. Follows the map-overlay choice, which is
+   *  the planner's own — and not the steepness switch, which is now only about
+   *  the profile and the numbers under it. */
+  overlay: Overlay;
+  /** Which day's snow to draw. The sheet's own snow date, so the map and the
+   *  snow-depth section below it can never be pictures of different days —
+   *  including when the tour is too far out for seNorge and the section falls
+   *  back to today's grid, which it says on the page. */
+  snowDate: string;
   /** Flat and north-up, or the planner's tilted terrain view. One frame, one
    *  canvas, either way — the page does not change shape around the choice. */
   view: MapView;
@@ -588,7 +596,7 @@ function MapPicture({
   // rather than a permanently disappointed one. Nothing here is set from an
   // effect body: the request is derived, and the disappointment arrives from a
   // promise.
-  const request = `${view}:${steepness}`;
+  const request = `${view}:${overlay}`;
   const [failed, setFailed] = useState<string | null>(null);
   const terrain = view === '3d' && failed !== request;
   // What is actually in the frame. The north mark follows this rather than the
@@ -695,7 +703,8 @@ function MapPicture({
       // hold Print during a zoom: what is on screen is what is on the canvas
       // is what goes on paper, at every moment in between.
       framing,
-      steepness,
+      overlay,
+      snowDate,
       // No weights passed, so the renderer's defaults apply — and those are
       // the planner's own line and halo. MAP_W is within a hair of the width
       // the planner map occupies on screen, so the same numbers put the
@@ -717,7 +726,7 @@ function MapPicture({
     return () => {
       cancelled = true;
     };
-  }, [route, steepness, terrain, framing]);
+  }, [route, overlay, snowDate, terrain, framing]);
 
   return (
     <div
@@ -775,14 +784,15 @@ function MapPicture({
         ref={canvasRef}
         className="briefingMapCanvas"
         role="img"
-        aria-label={mapLabel(t, drawn, steepness)}
+        aria-label={mapLabel(t, drawn, overlay)}
       />
       {/* On top of it on screen, and gone by the time anything is printed: the
           live map the guide turns. */}
       {terrain && (
         <TerrainPicture
           route={route}
-          steepness={steepness}
+          overlay={overlay}
+          snowDate={snowDate}
           width={MAP_W}
           height={MAP_H}
           scale={MAP_SCALE}
@@ -843,21 +853,35 @@ function MapPicture({
 /** What the map is, for a reader who cannot see it. Spelled out per case
  *  rather than assembled from fragments, because the two languages do not
  *  agree on where the clauses go. */
-function mapLabel(t: Translate, view: MapView, steepness: boolean): string {
+function mapLabel(t: Translate, view: MapView, overlay: Overlay): string {
   if (view === '3d') {
-    return steepness
-      ? t(
-          'Terrengkart i 3D over ruta med bratthetslag',
-          '3D terrain map of the route with steepness overlay',
-        )
-      : t('Terrengkart i 3D over ruta', '3D terrain map of the route');
+    if (overlay === 'steepness') {
+      return t(
+        'Terrengkart i 3D over ruta med bratthetslag',
+        '3D terrain map of the route with steepness overlay',
+      );
+    }
+    if (overlay === 'snowdepth') {
+      return t(
+        'Terrengkart i 3D over ruta med snødybdelag',
+        '3D terrain map of the route with snow depth overlay',
+      );
+    }
+    return t('Terrengkart i 3D over ruta', '3D terrain map of the route');
   }
-  return steepness
-    ? t(
-        'Kart over ruta med bratthetslag, nord opp',
-        'Route map with steepness overlay, north up',
-      )
-    : t('Kart over ruta, nord opp', 'Route map, north up');
+  if (overlay === 'steepness') {
+    return t(
+      'Kart over ruta med bratthetslag, nord opp',
+      'Route map with steepness overlay, north up',
+    );
+  }
+  if (overlay === 'snowdepth') {
+    return t(
+      'Kart over ruta med snødybdelag, nord opp',
+      'Route map with snow depth overlay, north up',
+    );
+  }
+  return t('Kart over ruta, nord opp', 'Route map, north up');
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
@@ -948,13 +972,20 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
     options.map && options.map3d
       ? `${t('Terreng', 'Terrain')} © Kartverket (CC BY 4.0) / Mapzen, AWS Open Data`
       : null,
-    options.steepness
+    // Two ways each of these can reach the page now that the map has an
+    // overlay of its own: as the section that names the numbers, or as the
+    // layer draped over the picture. Either is a use of the data and so needs
+    // its credit, and a sheet whose only NVE content is an orange map would
+    // otherwise print without naming NVE at all.
+    options.steepness || (options.map && options.mapOverlay === 'steepness')
       ? `${t('Bratthet og utløp', 'Steepness and runout')} © NVE`
       : null,
     options.avalanche
       ? `${t('Snøskredvarsel', 'Avalanche forecast')} © NVE / Varsom (NLOD)`
       : null,
-    options.snow ? `${t('Snødybde', 'Snow depth')} © NVE / seNorge` : null,
+    options.snow || (options.map && options.mapOverlay === 'snowdepth')
+      ? `${t('Snødybde', 'Snow depth')} © NVE / seNorge`
+      : null,
     options.weather ? `${t('Vær', 'Weather')} © MET Norway (CC BY 4.0)` : null,
   ].filter(Boolean);
 
@@ -985,7 +1016,8 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         {options.map && (
           <MapPicture
             route={route}
-            steepness={options.steepness}
+            overlay={options.mapOverlay}
+            snowDate={snowDate}
             view={options.map3d ? '3d' : '2d'}
             onReady={onMapReady}
           />

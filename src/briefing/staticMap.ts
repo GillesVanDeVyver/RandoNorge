@@ -25,7 +25,7 @@
 // map fail outright on strict tile-server setups. Anyone adding an "export as
 // PNG" button must revisit this decision, not just call toDataURL.
 
-import type { LatLng, Route } from '../types';
+import type { LatLng, Overlay, Route } from '../types';
 import { OFFLINE_LAYERS } from '../offline/layers';
 import { routeEnds } from '../geometry';
 import { clampZoom, FIT, type Framing } from './mapFraming';
@@ -40,9 +40,21 @@ import {
 const TILE_SIZE = 256;
 const MIN_ZOOM = 3;
 
-// The steepness overlay is drawn at the planner's own 0.6 opacity so a
-// rendered map reads like a miniature of the map the user was just looking at.
+// The overlays are drawn at the planner's own opacities so a rendered map
+// reads like a miniature of the map the user was just looking at. Snow sits
+// heavier than steepness for the same reason it does on screen: a 1 km grid of
+// flat colour has no detail of its own to show through, and at 0.6 it reads as
+// a wash over the contours rather than as a depth.
 const STEEPNESS_OPACITY = 0.6;
+const SNOW_OPACITY = 0.75;
+
+// ...and under snow the base map is drained of colour, exactly as Map.tsx's
+// `.grayscaleBase` does it. Snow depth is a colour ramp, and a full-colour topo
+// sheet underneath competes with it — greens and blues of their own arguing
+// with the ramp's. The planner greys the map so the only colour on it is the
+// one carrying the number; the printed sheet had better do the same, or the two
+// pictures of the same tour will not look like each other.
+const SNOW_BASE_FILTER = 'grayscale(100%) contrast(0.9) brightness(1.05)';
 
 // Route styling — colour, widths and endpoint dots — comes from routeStyle.ts,
 // the same module the planner's Leaflet layer reads. Re-exported here because
@@ -96,8 +108,19 @@ export interface StaticMapOptions {
    * See mapFraming.ts for what the two numbers mean and what bounds them.
    */
   framing?: Framing;
-  /** Draw the NVE steepness overlay over the topo base. */
-  steepness?: boolean;
+  /**
+   * What to drape over the topo base: NVE's steepness shading, seNorge's snow
+   * depth, or nothing. The planner's three states, drawn the planner's way.
+   * Defaults to steepness, which is the map the route thumbnails have always
+   * been pictures of.
+   */
+  overlay?: Overlay;
+  /**
+   * Which day's snow to draw, as YYYY-MM-DD. Only read when `overlay` is
+   * 'snowdepth'; without it seNorge serves its latest grid, which is the right
+   * fallback for a caller that has no particular day in mind.
+   */
+  snowDate?: string;
   /** Route line width, in logical pixels. Defaults to the planner's own, which
    *  is what makes a full-size render read as the map on screen; the tiny
    *  thumbnails override it, because proportion is what carries across sizes,
@@ -151,7 +174,8 @@ export async function renderStaticMap(
     scale,
     padding = 0.12,
     framing = FIT,
-    steepness = true,
+    overlay = 'steepness',
+    snowDate,
     routeWeight = ROUTE_WEIGHT,
     haloWeight = HALO_WEIGHT,
     endpoints = false,
@@ -174,12 +198,21 @@ export async function renderStaticMap(
   // ceiling is the deepest zoom BOTH layers actually publish when the
   // steepness overlay is on, so the overlay never runs out from under the
   // base map (NVE's cache stops at z16, Kartverket's at z18).
-  const maxZoom = steepness
-    ? Math.min(
-        OFFLINE_LAYERS.topo.maxNativeZoom,
-        OFFLINE_LAYERS.steepness.maxNativeZoom,
-      )
-    : OFFLINE_LAYERS.topo.maxNativeZoom;
+  //
+  // Snow is not treated that way, and must not be: seNorge stops at z9, and
+  // holding a whole map to that ceiling to keep the overlay native would print
+  // a country where a valley was asked for. It is a 1 km grid — there is no
+  // detail past z9 to lose — so it is fetched on its own grid and stretched,
+  // which is exactly what the planner's Leaflet layer does with the same
+  // maxNativeZoom. Steepness has real detail at 16 and is worth a ceiling;
+  // snow has none at 9 and is worth a stretch.
+  const maxZoom =
+    overlay === 'steepness'
+      ? Math.min(
+          OFFLINE_LAYERS.topo.maxNativeZoom,
+          OFFLINE_LAYERS.steepness.maxNativeZoom,
+        )
+      : OFFLINE_LAYERS.topo.maxNativeZoom;
   const availW = width * (1 - 2 * padding);
   const availH = height * (1 - 2 * padding);
   let fitZoom = maxZoom;
@@ -228,7 +261,7 @@ export async function renderStaticMap(
     at: [number, number, number, number];
   }
   const base: Promise<Tile>[] = [];
-  const steep: Promise<Tile>[] = [];
+  const overlayTiles: Promise<Tile>[] = [];
   for (let tx = txMin; tx <= txMax; tx++) {
     for (let ty = tyMin; ty <= tyMax; ty++) {
       // Both edges are rounded and the width taken as the difference, so a
@@ -252,8 +285,8 @@ export async function renderStaticMap(
           at,
         })),
       );
-      if (steepness) {
-        steep.push(
+      if (overlay === 'steepness') {
+        overlayTiles.push(
           loadImage(OFFLINE_LAYERS.steepness.tileUrl(zoom, wx, ty)).then(
             (img) => ({ img, at }),
           ),
@@ -262,24 +295,66 @@ export async function renderStaticMap(
     }
   }
 
+  // Snow rides its own grid, so it gets its own loop rather than a branch
+  // inside the one above: at z14 a single seNorge tile covers 32 topo tiles,
+  // and asking for it 32 times — even to the same URL — is 32 requests to an
+  // un-cached WMS server for one picture.
+  if (overlay === 'snowdepth') {
+    const snowZoom = Math.min(zoom, OFFLINE_LAYERS.snowdepth.maxNativeZoom);
+    // How many drawing-grid tiles one snow tile spans. 1 when the frame is
+    // shallower than seNorge's ceiling, which is the ordinary case for a whole
+    // country and never for a tour.
+    const span = TILE_SIZE * 2 ** (zoom - snowZoom);
+    const maxSnowTile = 2 ** snowZoom - 1;
+    const sxMin = Math.floor(left / span);
+    const sxMax = Math.floor((left + spanX) / span);
+    const syMin = Math.max(0, Math.floor(top / span));
+    const syMax = Math.min(maxSnowTile, Math.floor((top + spanY) / span));
+    for (let sx = sxMin; sx <= sxMax; sx++) {
+      for (let sy = syMin; sy <= syMax; sy++) {
+        // Same shared-edge rounding as the base tiles, on the wider grid.
+        const l = Math.round(px(sx * span));
+        const t = Math.round(py(sy * span));
+        const at: [number, number, number, number] = [
+          l,
+          t,
+          Math.round(px((sx + 1) * span)) - l,
+          Math.round(py((sy + 1) * span)) - t,
+        ];
+        const wx = ((sx % (maxSnowTile + 1)) + maxSnowTile + 1) % (maxSnowTile + 1);
+        overlayTiles.push(
+          loadImage(
+            OFFLINE_LAYERS.snowdepth.tileUrl(snowZoom, wx, sy, { snowDate }),
+          ).then((img) => ({ img, at })),
+        );
+      }
+    }
+  }
+
   // Missing tiles (e.g. steepness has no coverage outside Norway) just stay
   // blank; everything else still renders.
-  const [baseTiles, steepTiles] = await Promise.all([
+  const [baseTiles, drapedTiles] = await Promise.all([
     Promise.allSettled(base),
-    Promise.allSettled(steep),
+    Promise.allSettled(overlayTiles),
   ]);
   if (cancelled()) return;
 
   ctx.fillStyle = BACKDROP;
   ctx.fillRect(0, 0, width, height);
+  // Only the base is greyed, and only under snow — the filter is set and
+  // cleared around this loop so nothing drawn afterwards (the overlay, the
+  // route, the dots, the scale bar) is caught by it.
+  if (overlay === 'snowdepth') ctx.filter = SNOW_BASE_FILTER;
   for (const tile of baseTiles) {
     if (tile.status === 'fulfilled') {
       ctx.drawImage(tile.value.img, ...tile.value.at);
     }
   }
-  if (steepness) {
-    ctx.globalAlpha = STEEPNESS_OPACITY;
-    for (const tile of steepTiles) {
+  ctx.filter = 'none';
+  if (overlay !== 'none') {
+    ctx.globalAlpha =
+      overlay === 'snowdepth' ? SNOW_OPACITY : STEEPNESS_OPACITY;
+    for (const tile of drapedTiles) {
       if (tile.status === 'fulfilled') {
         ctx.drawImage(tile.value.img, ...tile.value.at);
       }

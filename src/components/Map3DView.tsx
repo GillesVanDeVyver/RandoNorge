@@ -40,6 +40,8 @@ import {
   TERRAIN_PITCH,
   TERRAIN_ROUTE_PAINT,
   TERRAIN_SKY,
+  TERRAIN_SNOW_OPACITY,
+  TERRAIN_STEEPNESS_OPACITY,
   routeEndpointsGeoJSON,
 } from '../terrainView';
 import { rememberTerrainCamera } from '../terrainCamera';
@@ -334,14 +336,14 @@ export function Map3DView({
             type: 'raster',
             source: 'steepness',
             layout: { visibility: overlay === 'steepness' ? 'visible' : 'none' },
-            paint: { 'raster-opacity': 0.6 },
+            paint: { 'raster-opacity': TERRAIN_STEEPNESS_OPACITY },
           },
           {
             id: 'snow',
             type: 'raster',
             source: 'snow',
             layout: { visibility: overlay === 'snowdepth' ? 'visible' : 'none' },
-            paint: { 'raster-opacity': 0.8 },
+            paint: { 'raster-opacity': TERRAIN_SNOW_OPACITY },
           },
           {
             id: 'regions-fill',

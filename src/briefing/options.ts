@@ -16,6 +16,14 @@
 // on while the profile is off, and 3D is the same relationship to the map.
 // `withDependencies` enforces that in one place rather than leaving each caller
 // to remember it.
+//
+// One of them is not a switch at all. The planner drapes one of three things
+// over its base map — bratthet, snødybde, or nothing — and the sheet offers the
+// same three, because a briefing that shows a different map from the one the
+// tour was planned on is a briefing about a different tour. Three states cannot
+// be a boolean, so `mapOverlay` is the one option here that is a choice.
+
+import type { Overlay } from '../types';
 
 export interface BriefingOptions {
   /** Static Kartverket map with the route drawn over it. */
@@ -24,10 +32,21 @@ export interface BriefingOptions {
    *  flat north-up one. Not a section of its own — the same frame in the same
    *  place, drawn from the same tiles by a different renderer. */
   map3d: boolean;
+  /** What is draped over the printed map: slope shading, snow depth, or the
+   *  bare topo sheet. The planner's own three-way overlay choice, offered here
+   *  in the same three states.
+   *
+   *  Deliberately independent of `steepness` below. They used to be the same
+   *  switch, which meant a guide who wanted the slope-band breakdown in the
+   *  text also had to accept a map painted orange, and one who wanted a clean
+   *  map to draw on lost the breakdown with it. They are two different
+   *  questions — what the picture shows, and what the profile and the numbers
+   *  under it are about — so they are two different controls. */
+  mapOverlay: Overlay;
   /** Elevation profile along the route. */
   elevation: boolean;
-  /** Slope colouring on the profile and the map, the band breakdown, and
-   *  runout-zone exposure. */
+  /** Slope colouring on the elevation profile, the band breakdown, and
+   *  runout-zone exposure. Not the map — see `mapOverlay`. */
   steepness: boolean;
   /** Draw the profile with a metre up the same length as a metre along, so a
    *  45° slope prints as a 45° line and the strip is as tall as the terrain
@@ -51,6 +70,10 @@ export const DEFAULT_OPTIONS: BriefingOptions = {
   // a briefing needs is a judgement about its reader, so the sheet does not
   // guess, and the plain answer is the one that is right more often.
   map3d: false,
+  // The fallback only, in the same sense as trueScale below: the dialog opens
+  // on whatever the planner is currently draping over its map, and this is what
+  // the planner itself starts on.
+  mapOverlay: 'steepness',
   elevation: true,
   steepness: true,
   // Off by default only in the sense that this is the fallback: the dialog
@@ -63,8 +86,14 @@ export const DEFAULT_OPTIONS: BriefingOptions = {
   notes: true,
 };
 
+/** Every option that is simply on or off. `mapOverlay` is the exception, and
+ *  naming the rest as a group is what lets the code that treats options as a
+ *  set of flags — remembering them, sweeping every combination in the tests —
+ *  keep doing so without pretending a three-way choice is a flag. */
+export type BooleanOptionKey = Exclude<keyof BriefingOptions, 'mapOverlay'>;
+
 /** Print order, which is also the order the switches are listed in. */
-export const OPTION_KEYS = [
+export const OPTION_KEYS: readonly BooleanOptionKey[] = [
   'map',
   'map3d',
   'elevation',
@@ -84,6 +113,14 @@ export const OPTION_KEYS = [
  * map off takes their modifiers with them rather than leaving a slope-angle
  * breakdown on a page with no profile, or a remembered "in 3D" waiting to
  * surprise the next person who switches the map back on.
+ *
+ * `mapOverlay` is not forced to 'none' with the map, even though it describes
+ * how the map is drawn, because the two reasons for doing that to the others
+ * are both absent here. There is nothing stranded on the page — an absent map
+ * paints no overlay — and nothing is remembered, so no stale choice can lie in
+ * wait. Blanking it would only mean a guide who switched the map off and back
+ * on found their overlay silently changed. The dialog greys the control out
+ * instead, which says the same thing without throwing the answer away.
  */
 export function withDependencies(opts: BriefingOptions): BriefingOptions {
   const out = { ...opts };
@@ -111,7 +148,12 @@ const STORAGE_KEY = 'randonorge:briefing-sections-v2';
  *  been asked afresh — and the first time the two disagreed, the sheet would
  *  look like it had ignored the toggle the guide had just used. Left out of
  *  storage rather than written and then overruled, so there is nothing to
- *  wonder about. */
+ *  wonder about.
+ *
+ *  Two, counting the map overlay, which is inherited from the planner the same
+ *  way and left out of storage for the same reason. It gets there by not being
+ *  in OPTION_KEYS at all rather than by being filtered out here, which is the
+ *  one benefit of it not being a switch. */
 const REMEMBERED_KEYS = OPTION_KEYS.filter((k) => k !== 'trueScale');
 
 /** Remembered selection, so a guide printing a stack of briefings sets the

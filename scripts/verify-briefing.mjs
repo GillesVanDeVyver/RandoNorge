@@ -85,10 +85,21 @@ const optionsSrc = readFileSync(join(ROOT, 'src/briefing/options.ts'), 'utf8');
 
 section('Section switches');
 
+/** The planner's three map layers, which are the sheet's three. Written out
+ *  here rather than imported so that a fourth added to the app has to be added
+ *  here too, deliberately, instead of slipping past a sweep that would go on
+ *  claiming to cover every layer. */
+const MAP_OVERLAYS = ['steepness', 'snowdepth', 'none'];
+
 const allOn = { ...DEFAULT_OPTIONS };
 ok(
   OPTION_KEYS.every((k) => typeof DEFAULT_OPTIONS[k] === 'boolean'),
   'defaults cover every option key',
+);
+ok(
+  !OPTION_KEYS.includes('mapOverlay') &&
+    MAP_OVERLAYS.includes(DEFAULT_OPTIONS.mapOverlay),
+  'the map layer is a choice among the planner\'s three, not a tenth switch',
 );
 ok(
   withDependencies({ ...allOn, elevation: false }).steepness === false,
@@ -497,6 +508,12 @@ for (let mask = 0; mask < 2 ** OPTION_KEYS.length; mask++) {
   OPTION_KEYS.forEach((k, i) => {
     raw[k] = Boolean(mask & (1 << i));
   });
+  // The map layer is rotated through the sweep rather than multiplied into it.
+  // Three layers times every switch would be three times the renders for a
+  // choice that changes which tiles are fetched and one aria-label — and since
+  // 3 and 512 share no factor, every layer still meets every switch combination
+  // often enough that a section which crashed on one of them could not hide.
+  raw.mapOverlay = MAP_OVERLAYS[mask % MAP_OVERLAYS.length];
   combos.push(withDependencies(raw));
 }
 
@@ -810,9 +827,19 @@ for (const options of combos) {
     options.avalanche === html.includes('Varsom'),
     `[${name}] Varsom is credited when its warning is printed`,
   );
+  // Two ways to use a source, and either earns the credit: the section that
+  // prints the numbers, and the layer draped over the map. A sheet whose only
+  // seNorge content is a snow-shaded map still stands on seNorge.
+  const usesSnow = options.snow || (options.map && options.mapOverlay === 'snowdepth');
   ok(
-    options.snow === html.includes('seNorge'),
+    usesSnow === html.includes('seNorge'),
     `[${name}] seNorge is credited when its depths are printed`,
+  );
+  const usesNve =
+    options.steepness || (options.map && options.mapOverlay === 'steepness');
+  ok(
+    usesNve === /Bratthet og utl|Steepness and runout/.test(html),
+    `[${name}] NVE is credited when its steepness reaches the page`,
   );
   ok(
     options.weather === html.includes('MET Norway'),
@@ -2113,7 +2140,7 @@ ok(
   'neighbouring tiles are given a shared edge, or the seams print as white threads',
 );
 ok(
-  /\[route, steepness, terrain, framing\]/.test(sheetSrc),
+  /\[route, overlay, snowDate, terrain, framing\]/.test(sheetSrc),
   'moving the frame redraws the map that is printed, not just the one on screen',
 );
 
@@ -2284,9 +2311,12 @@ ok(
   ) && /if \(snowlessTour && !touched\.snow\) out\.snow = false/.test(dialogSrc),
   'each section is defaulted off by its own observation and nothing else',
 );
+const selfDeciding = /const SELF_DECIDING = \[([\s\S]*?)\] as const;/.exec(
+  dialogSrc,
+)?.[1];
 ok(
-  /const SELF_DECIDING = \['snow', 'avalanche', 'notes', 'trueScale'\]/.test(
-    dialogSrc,
+  ['snow', 'avalanche', 'notes', 'trueScale', 'mapOverlay'].every((k) =>
+    new RegExp(`'${k}'`).test(selfDeciding ?? ''),
   ) && /if \(isSelfDeciding\(key\)\)/.test(dialogSrc),
   'turning any of them back retires its automatic default for the rest of the dialog',
 );
@@ -2564,6 +2594,249 @@ ok(
   ).includes('Varsom'),
   'and with the section off the sheet credits Varsom for nothing it printed',
 );
+
+section('The map wears what the planner was wearing');
+
+// The planner drapes one of three layers over its map, and until now the export
+// could only ever paint one of them — and it painted that one off the same
+// switch that coloured the elevation profile. Two claims to hold, then: the
+// sheet can now draw all three, and the map's layer and the profile's colouring
+// are separate questions.
+
+// Sources this section reads that no earlier one did. The rest — the sheet, the
+// flat renderer, the dialog, the two terrain modules, the stylesheet — are
+// already open above, and reading a file twice under two names is how two
+// checks come to disagree about what it says.
+const mapCssSrc = readFileSync(
+  join(ROOT, 'src/components/Map.module.css'),
+  'utf8',
+);
+const appSrc = readFileSync(join(ROOT, 'src/App.tsx'), 'utf8');
+const layersSrc = readFileSync(join(ROOT, 'src/offline/layers.ts'), 'utf8');
+
+// --- The split -------------------------------------------------------------
+
+// The point of the whole change, stated as the two sheets that were impossible
+// before: a clean map with the slope-angle numbers printed beside it, and a
+// shaded map on a sheet with no profile at all.
+const plainMapColouredProfile = render(
+  makeData({
+    ...DEFAULT_OPTIONS,
+    map: true,
+    mapOverlay: 'none',
+    elevation: true,
+    steepness: true,
+  }),
+);
+ok(
+  /Kart over ruta, nord opp|Route map, north up/.test(plainMapColouredProfile),
+  'a bare map can be printed on a sheet that still prints the slope bands',
+);
+ok(
+  /briefingBands/.test(plainMapColouredProfile) &&
+    /Bratteste parti|Steepest section/.test(plainMapColouredProfile),
+  'and those bands really are on it — the map did not take them with it',
+);
+const shadedMapNoProfile = render(
+  makeData({
+    ...DEFAULT_OPTIONS,
+    map: true,
+    mapOverlay: 'steepness',
+    elevation: false,
+    steepness: false,
+  }),
+);
+ok(
+  /bratthetslag|steepness overlay/.test(shadedMapNoProfile),
+  'and a shaded map survives a sheet with no elevation profile to colour',
+);
+const withDepsBody =
+  /export function withDependencies\([\s\S]*?\n\}/.exec(optionsSrc)?.[0] ?? '';
+ok(
+  withDepsBody.length > 0 && !/mapOverlay/.test(withDepsBody),
+  'the map layer is not blanked with the map: nothing is stranded, so nothing is thrown away',
+);
+ok(
+  withDependencies({ ...DEFAULT_OPTIONS, map: false }).mapOverlay ===
+    DEFAULT_OPTIONS.mapOverlay,
+  'switching the map off and on again gives back the layer that was chosen',
+);
+ok(
+  /steepness={options\.steepness}\s+runout={options\.steepness}/.test(sheetSrc) &&
+    /overlay={options\.mapOverlay}/.test(sheetSrc),
+  'the profile reads the steepness switch and the map reads the layer choice',
+);
+
+// --- All three layers reach the page ---------------------------------------
+
+for (const overlay of MAP_OVERLAYS) {
+  for (const view of ['2d', '3d']) {
+    const html = render(
+      makeData({
+        ...DEFAULT_OPTIONS,
+        map: true,
+        map3d: view === '3d',
+        mapOverlay: overlay,
+      }),
+    );
+    const label = /aria-label="([^"]*)"[^>]*class="briefingMapCanvas"|class="briefingMapCanvas"[^>]*aria-label="([^"]*)"/.exec(
+      html,
+    );
+    const text = label ? (label[1] ?? label[2]) : '';
+    ok(
+      text.length > 0,
+      `[${view}/${overlay}] the map still says what it is to a reader who cannot see it`,
+    );
+    ok(
+      overlay === 'steepness'
+        ? /bratthet|steepness/i.test(text)
+        : overlay === 'snowdepth'
+          ? /snødybde|snow depth/i.test(text)
+          : !/bratthet|steepness|snødybde|snow depth/i.test(text),
+      `[${view}/${overlay}] and names the layer it is actually wearing`,
+    );
+    ok(
+      (view === '3d') === /3D/.test(text),
+      `[${view}/${overlay}] the layer choice did not disturb which view is drawn`,
+    );
+  }
+}
+
+// --- Snow, drawn the planner's way -----------------------------------------
+
+// seNorge stops at z9. Steepness gets a zoom ceiling because it has real detail
+// at 16 to protect; snow has none at 9, and holding the whole frame to z9 would
+// print a country where a valley was asked for.
+ok(
+  /overlay === 'steepness'\s*\?\s*Math\.min\(/.test(staticSrc),
+  'only steepness holds the frame back to the zoom its tiles are published at',
+);
+ok(
+  /const snowZoom = Math\.min\(zoom, OFFLINE_LAYERS\.snowdepth\.maxNativeZoom\)/.test(
+    staticSrc,
+  ),
+  'snow is fetched on its own grid and stretched, the way the planner upsamples it',
+);
+ok(
+  /Math\.round\(px\(\(sx \+ 1\) \* span\)\) - l/.test(staticSrc),
+  'and its tiles are given the same shared edge, so the seams do not print either',
+);
+ok(
+  /const snowdepth: OfflineLayer = \{[\s\S]*?maxNativeZoom: 9,/.test(layersSrc),
+  'the ceiling being worked around is seNorge\u2019s own 1 km grid',
+);
+ok(
+  /tileUrl\(snowZoom, wx, sy, \{ snowDate \}\)/.test(staticSrc),
+  'the day the sheet is about is the day the tiles are asked for',
+);
+ok(
+  /snowDate={snowDate}/.test(sheetSrc),
+  'and that day is the sheet\u2019s own, so the map and the snow chart cannot differ',
+);
+
+// The planner greys the base under snow so the only colour left is the ramp's.
+const grayscale = /grayscale\(100%\) contrast\(0\.9\) brightness\(1\.05\)/;
+ok(
+  grayscale.test(mapCssSrc) && grayscale.test(staticSrc),
+  'the printed base is drained of colour under snow, exactly as the planner drains it',
+);
+ok(
+  /ctx\.filter = 'none';/.test(staticSrc),
+  'and only the base: the filter is cleared before the route and the dots are drawn',
+);
+
+// --- The two 3D maps are one picture ---------------------------------------
+
+ok(
+  /TERRAIN_STEEPNESS_OPACITY = 0\.6/.test(terrainViewSrc) &&
+    /TERRAIN_SNOW_OPACITY = 0\.8/.test(terrainViewSrc),
+  'the draped opacities are stated once, where the camera and the mesh are stated',
+);
+for (const name of ['TERRAIN_STEEPNESS_OPACITY', 'TERRAIN_SNOW_OPACITY']) {
+  ok(
+    new RegExp(`'raster-opacity': ${name}`).test(plannerThreeD) &&
+      new RegExp(`'raster-opacity': ${name}`).test(terrainMapSrc),
+    `both 3D maps read ${name} rather than each carrying a number`,
+  );
+}
+ok(
+  /source: 'snow',[\s\S]{0,160}visibility: overlay === 'snowdepth'/.test(
+    terrainMapSrc,
+  ),
+  'the exported 3D map declares the snow layer and switches it, as the planner does',
+);
+ok(
+  /offlineTileTemplate\('snowdepth', snowDate\)/.test(plannerThreeD) &&
+    /offlineTileTemplate\('snowdepth', snowDate\)/.test(terrainMapSrc),
+  'and asks for it through the same offline protocol, so a downloaded region prints',
+);
+ok(
+  /maxzoom: 9/.test(terrainMapSrc),
+  'capped at seNorge\u2019s native zoom, so MapLibre overzooms instead of 404ing',
+);
+ok(
+  /\[route, overlay, snowDate, width, height, scale, canvasRef\]/.test(pictureSrc),
+  'changing the layer rebuilds the terrain map rather than leaving the old drape',
+);
+
+// --- Inherited from the planner, and never remembered ----------------------
+
+ok(
+  /if \(plannerOverlay && !touched\.mapOverlay\) out\.mapOverlay = plannerOverlay/.test(
+    dialogSrc,
+  ),
+  'the export opens on the layer the planner is showing',
+);
+ok(
+  /overlay={overlay}/.test(appSrc),
+  'which the planner actually hands it',
+);
+ok(
+  /setTouched\(\(prev\) => \(\{ \.\.\.prev, mapOverlay: true \}\)\)/.test(
+    dialogSrc,
+  ),
+  'and picking a different one here retires that inheritance for the rest of the dialog',
+);
+ok(
+  !new RegExp("keep\\[key\\][\\s\\S]*mapOverlay").test(optionsSrc) &&
+    !/REMEMBERED_KEYS[^\n]*mapOverlay/.test(optionsSrc),
+  'nothing about the layer is written to storage — the planner is asked afresh each time',
+);
+ok(
+  /for \(const key of REMEMBERED_KEYS\)[\s\S]{0,120}typeof rec\[key\] === 'boolean'/.test(
+    optionsSrc,
+  ),
+  'and a stored selection can only ever restore switches, never a layer',
+);
+
+// The 3D view copies itself onto the printing canvas only when it settles, so
+// between choosing a layer and that copy the screen and the paper disagree.
+ok(
+  /const rebuildsFor3D = options\.map && options\.map3d/.test(dialogSrc) &&
+    /if \(rebuildsFor3D\) setMapReady\(false\)/.test(dialogSrc),
+  'a layer picked in 3D holds Print until the new picture has been photographed',
+);
+
+// --- The control -----------------------------------------------------------
+
+const choiceBlock = /<Choice[\s\S]*?\/>/.exec(dialogSrc)?.[0] ?? '';
+ok(
+  /value={options\.mapOverlay}/.test(choiceBlock) &&
+    MAP_OVERLAYS.every((o) => new RegExp(`value: '${o}'`).test(choiceBlock)),
+  'the layer is picked from the planner\u2019s three, not toggled',
+);
+ok(
+  /disabled={!options\.map}/.test(choiceBlock) &&
+    /onChange={setMapOverlay}/.test(choiceBlock),
+  'and greys out with the map it is drawn on, rather than being blanked',
+);
+for (const cls of [
+  'briefingChoice',
+  'briefingChoiceChip',
+  'briefingChoiceDisabled',
+]) {
+  ok(css.includes(`.${cls}`), `the choice row is styled: .${cls}`);
+}
 
 // --- The eyeball copy ------------------------------------------------------
 

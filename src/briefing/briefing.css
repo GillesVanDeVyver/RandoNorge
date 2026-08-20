@@ -324,6 +324,109 @@
   color: var(--briefing-muted);
 }
 
+/* ---------- The one setting that is a choice, not a switch --------------- */
+
+/* The map's overlay has three states, so it is a segmented strip rather than a
+ * toggle. It still has to read as a row of the same list: same left edge, same
+ * label type, and the chips indented under the label rather than beside it,
+ * because three words will not fit on a switch line at this width. */
+.briefingChoice {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 5px;
+  padding: 5px 6px 7px;
+  margin-left: -6px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--briefing-ink);
+  user-select: none;
+}
+
+.briefingChoiceHead {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.briefingChoiceLabel {
+  flex: none;
+}
+
+.briefingChoiceOptions {
+  display: flex;
+  /* One border between neighbours rather than two: the chips overlap by a
+   * pixel, so the strip reads as one control divided up. */
+  gap: 0;
+}
+
+.briefingChoiceOption input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.briefingChoiceChip {
+  display: inline-block;
+  padding: 4px 9px;
+  border: 1px solid var(--briefing-rule);
+  margin-left: -1px;
+  font-size: 12.5px;
+  color: var(--briefing-muted);
+  background: #fff;
+  cursor: pointer;
+}
+
+.briefingChoiceOption:first-child .briefingChoiceChip {
+  margin-left: 0;
+  border-radius: 6px 0 0 6px;
+}
+
+.briefingChoiceOption:last-child .briefingChoiceChip {
+  border-radius: 0 6px 6px 0;
+}
+
+.briefingChoiceOption:hover .briefingChoiceChip {
+  background: var(--briefing-tint);
+}
+
+/* The chosen layer, in the same teal a switched-on switch uses — so "which
+ * layer" and "which sections" are answered in one visual language. Raised above
+ * its neighbours so its own border wins the overlap on both sides. */
+.briefingChoiceOption input:checked + .briefingChoiceChip {
+  position: relative;
+  z-index: 1;
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #fff;
+}
+
+.briefingChoiceOption input:focus-visible + .briefingChoiceChip {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+/* Map off: the strip stays visible so the choice is discoverable, and says on
+ * the same line why it cannot be made — exactly as the 3D switch does. */
+.briefingChoiceDisabled .briefingChoiceLabel {
+  color: var(--briefing-muted);
+}
+
+.briefingChoiceDisabled .briefingChoiceChip {
+  background: #f4f6f9;
+  border-color: #e2e8ee;
+  color: #9aa5b1;
+  cursor: not-allowed;
+}
+
+.briefingChoiceDisabled input:checked + .briefingChoiceChip {
+  background: #cbd5df;
+  border-color: #cbd5df;
+  color: #fff;
+}
+
 .briefingBtn {
   font: inherit;
   font-weight: 600;

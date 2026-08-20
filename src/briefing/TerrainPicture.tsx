@@ -21,7 +21,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
-import type { Route } from '../types';
+import type { Overlay, Route } from '../types';
 import type { TerrainMapHandle } from './terrainMap';
 import { MapZoomControls } from './MapZoomControls';
 import { clampZoom, useWheelZoom, ZOOM_STEP } from './mapFraming';
@@ -34,7 +34,8 @@ const KEY_STEP = 1 / 12;
 
 export function TerrainPicture({
   route,
-  steepness,
+  overlay,
+  snowDate,
   width,
   height,
   scale,
@@ -44,7 +45,10 @@ export function TerrainPicture({
   onBearing,
 }: {
   route: Route;
-  steepness: boolean;
+  /** What is draped over the terrain: steepness, snow depth, or nothing. */
+  overlay: Overlay;
+  /** Which day's snow to drape, when the overlay is snow depth. */
+  snowDate: string;
   /** The size the map is *rendered* at, which is the size it prints at. */
   width: number;
   height: number;
@@ -67,7 +71,7 @@ export function TerrainPicture({
 
   // How close the camera is drawn, as an offset from the framing it settled
   // on. Kept here rather than inside the map so the buttons can grey out at
-  // the limits, and so that a rebuild — a flipped steepness switch, a new
+  // the limits, and so that a rebuild — a changed overlay, a new
   // route — starts from the whole tour again rather than from wherever the
   // last one was left. The flat map keeps its own, in its own terms; the two
   // are never on screen at the same time. See mapFraming.ts.
@@ -123,7 +127,8 @@ export function TerrainPicture({
           width,
           height,
           scale,
-          steepness,
+          overlay,
+          snowDate,
           canvas,
           onBearing: (deg) => cbRef.current.onBearing(deg),
           cancelled: () => cancelled,
@@ -149,7 +154,7 @@ export function TerrainPicture({
       handleRef.current = null;
       setBuilt(false);
     };
-  }, [route, steepness, width, height, scale, canvasRef]);
+  }, [route, overlay, snowDate, width, height, scale, canvasRef]);
 
   // Put the asked-for zoom on the camera — when it is asked for, and again as
   // soon as there is a camera to put it on. Not folded into the button's own

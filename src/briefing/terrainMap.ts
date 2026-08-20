@@ -42,7 +42,7 @@
 // watched at.
 
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import type { Route } from '../types';
+import type { Overlay, Route } from '../types';
 import {
   TERRAIN_BEARING,
   TERRAIN_ENDPOINT_PAINT,
@@ -51,6 +51,8 @@ import {
   TERRAIN_PITCH,
   TERRAIN_ROUTE_PAINT,
   TERRAIN_SKY,
+  TERRAIN_SNOW_OPACITY,
+  TERRAIN_STEEPNESS_OPACITY,
   routeEndpointsGeoJSON,
 } from '../terrainView';
 import { recallTerrainCamera } from '../terrainCamera';
@@ -87,9 +89,12 @@ export interface TerrainMapOptions {
    *  the mesh is *rendered* at print resolution rather than rendered small and
    *  enlarged afterwards. */
   scale: number;
-  /** Drape NVE's steepness layer over the topo tiles, following the sheet's
-   *  steepness switch exactly as the flat map does. */
-  steepness?: boolean;
+  /** What to drape over the topo tiles — steepness, snow depth or nothing —
+   *  following the sheet's map-overlay choice exactly as the flat map does. */
+  overlay?: Overlay;
+  /** Which day's snow to drape, as YYYY-MM-DD. Only read when `overlay` is
+   *  'snowdepth'. */
+  snowDate?: string;
   /** The still copy that actually prints. Redrawn whenever the camera rests. */
   canvas: HTMLCanvasElement;
   /** Told the compass bearing whenever it changes, so the sheet's north mark
@@ -186,7 +191,8 @@ export async function createTerrainMap(
     width,
     height,
     scale,
-    steepness = true,
+    overlay = 'steepness',
+    snowDate,
     canvas,
     onBearing,
     cancelled = () => false,
@@ -251,21 +257,45 @@ export async function createTerrainMap(
             tileSize: 256,
             maxzoom: 16,
           },
+          // seNorge's 1 km grid, capped at its native z9 and overzoomed by
+          // MapLibre above that — the same declaration the planner's 3D view
+          // makes, down to the maxzoom, which is what keeps a snow-draped
+          // export looking like the snow-draped map it was asked for.
+          snow: {
+            type: 'raster',
+            tiles: [offline.offlineTileTemplate('snowdepth', snowDate)],
+            tileSize: 256,
+            maxzoom: 9,
+          },
           route: { type: 'geojson', data: routeToGeoJSON(route) },
           ends: { type: 'geojson', data: routeEndpointsGeoJSON(route) },
         },
         layers: [
           { id: 'basemap', type: 'raster', source: 'basemap' },
-          // Declared either way and switched with `visibility`, exactly as the
-          // planner declares it: MapLibre fetches no tiles for a source whose
-          // only layer is hidden, so a sheet without slope angles waits for
-          // nothing it is not going to print.
+          // Both overlays are declared whatever was asked for and switched with
+          // `visibility`, exactly as the planner declares them: MapLibre fetches
+          // no tiles for a source whose only layer is hidden, so a sheet without
+          // slope angles waits for nothing it is not going to print — and the
+          // two sit in the planner's order, snow over steepness, so that if the
+          // three-state choice ever became two checkboxes the stacking would
+          // already be the one on screen.
           {
             id: 'steepness',
             type: 'raster',
             source: 'steepness',
-            layout: { visibility: steepness ? 'visible' : 'none' },
-            paint: { 'raster-opacity': 0.6 },
+            layout: {
+              visibility: overlay === 'steepness' ? 'visible' : 'none',
+            },
+            paint: { 'raster-opacity': TERRAIN_STEEPNESS_OPACITY },
+          },
+          {
+            id: 'snow',
+            type: 'raster',
+            source: 'snow',
+            layout: {
+              visibility: overlay === 'snowdepth' ? 'visible' : 'none',
+            },
+            paint: { 'raster-opacity': TERRAIN_SNOW_OPACITY },
           },
           {
             id: 'route',

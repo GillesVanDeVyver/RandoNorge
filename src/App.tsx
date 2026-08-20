@@ -1541,6 +1541,10 @@ function App({
             profile={elevation.profile}
             date={briefingDate}
             weatherDate={briefingWeatherDate}
+            // The layer the planner is showing, so the printed map opens as the
+            // map on screen. Handed over live rather than captured: the layer
+            // buttons are behind the dialog and out of reach while it is open.
+            overlay={overlay}
             routeName={savedMeta?.name}
             routeDescription={savedMeta?.description}
             onClose={() => setBriefingOpen(false)}
