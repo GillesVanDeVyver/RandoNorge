@@ -9,14 +9,19 @@
 // browsed.
 //
 // Two renderers answer to these numbers. The flat map (staticMap.ts) stitches
-// Web-Mercator tiles and honours both the zoom and the pan; the 3D view
-// (terrainMap.ts) flies a MapLibre camera and takes the zoom only, because a
-// drag there already means "turn the mountain" and a second meaning for the
-// same gesture would cost more than panning is worth. Stating the zoom here,
-// as an offset from each renderer's own fit rather than as a zoom level, is
-// what makes one press mean the same amount of closer in both — and what makes
-// 0 mean "the map as it was before anyone touched it" on a short tour and a
-// long one alike.
+// Web-Mercator tiles and honours the whole Framing below, zoom and pan
+// together. The 3D view (terrainMap.ts) flies a MapLibre camera, and takes the
+// zoom as a number but the pan only as a limit: a camera that is pitched and
+// turned is the one thing that knows how a drag across the glass becomes a
+// distance over the ground, so it does that arithmetic itself and asks this
+// module only how far it is then allowed to be from the route.
+//
+// Stating the zoom here, as an offset from each renderer's own fit rather than
+// as a zoom level, is what makes one press mean the same amount of closer in
+// both — and what makes 0 mean "the map as it was before anyone touched it" on
+// a short tour and a long one alike. Stating the reach in fits does the same
+// for wandering: one number, so a frame cannot be walked off the route on one
+// renderer and held to it on the other.
 
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
@@ -45,8 +50,19 @@ export const ZOOM_STEP = 0.5;
  *  fitted map wander a whole tour clear of the route while a closely zoomed
  *  one could travel a hundred metres, which is exactly backwards: the fitted
  *  map already shows everything and has nowhere to go, and it is the close map
- *  that needs to walk the length of the route to the crux. */
-const PAN_REACH = 0.75;
+ *  that needs to walk the length of the route to the crux.
+ *
+ *  Exported because the 3D view enforces the same reach on its own camera. Note
+ *  what "in fits" buys there: because the limit below is multiplied by the zoom
+ *  and the frame is divided by it, the two cancel, and the reach is a fixed
+ *  distance over the ground — three quarters of the fitted frame, at every
+ *  zoom. That is a sentence a camera can act on without owning a Framing, which
+ *  is why the 3D map can obey this number while keeping its own arithmetic.
+ *
+ *  Three quarters is chosen to be plainly more than half: half a frame puts the
+ *  route's far end exactly on the edge of the picture, and either end of a tour
+ *  is precisely what a guide zooms in to look at. */
+export const PAN_REACH = 0.75;
 
 export interface Framing {
   /** Zoom offset from the renderer's own fit-to-route framing, in map zoom

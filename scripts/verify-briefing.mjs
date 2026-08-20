@@ -1757,13 +1757,13 @@ ok(
   'the live map is reached through an import only made when it is asked for',
 );
 
-// --- Turning it ------------------------------------------------------------
+// --- Aiming it -------------------------------------------------------------
 
 // The map is aimed by dragging it. Everything below is a way of getting that
 // wrong that would still look plausible in a screenshot.
 ok(
   /interactive: false/.test(terrainMapSrc),
-  'MapLibre\u2019s own handlers stay off, so a drag turns the map and nothing else',
+  'MapLibre\u2019s own handlers stay off, so the gesture is measured where it is seen',
 );
 ok(
   /turn\(dxFraction, dyFraction\)/.test(terrainMapSrc) &&
@@ -1963,8 +1963,8 @@ ok(
   'both draw into one canvas, so the page has the same shape either way',
 );
 ok(
-  /Dra for \u00e5 snu|Drag to turn/.test(plain(threeDSheet)),
-  'and it says so, because a map that can be turned looks like one that cannot',
+  /Dra for \u00e5 flytte|Drag to move/.test(plain(threeDSheet)),
+  'and it says so, because a map that can be aimed looks like one that cannot',
 );
 // The refit button is markup inside the live map, so the print rule that hides
 // the live map is what keeps a control off the paper. If it ever moves out of
@@ -1982,8 +1982,9 @@ ok(
 // The fit is the right picture often enough to be the default and wrong often
 // enough to need a way out: a long traverse fitted into 128 mm of paper is a
 // line, and the col the party has to judge is four pixels of it. So the frame
-// can be moved and closed in — on the flat map with both, on the terrain view
-// with the zoom only, because a drag there already turns the mountain.
+// can be moved and closed in — the flat map by taking the whole Framing, the
+// terrain view by taking the zoom as a number and the reach as a limit it
+// enforces on its own camera.
 //
 // None of that is visible in a screenshot of a working case. The ways it goes
 // wrong are: a printed scale bar that no longer matches the picture above it, a
@@ -2161,7 +2162,7 @@ ok(
 // The terrain camera. Its zoom is an offset from wherever the map settled, so
 // that 0 is the picture the sheet opened on however the planner was left.
 ok(
-  /baseZoom \+ offset/.test(terrainMapSrc),
+  /base\.zoom \+ offset/.test(terrainMapSrc),
   'closer means closer than the framing this sheet opened on, not a zoom level',
 );
 ok(
@@ -2169,7 +2170,9 @@ ok(
   'and it stops where the map itself stops, rather than asking for tiles that end',
 );
 ok(
-  /reset\(\)\s*\{[\s\S]*?baseZoom = gl\.getZoom\(\)/.test(terrainMapSrc),
+  /reset\(\)\s*\{[\s\S]*?base = \{ center: gl\.getCenter\(\), zoom: gl\.getZoom\(\) \}/.test(
+    terrainMapSrc,
+  ),
   'coming home rebases it, so the next press counts from the frame on screen',
 );
 ok(
@@ -2837,6 +2840,192 @@ for (const cls of [
 ]) {
   ok(css.includes(`.${cls}`), `the choice row is styled: .${cls}`);
 }
+
+section('The 3D map can be moved, not only turned');
+
+// The planner's 3D view can be dragged around as well as turned, and the export
+// could only be turned. Closing that gap moves a gesture that already had a
+// meaning, which is the interesting part: a plain drag now moves the map and a
+// held Shift turns it, matching the planner rather than matching what this
+// dialog did last week.
+//
+// Three things can go wrong here and none of them throws. The map can move the
+// wrong way, which looks like a bug in the mouse. It can move without limit,
+// which prints a sheet with no route on it. And the two renderers can end up
+// with two different opinions about how far "far enough" is, which nobody
+// notices until someone compares a flat export with a 3D one of the same tour.
+
+// --- The gesture, and which hand it is in ----------------------------------
+
+// The body of the implementation, not the declaration above it: `move(` appears
+// in both, and a check that reads the interface would pass on a handle whose
+// method does nothing at all.
+const terrainMove =
+  terrainMapSrc.match(
+    /\n {6}move\(dxFraction, dyFraction\) \{[\s\S]*?\n {6}\},/,
+  )?.[0] ?? '';
+ok(
+  terrainMove !== '' &&
+    /move\(dxFraction: number, dyFraction: number\): void/.test(terrainMapSrc),
+  'the terrain map can be asked to move, in the same frame fractions it is turned by',
+);
+ok(
+  /gl\.panBy\(\[-dxFraction \* width, -dyFraction \* height\]/.test(terrainMove),
+  'and the ground follows the pointer rather than running away from it',
+);
+ok(
+  /duration: 0/.test(terrainMove),
+  'the move lands at once, so the copy that prints is never mid-flight',
+);
+
+// Which meaning a drag has. The planner pans on a plain drag and rotates on a
+// modifier; this had it the other way round, and the whole point of the change
+// is that it no longer does.
+const pointerDown =
+  pictureSrc.match(/const onPointerDown[\s\S]*?\}, \[\]\);/)?.[0] ?? '';
+const pointerMove =
+  pictureSrc.match(/const onPointerMove[\s\S]*?\}, \[\]\);/)?.[0] ?? '';
+ok(
+  /turning: turns\(e\)/.test(pointerDown),
+  'what a drag means is decided at the press',
+);
+ok(
+  /from\.turning/.test(pointerMove) &&
+    !/turns\(e\)/.test(pointerMove) &&
+    /handle\.move\(dx, dy\)/.test(pointerMove),
+  'and held for the whole stroke, so a released Shift cannot hand it to the other gesture',
+);
+ok(
+  /shiftKey \|\| e\.ctrlKey \|\| \(e\.buttons \?\? 0\) === 2/.test(pictureSrc),
+  'Shift, Ctrl and the right button turn it \u2014 the three ways the planner does',
+);
+ok(
+  /onContextMenu=\{\(e\) => e\.preventDefault\(\)\}/.test(pictureSrc),
+  'and the right button turning the map does not also open a menu over it',
+);
+// The keyboard is the same rule or it is a second thing to learn.
+ok(
+  /const unit = e\.shiftKey \? KEY_STEP : KEY_MOVE_STEP/.test(pictureSrc) &&
+    /if \(e\.shiftKey\) handle\.turn\(aim\[0\], aim\[1\]\)/.test(pictureSrc),
+  'the arrows mean whatever a drag means, and Shift flips them the same way',
+);
+ok(
+  /else handle\.move\(-aim\[0\], -aim\[1\]\)/.test(pictureSrc),
+  'pressing right walks the frame right, rather than shoving the ground right',
+);
+
+// --- The leash -------------------------------------------------------------
+
+// PAN_REACH is the number that stops a briefing map being browsed to the next
+// fjord. It was the flat map's alone; now both renderers answer to it, which is
+// only worth anything if it is genuinely the same number in both places.
+ok(
+  typeof framing.PAN_REACH === 'number' && framing.PAN_REACH > 0.5,
+  'the reach is more than half a frame, so either end of the route can be centred',
+);
+ok(
+  /import \{ PAN_REACH \} from '\.\/mapFraming'/.test(terrainMapSrc) &&
+    !/PAN_REACH = /.test(terrainMapSrc),
+  'the terrain view imports that reach rather than keeping a second copy of it',
+);
+ok(
+  /leash\(\);/.test(terrainMove),
+  'every move is checked against it \u2014 an unchecked one is the whole failure',
+);
+// Measured from the base zoom, not the current one. Getting this wrong shortens
+// the leash every time the guide zooms in, which strands them at the crux.
+const leashBody =
+  terrainMapSrc.match(/const leash = \(\) => \{[\s\S]*?\n {4}\};/)?.[0] ?? '';
+ok(
+  /2 \*\* base\.zoom/.test(leashBody) && !/gl\.getZoom\(\)/.test(leashBody),
+  'the reach is a fixed distance over the ground, not one that shrinks as you close in',
+);
+ok(
+  /lngToTileX/.test(leashBody) && /latToTileY/.test(leashBody),
+  'and is measured in the projection the flat map stitches its tiles in',
+);
+ok(
+  /base = \{ center: gl\.getCenter\(\), zoom: gl\.getZoom\(\) \};/.test(
+    terrainMapSrc.match(/reset\(\) \{[\s\S]*?\n {6}\},/)?.[0] ?? '',
+  ),
+  'fitting the route again re-anchors both the zoom and the reach, not just the zoom',
+);
+
+// The claim the 3D leash formula rests on: that a reach stated in *fits* is a
+// fixed distance over the ground however far in the frame is zoomed. Checked on
+// the flat map's own model, because that is where the arithmetic is runnable —
+// and because if it were ever false there, the 3D map would be enforcing a
+// limit its own comment misdescribes.
+{
+  const walked = framing.panBy(framing.FIT, -99, 0); // hard against the stop
+  let ground = walked.pan.x * 2 ** -walked.zoom;
+  let held = true;
+  let f = walked;
+  for (let i = 0; i < 8; i++) {
+    f = framing.zoomBy(f, framing.ZOOM_STEP);
+    const now = f.pan.x * 2 ** -f.zoom;
+    if (Math.abs(now - ground) > 1e-9) held = false;
+    ground = now;
+  }
+  ok(
+    held && f.zoom > walked.zoom,
+    'a frame at the end of its reach stays the same distance out as it zooms in',
+  );
+  ok(
+    Math.abs(walked.pan.x) === framing.PAN_REACH,
+    'and that distance is the reach itself, in fits, at the framing it opened on',
+  );
+}
+
+// The inverse projections the leash needs to turn a clamped position back into
+// a centre. New, and wrong-by-a-little is the failure that would survive review:
+// a map that creeps a few metres every time it is dragged to its limit.
+{
+  const tm = await import(
+    pathToFileURL(join(ROOT, 'src/offline/tileMath.ts')).href
+  );
+  let worst = 0;
+  for (const lat of [-84, -60, 0, 45, 58.9, 62.5, 69.7, 78.2, 84]) {
+    for (const lng of [-179, -30, 0, 5.3, 10.7, 31.1, 179]) {
+      for (const z of [0, 5, 12]) {
+        worst = Math.max(
+          worst,
+          Math.abs(tm.tileXToLng(tm.lngToTileX(lng, z), z) - lng),
+          Math.abs(tm.tileYToLat(tm.latToTileY(lat, z), z) - lat),
+        );
+      }
+    }
+  }
+  ok(
+    worst < 1e-9,
+    'lng/lat survives the round trip through tile space, from Svalbard to the equator',
+  );
+}
+
+// --- Saying so -------------------------------------------------------------
+
+// The hint under the map is the only place a guide is told any of this, and it
+// is the one line that goes stale silently when the gesture changes under it.
+ok(
+  /Dra for \u00e5 flytte \u00b7 Shift for \u00e5 snu/.test(pictureSrc) &&
+    /Drag to move \u00b7 Shift to turn/.test(pictureSrc),
+  'the hint says the map moves, in both languages, and says what Shift is for',
+);
+ok(
+  /Flytt kartet: dra det/.test(pictureSrc) &&
+    /Move the map: drag it/.test(pictureSrc) &&
+    /Hold Shift/.test(pictureSrc),
+  'and so does the label a screen reader reaches the frame by',
+);
+ok(
+  !/Dra for \u00e5 snu \u00b7 rull/.test(pictureSrc) &&
+    !/Drag to turn \u00b7 scroll/.test(pictureSrc),
+  'with no leftover line still telling people a drag turns it',
+);
+ok(
+  /cursor: grab/.test(css) && /cursor: grabbing/.test(css),
+  'and the cursor over the frame is the one every draggable map uses',
+);
 
 // --- The eyeball copy ------------------------------------------------------
 

@@ -19,6 +19,21 @@ export function latToTileY(lat: number, z: number): number {
   );
 }
 
+/** Tile X at zoom z (fractional) → longitude. The inverse of lngToTileX. */
+export function tileXToLng(x: number, z: number): number {
+  return (x / Math.pow(2, z)) * 360 - 180;
+}
+
+/** Tile Y at zoom z (fractional) → latitude. The inverse of latToTileY.
+ *
+ *  Written as the sinh of the un-projected ordinate rather than the more
+ *  familiar atan(exp(·)) form, which is the same number with one fewer place
+ *  to lose precision near the equator. */
+export function tileYToLat(y: number, z: number): number {
+  const n = Math.PI * (1 - (2 * y) / Math.pow(2, z));
+  return (180 / Math.PI) * Math.atan(Math.sinh(n));
+}
+
 export interface TileCoord {
   z: number;
   x: number;

@@ -56,6 +56,13 @@ import {
   routeEndpointsGeoJSON,
 } from '../terrainView';
 import { recallTerrainCamera } from '../terrainCamera';
+import { PAN_REACH } from './mapFraming';
+import {
+  latToTileY,
+  lngToTileX,
+  tileXToLng,
+  tileYToLat,
+} from '../offline/tileMath';
 
 /** How long the first copy waits for tiles, the DEM and the first paint before
  *  taking whatever has arrived. Long enough for a cold cache on a slow
@@ -77,6 +84,12 @@ const TILT_PER_FRAME = 90;
  *  camera is looking at sky. */
 const MAX_PITCH = 85;
 const MIN_PITCH = 0;
+
+/** MapLibre states zoom against a 512-pixel world: at zoom z the whole globe is
+ *  512 · 2^z CSS pixels across. Needed to turn the frame's size in pixels into
+ *  the amount of ground it covers, which is the only unit the pan reach can
+ *  honestly be checked in. */
+const MAPLIBRE_WORLD_PX = 512;
 
 export interface TerrainMapOptions {
   /** Route geometry to frame, drape and mark. */
@@ -113,6 +126,16 @@ export interface TerrainMapHandle {
    */
   turn(dxFraction: number, dyFraction: number): void;
   /**
+   * Move the camera over the ground by a drag, in the same frame fractions
+   * `turn` takes. The ground follows the pointer: drag right and the hillside
+   * comes right with it.
+   *
+   * Bounded, by the reach the flat map is bounded by — see PAN_REACH. A frame
+   * that can be walked anywhere can be walked off the route, and unlike a
+   * screen a sheet gives no hint that the tour is somewhere north of the paper.
+   */
+  move(dxFraction: number, dyFraction: number): void;
+  /**
    * Draw the map `offset` zoom levels closer than the framing it settled on —
    * negative for wider. Stated as an offset rather than as a zoom level so
    * that a press means the same amount of closer here as it does on the flat
@@ -126,12 +149,13 @@ export interface TerrainMapHandle {
   /**
    * Frame the whole route again, from the standard angle.
    *
-   * The way back from an inherited camera. A view carried over from the
-   * planner can be zoomed into one bowl of a long tour, which is the right
-   * picture on a screen you can pan and the wrong one on a sheet — and turning
-   * and tilting alone cannot undo it. It is also the way back from a zoom
-   * asked for here, which is why it re-reads the framing everything else is
-   * measured from.
+   * The one way back. Everything else here is relative — the zoom counts from
+   * the framing the map opened on, and so does the reach — which makes this the
+   * only thing that can say where the route actually is. It matters most for a
+   * camera inherited from the planner, which can be zoomed into one bowl of a
+   * long tour: the reach is measured from that bowl, so moving cannot walk out
+   * of it, and turning and tilting were never going to. Re-reads the base
+   * framing for exactly that reason.
    */
   reset(): void;
   /** Redraw the still copy from the frame currently on screen. */
@@ -324,16 +348,19 @@ export async function createTerrainMap(
               bearing: TERRAIN_BEARING,
             },
           }),
-      // MapLibre's own handlers stay off and the turning below is done by hand.
-      // Two reasons: the frame is drawn inside a `zoom`-ed sheet and shown at a
-      // fraction of the size it is rendered at, which is exactly the situation
-      // in which a library's pointer arithmetic quietly disagrees with the
-      // pointer; and a drag here should turn the map, where in the planner the
-      // primary button draws a route. Zooming is offered, but through setZoom
-      // below rather than through MapLibre, so that a press means the same
-      // amount of closer here as on the flat map. Panning is left out on
-      // purpose: the drag is spoken for, and a picture of one tour has nothing
-      // useful off the edge of it that turning cannot reach.
+      // MapLibre's own handlers stay off; the moving and turning below are done
+      // by hand. The reason is not that its handlers are wrong but that they
+      // measure in the wrong place: the frame is drawn inside a `zoom`-ed sheet
+      // and shown at a fraction of the size it is rendered at, which is exactly
+      // the situation in which a library's pointer arithmetic quietly disagrees
+      // with the pointer. So the caller measures the gesture against the frame
+      // the user can actually see and passes it here as fractions.
+      //
+      // The camera moves it asks for are MapLibre's own, though — panBy knows
+      // what a screen drag means to a pitched, turned camera, and that is not a
+      // sum worth reimplementing. Zoom is the exception: it goes through setZoom
+      // below rather than through MapLibre so that a press means the same amount
+      // of closer here as on the flat map.
       interactive: false,
       // Attribution is printed by the sheet, in a line that also credits the
       // elevation data this view is the only one to use.
@@ -381,12 +408,51 @@ export async function createTerrainMap(
     if (cancelled()) throw new Error('export closed while the map was loading');
     capture();
 
-    // The framing every zoom the guide asks for is measured from: whatever the
+    // The framing everything the guide asks for is measured from: whatever the
     // map settled on, which is the route's own fit unless a camera was
     // inherited from the planner. Re-read on reset, because that is precisely
     // the moment it changes — and if it were not, a reset from three steps in
     // would land three steps in.
-    let baseZoom = gl.getZoom();
+    //
+    // The centre is kept for the same reason the zoom is, one level up: it is
+    // where the reach is measured from. Deliberately the opening picture rather
+    // than the route's own middle, which is what the flat map anchors to. The
+    // two agree whenever nothing was inherited, and where they differ — a
+    // planner camera carried in from halfway along a traverse — anchoring to
+    // the route would mean the first nudge of the map dragged the guide's own
+    // considered framing back towards a centre they had already left.
+    let base = { center: gl.getCenter(), zoom: gl.getZoom() };
+
+    /**
+     * Pull the camera back inside its reach, if the last move took it out.
+     *
+     * Checked after the fact rather than folded into the gesture, because only
+     * the camera knows what a drag across a pitched, turned view is worth over
+     * the ground — and a limit stated in ground terms is honestly enforced
+     * where the ground position is known. In normalised Mercator, through the
+     * same projection the flat map stitches its tiles in, so that three
+     * quarters of a frame is the same distance on both renderers rather than
+     * nearly the same.
+     *
+     * Measured against the *base* zoom, never the current one. That is what
+     * makes the reach a fixed distance over the ground instead of a leash that
+     * shortens every time the guide zooms in — which would strand them at the
+     * crux, at exactly the zoom where walking along the route is the point.
+     */
+    const leash = () => {
+      const worldPx = MAPLIBRE_WORLD_PX * 2 ** base.zoom;
+      const limitX = (PAN_REACH * width) / worldPx;
+      const limitY = (PAN_REACH * height) / worldPx;
+      const anchorX = lngToTileX(base.center.lng, 0);
+      const anchorY = latToTileY(base.center.lat, 0);
+      const here = gl.getCenter();
+      const hereX = lngToTileX(here.lng, 0);
+      const hereY = latToTileY(here.lat, 0);
+      const x = Math.min(anchorX + limitX, Math.max(anchorX - limitX, hereX));
+      const y = Math.min(anchorY + limitY, Math.max(anchorY - limitY, hereY));
+      if (x === hereX && y === hereY) return;
+      gl.jumpTo({ center: [tileXToLng(x, 0), tileYToLat(y, 0)] });
+    };
 
     return {
       turn(dxFraction, dyFraction) {
@@ -400,6 +466,15 @@ export async function createTerrainMap(
           ),
         });
       },
+      move(dxFraction, dyFraction) {
+        // MapLibre's panBy moves the *frame*, so the ground goes the opposite
+        // way; negated here so the hillside follows the pointer, which is what
+        // every map the guide has ever dragged does. Fractions become pixels of
+        // the map's own coordinate space, which is the print-size frame — the
+        // caller measured the gesture against the shrunken copy of exactly that.
+        gl.panBy([-dxFraction * width, -dyFraction * height], { duration: 0 });
+        leash();
+      },
       setZoom(offset) {
         // MapLibre's own ceiling and floor still apply: a short tour fits at a
         // zoom that has only a step or two of headroom left above it, and
@@ -408,7 +483,7 @@ export async function createTerrainMap(
         gl.jumpTo({
           zoom: Math.min(
             gl.getMaxZoom(),
-            Math.max(gl.getMinZoom(), baseZoom + offset),
+            Math.max(gl.getMinZoom(), base.zoom + offset),
           ),
         });
       },
@@ -425,7 +500,11 @@ export async function createTerrainMap(
           bearing: TERRAIN_BEARING,
           duration: 0,
         });
-        baseZoom = gl.getZoom();
+        // Both halves of the base, together: the camera is back on the route's
+        // own fit, so that is now the zoom offsets count from *and* the point
+        // the reach is measured around. Updating one without the other is how a
+        // map ends up leashed to a place it is no longer anywhere near.
+        base = { center: gl.getCenter(), zoom: gl.getZoom() };
       },
       capture,
       destroy() {

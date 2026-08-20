@@ -4,9 +4,16 @@
 // Everything to do with MapLibre lives next door in terrainMap.ts, which is
 // reached through a dynamic import so that a guide exporting the ordinary flat
 // map never downloads a megabyte of WebGL. This file is the thin part: a box to
-// build the map in, a drag to turn it with, two buttons to draw it closer or
+// build the map in, a drag to aim it with, two buttons to draw it closer or
 // wider, and the plumbing that keeps the printable copy and the sheet's compass
 // in step with wherever it ends up.
+//
+// The drag has two meanings, and which is which is settled by the planner
+// rather than by anything about this sheet: there, a plain drag moves the map
+// and a held modifier turns it, so it does the same here. The guide who has
+// just been turning a hillside in the planner should not have to learn that the
+// same hand does something else one dialog later. Held second, because a map
+// you cannot move is a much more surprising map than one you cannot turn.
 //
 // The zoom is deliberately not MapLibre's. It is an offset from the framing the
 // map settled on, shared with the flat renderer through mapFraming.ts, so that
@@ -15,9 +22,9 @@
 //
 // Two things about the box are load-bearing, and both are explained where they
 // are done: the map is built at print size and shown shrunk (so what prints is
-// the resolution it was rendered at), and the turning is done by hand rather
-// than by MapLibre's own handlers (so a drag turns the map, and so the pointer
-// arithmetic cannot disagree with a frame that is scaled twice over).
+// the resolution it was rendered at), and the gestures are measured here rather
+// than by MapLibre's own handlers, so the pointer arithmetic cannot disagree
+// with a frame that is scaled twice over.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
@@ -31,6 +38,25 @@ import { useT } from '../i18n/index.ts';
  *  which is coarse enough to get somewhere in a few presses and fine enough to
  *  stop on the aspect you meant. */
 const KEY_STEP = 1 / 12;
+
+/** A key press moves the map by a tenth of a frame. Larger than the turn step
+ *  in what it costs the picture, because the reach is under a frame in each
+ *  direction either way: ten presses crosses it, which is a few seconds of
+ *  holding the key rather than a minute of it. */
+const KEY_MOVE_STEP = 1 / 10;
+
+/**
+ * Does this gesture turn the map rather than move it?
+ *
+ * Shift, or the right button, or Ctrl — the three ways MapLibre's own
+ * dragRotate can be invoked, so the modifier the guide already uses in the
+ * planner is the modifier that works here. Meta is left out: it is Ctrl's
+ * stand-in on a Mac for most things, but not for this, and claiming it would
+ * quietly break Cmd-drag for anyone whose browser or desktop has a use for it.
+ */
+function turns(e: { shiftKey: boolean; ctrlKey: boolean; buttons?: number }): boolean {
+  return e.shiftKey || e.ctrlKey || (e.buttons ?? 0) === 2;
+}
 
 export function TerrainPicture({
   route,
@@ -67,7 +93,13 @@ export function TerrainPicture({
   const frameRef = useRef<HTMLDivElement | null>(null);
   const holderRef = useRef<HTMLDivElement | null>(null);
   const handleRef = useRef<TerrainMapHandle | null>(null);
-  const dragRef = useRef<{ x: number; y: number } | null>(null);
+  // Where the pointer was last seen, and what this drag decided it meant. The
+  // meaning is settled once, at the press, and held for the whole gesture: a
+  // Shift released halfway through a turn should not hand the rest of the
+  // stroke to the pan, leaving the map somewhere neither gesture was aiming at.
+  const dragRef = useRef<{ x: number; y: number; turning: boolean } | null>(
+    null,
+  );
 
   // How close the camera is drawn, as an offset from the framing it settled
   // on. Kept here rather than inside the map so the buttons can grey out at
@@ -184,7 +216,7 @@ export function TerrainPicture({
   const onPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     if (!handleRef.current) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = { x: e.clientX, y: e.clientY };
+    dragRef.current = { x: e.clientX, y: e.clientY, turning: turns(e) };
   }, []);
 
   const onPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
@@ -194,8 +226,11 @@ export function TerrainPicture({
     // Measured against the frame the user can see, not the map behind it: the
     // gesture should mean the same thing whatever size the picture is drawn at.
     const box = e.currentTarget.getBoundingClientRect();
-    handle.turn((e.clientX - from.x) / box.width, (e.clientY - from.y) / box.height);
-    dragRef.current = { x: e.clientX, y: e.clientY };
+    const dx = (e.clientX - from.x) / box.width;
+    const dy = (e.clientY - from.y) / box.height;
+    if (from.turning) handle.turn(dx, dy);
+    else handle.move(dx, dy);
+    dragRef.current = { ...from, x: e.clientX, y: e.clientY };
   }, []);
 
   const onPointerUp = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
@@ -219,26 +254,37 @@ export function TerrainPicture({
       tabIndex={0}
       role="group"
       aria-label={t(
-        'Snu kartet: dra det, eller bruk piltastene. Zoom med rullehjulet eller + og −',
-        'Turn the map: drag it, or use the arrow keys. Zoom with the wheel or + and −',
+        'Flytt kartet: dra det, eller bruk piltastene. Hold Shift for å snu det. Zoom med rullehjulet eller + og −',
+        'Move the map: drag it, or use the arrow keys. Hold Shift to turn it. Zoom with the wheel or + and −',
       )}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      // The right button is one of the ways to turn the map, so it must not
+      // also be the way to open a menu over the top of the map being turned.
+      onContextMenu={(e) => e.preventDefault()}
       onKeyDown={(e) => {
         const handle = handleRef.current;
         if (!handle) return;
+        // The arrows mean whatever a drag means, and Shift flips them the same
+        // way it flips a drag — one rule for both hands, rather than a keyboard
+        // that has to be learned separately from the mouse.
+        const unit = e.shiftKey ? KEY_STEP : KEY_MOVE_STEP;
         const step: Record<string, [number, number]> = {
-          ArrowLeft: [-KEY_STEP, 0],
-          ArrowRight: [KEY_STEP, 0],
-          ArrowUp: [0, -KEY_STEP],
-          ArrowDown: [0, KEY_STEP],
+          ArrowLeft: [-unit, 0],
+          ArrowRight: [unit, 0],
+          ArrowUp: [0, -unit],
+          ArrowDown: [0, unit],
         };
-        const move = step[e.key];
-        if (move) {
+        const aim = step[e.key];
+        if (aim) {
           e.preventDefault();
-          handle.turn(move[0], move[1]);
+          if (e.shiftKey) handle.turn(aim[0], aim[1]);
+          // Arrows point where the *view* should go, which is the opposite of
+          // where the ground goes: pressing right should walk the frame east
+          // along the route, the way a drag to the left does.
+          else handle.move(-aim[0], -aim[1]);
           handle.capture();
           return;
         }
@@ -269,15 +315,17 @@ export function TerrainPicture({
       />
       <p className="briefingMapHint" aria-hidden>
         {t(
-          'Dra for å snu · rull for å zoome · skrives ut slik det vises',
-          'Drag to turn · scroll to zoom · prints as shown',
+          'Dra for å flytte · Shift for å snu · rull for å zoome · skrives ut slik det vises',
+          'Drag to move · Shift to turn · scroll to zoom · prints as shown',
         )}
       </p>
-      {/* Closer and wider, and the way back from both. The sheet opens on
+      {/* Closer and wider, and the way back from all of it. The sheet opens on
        *  whatever camera the planner was left at, which can be halfway up one
-       *  bowl of a long tour — the right picture on a screen you can pan, the
-       *  wrong one on a single sheet. Turning and tilting cannot undo that, and
-       *  neither can zooming, so without the button that view is a dead end.
+       *  bowl of a long tour, and every other control here is measured from
+       *  that opening picture — the zoom counts from it and the map may only
+       *  wander so far from it. Which is what makes this button load-bearing
+       *  rather than a convenience: it is the only control that knows where the
+       *  route is, so without it an inherited view is a dead end.
        *
        *  All of it lives inside .briefingMapLive on purpose: the print rule
        *  that hides the live map is the single thing keeping these controls off

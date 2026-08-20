@@ -624,9 +624,10 @@ function MapPicture({
     setFraming(FIT);
   }
 
-  // The pan gesture. Only the flat map is dragged to move it — on the terrain
-  // view a drag already turns the mountain, and giving one gesture two
-  // meanings would cost more than panning there is worth.
+  // The pan gesture, for the flat map. Both maps are moved by dragging them,
+  // but the terrain view catches its own drags in the live GL frame sitting
+  // over this one, and moves a camera rather than a Framing — see
+  // TerrainPicture. What the two share is the reach, not the plumbing.
   const dragRef = useRef<{ x: number; y: number } | null>(null);
 
   useWheelZoom(
