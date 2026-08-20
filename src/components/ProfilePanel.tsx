@@ -22,6 +22,7 @@ import {
   type TrackTiming,
 } from '../tracking/timing';
 import { formatPace, formatSpeed } from '../routes/format';
+import { rememberProfileScale } from '../profileScale';
 import { DatePopover } from './DatePopover';
 import { SourceAttribution, NLOD, CC_BY_4 } from './SourceAttribution';
 import { translate } from '../i18n/locale.ts';
@@ -743,7 +744,16 @@ export function ElevationPanel({
                   value={`${profile.stats.minElevation} / ${profile.stats.maxElevation} m`}
                 />
               </div>
-              <AspectToggle mode={aspectMode} onChange={setAspectMode} />
+              {/* Handed on as well as applied: the printed profile opens at
+                  the scale the guide is reading this one at, so the sheet
+                  agrees with the screen it was exported from. */}
+              <AspectToggle
+                mode={aspectMode}
+                onChange={(m) => {
+                  setAspectMode(m);
+                  rememberProfileScale(m);
+                }}
+              />
             </>
           ) : (
             <span className={styles.statusText}>

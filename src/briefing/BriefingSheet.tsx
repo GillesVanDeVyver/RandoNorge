@@ -1130,6 +1130,15 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           {options.steepness
             ? t('Høydeprofil og bratthet', 'Elevation profile and steepness')
             : t('Høydeprofil', 'Elevation profile')}
+          {/* Said on the page, not just chosen in the dialog. A profile drawn
+              to fit a strip exaggerates the climb and every reader of a paper
+              chart knows it, so the one that does not is worth naming — it is
+              the difference between a picture of the tour and the tour. */}
+          {options.trueScale && (
+            <span className="briefingH2Note">
+              {t('riktig målestokk', 'true scale')}
+            </span>
+          )}
         </h2>
         {/* The planner's chart card around the planner's chart. Both charts on
             the sheet get one, which is what supplies the edge now that neither
@@ -1139,6 +1148,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             profile={profile}
             steepness={options.steepness}
             runout={options.steepness}
+            trueScale={options.trueScale}
           />
         </div>
         {options.steepness && terrain && !terrain.slopeUnknown && (

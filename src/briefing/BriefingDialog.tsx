@@ -27,17 +27,26 @@
 // colours the elevation profile, and 3D swaps the flat map for the planner's
 // terrain view — so they sit under what they modify and go out with it.
 //
-// Two switches decide for themselves, on the same principle: a section with
-// nothing to say is worse than no section. Snow depth turns off when seNorge
-// says there is none along the route, and the avalanche forecast turns off when
-// Varsom has not assessed any region the route crosses — out of season, or off
-// the edge of the forecast area — where the section prints as a question mark
-// and the words "ikke vurdert".
+// Four switches decide for themselves rather than opening where the last export
+// left them. Three do it on one principle — a section with nothing to say is
+// worse than no section. Snow depth turns off when seNorge says there is none
+// along the route; the avalanche forecast turns off when Varsom has not assessed
+// any region the route crosses, out of season or off the edge of the forecast
+// area, where the section prints as a question mark and the words "ikke
+// vurdert"; and the notes field turns off when the tour was saved without any,
+// since a guide who wrote nothing down is not asking for a page of ruled lines
+// under a heading that says Notes.
 //
-// Both stay switches, not locks. The guide can turn either back on, and doing
-// so is what stops the sheet second-guessing them again: an unrated day on the
-// page is a legitimate thing to want, since "Varsom says nothing about today"
-// is itself something a briefing can be for.
+// The fourth is different: the profile's vertical scale is not a judgement
+// about the tour but a judgement about how to read it, and it has already been
+// made — on the panel on screen. So the dialog opens on whichever scale the
+// profile is currently being read at, the same way the 3D map opens on the
+// camera the planner was left at. See profileScale.ts.
+//
+// All four stay switches, not locks. The guide can turn any of them back, and
+// doing so is what stops the sheet second-guessing them again: an unrated day on
+// the page is a legitimate thing to want, since "Varsom says nothing about
+// today" is itself something a briefing can be for.
 
 import {
   useCallback,
@@ -64,6 +73,7 @@ import {
   withDependencies,
   type BriefingOptions,
 } from './options';
+import { recallProfileScale } from '../profileScale';
 import { useT } from '../i18n/index.ts';
 // A plain stylesheet, not a CSS module: the print rules have to reach the
 // document root and hide the rest of the app, which needs stable, unhashed
@@ -86,6 +96,15 @@ interface Props {
   routeDescription?: string | null;
   onClose: () => void;
 }
+
+/** The switches whose opening position is decided by the tour, or by the panel
+ *  behind the dialog, rather than by the last export. Touching one in this
+ *  dialog puts it back under the guide's control for good — see `touched`. */
+const SELF_DECIDING = ['snow', 'avalanche', 'notes', 'trueScale'] as const;
+type SelfDeciding = (typeof SELF_DECIDING)[number];
+
+const isSelfDeciding = (key: keyof BriefingOptions): key is SelfDeciding =>
+  (SELF_DECIDING as readonly string[]).includes(key);
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const toYMDLocal = (d: Date) =>
@@ -151,13 +170,22 @@ export function BriefingDialog({
   // stays a record of choices actually made, and the sheet never has to
   // un-remember one.
   const [chosen, setChosen] = useState<BriefingOptions>(loadOptions);
-  // Which of the two self-deciding switches have been touched in this dialog,
+  // Which of the self-deciding switches have been touched in this dialog,
   // either way. Once one has, its automatic default steps aside for good: a
   // guide who asked for the snow section on a bare route has a reason, and one
   // who turned it off does not need it turned off again.
-  const [touched, setTouched] = useState<{ snow: boolean; avalanche: boolean }>(
-    { snow: false, avalanche: false },
-  );
+  const [touched, setTouched] = useState<Record<SelfDeciding, boolean>>({
+    snow: false,
+    avalanche: false,
+    notes: false,
+    trueScale: false,
+  });
+  // How the profile is being read on the panel behind this dialog, captured
+  // when it opened — the same moment the tour date is captured, and for the
+  // same reason: an export describes the planner as it was when the guide
+  // asked for it. Null when nobody has touched the toggle this session, in
+  // which case the sheet's own default stands.
+  const [plannerScale] = useState(recallProfileScale);
   const [mapReady, setMapReady] = useState(false);
   const [loadedSymbols, setLoadedSymbols] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -195,7 +223,7 @@ export function BriefingDialog({
     // different renderer entirely — a whole WebGL map has to be built, loaded
     // and photographed — so that waits too, in either direction.
     if ((key === 'map' && on) || key === 'map3d') setMapReady(false);
-    if (key === 'snow' || key === 'avalanche') {
+    if (isSelfDeciding(key)) {
       setTouched((prev) => ({ ...prev, [key]: true }));
     }
     // withDependencies keeps steepness from being stranded without the profile
@@ -266,19 +294,43 @@ export function BriefingDialog({
     avalanche.fetchedAt !== null &&
     avalanche.level === 0;
 
+  // A tour saved without notes. The ruled field is space for the party to write
+  // in, so it is not "empty" in the way a snowless chart is — but a guide who
+  // typed nothing into the tour's own notes has already said how much of this
+  // sheet they want spent on writing, and the field costs a third of a page.
+  // Trimmed, because a description of two spaces is no description.
+  const notes = routeDescription?.trim() ?? '';
+  const unwrittenTour = notes === '';
+
   // What the sheet actually prints: the guide's selection, with the snow
-  // section defaulted off on a route that has no snow on it and the avalanche
-  // section defaulted off on a day nobody has rated. Derived rather than
-  // written back into `chosen`, so the switches reflect the tour in front of
-  // them without the dialog having to remember that it once disagreed with the
-  // stored preference — and so touching a switch simply takes its override
-  // away.
+  // section defaulted off on a route that has no snow on it, the avalanche
+  // section defaulted off on a day nobody has rated, the notes field defaulted
+  // off on a tour nobody has written about, and the profile's scale taken from
+  // the panel the guide was just reading. Derived rather than written back into
+  // `chosen`, so the switches reflect the tour in front of them without the
+  // dialog having to remember that it once disagreed with the stored
+  // preference — and so touching a switch simply takes its override away.
+  //
+  // Through withDependencies on the way out: this is the one place where an
+  // override can turn something *on*, and an inherited "true scale" must not
+  // outlive a profile the guide has switched off.
   const options = useMemo(() => {
     const out = { ...chosen };
     if (snowlessTour && !touched.snow) out.snow = false;
     if (unratedTour && !touched.avalanche) out.avalanche = false;
-    return out;
-  }, [chosen, snowlessTour, unratedTour, touched]);
+    if (unwrittenTour && !touched.notes) out.notes = false;
+    if (plannerScale && !touched.trueScale) {
+      out.trueScale = plannerScale === 'true';
+    }
+    return withDependencies(out);
+  }, [
+    chosen,
+    snowlessTour,
+    unratedTour,
+    unwrittenTour,
+    plannerScale,
+    touched,
+  ]);
 
   const onMapReady = useCallback(() => setMapReady(true), []);
 
@@ -480,6 +532,24 @@ export function BriefingDialog({
         }
         onChange={(on) => setOption('steepness', on)}
       />
+      {/* The planner's own "Riktig skala", printed. Sits under the profile for
+          the same reason steepness does: it is a way of drawing that section,
+          not a section. Its state arrives from the panel on screen, so for most
+          guides this switch is a confirmation rather than a decision. */}
+      <Switch
+        label={t('Riktig skala', 'True scale')}
+        checked={options.trueScale}
+        disabled={!options.elevation}
+        hint={
+          !options.elevation
+            ? t(
+                'Krever høydeprofilen den måler',
+                'Needs the elevation profile it measures',
+              )
+            : t('En 45°-helning ser ut som 45°', 'A 45° slope looks like 45°')
+        }
+        onChange={(on) => setOption('trueScale', on)}
+      />
       <Switch
         label={t('Snøskredvarsel', 'Avalanche forecast')}
         checked={options.avalanche}
@@ -514,6 +584,15 @@ export function BriefingDialog({
       <Switch
         label={t('Notatfelt', 'Notes')}
         checked={options.notes}
+        // Says why it is off, like the snow and avalanche switches. Kept
+        // switchable, and for a better reason than either of them: ruled space
+        // to write the plan in is exactly what a tour nobody has written about
+        // might want.
+        hint={
+          unwrittenTour
+            ? t('Ingen notater på turen', 'No notes saved with the tour')
+            : null
+        }
         onChange={(on) => setOption('notes', on)}
       />
     </div>

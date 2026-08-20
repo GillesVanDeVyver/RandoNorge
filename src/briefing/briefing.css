@@ -490,6 +490,19 @@
   color: var(--briefing-muted);
 }
 
+/* A qualifier on a heading — how the thing under it was drawn, not what it is.
+ * Lower case and unspaced against the heading's tracked capitals so it reads as
+ * an aside, and preceded by a middot so the two do not run together. */
+.briefingH2Note {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+.briefingH2Note::before {
+  content: ' · ';
+}
+
 /* A heading that is followed by its retrieval line keeps almost no gap of its
  * own: the two read as one block. Browsers without :has() simply leave the
  * normal heading gap, which is loose rather than wrong. */

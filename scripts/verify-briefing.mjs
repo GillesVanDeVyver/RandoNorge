@@ -81,6 +81,7 @@ function section(name) {
 const { withDependencies, DEFAULT_OPTIONS, OPTION_KEYS } = await import(
   pathToFileURL(join(ROOT, 'src/briefing/options.ts')).href
 );
+const optionsSrc = readFileSync(join(ROOT, 'src/briefing/options.ts'), 'utf8');
 
 section('Section switches');
 
@@ -2284,8 +2285,10 @@ ok(
   'each section is defaulted off by its own observation and nothing else',
 );
 ok(
-  /key === 'snow' \|\| key === 'avalanche'/.test(dialogSrc),
-  'turning either back on retires its automatic default for the rest of the dialog',
+  /const SELF_DECIDING = \['snow', 'avalanche', 'notes', 'trueScale'\]/.test(
+    dialogSrc,
+  ) && /if \(isSelfDeciding\(key\)\)/.test(dialogSrc),
+  'turning any of them back retires its automatic default for the rest of the dialog',
 );
 ok(
   /storeOptions\(chosen\)/.test(dialogSrc) && !/storeOptions\(options\)/.test(dialogSrc),
@@ -2301,6 +2304,243 @@ ok(
   /!\(options\.avalanche && avalanche\.loading\)/.test(dialogSrc),
   'and Print is never held for a forecast this sheet is not going to print',
 );
+
+// The notes field, on a tour saved without any. Same shape as the two above,
+// and the same trap: a blank field is not evidence of anything until the tour's
+// own notes have been looked at, and "  " is not a note.
+ok(
+  DEFAULT_OPTIONS.notes === true,
+  'ruled space is on by default: what it answers to is the tour, not the sheet',
+);
+ok(
+  /const notes = routeDescription\?\.trim\(\) \?\? ''/.test(dialogSrc) &&
+    /const unwrittenTour = notes === ''/.test(dialogSrc),
+  'a tour whose notes are blank or nothing but spaces counts as unwritten',
+);
+ok(
+  /if \(unwrittenTour && !touched\.notes\) out\.notes = false/.test(dialogSrc),
+  'and that, and only that, is what turns the ruled field off by default',
+);
+const notesSwitch =
+  /<Switch\s+label=\{t\('Notatfelt'[\s\S]*?\/>/.exec(dialogSrc)?.[0] ?? '';
+ok(
+  /unwrittenTour/.test(notesSwitch) && !/disabled/.test(notesSwitch),
+  'the switch says why it is off and stays switchable, like the other two',
+);
+ok(
+  render(makeData({ ...DEFAULT_OPTIONS, notes: false })).includes(
+    'briefingNoteLines',
+  ) === false &&
+    render(makeData({ ...DEFAULT_OPTIONS, notes: true })).includes(
+      'briefingNoteLines',
+    ),
+  'and the sheet prints the ruled lines exactly when the switch says so',
+);
+
+// The profile's vertical scale, which is inherited rather than observed: the
+// guide has already chosen how to read this profile, on the panel behind the
+// dialog. Everything below is a way of losing that choice or of keeping it too
+// long.
+const { rememberProfileScale, recallProfileScale, forgetProfileScale } =
+  await import(pathToFileURL(join(ROOT, 'src/profileScale.ts')).href);
+
+forgetProfileScale();
+ok(
+  recallProfileScale() === null,
+  'a session where nobody touched the toggle asks the sheet for no opinion',
+);
+rememberProfileScale('true');
+ok(
+  recallProfileScale() === 'true',
+  'and one where they did hands the export the scale they are reading at',
+);
+ok(
+  /rememberProfileScale\(m\)/.test(
+    readFileSync(join(ROOT, 'src/components/ProfilePanel.tsx'), 'utf8'),
+  ),
+  'the panel hands its scale on whenever the guide picks one',
+);
+ok(
+  /const \[plannerScale\] = useState\(recallProfileScale\)/.test(dialogSrc),
+  'the export reads it once, when it opens — not again as the guide works',
+);
+ok(
+  /if \(plannerScale && !touched\.trueScale\)[\s\S]*?out\.trueScale = plannerScale === 'true'/.test(
+    dialogSrc,
+  ),
+  'the inherited scale is the switch\u2019s opening position, not a lock on it',
+);
+// The one override that can turn something *on*, and so the one that can
+// contradict a dependency: true scale is a way of drawing a profile that may
+// have been switched off.
+ok(
+  withDependencies({ ...DEFAULT_OPTIONS, elevation: false, trueScale: true })
+    .trueScale === false,
+  'true scale cannot outlive the profile it measures',
+);
+ok(
+  /return withDependencies\(out\);/.test(dialogSrc),
+  'and the inherited one goes through that rule rather than around it',
+);
+// Not remembered between exports: it is answered afresh from the panel each
+// time, and a stored copy could only ever be a stale second opinion.
+ok(
+  /REMEMBERED_KEYS = OPTION_KEYS\.filter\(\(k\) => k !== 'trueScale'\)/.test(
+    optionsSrc,
+  ),
+  'the scale is left out of what a briefing remembers for the next one',
+);
+
+section('The profile, drawn to scale');
+
+// Fit and true are two readings of the same tour, and only one of them can be
+// checked by looking at it: at true scale the picture makes a claim about the
+// terrain — this is how steep it is — and a sheet that got the arithmetic wrong
+// would state it just as confidently. So the geometry is measured here rather
+// than eyeballed in the preview.
+
+/** The profile's own SVG out of a rendered sheet. */
+const profileOf = (html) =>
+  plain(html).match(/<svg class="briefingProfileSvg"[\s\S]*?<\/svg>/)?.[0] ?? '';
+/** Its viewBox height — the plot plus its padding, in the SVG's own units. */
+const viewH = (svg) => Number(/viewBox="0 0 1000 ([\d.]+)"/.exec(svg)?.[1]);
+/** Where the elevation numbers ended up, top to bottom. They are the only text
+ *  in the drawing anchored at the left gutter. */
+const yLabels = (svg) =>
+  [...svg.matchAll(/<text x="40" y="([-\d.]+)" class="briefingAxisText"/g)].map(
+    (m) => Number(m[1]),
+  );
+const gridLines = (svg) => (svg.match(/class="briefingGrid"/g) ?? []).length;
+
+/** A profile `distanceM` long climbing `lo`→`hi`, for asking what a given
+ *  shape of tour does to the drawing. */
+function tourShaped(distanceM, lo, hi) {
+  const base = makeProfile(12, lo, hi);
+  const seg = base.segments[0].map((p, i) => ({
+    ...p,
+    distance: (i / 11) * distanceM,
+  }));
+  return {
+    ...base,
+    segments: [seg],
+    stats: { ...base.stats, distance: distanceM },
+  };
+}
+
+const drawProfile = (trueScale, prof) =>
+  profileOf(
+    render(
+      makeData({ ...DEFAULT_OPTIONS, elevation: true, trueScale }, { profile: prof }),
+    ),
+  );
+
+/** What the plot's height has to be for a metre up to be as long as a metre
+ *  along: the vertical span, in the units the horizontal one is drawn in. The
+ *  span is the relief plus the 8% of air the drawing keeps above and below it,
+ *  and 942 is the plot's width once the gutters are taken off. */
+const trueplotH = (distanceM, relief) => ((relief * 1.16) / distanceM) * 942;
+/** Padding: 10 above and 26 below. When the strip is too thin to hold a number
+ *  the drawing makes room for the two it puts outside instead — 16 above and 40
+ *  below — so the height a true-scale drawing ends up with is one of these two
+ *  sums plus whatever the terrain asked for. */
+const PAD_SUM = 36;
+const PAD_SUM_OUTSIDE = 16 + 40;
+
+const steepTour = tourShaped(4000, 420, 1480);
+ok(
+  viewH(drawProfile(false, steepTour)) === 210,
+  'fit to view keeps the strip the fixed height the stylesheet was written for',
+);
+ok(
+  !/aspect-ratio/.test(drawProfile(false, steepTour)),
+  'and takes its shape from the stylesheet, not from the terrain',
+);
+ok(
+  Math.abs(
+    viewH(drawProfile(true, steepTour)) -
+      (trueplotH(4000, 1060) + PAD_SUM),
+  ) < 1,
+  'at true scale a metre of climb is drawn exactly as long as a metre of ground',
+);
+ok(
+  /aspect-ratio:1000 \/ /.test(drawProfile(true, steepTour)),
+  'and the box takes the drawing\u2019s proportions, or the page would undo it',
+);
+// The claim is about proportion, so the test is a proportion: the same climb
+// over twice the ground is half as steep and has to print half as tall.
+const halfSteep = tourShaped(8000, 420, 1480);
+ok(
+  Math.abs(
+    (viewH(drawProfile(true, steepTour)) - PAD_SUM) /
+      (viewH(drawProfile(true, halfSteep)) - PAD_SUM) -
+      2,
+  ) < 0.01,
+  'twice the ground for the same climb prints half as tall, which is what steepness is',
+);
+ok(
+  viewH(drawProfile(false, steepTour)) === viewH(drawProfile(false, halfSteep)),
+  'while fit to view prints both tours the same shape, which is what it is for',
+);
+
+// The extreme the honest drawing produces: a long approach with little relief
+// is a few millimetres of strip, and four elevations cannot be written in it.
+const longFlat = tourShaped(30000, 300, 500);
+const flatTrue = drawProfile(true, longFlat);
+const flatFit = drawProfile(false, longFlat);
+ok(
+  Math.abs(viewH(flatTrue) - (trueplotH(30000, 200) + PAD_SUM_OUTSIDE)) < 1,
+  'a long gentle tour is printed as the thin strip it is, not padded out to fill one',
+);
+ok(
+  viewH(flatTrue) < viewH(flatFit) / 2,
+  'and the strip really is a strip: nothing like the height fit to view gives it',
+);
+ok(
+  gridLines(flatFit) >= 3 && gridLines(flatTrue) <= 2,
+  'the axis thins to what the height can hold, rather than stacking numbers',
+);
+ok(
+  gridLines(flatFit) === yLabels(flatFit).length &&
+    gridLines(flatTrue) === yLabels(flatTrue).length,
+  'and thins line and number together: a gridline nobody can read is furniture',
+);
+const flatYs = yLabels(flatTrue);
+ok(
+  flatYs.length === 2 && Math.abs(flatYs[0] - flatYs[1]) >= 16,
+  'the two numbers that survive are far enough apart to be two numbers',
+);
+ok(
+  flatYs.every((v) => v > 0) && Math.max(...flatYs) < viewH(flatTrue) - 10,
+  'and both are on the page rather than clipped off its top or lost in the distances',
+);
+// Steepness colouring and the scale are independent: one says how steep the
+// ground is, the other how honestly the picture says it.
+ok(
+  viewH(
+    profileOf(
+      render(
+        makeData(
+          { ...DEFAULT_OPTIONS, steepness: false, trueScale: true },
+          { profile: steepTour },
+        ),
+      ),
+    ),
+  ) === viewH(drawProfile(true, steepTour)),
+  'a profile drawn plain is drawn at the same scale as one coloured by slope',
+);
+// And the sheet says which reading the reader is holding, since a strip drawn
+// to fit exaggerates the climb and nothing on the page would otherwise admit it.
+ok(
+  /riktig m\u00e5lestokk|true scale/i.test(
+    plain(render(makeData({ ...DEFAULT_OPTIONS, trueScale: true }))),
+  ) &&
+    !/riktig m\u00e5lestokk|true scale/i.test(
+      plain(render(makeData({ ...DEFAULT_OPTIONS, trueScale: false }))),
+    ),
+  'the heading names the scale when it is the true one, and claims nothing when it is not',
+);
+
+section('Sections that decide for themselves, continued');
 
 // The sheet itself, on a day Varsom has not rated. The section is off by
 // default now, so both of its states have to hold: switched back on it must

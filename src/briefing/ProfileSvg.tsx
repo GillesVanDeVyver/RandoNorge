@@ -10,6 +10,15 @@
 // The colour rule is deliberately identical to the chart's (elevation/steepness
 // bands, with NVE's runout blues overriding otherwise-flat terrain), so the
 // paper matches what the planner showed.
+//
+// So is the vertical scale, which the chart lets the reader choose between and
+// the sheet therefore has to be able to draw both ways. "Fit" is a fixed strip
+// with the relief stretched into it — every tour the same shape, which is why
+// it is the one that always reads. "True" makes a metre up as long as a metre
+// along, so the strip's own proportions are the tour's: a 45° slope is a 45°
+// line, and a page can be handed to a party who will believe what they see on
+// it. Only the plot's height and the number of elevations there is room to
+// label change between them; nothing about the drawing itself does.
 
 import type { ProfileData } from '../elevation/profile';
 import { RUNOUT_UNKNOWN } from '../elevation/runout';
@@ -20,14 +29,25 @@ import { translate } from '../i18n/locale.ts';
 // Viewport units. The SVG is scaled to the page by CSS, so these are just the
 // internal coordinate system — chosen wide and short to suit a landscape strip.
 const W = 1000;
-const H = 210;
 const PAD_L = 46;
 const PAD_R = 12;
 const PAD_T = 10;
 const PAD_B = 26;
 
 const PLOT_W = W - PAD_L - PAD_R;
-const PLOT_H = H - PAD_T - PAD_B;
+
+/** Height of the plot when the strip is a fixed height and the relief is
+ *  stretched to fill it — the sheet's original and default shape, and the one
+ *  the 29 mm in briefing.css was chosen for. */
+const FIT_PLOT_H = 174;
+
+/** Vertical room one elevation label needs: the 11-unit type of briefingAxisText
+ *  plus enough air that two of them read as two numbers rather than as a
+ *  smudge. Used to decide how many of the axis's ticks can be numbered, which
+ *  at true scale is a question the terrain answers — a long valley approach
+ *  drawn honestly is a strip a couple of millimetres tall, and four numbers do
+ *  not fit in it however much the domain would like them to. */
+const LABEL_PITCH = 16;
 
 /** Colour of the profile line when steepness is switched off: the planner's
  *  own route teal, so the line reads as "the route" and nothing more. */
@@ -59,6 +79,31 @@ interface Props {
   /** Let NVE's runout blues override otherwise-benign terrain. Only meaningful
    *  with `steepness` on; the sheet keeps the two switches in step. */
   runout?: boolean;
+  /** Draw a metre of climb the same length as a metre of ground, so a 45° slope
+   *  prints as a 45° line — the planner's "Riktig skala". The strip is then as
+   *  tall as the terrain makes it, which is the whole point: a tour's shape is
+   *  information, and a fixed height throws it away by making every tour the
+   *  same shape. Off draws the fixed strip, relief stretched to fill it. */
+  trueScale?: boolean;
+}
+
+/** At most `keep` of `values`, evenly spread and including both ends.
+ *
+ *  The same thinning the on-screen chart does to its elevation labels, for the
+ *  same reason: the domain decides which elevations are worth a line, and the
+ *  height available decides how many of them there is room to say. Fewer than
+ *  two is never useful — a single number gives the reader no scale — so two is
+ *  the floor, and where even two will not fit inside the plot the caller moves
+ *  them out of it rather than dropping one. */
+function pickEvenly(values: number[], keep: number): number[] {
+  if (values.length <= keep) return values;
+  const n = values.length;
+  const out: number[] = [];
+  for (let i = 0; i < keep; i++) {
+    const v = values[Math.round((i * (n - 1)) / (keep - 1))];
+    if (out[out.length - 1] !== v) out.push(v);
+  }
+  return out;
 }
 
 interface Pt {
@@ -72,6 +117,7 @@ export function ProfileSvg({
   profile,
   steepness = true,
   runout = true,
+  trueScale = false,
 }: Props) {
   // Only segments with usable elevations can be drawn.
   const segs: Pt[][] = profile.segments
@@ -118,12 +164,41 @@ export function ProfileSvg({
   const yMin = minE - headroom;
   const yMax = maxE + headroom;
 
+  // At true scale the height of the plot is not a design decision but a
+  // measurement: the vertical span drawn in the same units per metre as the
+  // horizontal one. The tiny floor is arithmetic hygiene, not a clamp — a plot
+  // of zero height divides by zero, and one unit is a fifth of a millimetre on
+  // paper. Nothing else is clamped: a flat approach prints as the thread it is
+  // and a wall prints tall, which is what asking for true scale asks for.
+  const plotH = trueScale
+    ? Math.max(((yMax - yMin) * PLOT_W) / maxD, 1)
+    : FIT_PLOT_H;
+
+  // How many elevations can be numbered without them piling up, and where those
+  // numbers go. Below one label's worth of height there is no room for even the
+  // two ends inside the plot, so they move outside it — the top number above the
+  // strip and the bottom number below — and the padding grows to hold them,
+  // including enough at the foot that they do not land in the distance axis.
+  const labelsOutside = plotH < LABEL_PITCH;
+  const padT = labelsOutside ? 16 : PAD_T;
+  const padB = labelsOutside ? PAD_B + 14 : PAD_B;
+  const H = padT + plotH + padB;
+
   const x = (d: number) => PAD_L + (d / maxD) * PLOT_W;
   const y = (e: number) =>
-    PAD_T + PLOT_H - ((e - yMin) / (yMax - yMin)) * PLOT_H;
+    padT + plotH - ((e - yMin) / (yMax - yMin)) * plotH;
 
   const yTicks = ticks(yMin, yMax, 4);
   const xTicks = ticks(0, maxD, 6);
+
+  // Which of those ticks are drawn at all. Gridline and number are thinned
+  // together: a dashed line with no number against it says nothing, and the
+  // point of thinning is that the axis stays readable, not that it stays busy.
+  // Evenly spread and always keeping both ends, so what survives is the range.
+  const shownTicks = pickEvenly(
+    yTicks,
+    Math.max(2, Math.floor(plotH / LABEL_PITCH) + 1),
+  );
 
   // Colour for the stretch between two points: steepness band, with NVE's
   // runout blue overriding terrain that is otherwise flat enough to read as
@@ -155,14 +230,29 @@ export function ProfileSvg({
       className="briefingProfileSvg"
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
+      // The stylesheet gives the strip a fixed 29 mm, which is exactly what
+      // "fit to view" means. True scale cannot accept a height from anywhere:
+      // the drawing is only 1:1 if a unit is the same size across as it is up,
+      // so the box has to take the viewBox's own proportions. Stated as an
+      // aspect ratio rather than a height because the width is the page's to
+      // decide — paper, margins and the sheet's zoom all have a say in it.
+      style={
+        trueScale ? { height: 'auto', aspectRatio: `${W} / ${H}` } : undefined
+      }
       role="img"
       aria-label={
-        steepness
+        (steepness
           ? translate(
               'Høydeprofil farget etter terrenghelling',
               'Elevation profile coloured by terrain steepness',
             )
-          : translate('Høydeprofil', 'Elevation profile')
+          : translate('Høydeprofil', 'Elevation profile')) +
+        // Worth saying: at true scale the shape of the strip is itself the
+        // information, and a reader who cannot see it is owed the fact that
+        // the numbers and the picture are for once the same claim.
+        (trueScale
+          ? translate(', i riktig målestokk', ', at true scale')
+          : '')
       }
     >
       {/* One gradient for the whole plot, in user space rather than the default
@@ -177,9 +267,9 @@ export function ProfileSvg({
           id={ELEV_FILL_ID}
           gradientUnits="userSpaceOnUse"
           x1={0}
-          y1={PAD_T}
+          y1={padT}
           x2={0}
-          y2={PAD_T + PLOT_H}
+          y2={padT + plotH}
         >
           {ELEV_STOPS.map((s) => (
             <stop
@@ -192,8 +282,13 @@ export function ProfileSvg({
         </linearGradient>
       </defs>
 
-      {/* Horizontal guides + elevation labels */}
-      {yTicks.map((e) => (
+      {/* Horizontal guides + elevation labels. The gridline is always at the
+          elevation it stands for; only the number moves, and only when the
+          strip is too thin to hold it — which it can be at true scale, where a
+          long gentle tour is honestly a few millimetres tall. The line is then
+          what ties the number to its height, over a distance small enough that
+          there is nothing else it could be pointing at. */}
+      {shownTicks.map((e, i) => (
         <g key={`y${e}`}>
           <line
             x1={PAD_L}
@@ -202,7 +297,18 @@ export function ProfileSvg({
             y2={y(e)}
             className="briefingGrid"
           />
-          <text x={PAD_L - 6} y={y(e) + 4} className="briefingAxisText" textAnchor="end">
+          <text
+            x={PAD_L - 6}
+            y={
+              !labelsOutside
+                ? y(e) + 4
+                : i === 0
+                  ? padT + plotH + 12 // lowest tick, under the strip
+                  : padT - 5 // highest tick, over it
+            }
+            className="briefingAxisText"
+            textAnchor="end"
+          >
             {Math.round(e)}
           </text>
         </g>
@@ -234,8 +340,8 @@ export function ProfileSvg({
             .slice(1)
             .map((p) => `L ${x(p.d)} ${y(p.e)}`)
             .join(' ') +
-          ` L ${x(seg[seg.length - 1].d)} ${PAD_T + PLOT_H}` +
-          ` L ${x(seg[0].d)} ${PAD_T + PLOT_H} Z`;
+          ` L ${x(seg[seg.length - 1].d)} ${padT + plotH}` +
+          ` L ${x(seg[0].d)} ${padT + plotH} Z`;
         return (
           <g key={si}>
             <path d={area} fill={`url(#${ELEV_FILL_ID})`} />
