@@ -58,6 +58,7 @@ import { useIsMobile } from './useIsMobile';
 import { useT } from './i18n/index.ts';
 import { translate } from './i18n/locale.ts';
 import { loadDrawStyle, storeDrawStyle } from './draw/drawStyle';
+import { armViewHandoff, disarmViewHandoff } from './viewCamera';
 import type { DrawStyle, Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
@@ -68,6 +69,17 @@ const Map3DView = lazy(() =>
 );
 
 type ViewMode = '2d' | '3d';
+
+// How long the terrain view is held, fading, over the flat map that has just
+// taken over from it. Leaflet gives no "I have painted" signal, so the outgoing
+// picture covers a fixed moment instead — matched to the fade in
+// Map3DView.module.css and to how long cached tiles take to appear.
+const HANDBACK_HOLD_MS = 260;
+
+// A ceiling on holding the flat map underneath a terrain view that has not yet
+// reported itself painted. It normally does within a second; this only stops a
+// stalled tile fetch from leaving two maps stacked indefinitely.
+const TERRAIN_PAINT_TIMEOUT_MS = 4000;
 
 // First-run safety disclaimer: shown once per device, then re-shown at the
 // start of each new winter season and whenever its wording is materially
@@ -518,11 +530,87 @@ function App({
   );
   const [overlay, setOverlay] = useState<Overlay>('steepness');
   const [view, setView] = useState<ViewMode>('2d');
+  // --- The 2D/3D switch -----------------------------------------------------
+  //
+  // 2D and 3D are the same view from two camera angles, so flipping between
+  // them should look like the ground turning, not like arriving somewhere new.
+  // The two maps are different engines, though (Leaflet and MapLibre), so one
+  // really is torn down and the other really is built — the state below, plus
+  // the standpoint the maps pass between themselves (viewCamera.ts), hides
+  // that seam.
+  //
+  // Set while the terrain view is tilting back down to a top view. The swap to
+  // Leaflet waits for it to finish, which is what makes the way back look like
+  // the way out played in reverse.
+  const [flattening, setFlattening] = useState(false);
+  // Set while a freshly mounted map is still painting and the outgoing one is
+  // held underneath so the pane is never empty: '2d' means the flat map is
+  // waiting under a terrain view that has not drawn yet, '3d' means the terrain
+  // view is fading out over a flat map that has just taken over.
+  const [holdover, setHoldover] = useState<ViewMode | null>(null);
   // Straight-line drawing is a 2D-map interaction (vertex handles live on the
   // Leaflet map), so the 3D view always draws freehand — and the toolbar shows
   // that honestly instead of advertising a style it can't deliver there.
   const effectiveDrawStyle: DrawStyle = view === '3d' ? 'freehand' : drawStyle;
   const placingVertices = mode === 'draw' && effectiveDrawStyle === 'lines';
+
+  // Only a switch offers the next map a standpoint to open on; a map built for
+  // any other reason — the planner opening, a saved route being loaded from the
+  // library, a recording starting — should frame the route the way it always
+  // has. So the offer is withdrawn as soon as it has been taken up, which is
+  // when the incoming map has the pane to itself...
+  useEffect(() => {
+    if (!holdover) disarmViewHandoff();
+  }, [holdover]);
+  // ...and again when the planner goes away, so it cannot outlive the session
+  // that made it and greet the next route with the last one's viewpoint.
+  useEffect(() => disarmViewHandoff, []);
+
+  // To 3D: mount the terrain view on the flat map's standpoint, looking
+  // straight down, and let it tilt up from there. Clicking 3D during a flatten
+  // that is still running simply reverses it — the camera turns back up from
+  // wherever it had got to rather than queueing a second switch.
+  const handleShow3D = useCallback(() => {
+    setFlattening(false);
+    if (view === '3d') return;
+    armViewHandoff();
+    setView('3d');
+    setHoldover('2d');
+  }, [view]);
+
+  // To 2D: the terrain view tilts down to a top view first and only hands over
+  // once it is level, so the return is the same movement in reverse instead of
+  // a cut. handleFlattened below does the swap.
+  const handleShow2D = useCallback(() => {
+    if (view === '2d') return;
+    setFlattening(true);
+  }, [view]);
+
+  const handleFlattened = useCallback(() => {
+    // The terrain view has just reported where it came to rest, so this offers
+    // the flat map the standpoint it is looking at right now.
+    armViewHandoff();
+    setFlattening(false);
+    setView('2d');
+    setHoldover('3d');
+  }, []);
+
+  const handleTerrainReady = useCallback(() => {
+    setHoldover((held) => (held === '2d' ? null : held));
+  }, []);
+
+  // Release the outgoing map. The terrain view says for itself when it has
+  // painted, so its holdover only needs a ceiling in case a stalled tile fetch
+  // means it never does; Leaflet has no equivalent signal, so the fade covers
+  // a fixed moment instead.
+  useEffect(() => {
+    if (!holdover) return;
+    const id = window.setTimeout(
+      () => setHoldover(null),
+      holdover === '3d' ? HANDBACK_HOLD_MS : TERRAIN_PAINT_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(id);
+  }, [holdover]);
   const [termsOpen, setTermsOpen] = useState(false);
   // First-run safety disclaimer: shown in the interactive planner only (never
   // over a read-only shared/review view), once per device and then again at
@@ -650,7 +738,14 @@ function App({
 
   const handleStartNavigation = useCallback(() => {
     setMode('idle');
-    setView('2d'); // navigation renders on the 2D map
+    // Navigation renders on the 2D map. Cut straight there rather than going
+    // through the tilt: this is a mode change with a GPS fix waiting behind it,
+    // not someone turning the hillside to look at it. No standpoint is offered
+    // either — the map that comes up should frame the route being walked.
+    disarmViewHandoff();
+    setFlattening(false);
+    setHoldover(null);
+    setView('2d');
     setStatsView('actual');
     tracking.start();
     // Starting directly from a freshly drawn route (without pressing Save
@@ -1049,7 +1144,12 @@ function App({
     >
       <div className={styles.frame}>
       <div className={styles.mapPane}>
-        {view === '2d' ? (
+        {/* Both maps are on screen together for the length of a switch — the
+            outgoing one underneath, still painted, until the incoming one has
+            something to show. Order matters: the terrain view is absolutely
+            positioned and comes second, so it covers the flat map on the way
+            in and fades off it on the way out. */}
+        {(view === '2d' || holdover === '2d') && (
           <Map
             mode={mode}
             drawStyle={effectiveDrawStyle}
@@ -1070,7 +1170,8 @@ function App({
             holdView={placingVertices}
             onOpenOfflineMaps={onOpenOfflineMaps}
           />
-        ) : (
+        )}
+        {(view === '3d' || holdover === '3d') && (
           <Suspense fallback={null}>
             <Map3DView
               mode={mode}
@@ -1080,6 +1181,10 @@ function App({
               onOverlayChange={setOverlay}
               snowDate={snowDate}
               track={displayTrack}
+              flatten={flattening}
+              onFlattened={handleFlattened}
+              onReady={handleTerrainReady}
+              leaving={holdover === '3d'}
             />
           </Suspense>
         )}
@@ -1087,17 +1192,19 @@ function App({
         <div className={styles.viewToggle} role="group" aria-label={t('Kartvisning', 'Map view')}>
           <button
             type="button"
-            className={view === '2d' ? styles.viewActive : ''}
-            onClick={() => setView('2d')}
-            aria-pressed={view === '2d'}
+            // Pressed the moment the flatten starts, not when it finishes: the
+            // switch answers the click, and the tilt is the answer arriving.
+            className={view === '2d' || flattening ? styles.viewActive : ''}
+            onClick={handleShow2D}
+            aria-pressed={view === '2d' || flattening}
           >
             2D
           </button>
           <button
             type="button"
-            className={view === '3d' ? styles.viewActive : ''}
-            onClick={() => setView('3d')}
-            aria-pressed={view === '3d'}
+            className={view === '3d' && !flattening ? styles.viewActive : ''}
+            onClick={handleShow3D}
+            aria-pressed={view === '3d' && !flattening}
           >
             3D
           </button>

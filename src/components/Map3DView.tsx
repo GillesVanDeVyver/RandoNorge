@@ -45,6 +45,11 @@ import {
   routeEndpointsGeoJSON,
 } from '../terrainView';
 import { rememberTerrainCamera } from '../terrainCamera';
+import {
+  VIEW_TILT_MS,
+  offeredViewCamera,
+  reportViewCamera,
+} from '../viewCamera';
 import { useT } from '../i18n/index.ts';
 import styles from './Map3DView.module.css';
 
@@ -169,6 +174,20 @@ interface Props {
    *  2D NavigationLayer; the initial camera frames the plan and track
    *  together. */
   track?: Route;
+  /** Tilt back down to a top view and stay there. Set while the switch is on
+   *  its way to 2D: the camera flattens here first, and only once it is level
+   *  does the flat map take over — which is what makes the return look like
+   *  the same rotation played backwards instead of a cut. */
+  flatten?: boolean;
+  /** The camera has finished tilting back down and this view is ready to be
+   *  replaced by the flat map. */
+  onFlattened?: () => void;
+  /** The terrain view has painted. Until this fires the flat map is left
+   *  mounted underneath, so the switch never shows an empty pane. */
+  onReady?: () => void;
+  /** The flat map has taken over and this view is fading out on top of it —
+   *  held for a moment so the hand-back crosses between two painted maps. */
+  leaving?: boolean;
 }
 
 // Embedded MapLibre GL view that drapes the Kartverket topo map over a
@@ -187,6 +206,10 @@ export function Map3DView({
   mode,
   onRouteChange,
   track = [],
+  flatten = false,
+  onFlattened,
+  onReady,
+  leaving = false,
 }: Props) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -236,13 +259,25 @@ export function Map3DView({
   const trackRef = useRef(track);
   // Latest region list for the once-built map to seed its regions source with.
   const regionsRef = useRef(regions);
+  // The switch's own callbacks, kept fresh the same way — the map's listeners
+  // and the tilt animation are bound once and must not pin a stale closure.
+  const onFlattenedRef = useRef(onFlattened);
+  const onReadyRef = useRef(onReady);
   useEffect(() => {
     routeRef.current = route;
     modeRef.current = mode;
     onRouteChangeRef.current = onRouteChange;
     trackRef.current = track;
     regionsRef.current = regions;
+    onFlattenedRef.current = onFlattened;
+    onReadyRef.current = onReady;
   });
+
+  // The standpoint the flat map offered when the switch was flipped, frozen at
+  // mount. Its presence is what decides how this view opens: on the user's own
+  // standpoint, level, and then tilting up — or, with nothing offered, framed
+  // on the route at the terrain angle the way it always did.
+  const [opening] = useState(offeredViewCamera);
 
   // In-progress draw stroke, eraser accumulator, and live-preview plumbing —
   // direct analogues of the refs in the 2D DrawingHandler.
@@ -269,13 +304,19 @@ export function Map3DView({
     // initial camera directly — the whole-of-Norway `center`/`zoom` fallback is
     // only used when there's no route yet. This avoids painting the zoomed-out
     // view first and then snapping in on `load`.
+    //
+    // Unless the flat map handed a camera over, which it does every time the
+    // 2D/3D switch is flipped. Then the standpoint is already decided and the
+    // route framing is not wanted at all: the view opens exactly where the user
+    // was, straight down — the same picture they were already looking at — and
+    // the tilt effect below turns it up to the terrain angle.
     const framePts: [number, number][] = [];
     for (const seg of routeRef.current)
       for (const [lat, lng] of seg) framePts.push([lng, lat]);
     for (const seg of trackRef.current)
       for (const [lat, lng] of seg) framePts.push([lng, lat]);
     const initialBounds =
-      framePts.length >= 2
+      !opening && framePts.length >= 2
         ? framePts.reduce(
             (b, p) => b.extend(p),
             new maplibregl.LngLatBounds(framePts[0], framePts[0]),
@@ -430,23 +471,31 @@ export function Map3DView({
         terrain: { source: 'terrain', exaggeration: TERRAIN_EXAGGERATION },
         sky: TERRAIN_SKY,
       },
-      // With a route present, start framed on it (tilted + slightly rotated,
-      // matching the `load` fit below); otherwise fall back to the whole-of-
-      // Norway overview.
-      ...(initialBounds
+      // Coming off the switch: the flat map's standpoint, level and north-up,
+      // which is the frame it was showing a moment ago. With a route and no
+      // hand-over: framed on the route, tilted + slightly rotated (matching the
+      // `load` fit below). With neither: the whole-of-Norway overview.
+      ...(opening
         ? {
-            bounds: initialBounds,
-            fitBoundsOptions: {
-              padding: TERRAIN_FIT_PADDING,
-              pitch: TERRAIN_PITCH,
-              bearing: TERRAIN_BEARING,
-            },
+            center: opening.center,
+            zoom: opening.zoom,
+            pitch: 0,
+            bearing: 0,
           }
-        : {
-            center: [13, 65] as [number, number],
-            zoom: 5,
-            pitch: TERRAIN_PITCH,
-          }),
+        : initialBounds
+          ? {
+              bounds: initialBounds,
+              fitBoundsOptions: {
+                padding: TERRAIN_FIT_PADDING,
+                pitch: TERRAIN_PITCH,
+                bearing: TERRAIN_BEARING,
+              },
+            }
+          : {
+              center: [13, 65] as [number, number],
+              zoom: 5,
+              pitch: TERRAIN_PITCH,
+            }),
       maxPitch: 85,
       // Attribution is rendered by the shared <MapAttribution/> component
       // (App.tsx): always-visible pill on desktop, collapsible © chip on
@@ -755,6 +804,9 @@ export function Map3DView({
         pitch: map.getPitch(),
         bearing: map.getBearing(),
       });
+      // The same standpoint, minus the angle, for the flat map to open on when
+      // the switch goes back the other way.
+      reportViewCamera({ center: [lng, lat], zoom: map.getZoom() });
     });
 
     map.on('load', () => {
@@ -763,13 +815,15 @@ export function Map3DView({
       // the map was constructed with.
       map.resize();
       // Frame the camera on the route (and the travelled track, when reviewing
-      // a completed tour) with a tilted, slightly rotated view.
+      // a completed tour) with a tilted, slightly rotated view — but only when
+      // the view was opened on its own. Off the switch the standpoint came from
+      // the flat map, and re-framing here would undo it.
       const pts: [number, number][] = [];
       for (const seg of routeRef.current)
         for (const [lat, lng] of seg) pts.push([lng, lat]);
       for (const seg of trackRef.current)
         for (const [lat, lng] of seg) pts.push([lng, lat]);
-      if (pts.length >= 2) {
+      if (!opening && pts.length >= 2) {
         const bounds = pts.reduce(
           (b, p) => b.extend(p),
           new maplibregl.LngLatBounds(pts[0], pts[0]),
@@ -784,6 +838,18 @@ export function Map3DView({
       setBearing(map.getBearing());
     });
 
+    // Tell the switch the terrain view has something on screen, so it can drop
+    // the flat map it is holding underneath. `idle` rather than `load`: load
+    // fires as soon as the style is up, with the tiles still arriving, and
+    // pulling the map out from under a half-painted canvas is the flicker this
+    // is meant to avoid.
+    //
+    // Every idle, not just the first: a user who flips to 2D and straight back
+    // gets this same view handed back to them mid-fade, which needs saying
+    // again once it has settled. The switch ignores the ones it did not ask
+    // for.
+    map.on('idle', () => onReadyRef.current?.());
+
     return () => {
       cancelLiveUpdate();
       cancelAnimationFrame(initialResize);
@@ -796,6 +862,62 @@ export function Map3DView({
     // below so the camera is never reset by a rebuild.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The switch itself: tilt between the flat map's top view and the terrain
+  // angle, rather than cutting between two framings.
+  //
+  // Runs on mount (tilting up out of the view the flat map handed over) and
+  // again whenever `flatten` changes, so a user who flips to 2D and back
+  // before the animation finishes simply reverses it — the camera turns around
+  // and comes back up from wherever it had got to, instead of queueing a
+  // second switch behind the first.
+  //
+  // Only for a view that opened level. Without a hand-over there is nothing to
+  // tilt from: the map is already framed on the route at the terrain angle, and
+  // starting it flat only to swing it up would be an animation of nothing.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !opening) return;
+    let cancelled = false;
+    let timer: number | null = null;
+
+    const run = () => {
+      if (cancelled) return;
+      // Bearing goes home to north as part of the same movement: the flat map
+      // cannot be rotated, so a view left turned would have to snap straight at
+      // the moment of the swap — the one jump this whole path exists to remove.
+      map.easeTo({
+        pitch: flatten ? 0 : TERRAIN_PITCH,
+        bearing: 0,
+        duration: VIEW_TILT_MS,
+        // Play it even for users who have asked for reduced motion: this is
+        // not decoration, it is the explanation of what 2D and 3D are to each
+        // other, and the alternative is the hard cut we started with.
+        essential: true,
+      });
+      if (!flatten) return;
+      // Hand over on a timer rather than on `moveend`, which also fires for a
+      // pan the user starts mid-tilt and would swap the map out under their
+      // hand. Report the standpoint here too: the flat map is about to be built
+      // from it, and moveend may not have landed yet.
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        const { lng, lat } = map.getCenter();
+        reportViewCamera({ center: [lng, lat], zoom: map.getZoom() });
+        onFlattenedRef.current?.();
+      }, VIEW_TILT_MS);
+    };
+
+    // On mount the style is still loading; tilting before the terrain source is
+    // up would raise the camera over a flat mesh and drop the relief in late.
+    if (map.isStyleLoaded()) run();
+    else map.once('load', run);
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [flatten, opening]);
 
   // Push committed route changes into the route source without rebuilding the
   // map. Skipped implicitly while drawing (route prop only changes on commit).
@@ -1167,7 +1289,16 @@ export function Map3DView({
   const visibilityIcon = overlay === 'none' ? <SnowflakeIcon /> : <MapIcon />;
 
   return (
-    <div ref={rootRef} className={styles.root}>
+    <div
+      ref={rootRef}
+      className={[
+        styles.root,
+        opening ? styles.handoff : '',
+        leaving ? styles.leaving : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <div ref={containerRef} className={styles.map} />
       {/* Terrain values under the cursor for the active overlay, sampled the
           same way as the 2D map. Hidden while drawing/erasing so it doesn't

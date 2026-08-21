@@ -4,6 +4,12 @@ import { MapContainer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { DrawStyle, LatLng, Mode, Overlay, Route } from '../types';
 import type { RouteProgress } from '../tracking/useRouteProgress';
+import {
+  offeredViewCamera,
+  reportViewCamera,
+  toLeafletZoom,
+  toMapLibreZoom,
+} from '../viewCamera';
 import { CursorReadout } from './CursorReadout';
 import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
@@ -32,6 +38,29 @@ function InvalidateOnResize() {
   return null;
 }
 
+// Reports where the map is standing so the terrain view can open there when
+// the 2D/3D switch is flipped, instead of starting again from its own default
+// framing. Reported once the map is up and then whenever it comes to rest, so
+// the answer is always the view the user is actually looking at.
+function ReportCamera() {
+  const map = useMap();
+  useEffect(() => {
+    const report = () => {
+      const c = map.getCenter();
+      reportViewCamera({
+        center: [c.lng, c.lat],
+        zoom: toMapLibreZoom(map.getZoom()),
+      });
+    };
+    report();
+    map.on('moveend', report);
+    return () => {
+      map.off('moveend', report);
+    };
+  }, [map]);
+  return null;
+}
+
 // Re-frames the map around the route every time it changes (typically once
 // per committed stroke, since DrawingHandler only emits onRouteChange on
 // mouseup). Padding is 25% of the current map pane on each side, so the
@@ -39,7 +68,15 @@ function InvalidateOnResize() {
 // room for the surrounding terrain. invalidateSize() is called first so
 // the fit uses the post-layout dimensions when the pane has just shrunk
 // to make room for the summary panel.
-function FitToRoute({ route, hold }: { route: Route; hold: boolean }) {
+function FitToRoute({
+  route,
+  hold,
+  skipInitial,
+}: {
+  route: Route;
+  hold: boolean;
+  skipInitial: boolean;
+}) {
   const map = useMap();
   // Skip the very first render when the route is already empty — we don't
   // want to clobber the initial Norway-wide view.
@@ -47,7 +84,11 @@ function FitToRoute({ route, hold }: { route: Route; hold: boolean }) {
   useEffect(() => {
     if (!didMount.current) {
       didMount.current = true;
-      if (route.length === 0) return;
+      // `skipInitial` means this map opened on a camera handed over by the
+      // terrain view. Fitting the route now would undo exactly the thing the
+      // hand-over exists for: the user tilted back down to look at where they
+      // were, not to be taken back to the whole route.
+      if (route.length === 0 || skipInitial) return;
     }
     // `hold` is set while the user is mid-edit in a mode that publishes the
     // route continuously (placing straight-line vertices). Re-framing between
@@ -63,7 +104,9 @@ function FitToRoute({ route, hold }: { route: Route; hold: boolean }) {
     const padX = Math.max(0, Math.round(size.x * 0.25));
     const padY = Math.max(0, Math.round(size.y * 0.25));
     map.fitBounds(bounds, { padding: [padX, padY], animate: true });
-  }, [route, hold, map]);
+    // `skipInitial` is frozen for the life of the map, so listing it changes
+    // nothing at runtime — it is here to keep the dependency list honest.
+  }, [route, hold, map, skipInitial]);
   return null;
 }
 
@@ -122,10 +165,20 @@ export function Map({
   // tiles into IndexedDB so the map keeps working with no connectivity.
   const [offlineOpen, setOfflineOpen] = useState(false);
 
+  // The standpoint the terrain view offered when the switch was flipped back
+  // to 2D, if this map is being built by that switch: it opens there, looking
+  // straight down at the same ground, instead of on the whole of Norway or a
+  // fit to the route. Frozen at mount — Leaflet reads center/zoom once anyway,
+  // but freezing it also keeps FitToRoute's decision stable for the life of
+  // the map. Null when the planner is simply opening, which keeps the defaults.
+  const [opening] = useState(offeredViewCamera);
+
   return (
     <MapContainer
-      center={INITIAL_CENTER}
-      zoom={INITIAL_ZOOM}
+      center={
+        opening ? [opening.center[1], opening.center[0]] : INITIAL_CENTER
+      }
+      zoom={opening ? toLeafletZoom(opening.zoom) : INITIAL_ZOOM}
       minZoom={3}
       maxZoom={18}
       zoomControl={false}
@@ -226,7 +279,12 @@ export function Map({
         />
       )}
       <InvalidateOnResize />
-      <FitToRoute route={fitTo ?? route} hold={holdView} />
+      <ReportCamera />
+      <FitToRoute
+        route={fitTo ?? route}
+        hold={holdView}
+        skipInitial={!!opening}
+      />
     </MapContainer>
   );
 }

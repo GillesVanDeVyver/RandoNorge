@@ -7,6 +7,25 @@
   animation: fade-in var(--dur) var(--ease);
 }
 
+/* Opened off the 2D/3D switch, with the flat map still mounted underneath
+   showing the same ground until this canvas has painted. The dark backdrop and
+   the fade-in are for an empty pane; here they would only flash over a picture
+   that is already right. */
+.handoff {
+  background: transparent;
+  animation: none;
+}
+
+/* On its way out: the flat map has taken over underneath and this one is held
+   a moment longer, fading, so the hand-back has a painted picture to cross to
+   instead of the empty pane a Leaflet map shows while its tiles arrive. Inert
+   while it fades — the map beneath is the live one. */
+.leaving {
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+
 .map {
   position: absolute;
   inset: 0;
