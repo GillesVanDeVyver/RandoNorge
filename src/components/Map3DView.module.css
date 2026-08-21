@@ -36,8 +36,9 @@
    overlay toggle, with the compass as the one extra 3D tool. */
 .controls {
   position: absolute;
-  /* Clear the two stacked overlay pills (each ~40px) plus the gap between them. */
-  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 40px * 2 + var(--space-1) + var(--space-2) * 2 + 2px);
+  /* Clear the account/language chip (~38px, see .overlayPanel below) and then
+     the two stacked overlay pills (each ~40px) plus the gap between them. */
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 38px + var(--space-2) + 40px * 2 + var(--space-1) + var(--space-2) * 2 + 2px);
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1001;
   display: flex;
@@ -140,10 +141,15 @@
 }
 
 /* Overlay controls, top-right to match the 2D map: a snow ⇄ steepness
-   switcher stacked above a show/hide-overlay button. */
+   switcher stacked above a show/hide-overlay button. The signed-in account
+   chip (or, for guests, the language chip) floats fixed in the same corner at
+   a higher stacking level, so the panel is offset below it — same clearance
+   the 2D map's MapControls reserves: chip height (38px) + one gap. */
 .overlayPanel {
   position: absolute;
-  top: max(var(--space-3), env(safe-area-inset-top));
+  top: calc(
+    max(var(--space-3), env(safe-area-inset-top)) + 38px + var(--space-2)
+  );
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 1001;
   display: flex;
