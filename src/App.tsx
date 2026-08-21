@@ -70,16 +70,15 @@ const Map3DView = lazy(() =>
 
 type ViewMode = '2d' | '3d';
 
-// How long the terrain view is held, fading, over the flat map that has just
-// taken over from it. Leaflet gives no "I have painted" signal, so the outgoing
-// picture covers a fixed moment instead — matched to the fade in
-// Map3DView.module.css and to how long cached tiles take to appear.
-const HANDBACK_HOLD_MS = 260;
+// How long the terrain view keeps fading once the flat map underneath has
+// painted and the cross-over has begun. Matched to the fade in
+// Map3DView.module.css, plus a little slack.
+const HANDBACK_FADE_MS = 260;
 
-// A ceiling on holding the flat map underneath a terrain view that has not yet
-// reported itself painted. It normally does within a second; this only stops a
-// stalled tile fetch from leaving two maps stacked indefinitely.
-const TERRAIN_PAINT_TIMEOUT_MS = 4000;
+// A ceiling on waiting for either map to report itself painted. They normally
+// do within a second; this only stops a stalled tile fetch from leaving two
+// maps stacked indefinitely.
+const PAINT_TIMEOUT_MS = 4000;
 
 // First-run safety disclaimer: shown once per device, then re-shown at the
 // start of each new winter season and whenever its wording is materially
@@ -544,10 +543,15 @@ function App({
   // the way out played in reverse.
   const [flattening, setFlattening] = useState(false);
   // Set while a freshly mounted map is still painting and the outgoing one is
-  // held underneath so the pane is never empty: '2d' means the flat map is
-  // waiting under a terrain view that has not drawn yet, '3d' means the terrain
-  // view is fading out over a flat map that has just taken over.
+  // kept on so the pane is never empty: '2d' means the flat map is waiting
+  // underneath a terrain view that has not drawn yet, '3d' means the terrain
+  // view is still the picture on screen over a flat map that has taken over
+  // but not yet drawn — and then, once it has, is fading off it.
   const [holdover, setHoldover] = useState<ViewMode | null>(null);
+  // Whether the flat map has tiles on screen yet. Only meaningful during a
+  // hand-back, where it decides when the terrain view held on top may start
+  // crossing to it; reset at the start of each one.
+  const [flatPainted, setFlatPainted] = useState(false);
   // Straight-line drawing is a 2D-map interaction (vertex handles live on the
   // Leaflet map), so the 3D view always draws freehand — and the toolbar shows
   // that honestly instead of advertising a style it can't deliver there.
@@ -592,6 +596,8 @@ function App({
     armViewHandoff();
     setFlattening(false);
     setView('2d');
+    // The flat map is only now being built, so it has nothing on screen yet.
+    setFlatPainted(false);
     setHoldover('3d');
   }, []);
 
@@ -599,18 +605,36 @@ function App({
     setHoldover((held) => (held === '2d' ? null : held));
   }, []);
 
-  // Release the outgoing map. The terrain view says for itself when it has
-  // painted, so its holdover only needs a ceiling in case a stalled tile fetch
-  // means it never does; Leaflet has no equivalent signal, so the fade covers
-  // a fixed moment instead.
+  const handleFlatPainted = useCallback(() => {
+    setFlatPainted(true);
+  }, []);
+
+  // Release the outgoing map once the incoming one has a picture to replace it
+  // with. Both maps now say for themselves when that is, so the timers here are
+  // only ceilings against a stalled tile fetch leaving the two stacked.
+  //
+  // The two directions differ in what happens at the moment of release. Going
+  // to 3D the terrain view is already covering the flat map, so the flat map
+  // can simply be dropped. Coming back, the terrain view is the picture on
+  // screen and has to be faded off the flat map that has taken over — so
+  // "painted" starts the fade rather than ending the hold, and the wait for it
+  // and the fade itself are two separate stages.
   useEffect(() => {
     if (!holdover) return;
-    const id = window.setTimeout(
-      () => setHoldover(null),
-      holdover === '3d' ? HANDBACK_HOLD_MS : TERRAIN_PAINT_TIMEOUT_MS,
-    );
+    if (holdover === '2d') {
+      const id = window.setTimeout(() => setHoldover(null), PAINT_TIMEOUT_MS);
+      return () => window.clearTimeout(id);
+    }
+    if (!flatPainted) {
+      // Nothing to cross to yet. On the ceiling, cross anyway: a fade onto tiles
+      // still arriving is worse than this, but not as bad as a terrain view
+      // parked over a map the user is trying to use.
+      const id = window.setTimeout(() => setFlatPainted(true), PAINT_TIMEOUT_MS);
+      return () => window.clearTimeout(id);
+    }
+    const id = window.setTimeout(() => setHoldover(null), HANDBACK_FADE_MS);
     return () => window.clearTimeout(id);
-  }, [holdover]);
+  }, [flatPainted, holdover]);
   const [termsOpen, setTermsOpen] = useState(false);
   // First-run safety disclaimer: shown in the interactive planner only (never
   // over a read-only shared/review view), once per device and then again at
@@ -1169,6 +1193,7 @@ function App({
             // user. The fit resumes once the line is done.
             holdView={placingVertices}
             onOpenOfflineMaps={onOpenOfflineMaps}
+            onPainted={handleFlatPainted}
           />
         )}
         {(view === '3d' || holdover === '3d') && (
@@ -1184,7 +1209,13 @@ function App({
               flatten={flattening}
               onFlattened={handleFlattened}
               onReady={handleTerrainReady}
-              leaving={holdover === '3d'}
+              handBack={
+                holdover === '3d'
+                  ? flatPainted
+                    ? 'fading'
+                    : 'held'
+                  : undefined
+              }
             />
           </Suspense>
         )}

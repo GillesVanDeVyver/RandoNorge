@@ -47,6 +47,7 @@ import {
 import { rememberTerrainCamera } from '../terrainCamera';
 import {
   VIEW_TILT_MS,
+  flatZoom,
   offeredViewCamera,
   reportViewCamera,
 } from '../viewCamera';
@@ -185,9 +186,12 @@ interface Props {
   /** The terrain view has painted. Until this fires the flat map is left
    *  mounted underneath, so the switch never shows an empty pane. */
   onReady?: () => void;
-  /** The flat map has taken over and this view is fading out on top of it —
-   *  held for a moment so the hand-back crosses between two painted maps. */
-  leaving?: boolean;
+  /** The flat map has taken over underneath and this view is on its way out.
+   *  'held' while the flat map is still painting — this picture stays up, and
+   *  inert, so the hand-back never crosses through an empty pane. 'fading'
+   *  once there is a finished picture underneath to cross to. Absent when no
+   *  hand-back is in progress. */
+  handBack?: 'held' | 'fading';
 }
 
 // Embedded MapLibre GL view that drapes the Kartverket topo map over a
@@ -209,7 +213,7 @@ export function Map3DView({
   flatten = false,
   onFlattened,
   onReady,
-  leaving = false,
+  handBack,
 }: Props) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -875,9 +879,15 @@ export function Map3DView({
   // Only for a view that opened level. Without a hand-over there is nothing to
   // tilt from: the map is already framed on the route at the terrain angle, and
   // starting it flat only to swing it up would be an animation of nothing.
+  //
+  // And nothing once `handBack` is set. The flatten ends by clearing `flatten`
+  // as it hands over, which without this guard reads as "tilt back up" — so the
+  // outgoing picture would start swinging up again on top of the flat map it
+  // had just handed the view to, exactly at the crossover. Once this view is on
+  // its way out its camera is finished.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !opening) return;
+    if (!map || !opening || handBack) return;
     let cancelled = false;
     let timer: number | null = null;
 
@@ -886,7 +896,12 @@ export function Map3DView({
       // Bearing goes home to north as part of the same movement: the flat map
       // cannot be rotated, so a view left turned would have to snap straight at
       // the moment of the swap — the one jump this whole path exists to remove.
+      //
+      // Zoom travels with it on the way down, for the same reason: the flat map
+      // only sits on whole levels, so the tilt lands on one (flatZoom) rather
+      // than leaving Leaflet to round the scale at the moment of the swap.
       map.easeTo({
+        ...(flatten ? { zoom: flatZoom(map.getZoom()) } : null),
         pitch: flatten ? 0 : TERRAIN_PITCH,
         bearing: 0,
         duration: VIEW_TILT_MS,
@@ -899,11 +914,12 @@ export function Map3DView({
       // Hand over on a timer rather than on `moveend`, which also fires for a
       // pan the user starts mid-tilt and would swap the map out under their
       // hand. Report the standpoint here too: the flat map is about to be built
-      // from it, and moveend may not have landed yet.
+      // from it, and moveend may not have landed yet. Rounded again in case the
+      // user zoomed during the tilt and interrupted the ease above.
       timer = window.setTimeout(() => {
         if (cancelled) return;
         const { lng, lat } = map.getCenter();
-        reportViewCamera({ center: [lng, lat], zoom: map.getZoom() });
+        reportViewCamera({ center: [lng, lat], zoom: flatZoom(map.getZoom()) });
         onFlattenedRef.current?.();
       }, VIEW_TILT_MS);
     };
@@ -917,7 +933,7 @@ export function Map3DView({
       cancelled = true;
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [flatten, opening]);
+  }, [flatten, handBack, opening]);
 
   // Push committed route changes into the route source without rebuilding the
   // map. Skipped implicitly while drawing (route prop only changes on commit).
@@ -1294,7 +1310,8 @@ export function Map3DView({
       className={[
         styles.root,
         opening ? styles.handoff : '',
-        leaving ? styles.leaving : '',
+        handBack ? styles.handingBack : '',
+        handBack === 'fading' ? styles.leaving : '',
       ]
         .filter(Boolean)
         .join(' ')}

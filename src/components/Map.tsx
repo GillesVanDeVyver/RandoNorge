@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { DrawStyle, LatLng, Mode, Overlay, Route } from '../types';
 import type { RouteProgress } from '../tracking/useRouteProgress';
 import {
+  FLAT_MAX_ZOOM,
+  FLAT_MIN_ZOOM,
   offeredViewCamera,
   reportViewCamera,
   toLeafletZoom,
@@ -142,6 +144,10 @@ interface Props {
    *  which links there instead of listing the saved areas itself. Absent in
    *  guest mode, which has no such page — the link then isn't rendered. */
   onOpenOfflineMaps?: () => void;
+  /** The base layer has all its visible tiles. Used by the 2D/3D switch to
+   *  know when the terrain view it is holding on top can safely cross to this
+   *  one; fires again after each pan, which the switch ignores. */
+  onPainted?: () => void;
 }
 
 export function Map({
@@ -160,10 +166,18 @@ export function Map({
   fitTo,
   holdView = false,
   onOpenOfflineMaps,
+  onPainted,
 }: Props) {
   // Offline-maps panel: lets the user select a rectangle and download its
   // tiles into IndexedDB so the map keeps working with no connectivity.
   const [offlineOpen, setOfflineOpen] = useState(false);
+
+  // Memoised so react-leaflet doesn't unbind and rebind the listener on every
+  // render of this component, which happens once per committed stroke.
+  const baseLayerEvents = useMemo(
+    () => (onPainted ? { load: onPainted } : undefined),
+    [onPainted],
+  );
 
   // The standpoint the terrain view offered when the switch was flipped back
   // to 2D, if this map is being built by that switch: it opens there, looking
@@ -179,8 +193,11 @@ export function Map({
         opening ? [opening.center[1], opening.center[0]] : INITIAL_CENTER
       }
       zoom={opening ? toLeafletZoom(opening.zoom) : INITIAL_ZOOM}
-      minZoom={3}
-      maxZoom={18}
+      // The range lives in viewCamera.ts because the terrain view has to know
+      // it too: it aims the end of its tilt at a zoom this map can hold, since
+      // anything else would be clamped at the moment of the hand-back.
+      minZoom={FLAT_MIN_ZOOM}
+      maxZoom={FLAT_MAX_ZOOM}
       zoomControl={false}
       // Credits are rendered by <MapAttribution/> (App.tsx) instead of
       // Leaflet's control: the built-in line wraps into a tall block on
@@ -200,6 +217,9 @@ export function Map({
       <OfflineTileLayerComponent
         layerId="topo"
         maxNativeZoom={18}
+        // The base layer is what "this map has something to show" means, so
+        // its load is the signal the 2D/3D switch waits on before crossing.
+        eventHandlers={baseLayerEvents}
         // Credits (Kartverket, MET, NVE/Varsom, and the active overlay's
         // source) live in <MapAttribution/> — keep it in sync when layers
         // change.

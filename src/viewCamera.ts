@@ -85,6 +85,34 @@ export function toMapLibreZoom(zoom: number): number {
   return zoom - 1;
 }
 
+// The flat map's zoom range, in Leaflet's own levels. It lives here rather
+// than only on <MapContainer> because the terrain view has to come to rest
+// inside it: a standpoint the flat map cannot hold gets clamped at the moment
+// of the swap, and a clamp is a jump.
+export const FLAT_MIN_ZOOM = 3;
+export const FLAT_MAX_ZOOM = 18;
+
+/**
+ * The nearest standpoint the flat map can actually reproduce, in MapLibre's
+ * scale.
+ *
+ * MapLibre zooms continuously; Leaflet, with its default zoomSnap of 1, only
+ * sits on whole levels and quietly rounds anything else. So a terrain view
+ * resting at 12.4 is redrawn flat at 12 — the ground jumping by up to 40% at
+ * the instant of the hand-back, which is the one thing this whole path exists
+ * to remove. Rounding here instead means the correction happens during the
+ * tilt, as part of a movement the user is already watching.
+ *
+ * This is only needed going back to 2D. The other direction starts from a
+ * Leaflet zoom, which is a whole level already.
+ */
+export function flatZoom(zoom: number): number {
+  const level = Math.round(toLeafletZoom(zoom));
+  return toMapLibreZoom(
+    Math.min(FLAT_MAX_ZOOM, Math.max(FLAT_MIN_ZOOM, level)),
+  );
+}
+
 /**
  * How long the camera takes to tilt between the flat view and the terrain
  * view's angle.

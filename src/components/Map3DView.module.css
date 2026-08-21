@@ -16,12 +16,17 @@
   animation: none;
 }
 
-/* On its way out: the flat map has taken over underneath and this one is held
-   a moment longer, fading, so the hand-back has a painted picture to cross to
-   instead of the empty pane a Leaflet map shows while its tiles arrive. Inert
-   while it fades — the map beneath is the live one. */
-.leaving {
+/* On its way out: the flat map has taken over underneath and this picture is
+   held over it until there is a finished one to cross to, rather than the
+   empty pane a Leaflet map shows while its tiles arrive. Inert from the moment
+   the hand-back starts — the map underneath is the live one, even while this
+   is still the one being looked at. */
+.handingBack {
   pointer-events: none;
+}
+
+/* The flat map has painted. Cross to it. */
+.leaving {
   opacity: 0;
   transition: opacity var(--dur) var(--ease);
 }
