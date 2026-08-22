@@ -6,17 +6,74 @@ service policy), plus the two questions that decide whether the feature is worth
 building at all — does the data actually contain *trailhead* parking, and does
 taking it change Fjellrute's licence posture.
 
-Nothing here has been implemented. The purpose of the document is to name the
-decision gate (a coverage test, below) that should be passed before any code is
-written, because the honest answer to "is there an API for this" is: there are
-four, they all have national coverage on paper, and only one of them is likely to
-know about a gravel lot at the end of a forest road.
+The purpose of the document is to name the decision gate (a coverage test, below)
+that should be passed before any code is written, because the honest answer to
+"is there an API for this" is: there are four, they all have national coverage on
+paper, and only one of them is likely to know about a gravel lot at the end of a
+forest road.
 
 **Verification status.** Licences, endpoints, rate limits and object-type IDs
 below were read from the upstream documentation on 2026-08-20 and the OSM object
 counts come from taginfo's Norway instance dated 2026-08-19. Live request/response
 shapes were *not* exercised — the smoke-test commands at the end of this document
 are the ones to run before trusting any parameter spelling.
+
+---
+
+## What was built — 2026-08-22
+
+**NVDB vegobjekttype 43, queried live.** Shipped as a Parking tab after Weather,
+numbered pins on the 2D map, and a switchable section on the printed briefing.
+Radius defaults to 2 km with a 1–10 km slider, five lots listed, measured from
+`routeEnds().start`.
+
+Chosen over OSM deliberately and with the trade-off understood. OSM has by far
+the better trailhead coverage; NVDB has the licence that costs nothing — NLOD,
+the same posture Fjellrute already holds for NVE and seNorge, no share-alike, no
+derived-database publication obligation, no new legal conversation. NVDB is also
+the only candidate whose operator explicitly *prefers* live querying to bulk
+extraction, which means the D1 import pipeline the OSM route required simply does
+not exist. The cost is coverage, and it is a real cost rather than a rounding
+error.
+
+Files: `src/parking/{api,useParking,store,radius,format,pin}.ts`,
+`src/components/{ParkingPanel,ParkingLayer}.tsx`, the `/nvdb-api` route in
+`worker/index.js` and `vite.config.ts`, and the parking section in
+`src/briefing/BriefingSheet.tsx`. Licence section 6 in `docs/DATA_LICENSES.md`.
+
+Two things were carried forward from this document verbatim. `ParkingArea.source`
+is a mandatory discriminator (`'nvdb'` today), because the Collective-Database
+schema decision is free on day one and expensive to retrofit, and its whole
+purpose is to let a second, differently-licensed source be added later without
+contaminating the first. And every empty state — the tab, the printed sheet, the
+briefing switch's own hint — is worded as a gap in the register rather than a gap
+in the world, because on the private and forest roads most Norwegian tours start
+from, that is exactly what it is.
+
+**Still outstanding, and it is the gate this document exists to name:** the
+coverage test below has *not* been run. NVDB shipped because it is the option
+that could ship today under a licence already held, not because it was shown to
+know about Norwegian trailheads. If it turns out to miss the Gjendesheim /
+Spiterstulen / Turtagrø class of start point, the honest response is not to widen
+the radius but to reopen the OSM question with the ODbL cost priced in — which is
+what the `source` column exists to make possible.
+
+It was attempted. Three request shapes against `nvdbapiles.atlas.vegvesen.no` —
+the Gjendesheim `kartutsnitt` query below, a shortened form of it, and the
+parameterless datakatalog lookup for type 43 — each returned HTTP 400 from the
+authoring environment, which cannot set the `Accept: application/json` header
+NVDB requires. That is a fact about the tool used, not evidence about NVDB's
+coverage, and it must not be read as one. Run the `curl` commands at the end of
+this document from a normal shell; they carry the header, and they are the
+version of this test that means anything.
+
+**Also unverified:** the live NVDB response shape. `src/parking/api.ts` reads
+attributes by matching their Norwegian names rather than by `egenskapstype` id,
+precisely because the ids in this document were never exercised against the API.
+A wrong id fails silently by reading the wrong column; a missed name renders an
+honest "—". That is a deliberate trade of precision for a safe failure mode, and
+it should be tightened to ids once the smoke test at the end of this document has
+actually been run.
 
 ---
 

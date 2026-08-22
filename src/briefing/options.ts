@@ -59,6 +59,13 @@ export interface BriefingOptions {
   snow: boolean;
   /** MET forecast for the tour date, at both ends of the route. */
   weather: boolean;
+  /** Where NVDB says the car can be left, nearest the route start.
+   *
+   *  The one section that answers a question from before the tour rather than
+   *  during it, which is exactly why it earns a place on paper: the sheet is
+   *  read in the kitchen the night before at least as often as at the
+   *  trailhead. */
+  parking: boolean;
   /** Ruled space for the party's own plan and turnaround decisions. */
   notes: boolean;
 }
@@ -83,6 +90,11 @@ export const DEFAULT_OPTIONS: BriefingOptions = {
   avalanche: true,
   snow: true,
   weather: true,
+  // On by default, but the dialog switches it off by itself when NVDB returned
+  // nothing — the same courtesy the avalanche switch pays an unrated tour. A
+  // heading over "no registered parking areas" is a section that costs paper to
+  // say nothing.
+  parking: true,
   notes: true,
 };
 
@@ -102,6 +114,7 @@ export const OPTION_KEYS: readonly BooleanOptionKey[] = [
   'avalanche',
   'snow',
   'weather',
+  'parking',
   'notes',
 ] as const;
 
@@ -138,7 +151,13 @@ export function withDependencies(opts: BriefingOptions): BriefingOptions {
 // it either, and the default it falls back to — off — is precisely the sheet
 // that record was written to describe. Only a new switch whose default *adds*
 // or *removes* something needs everyone's preferences thrown away.
-const STORAGE_KEY = 'randonorge:briefing-sections-v2';
+//
+// Bumped to v3 for the parking switch, by that same rule and reluctantly: it
+// defaults on, so a v2 record — written to describe a sheet with no parking
+// section — would silently grow one. The alternative was to default it off,
+// which would have hidden the section from everyone who had ever printed a
+// briefing, i.e. exactly the people it is for.
+const STORAGE_KEY = 'randonorge:briefing-sections-v3';
 
 /** The switches worth carrying to the next export.
  *

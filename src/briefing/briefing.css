@@ -17,9 +17,9 @@
  *     header                14      map + key facts       68
  *     danger banner         24      avalanche problems    17
  *     profile + steepness   46      snow                  31
- *     weather table         53      notes                 17
- *     footer + gaps         33
- *                                          total     ~ 303 mm
+ *     weather table         53      parking               26
+ *     notes                 17      footer + gaps         33
+ *                                          total     ~ 329 mm
  *
  * The weather table is at most six rows — 06 to midnight in three-hour periods,
  * built in BriefingSheet.tsx — so it cannot grow with the forecast. That matters:
@@ -40,7 +40,15 @@
  * three clamped lines of bulletin text inside it, which is the only thing there
  * whose length is not known in advance.
  *
- * That leaves roughly 66 sheet mm (50 mm of paper) of headroom, which is what
+ * Parking's 26 mm is a heading over five ruled rows of about 4 mm, and it is
+ * the one section whose height is bounded by a constant rather than by the
+ * data: the list is capped at five lots (PARKING_LIMIT), so a trailhead with
+ * forty registered areas around it costs exactly what one with five does. It is
+ * also the section most often absent, since the switch turns itself off when
+ * NVDB has nothing registered near the start — which, on the private forest
+ * roads most Norwegian tours start from, is the common case.
+ *
+ * That leaves roughly 40 sheet mm (30 mm of paper) of headroom, which is what
  * absorbs the blocks holding text of unknown length — a wordy Varsom bulletin,
  * a long route description. Those are clamped as well rather than trusted, at
  * .briefingSubtitle and .briefingDangerText, because headroom is the thing that
@@ -1361,6 +1369,82 @@
 .briefingRoseRing {
   stroke: var(--briefing-rule);
   stroke-width: 1;
+}
+
+/* Parking */
+
+/* Five rows at most, and deliberately not the weather table's card. That card
+ * exists because the printed forecast is the app's forecast panel and should
+ * look like it; this is a short list read once, in a car, and a box with a
+ * header band around four columns of plain text would be 3 mm of structure
+ * spent on something the reader never scans twice. Ruled rows, no chrome.
+ *
+ * The row height is what keeps the section inside its ~26 mm of the vertical
+ * budget at the top of this file: 8 pt over 0.8 mm of padding is about 4 mm a
+ * row, five rows and a heading. */
+.briefingParkingTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8pt;
+  font-variant-numeric: tabular-nums;
+}
+
+.briefingParkingTable td {
+  padding: 0.8mm 0;
+  border-bottom: var(--briefing-hairline) solid var(--briefing-rule);
+  vertical-align: baseline;
+}
+
+.briefingParkingTable tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The number tying a row to its pin on the printed map. Fixed width so the
+ * names start on one edge, and tabular figures so 1 and 4 are the same width —
+ * a ragged left margin on a five-row list reads as a mistake. */
+.briefingParkingIndex {
+  width: 4mm;
+  font-weight: 700;
+  color: var(--briefing-muted);
+}
+
+/* The only column allowed to wrap, and the only one that needs to: NVDB's names
+ * run to things like "Rondvassbu parkering, øvre felt". It takes the space the
+ * other three do not, so a long name costs a second line here rather than
+ * pushing the distance off the row. */
+.briefingParkingName {
+  font-weight: 600;
+  padding-right: 2mm;
+}
+
+/* Right-aligned against the facts column, because the distances are compared
+ * down the column and a ragged right edge is what stops that being possible at
+ * a glance. Never wraps — "1,2 km" broken across two lines is unreadable. */
+.briefingParkingDist {
+  width: 14mm;
+  text-align: right;
+  padding-right: 3mm;
+  white-space: nowrap;
+}
+
+/* Capacity, fee, winter maintenance, surface — whichever of them the register
+ * actually carries, middot-joined in BriefingSheet.tsx. Quieter than the name
+ * and the distance because it is the part a driver reads only after deciding
+ * which lot they are heading for. */
+.briefingParkingFacts {
+  width: 48mm;
+  font-size: 7.4pt;
+  color: var(--briefing-muted);
+}
+
+/* The coverage caveat under the list. Provenance rather than content, so it
+ * takes .briefingRetrieved's size and colour: this is the line that stops the
+ * five rows above being read as "these are the places to park" rather than
+ * "these are the places NVDB knows about". */
+.briefingParkingNote {
+  margin: 1mm 0 0;
+  font-size: 7pt;
+  color: var(--briefing-muted);
 }
 
 /* Notes + footer */

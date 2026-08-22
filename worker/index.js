@@ -1,18 +1,21 @@
 // Cloudflare Worker entry point. Static assets (the Vite build in dist/)
 // are served automatically by the assets binding before this code runs;
 // the Worker handles the auth API (/api/auth/*, see worker/auth.js) plus
-// the three API proxy routes that the app needs in production — the same
+// the API proxy routes that the app needs in production — the same
 // paths the Vite dev server proxies locally (see vite.config.ts).
 //
 //   /metno-api/*  → https://api.met.no/*      (User-Agent required by ToS)
 //   /gts-api/*    → https://gts.nve.no/api/*  (no CORS upstream)
 //   /varsom-api/* → https://api01.nve.no/*    (no CORS upstream)
+//   /nvdb-api/*   → https://nvdbapiles.atlas.vegvesen.no/*
+//                   (identifying headers, see NVDB_HEADERS in proxy.js)
 //
 // Cache lifetimes are matched to how each dataset updates: MET forecast
 // model runs are roughly hourly (30 min), the seNorge snow grid is a daily
 // product (6 h), Varsom warnings are daily with occasional intraday
-// updates (1 h).
-import { proxyGet } from './proxy.js';
+// updates (1 h), and NVDB parking areas are civil infrastructure that
+// changes over years rather than hours (24 h, and that is conservative).
+import { proxyGet, NVDB_HEADERS } from './proxy.js';
 import { getAuth } from './auth.js';
 import {
   normalizeInviteCode,
@@ -52,6 +55,22 @@ const ROUTES = [
     upstream: 'https://api01.nve.no',
     ttl: 3600,
     allow: ['/hydrology/forecast/avalanche/'],
+  },
+  {
+    // Statens vegvesen's Nasjonal vegdatabank. Only vegobjekttype 43
+    // (Parkeringsområde) is allowed through: NVDB exposes hundreds of object
+    // types and the whole datakatalog, and an open relay onto that would be a
+    // generous gift to someone else's scraper at our edge cache's expense.
+    //
+    // NVDB's own guidelines prefer live querying over bulk download, so unlike
+    // most sources in docs/parking-data-sources.md this one is queried per
+    // request rather than pre-built into a table. The 24 h edge cache keeps us
+    // far inside their documented 40 req/s ceiling.
+    prefix: '/nvdb-api',
+    upstream: 'https://nvdbapiles.atlas.vegvesen.no',
+    ttl: 86400,
+    allow: ['/vegobjekter/api/v4/vegobjekter/43'],
+    headers: NVDB_HEADERS,
   },
 ];
 
@@ -204,9 +223,9 @@ async function handleRequest(request, env, ctx) {
       if (res) return res;
     }
 
-    for (const { prefix, upstream, ttl, allow } of ROUTES) {
+    for (const { prefix, upstream, ttl, allow, headers } of ROUTES) {
       if (pathname === prefix || pathname.startsWith(prefix + '/')) {
-        return proxyGet(request, ctx, prefix, upstream, ttl, allow);
+        return proxyGet(request, ctx, prefix, upstream, ttl, allow, headers);
       }
     }
 

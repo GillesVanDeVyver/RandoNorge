@@ -31,13 +31,15 @@
 // three, and the third of them (the bare topo sheet) is a real answer rather
 // than the absence of one.
 //
-// Five controls decide for themselves rather than opening where the last export
-// left them. Three do it on one principle — a section with nothing to say is
+// Six controls decide for themselves rather than opening where the last export
+// left them. Four do it on one principle — a section with nothing to say is
 // worse than no section. Snow depth turns off when seNorge says there is none
 // along the route; the avalanche forecast turns off when Varsom has not assessed
 // any region the route crosses, out of season or off the edge of the forecast
 // area, where the section prints as a question mark and the words "ikke
-// vurdert"; and the notes field turns off when the tour was saved without any,
+// vurdert"; parking turns off when NVDB has no registered area anywhere near the
+// start, since a heading over "nothing registered here" costs paper to say
+// nothing; and the notes field turns off when the tour was saved without any,
 // since a guide who wrote nothing down is not asking for a page of ruled lines
 // under a heading that says Notes.
 //
@@ -51,7 +53,10 @@
 // would eventually contradict the screen behind the dialog, and the screen is
 // the more recent statement of what the guide wants to see.
 //
-// All five stay adjustable, not locks. The guide can turn any of them back, and
+// The parking search radius is inherited the same way and is not a control here
+// at all — see parking/radius.ts for why the sheet has no slider of its own.
+//
+// All six stay adjustable, not locks. The guide can turn any of them back, and
 // doing so is what stops the sheet second-guessing them again: an unrated day on
 // the page is a legitimate thing to want, since "Varsom says nothing about
 // today" is itself something a briefing can be for.
@@ -67,11 +72,14 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { ProfileData } from '../elevation/profile';
-import type { Overlay, Route } from '../types';
+import type { LatLng, Overlay, Route } from '../types';
+import { routeEnds } from '../geometry';
 import { ForecastContext } from '../forecast/snapshot';
 import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
 import { useWeather, weatherCandidates } from '../weather/useWeather';
 import { useSnow } from '../snow/useSnow';
+import { PARKING_DEFAULT_RADIUS_M, useParking } from '../parking/useParking';
+import { recallParkingRadius } from '../parking/radius';
 import type { WeatherHour } from '../weather/api';
 import { BriefingSheet, type BriefingData } from './BriefingSheet';
 import { hasSnowOnRoute, summariseSnow } from './snowSummary';
@@ -120,6 +128,7 @@ interface Props {
 const SELF_DECIDING = [
   'snow',
   'avalanche',
+  'parking',
   'notes',
   'trueScale',
   'mapOverlay',
@@ -201,6 +210,7 @@ export function BriefingDialog({
   const [touched, setTouched] = useState<Record<SelfDeciding, boolean>>({
     snow: false,
     avalanche: false,
+    parking: false,
     notes: false,
     trueScale: false,
     mapOverlay: false,
@@ -211,6 +221,14 @@ export function BriefingDialog({
   // asked for it. Null when nobody has touched the toggle this session, in
   // which case the sheet's own default stands.
   const [plannerScale] = useState(recallProfileScale);
+  // How far out the parking tab is searching, read the same way and for a
+  // blunter reason: the tab and this dialog are both mounted and both query
+  // NVDB, so asking a different question would mean two answers fighting over
+  // the map's pins. Falls back to the tab's own default when nobody has moved
+  // the slider — the same value the tab would be showing.
+  const [parkingRadiusM] = useState(
+    () => recallParkingRadius() ?? PARKING_DEFAULT_RADIUS_M,
+  );
   const [mapReady, setMapReady] = useState(false);
   const [loadedSymbols, setLoadedSymbols] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -291,6 +309,19 @@ export function BriefingDialog({
   // on to find out. One seNorge request, cached for an hour and shared with
   // the panel on screen.
   const snow = useSnow(profile, snowDate, frozenSnow);
+  // Where the car goes, which is the start of the tour — the same origin the
+  // parking tab measures from, so the sheet lists the same five lots in the
+  // same order rather than a second opinion about the same question.
+  const parkingOrigin: LatLng | null = useMemo(
+    () => routeEnds(route)?.start ?? null,
+    [route],
+  );
+  // Asked for whether or not the section is switched on, like the snow query
+  // above and for the same reason: the switch's default depends on whether NVDB
+  // has anything to say, so the answer has to be in before the guide opens the
+  // gear. Not frozen with the rest of a saved route's forecasts — a car park is
+  // not a forecast, and the register's answer today is the one the driver wants.
+  const parking = useParking(parkingOrigin, parkingRadiusM);
   const snowSummary = useMemo(
     () => summariseSnow(profile, snow.snow),
     [profile, snow.snow],
@@ -327,6 +358,20 @@ export function BriefingDialog({
   const notes = routeDescription?.trim() ?? '';
   const unwrittenTour = notes === '';
 
+  // A trailhead NVDB has never heard of, which in Norway is the common case
+  // rather than the odd one: the register covers the roads Statens vegvesen has
+  // registered, and the gravel turning-circle at the end of a private forest
+  // road is not one of them. On screen that emptiness is worth saying, because
+  // the guide asked the question by opening the tab and deserves to know the
+  // answer came back empty rather than broken. On paper it is a heading and two
+  // sentences of disclaimer about a section with no rows, so the switch steps
+  // aside — and says why, so the guide can put it back.
+  //
+  // Read like the other two: an error is not an answer, and neither is a
+  // request still in flight.
+  const unparkedTour =
+    !parking.loading && parking.error === null && parking.areas.length === 0;
+
   // What the sheet actually prints: the guide's selection, with the snow
   // section defaulted off on a route that has no snow on it, the avalanche
   // section defaulted off on a day nobody has rated, the notes field defaulted
@@ -343,6 +388,7 @@ export function BriefingDialog({
     const out = { ...chosen };
     if (snowlessTour && !touched.snow) out.snow = false;
     if (unratedTour && !touched.avalanche) out.avalanche = false;
+    if (unparkedTour && !touched.parking) out.parking = false;
     if (unwrittenTour && !touched.notes) out.notes = false;
     if (plannerScale && !touched.trueScale) {
       out.trueScale = plannerScale === 'true';
@@ -353,6 +399,7 @@ export function BriefingDialog({
     chosen,
     snowlessTour,
     unratedTour,
+    unparkedTour,
     unwrittenTour,
     plannerScale,
     plannerOverlay,
@@ -497,7 +544,8 @@ export function BriefingDialog({
     (!options.map || mapReady) &&
     !(options.avalanche && avalanche.loading) &&
     !(options.weather && (weatherLoading || !symbolsReady)) &&
-    !(options.snow && snow.loading);
+    !(options.snow && snow.loading) &&
+    !(options.parking && parking.loading);
 
   const data: BriefingData = {
     routeName: title,
@@ -526,6 +574,9 @@ export function BriefingDialog({
     snowLoading: snow.loading,
     snowDate,
     snowIsFallback,
+    parking: parking.areas,
+    parkingLoading: parking.loading,
+    parkingRadiusM,
     onMapReady,
   };
 
@@ -659,6 +710,21 @@ export function BriefingDialog({
         label={t('Vær', 'Weather')}
         checked={options.weather}
         onChange={(on) => setOption('weather', on)}
+      />
+      {/* Says why it is off in the register's terms rather than the world's, the
+          same wording the tab uses: "NVDB has nothing here" is a statement about
+          a road database, and "there is nowhere to park" would be a statement
+          about a valley the database has never described. Kept switchable, so a
+          guide who wants the disclaimer itself on the page can have it. */}
+      <Switch
+        label={t('Parkering', 'Parking')}
+        checked={options.parking}
+        hint={
+          unparkedTour
+            ? t('Ingenting registrert i NVDB', 'Nothing registered in NVDB')
+            : null
+        }
+        onChange={(on) => setOption('parking', on)}
       />
       <Switch
         label={t('Notatfelt', 'Notes')}

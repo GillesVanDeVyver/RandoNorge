@@ -1,0 +1,203 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Radius control. The label and its current value sit on one line above the
+   slider so the number is readable while dragging on a touch screen, where a
+   thumb covers the track. */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.radiusField {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.radiusLabel {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.radiusValue {
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.slider:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  border-radius: var(--radius-pill);
+}
+
+.status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+/* Empty state. The lead says what happened; the note says what it means, in
+   smaller type, because "NVDB does not cover private roads" is context rather
+   than the answer. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+}
+
+.emptyLead {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.emptyNote {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  counter-reset: parking;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  transition: background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.row:hover {
+  background: var(--surface-3);
+  border-color: var(--hairline-strong);
+}
+
+/* Numbered badge matching the map pin. The number is the whole point: it is
+   what ties row three to the third pin on the map. Colour is set here rather
+   than from parking/pin.ts because CSS modules can't read a TS constant —
+   keep the two in step if either changes. */
+.pin {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: #2f6fed;
+  color: #ffffff;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.distance {
+  flex: 0 0 auto;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Attribute chips. Wrap rather than scroll: there are at most six, most lots
+   carry two or three, and a row that scrolls sideways hides the ones that
+   happen to matter. */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--space-2);
+}
+
+.fact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: var(--text-xs);
+}
+
+.factLabel {
+  color: var(--text-3);
+}
+
+.factValue {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.directions {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.directions:hover {
+  text-decoration: underline;
+}
+
+/* Shown under a non-empty list: the results are real, but the absence of a
+   result never is. Same caveat as the empty state, compressed. */
+.coverageNote {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  line-height: 1.45;
+}

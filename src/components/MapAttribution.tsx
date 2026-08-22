@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Overlay } from '../types';
 import { useIsMobile } from '../useIsMobile';
+import { useParkingAreas } from '../parking/store';
 import { useT } from '../i18n/index.ts';
 import styles from './MapAttribution.module.css';
 
@@ -29,6 +30,13 @@ interface Props {
 
 function Credits({ view, overlay }: Props) {
   const t = useT();
+  // Parking is not a layer with a `overlay` value of its own — the pins are
+  // drawn from the parking store, and they appear and disappear with the tab's
+  // query rather than with a control the map owns. So the credit asks the same
+  // store the pins do: exactly when there is something of NVDB's on the map,
+  // NVDB is credited for it, and on a session where nobody opened the tab the
+  // line never appears at all.
+  const parkingShown = useParkingAreas().length > 0;
   return (
     <>
       <span className={styles.item}>
@@ -63,6 +71,18 @@ function Credits({ view, overlay }: Props) {
         </a>{' '}
         (NLOD)
       </span>
+      {parkingShown && (
+        <span className={styles.item}>
+          {t('Parkering:', 'Parking:')}{' '}
+          <a
+            href="https://www.vegvesen.no/fag/teknologi/nasjonal-vegdatabank/"
+            {...ext}
+          >
+            Statens vegvesen
+          </a>{' '}
+          (NVDB, NLOD)
+        </span>
+      )}
       {view === '3d' && (
         <span className={styles.item}>
           {/* /terrain-dem serves Kartverket NDH-derived tiles from R2 with

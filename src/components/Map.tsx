@@ -18,6 +18,7 @@ import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
 import { MapControls } from './MapControls';
 import { NavigationLayer } from './NavigationLayer';
+import { ParkingLayer } from './ParkingLayer';
 import { OfflineManager } from './OfflineManager';
 import { OfflineTileLayerComponent } from '../offline/OfflineTileLayerComponent';
 import { OfflineMaskLayer } from '../offline/OfflineMaskLayer';
@@ -310,6 +311,10 @@ export function Map({
         />
       )}
       <HoverMarker />
+      {/* Numbered pins for whatever the Parking tab is listing. Reads the
+          parking store directly, so it renders nothing at all until that tab
+          has found something — no prop, no re-render of this map. */}
+      <ParkingLayer />
       {/* Terrain values under the cursor for the active overlay. Map.tsx is
           shared by the planning and review screens, so both get it. Hidden
           while drawing/erasing so it doesn't chase the pen. */}

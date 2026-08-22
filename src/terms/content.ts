@@ -143,6 +143,10 @@ export const TERMS: Record<TermsLang, TermsText> = {
             '(CC BY 4.0). Slope steepness/runout, snow depth (seNorge) ' +
             'and avalanche forecasts © NVE / Varsom.no, licensed under ' +
             'the Norwegian Licence for Open Government Data (NLOD). ' +
+            'Parking areas © Statens vegvesen (NVDB), also NLOD; NVDB ' +
+            'covers only the road network Statens vegvesen has ' +
+            'registered, so parking at trailheads on private and forest ' +
+            'roads is often missing. ' +
             'Weather forecasts © MET Norway (CC BY 4.0). 3D terrain from ' +
             'Mapzen/AWS Open Data terrain tiles and their upstream ' +
             'sources. These providers accept no responsibility for how ' +
@@ -280,7 +284,11 @@ export const TERMS: Record<TermsLang, TermsText> = {
           'Bakgrunnskart, stedsnavn og høydedata © Kartverket ' +
             '(CC BY 4.0). Bratthet/utløp, snødybde (seNorge) og ' +
             'snøskredvarsler © NVE / Varsom.no, lisensiert under Norsk ' +
-            'lisens for offentlige data (NLOD). Værvarsler © ' +
+            'lisens for offentlige data (NLOD). Parkeringsområder © ' +
+            'Statens vegvesen (NVDB), også NLOD; NVDB dekker bare ' +
+            'vegnettet Statens vegvesen har registrert, så ' +
+            'utfartsparkering langs private veier og skogsbilveier ' +
+            'mangler ofte. Værvarsler © ' +
             'Meteorologisk institutt (CC BY 4.0). 3D-terreng fra ' +
             'Mapzen/AWS Open Data terrain tiles og deres kilder. ' +
             'Leverandørene tar ikke ansvar for hvordan dataene brukes.',

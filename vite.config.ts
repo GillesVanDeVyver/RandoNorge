@@ -45,6 +45,24 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace(/^\/varsom-api/, ''),
       },
+      // Statens vegvesen's NVDB (parking areas, vegobjekttype 43). The host
+      // does send CORS headers, but we proxy anyway so the identifying
+      // X-Client / X-Kontaktperson headers their guidelines ask for are
+      // stamped in dev exactly as the Worker stamps them in production —
+      // otherwise dev traffic would reach NVDB anonymously.
+      '/nvdb-api': {
+        target: 'https://nvdbapiles.atlas.vegvesen.no',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/nvdb-api/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('X-Client', 'fjellrute');
+            proxyReq.setHeader('X-Kontaktperson', 'contact@fjellrute.no');
+            proxyReq.setHeader('Accept', 'application/json');
+          });
+        },
+      },
       // MET Norway's locationforecast (yr.no weather) requires an identifying
       // User-Agent header. Browsers don't allow fetch() to set User-Agent, so
       // we proxy through the dev server and stamp the header here.

@@ -24,6 +24,11 @@ import {
   roseSectorPath,
 } from '../avalanche/problemText';
 import type { SnowData } from '../snow/useSnow';
+import type { ParkingArea } from '../parking/api';
+import {
+  formatParkingDistance,
+  formatParkingRadius,
+} from '../parking/format';
 import { summariseTerrain, runoutLevelLabel } from './terrain';
 import { ProfileSvg } from './ProfileSvg';
 import { SnowSvg } from './SnowSvg';
@@ -147,6 +152,16 @@ export interface BriefingData {
    *  models the past, not the future. Printed so nobody reads a stale depth
    *  as a forecast. */
   snowIsFallback: boolean;
+  /** Parking areas near the route start, nearest first, as listed in the
+   *  planner's Parking tab. Empty means NVDB had nothing in range, which the
+   *  section states as a fact about the register rather than about the ground
+   *  — see src/parking/api.ts. */
+  parking: ParkingArea[];
+  parkingLoading: boolean;
+  /** The radius the list was gathered within, meters. Printed in the heading:
+   *  "nothing within 2 km" and "nothing within 10 km" are different findings
+   *  and the reader cannot tell them apart otherwise. */
+  parkingRadiusM: number;
   /** Fired once the map canvas has finished drawing (or has given up on the
    *  tiles). The dialog holds Print until then: printing while tiles are still
    *  arriving would put a half-drawn map on the paper. */
@@ -932,6 +947,9 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
     snowLoading,
     snowDate,
     snowIsFallback,
+    parking,
+    parkingLoading,
+    parkingRadiusM,
     onMapReady,
   } = data;
 
@@ -988,6 +1006,12 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
       ? `${t('Snødybde', 'Snow depth')} © NVE / seNorge`
       : null,
     options.weather ? `${t('Vær', 'Weather')} © MET Norway (CC BY 4.0)` : null,
+    // Credited whenever the section printed, including when it printed empty:
+    // "NVDB has no parking area within 2 km" is itself a statement sourced from
+    // NVDB, and the reader is entitled to know whose register said so.
+    options.parking
+      ? `${t('Parkering', 'Parking')} © Statens vegvesen (NVDB, NLOD)`
+      : null,
   ].filter(Boolean);
 
   return (
@@ -1424,6 +1448,90 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
               millimetres are a period total — are in the column headings above,
               where they sit beside the figures they qualify and cannot be
               separated from them. The period column states the rest. */}
+        </section>
+      )}
+
+      {/* Where to leave the car. Last of the data sections and first in the
+          day's actual order, which is not a contradiction: the sheet is read
+          top to bottom the night before, and this is the part that is acted on
+          before the reader has left the house. Compact by design — a name, a
+          distance and whether it costs anything is the whole of what a driver
+          needs, and the planner's tab has the rest. */}
+      {options.parking && (
+        <section className="briefingSection">
+          <h2 className="briefingH2">
+            {/* Built as one run of text with its own middots, like the weather,
+                snow and avalanche headings and unlike the profile's "riktig
+                målestokk" — those are the sheet's four data-source headings, and
+                each says the same three things in the same shape: what this is,
+                who answered, and what they were asked. The radius stands where
+                the others put their date, because it is the equivalent
+                qualifier: it is what decides whether an empty section means
+                "nothing here" or "we did not look far enough". */}
+            {t('Parkering', 'Parking')} · NVDB ·{' '}
+            {t(
+              `innen ${formatParkingRadius(parkingRadiusM)} fra start`,
+              `within ${formatParkingRadius(parkingRadiusM)} of the start`,
+            )}
+          </h2>
+          {parkingLoading ? (
+            <p className="briefingEmpty">{t('Laster …', 'Loading…')}</p>
+          ) : parking.length === 0 ? (
+            // Worded as a gap in the register, never as a gap in the world.
+            // NVDB only knows the road network Statens vegvesen has registered,
+            // and the gravel lot at the end of a private forest road — the
+            // classic Norwegian trailhead — is routinely absent from it. A sheet
+            // that printed a flat "no parking" would be lying to a driver.
+            <p className="briefingEmpty">
+              {t(
+                'Ingen parkeringsområder registrert i NVDB innenfor søkeradien. NVDB dekker bare vegnettet Statens vegvesen har registrert — utfartsparkering langs private veier og skogsbilveier mangler ofte, så dette betyr ikke at det ikke finnes parkering.',
+                'No parking areas registered in NVDB within the search radius. NVDB covers only the road network Statens vegvesen has registered — trailhead parking on private and forest roads is often missing, so this does not mean there is nowhere to park.',
+              )}
+            </p>
+          ) : (
+            <>
+              <table className="briefingParkingTable">
+                <tbody>
+                  {parking.map((p, i) => (
+                    <tr key={p.id}>
+                      <td className="briefingParkingIndex">{i + 1}</td>
+                      <td className="briefingParkingName">
+                        {p.name ?? t('Parkeringsområde', 'Parking area')}
+                      </td>
+                      <td className="briefingParkingDist">
+                        {/* The tab's formatter, not a second one. A guide
+                            checking the sheet against the screen is comparing
+                            two renderings of one query, and "1,2 km" beside
+                            "1.2 km" reads as a disagreement about the ground. */}
+                        {formatParkingDistance(p.distanceM, t)}
+                      </td>
+                      <td className="briefingParkingFacts">
+                        {/* Only what the register actually carries. An invented
+                            "free" on a sheet someone drives to is worse than a
+                            gap they can see is a gap. */}
+                        {[
+                          p.capacity !== null
+                            ? `${p.capacity} ${t('plasser', 'spaces')}`
+                            : null,
+                          p.fee,
+                          p.winter,
+                          p.surface,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ') || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="briefingParkingNote">
+                {t(
+                  'Kun områder registrert i NVDB; utfartsparkering langs private veier mangler ofte.',
+                  'Only areas registered in NVDB; trailhead parking on private roads is often missing.',
+                )}
+              </p>
+            </>
+          )}
         </section>
       )}
 

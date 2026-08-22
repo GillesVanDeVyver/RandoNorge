@@ -12,6 +12,7 @@ import { MapAttribution } from './components/MapAttribution';
 import { NavigationBar, ReviewNavigationBar } from './components/NavigationBar';
 import { ElevationPanel, SnowPanel } from './components/ProfilePanel';
 import { PacePanel } from './components/PacePanel';
+import { ParkingPanel } from './components/ParkingPanel';
 import { SnowDateBar } from './components/SnowDateBar';
 import { SummaryCard, SummaryPanel } from './components/SummaryPanel';
 import { Toast } from './components/Toast';
@@ -1813,6 +1814,18 @@ function App({
                 />
               )}
               <WeatherPanel profile={elevation.profile} />
+            </SummaryCard>
+          )}
+          {/* Parking last: it is the only section that answers a question from
+              before the tour rather than during it, and it is the one the user
+              goes looking for deliberately. No forecast-snapshot banner —
+              parking areas are civil infrastructure, not a forecast, so there
+              is nothing to freeze at save time and nothing to refresh.
+              Keyed off `route` rather than the profile because it only needs
+              the start point, which exists from the first click. */}
+          {!showActualStats && (
+            <SummaryCard title={t('Parkering', 'Parking')}>
+              <ParkingPanel route={route} />
             </SummaryCard>
           )}
         </SummaryPanel>

@@ -461,6 +461,58 @@ const FETCHED_AT = new Date(2026, 2, 13, 18, 20, 0).getTime(); // Varsom
 const SNOW_FETCHED_AT = new Date(2026, 2, 14, 5, 41, 0).getTime(); // seNorge
 const LOW_FETCHED_AT = new Date(2026, 2, 14, 7, 32, 0).getTime(); // MET, older
 const HIGH_FETCHED_AT = new Date(2026, 2, 14, 9, 53, 0).getTime(); // MET, newer
+const PARKING_FETCHED_AT = new Date(2026, 2, 14, 6, 14, 0).getTime(); // NVDB
+
+/** Three registered lots near the start, of the three kinds the register
+ *  actually returns: one fully described, one with a name and nothing else, and
+ *  one with no name at all. The middle and last are not padding — an NVDB row
+ *  whose only populated attribute is its geometry is the normal case outside the
+ *  big trailheads, and both of them are how the sheet comes to print "undefined"
+ *  or an empty facts cell if the fallbacks are ever dropped. */
+const parkingAreas = [
+  {
+    id: 'nvdb:78012345',
+    source: 'nvdb',
+    point: [61.8712, 6.8564],
+    distanceM: 240,
+    name: 'Tj\u00f8rnadalen parkering',
+    capacity: 40,
+    fee: 'Avgift',
+    surface: 'Grus',
+    winter: 'Vinterdrift',
+    owner: 'Stryn kommune',
+    usage: 'Utfart',
+    fetchedAt: PARKING_FETCHED_AT,
+  },
+  {
+    id: 'nvdb:78012346',
+    source: 'nvdb',
+    point: [61.8688, 6.8611],
+    distanceM: 1240,
+    name: 'Loen sentrum',
+    capacity: null,
+    fee: null,
+    surface: null,
+    winter: null,
+    owner: null,
+    usage: null,
+    fetchedAt: PARKING_FETCHED_AT,
+  },
+  {
+    id: 'nvdb:78012347',
+    source: 'nvdb',
+    point: [61.8601, 6.8702],
+    distanceM: 1980,
+    name: null,
+    capacity: 6,
+    fee: null,
+    surface: 'Asfalt',
+    winter: null,
+    owner: null,
+    usage: null,
+    fetchedAt: PARKING_FETCHED_AT,
+  },
+];
 
 function makeData(options, over = {}) {
   return {
@@ -494,6 +546,9 @@ function makeData(options, over = {}) {
     snowLoading: false,
     snowDate: '2026-03-14',
     snowIsFallback: false,
+    parking: parkingAreas,
+    parkingLoading: false,
+    parkingRadiusM: 2000,
     ...over,
   };
 }
@@ -540,9 +595,18 @@ const colWidths = (html) =>
     Number(m[1]),
   );
 
-/** The body of the weather table, comments stripped. */
+/** The body of the weather table, comments stripped.
+ *
+ *  Cut from the weather table by name rather than by being the first `<tbody>`
+ *  on the page. It was the first for as long as the sheet had one table; the
+ *  parking section is a second, and on a sheet with weather switched off but
+ *  parking on, "the first tbody" would quietly have become a list of car parks
+ *  being read for wind speeds. */
 const tbody = (html) =>
-  plain(html).split('<tbody>')[1]?.split('</tbody>')[0] ?? '';
+  plain(html)
+    .split('briefingWeatherTable')[1]
+    ?.split('<tbody>')[1]
+    ?.split('</tbody>')[0] ?? '';
 
 /** The markup of the weather row whose period column reads `label`. */
 const rowHtml = (html, label) =>
@@ -675,6 +739,10 @@ for (const options of combos) {
     `[${name}] the weather table follows its switch`,
   );
   ok(
+    options.parking === html.includes('briefingParkingTable'),
+    `[${name}] the parking list follows its switch`,
+  );
+  ok(
     options.notes === html.includes('briefingNoteLines'),
     `[${name}] the notes space follows its switch`,
   );
@@ -710,6 +778,14 @@ for (const options of combos) {
         flat,
       ),
     `[${name}] the avalanche heading carries the date it was asked for`,
+  );
+  // Parking's qualifier is a radius rather than a date, but it does the same
+  // job: without it an empty section is unreadable, because "nothing within
+  // 1 km" and "nothing within 10 km" are different facts about the valley.
+  ok(
+    options.parking ===
+      /(Parkering|Parking) \u00b7 NVDB \u00b7 [^<]*\bkm\b/.test(flat),
+    `[${name}] the parking heading carries the radius it searched`,
   );
 
   // The weather table is laid out fixed, so a colgroup that miscounts the
@@ -2369,6 +2445,213 @@ ok(
     ),
   'and the sheet prints the ruled lines exactly when the switch says so',
 );
+
+// Parking, on a start point NVDB has never described. Structurally the fourth
+// of these, and the one whose empty state is most likely to be believed: a
+// reader who sees "no registered parking areas" under a heading has been handed
+// a fact about a valley by a page that only knows about a database. NVDB covers
+// the road network Statens vegvesen has registered, which is not where most
+// Norwegian tours start — the gravel turning-circle at the end of a private
+// forest road is absent from it as a matter of course, not as an error. So the
+// wording is checked as carefully as the switch.
+ok(
+  DEFAULT_OPTIONS.parking === true,
+  'parking is on by default: what it answers to is the trailhead, not the sheet',
+);
+const unparkedTest = /const unparkedTour =[\s\S]*?;/.exec(dialogSrc)?.[0] ?? '';
+ok(
+  /!parking\.loading/.test(unparkedTest) &&
+    /parking\.error === null/.test(unparkedTest),
+  'a query still in flight, or one NVDB refused, is not read as an empty valley',
+);
+ok(
+  /if \(unparkedTour && !touched\.parking\) out\.parking = false/.test(
+    dialogSrc,
+  ),
+  'and that, and only that, is what turns the parking section off by default',
+);
+const parkingSwitch =
+  /<Switch\s+label=\{t\('Parkering'[\s\S]*?\/>/.exec(dialogSrc)?.[0] ?? '';
+ok(
+  /unparkedTour/.test(parkingSwitch) && !/disabled/.test(parkingSwitch),
+  'the switch says why it is off and stays switchable, like the other three',
+);
+ok(
+  /NVDB/.test(parkingSwitch),
+  'and it says so in the register\u2019s terms, not the ground\u2019s',
+);
+ok(
+  /!\(options\.parking && parking\.loading\)/.test(dialogSrc),
+  'Print is never held for a car park this sheet is not going to print',
+);
+
+// The radius is inherited from the tab, not defaulted here. Two reasons, and
+// the second is the one that bites: a guide who widened the search to 8 km did
+// so because 2 km came back empty, so a sheet printing the 2 km answer prints
+// the empty section they had just fixed — and the tab and the dialog are
+// mounted at the same time and both publish to the parking store, so two radii
+// would mean two sets of pins fighting over the map.
+const { rememberParkingRadius, recallParkingRadius, forgetParkingRadius } =
+  await import(pathToFileURL(join(ROOT, 'src/parking/radius.ts')).href);
+
+forgetParkingRadius();
+ok(
+  recallParkingRadius() === null,
+  'a session where nobody moved the slider asks the sheet for no opinion',
+);
+rememberParkingRadius(8000);
+ok(
+  recallParkingRadius() === 8000,
+  'and one where they did hands the export the radius they are searching at',
+);
+forgetParkingRadius();
+ok(
+  /rememberParkingRadius\(next\)/.test(
+    readFileSync(join(ROOT, 'src/components/ParkingPanel.tsx'), 'utf8'),
+  ),
+  'the tab hands its radius on whenever the guide moves the slider',
+);
+ok(
+  /recallParkingRadius\(\) \?\? PARKING_DEFAULT_RADIUS_M/.test(dialogSrc),
+  'the dialog opens on it, falling back to the tab\u2019s own default',
+);
+ok(
+  !/useState\(PARKING_DEFAULT_RADIUS_M\)/.test(dialogSrc) &&
+    !/<input[^>]*parking-radius/.test(dialogSrc),
+  'and the sheet grows no second slider to disagree with the first',
+);
+
+// --- What the section prints ------------------------------------------------
+
+const parked = plain(render(makeData(DEFAULT_OPTIONS)));
+
+ok(
+  /Tj\u00f8rnadalen parkering/.test(parked),
+  'a registered lot prints the name the register gave it',
+);
+// One formatter, exercised directly in both languages and then looked for on
+// the page. Directly, because the sheet renders in one locale per run and the
+// separator is the half of this that a single rendering cannot check; on the
+// page, because a shared formatter nobody imports is not shared.
+const { formatParkingDistance } = await import(
+  pathToFileURL(join(ROOT, 'src/parking/format.ts')).href
+);
+const no = (n, e) => n;
+const en = (n, e) => e;
+ok(
+  formatParkingDistance(240, no) === '240 m' &&
+    formatParkingDistance(244, no) === '240 m',
+  'below a kilometre the distance is metres, rounded to ten',
+);
+ok(
+  formatParkingDistance(1240, en) === '1.2 km' &&
+    formatParkingDistance(1240, no) === '1,2 km',
+  'above it, one decimal \u2014 with the separator the reader\u2019s language uses',
+);
+ok(
+  /240 m/.test(parked) && /1,2 km/.test(parked),
+  'and the sheet prints what that formatter returns',
+);
+ok(
+  !/0[.,]2 km/.test(parked) && !/1240 m/.test(parked),
+  'never the other unit',
+);
+for (const src of [sheetSrc, readFileSync(join(ROOT, 'src/components/ParkingPanel.tsx'), 'utf8')]) {
+  ok(
+    /formatParkingDistance/.test(src) && !/toFixed\(1\)\} km/.test(src),
+    'both the sheet and the tab measure with the same ruler',
+  );
+}
+// Order is the hook's, nearest first. Re-sorting on the sheet would be a second
+// opinion about the same question, and the numbered pins on the map are drawn
+// from the hook's order — a sheet that reordered them would number the map
+// wrongly, which is the one failure here nobody would catch by reading.
+ok(
+  parked.indexOf('Tj\u00f8rnadalen') < parked.indexOf('Loen sentrum'),
+  'the list is printed nearest first, in the order the map numbered the pins',
+);
+ok(
+  /Parkeringsomr\u00e5de|Parking area/.test(parked),
+  'a lot the register never named prints a generic name rather than a blank',
+);
+ok(
+  /\u2014/.test(parked),
+  'a lot with no attributes at all prints a dash rather than an empty cell',
+);
+ok(
+  /40 (plasser|spaces)/.test(parked) && /Avgift/.test(parked),
+  'the facts the register does carry are printed',
+);
+ok(
+  !/null|undefined/.test(parked),
+  'and the ones it does not carry are never printed as the absence of a value',
+);
+ok(
+  /NVDB/.test(parked) && /Statens vegvesen/.test(parked),
+  'the sheet credits the register it read',
+);
+ok(
+  !/Statens vegvesen/.test(
+    plain(render(makeData({ ...DEFAULT_OPTIONS, parking: false }))),
+  ),
+  'and with the section off it credits Statens vegvesen for nothing it printed',
+);
+
+// The empty sheet, which is the common one. It has to say who did not know
+// rather than what is not there.
+const unparked = plain(render(makeData(DEFAULT_OPTIONS, { parking: [] })));
+ok(
+  !/briefingParkingTable/.test(unparked),
+  'an empty result prints no table',
+);
+ok(
+  /NVDB/.test(unparked) &&
+    /(private veier|private and forest roads)/.test(unparked),
+  'it names the register and the kind of trailhead the register misses',
+);
+ok(
+  !/^(?:.|\n)*(Ingen parkering\.|No parking\.)/.test(unparked),
+  'and it never states flatly that there is nowhere to park',
+);
+
+// A sheet still waiting on NVDB. Print is gated on this in the dialog, so this
+// state should be unreachable on paper — which is exactly why it is worth
+// checking that it degrades to a line of text rather than to a half-table.
+const parkingPending = plain(
+  render(makeData(DEFAULT_OPTIONS, { parking: [], parkingLoading: true })),
+);
+ok(
+  !/briefingParkingTable/.test(parkingPending) &&
+    /(Laster|Loading)/.test(parkingPending),
+  'a query still in flight prints as a waiting line, not as an empty valley',
+);
+ok(
+  !/(private veier|private and forest roads)/.test(parkingPending),
+  'and does not blame the register for an answer that has not arrived',
+);
+
+// The radius reaches the page. A heading that always said 2 km would be a
+// caption on someone else's search.
+ok(
+  /\b8 km\b/.test(
+    plain(render(makeData(DEFAULT_OPTIONS, { parkingRadiusM: 8000 }))),
+  ),
+  'the heading prints the radius it was actually given',
+);
+
+// The stylesheet has to know the classes the section uses, or the table prints
+// as four unruled columns of default-size text in the middle of a sheet whose
+// every other block is measured in sheet millimetres.
+for (const cls of [
+  'briefingParkingTable',
+  'briefingParkingIndex',
+  'briefingParkingName',
+  'briefingParkingDist',
+  'briefingParkingFacts',
+  'briefingParkingNote',
+]) {
+  ok(css.includes(`.${cls}`), `briefing.css styles .${cls}`);
+}
 
 // The profile's vertical scale, which is inherited rather than observed: the
 // guide has already chosen how to read this profile, on the panel behind the

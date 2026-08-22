@@ -184,18 +184,84 @@ Links:
 - Høydedata / NDH: https://hoydedata.no (license: https://creativecommons.org/licenses/by/4.0/)
 - AWS terrain tiles: https://registry.opendata.aws/terrain-tiles/
 
+## 6. Statens vegvesen — NVDB (parkeringsområder)
+
+Endpoint used:
+
+- `https://nvdbapiles.atlas.vegvesen.no/vegobjekter/api/v4/vegobjekter/43`
+  (vegobjekttype 43 "Parkeringsområde", proxied at `/nvdb-api`)
+
+**License: NLOD.** Same license family as NVE above: NLOD §3 grants the right to
+copy, distribute, adapt and exploit the data **for commercial and
+non-commercial purposes**. Commercial use: OK.
+
+**Attribution:** "© Statens vegvesen (NVDB)", NLOD. ✅ Shown under the Parking
+tab (`SourceAttribution`), on the printed briefing's credit line, and in the
+map-corner attribution while parking pins are on the map.
+
+**Service requirements (distinct from the license):**
+
+- **Identifying headers requested:** `X-Client` and `X-Kontaktperson`. Not
+  enforced, but SVV asks for them so they can contact heavy clients rather than
+  block them. ✅ Stamped server-side by the Worker (`NVDB_HEADERS` in
+  `worker/proxy.js`) and by the Vite dev proxy — browsers cannot set these
+  reliably from script, which is the reason the route is proxied at all.
+- **Rate limit: 40 requests/second.** Our pattern is one request per route
+  start per radius, debounced 300 ms and cached at the edge for 24 h, so this is
+  not close.
+- **URL length limit: 2048 characters**, enforced by a firewall in front of the
+  API — a longer URL is rejected before it reaches NVDB.
+  ✅ `src/parking/api.ts` refuses to send one rather than letting it fail
+  opaquely.
+- **SVV prefers live querying to bulk extraction**, which is why this is a live
+  proxied query and not a nightly import into D1. Worth remembering if the
+  coverage question below is ever revisited.
+
+⚠️ **Coverage caveat, and it is a product concern rather than a legal one.**
+NVDB describes the road network Statens vegvesen has registered. Trailhead
+parking at the end of a private road or a forest road is frequently absent, and
+those are where a large share of Norwegian tours start. Every empty state in the
+UI is therefore worded as a gap in the register, never as "there is nowhere to
+park" — see `docs/parking-data-sources.md` for the alternatives considered
+(chiefly OSM, rejected on ODbL share-alike grounds) and for the coverage test
+that is still outstanding.
+
+`ParkingArea.source` is a discriminator carried from day one for that reason: if
+a second source is ever added, the schema already distinguishes rows by origin,
+which is what keeps a differently-licensed source from contaminating this one.
+
+Links:
+- NVDB API LES v4 docs: https://nvdbapiles.atlas.vegvesen.no/dokumentasjon/
+- NVDB open data / terms: https://www.vegvesen.no/fag/teknologi/nasjonal-vegdatabank/
+- NLOD 2.0 license text: https://data.norge.no/nlod/en/2.0
+
 ---
 
 ## Where attribution is displayed
 
 1. **Map corner (always visible):** Leaflet attribution control (2D) and
    MapLibre attribution control (3D, now expanded, not collapsed) — credits
-   Kartverket, NVE/seNorge, MET Norway, Varsom, Mapzen/AWS.
+   Kartverket, NVE/seNorge, MET Norway, Varsom, Mapzen/AWS, and Statens
+   vegvesen while parking pins are shown.
 2. **Info dialog:** `src/components/TermsDialog.tsx` §6, full wording with
    license links (NLOD, CC BY 4.0).
-3. **Data panels:** `src/components/SourceAttribution.tsx` under snow/avalanche
-   panels.
+3. **Data panels:** `src/components/SourceAttribution.tsx` under the snow,
+   avalanche and parking panels.
 4. **ToS:** `docs/terms-of-service.en.md` / `.no.md` §6.
+5. **Printed briefing:** the credit line at the foot of the sheet
+   (`src/briefing/BriefingSheet.tsx`), which credits only the sources whose
+   sections were actually switched on — a sheet with parking off does not cite
+   Statens vegvesen, and the test harness asserts that.
+
+### A note on `TERMS_VERSION`
+
+The NVDB credit was added to §7 of `src/terms/content.ts` **without bumping
+`TERMS_VERSION`** (still `2026-07-16`). The judgement: adding a source to the
+attribution list is a disclosure, not a change to what the user is agreeing to,
+and bumping the version puts every existing user back through the acceptance
+gate. That is a real cost to pay for a credit line. Recorded here rather than
+left implicit so a reviewer can disagree with it — if the call is wrong, the fix
+is one constant.
 
 ## Open action items
 
