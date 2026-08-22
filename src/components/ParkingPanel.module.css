@@ -53,8 +53,8 @@
 }
 
 /* Empty state. The lead says what happened; the note says what it means, in
-   smaller type, because "NVDB does not cover private roads" is context rather
-   than the answer. */
+   smaller type, because "OpenStreetMap is mapped by volunteers" is context
+   rather than the answer. */
 .empty {
   display: flex;
   flex-direction: column;

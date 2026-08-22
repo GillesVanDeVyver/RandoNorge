@@ -19,12 +19,14 @@ export const PARKING_DEFAULT_RADIUS_M = 2000;
 export const PARKING_MIN_RADIUS_M = 1000;
 export const PARKING_MAX_RADIUS_M = 10000;
 
-/** Debounce before querying NVDB, ms.
+/** Debounce before querying /api/parking, ms.
  *
  *  The route start only moves on a committed stroke, but the radius slider
  *  emits continuously while dragged, and each distinct radius is a distinct
- *  upstream request. Waiting for the drag to settle turns a hundred requests
- *  into one. */
+ *  request. Cheaper than it was against a third-party register — the rows are
+ *  now in our own D1 — but a hundred bounding boxes a second is still a
+ *  hundred D1 reads a second. Waiting for the drag to settle turns them into
+ *  one. */
 const DEBOUNCE_MS = 300;
 
 export interface ParkingState {

@@ -59,7 +59,7 @@ export interface BriefingOptions {
   snow: boolean;
   /** MET forecast for the tour date, at both ends of the route. */
   weather: boolean;
-  /** Where NVDB says the car can be left, nearest the route start.
+  /** Where OpenStreetMap says the car can be left, nearest the route start.
    *
    *  The one section that answers a question from before the tour rather than
    *  during it, which is exactly why it earns a place on paper: the sheet is
@@ -90,10 +90,10 @@ export const DEFAULT_OPTIONS: BriefingOptions = {
   avalanche: true,
   snow: true,
   weather: true,
-  // On by default, but the dialog switches it off by itself when NVDB returned
-  // nothing — the same courtesy the avalanche switch pays an unrated tour. A
-  // heading over "no registered parking areas" is a section that costs paper to
-  // say nothing.
+  // On by default, but the dialog switches it off by itself when the map had
+  // nothing near the start — the same courtesy the avalanche switch pays an
+  // unrated tour. A heading over "no parking areas mapped here" is a section
+  // that costs paper to say nothing.
   parking: true,
   notes: true,
 };

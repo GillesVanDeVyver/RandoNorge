@@ -18,9 +18,19 @@ counts come from taginfo's Norway instance dated 2026-08-19. Live request/respon
 shapes were *not* exercised — the smoke-test commands at the end of this document
 are the ones to run before trusting any parameter spelling.
 
+Superseded in part on 2026-08-22: the coverage numbers in "The gate, measured"
+*were* obtained by querying the sources directly, and the method for each is
+recorded there so the figures can be re-run rather than believed.
+
 ---
 
 ## What was built — 2026-08-22
+
+> **Superseded the same day.** NVDB was removed and the layer rebuilt on
+> OpenStreetMap; see "The recommendation, executed" below. This section is kept
+> as written because the reasoning it records — why the cheap licence looked
+> like the right trade before the coverage gate had been run — is the part worth
+> remembering.
 
 **NVDB vegobjekttype 43, queried live.** Shipped as a Parking tab after Weather,
 numbered pins on the 2D map, and a switchable section on the printed briefing.
@@ -50,22 +60,23 @@ briefing switch's own hint — is worded as a gap in the register rather than a 
 in the world, because on the private and forest roads most Norwegian tours start
 from, that is exactly what it is.
 
-**Still outstanding, and it is the gate this document exists to name:** the
-coverage test below has *not* been run. NVDB shipped because it is the option
-that could ship today under a licence already held, not because it was shown to
-know about Norwegian trailheads. If it turns out to miss the Gjendesheim /
-Spiterstulen / Turtagrø class of start point, the honest response is not to widen
-the radius but to reopen the OSM question with the ODbL cost priced in — which is
-what the `source` column exists to make possible.
+**The gate this document exists to name was still open when the above shipped.**
+NVDB was chosen because it is the option that could ship that day under a licence
+already held, not because it had been shown to know about Norwegian trailheads.
+It has since been run, and NVDB failed it — see "The gate, measured" below, which
+supersedes this paragraph and carries the recommendation that follows from it.
+The prediction made here turned out to be the right one: the answer to a missing
+trailhead is not a wider radius but reopening the OSM question with the ODbL cost
+priced, which is what the `source` column exists to make possible.
 
-It was attempted. Three request shapes against `nvdbapiles.atlas.vegvesen.no` —
-the Gjendesheim `kartutsnitt` query below, a shortened form of it, and the
-parameterless datakatalog lookup for type 43 — each returned HTTP 400 from the
-authoring environment, which cannot set the `Accept: application/json` header
-NVDB requires. That is a fact about the tool used, not evidence about NVDB's
-coverage, and it must not be read as one. Run the `curl` commands at the end of
-this document from a normal shell; they carry the header, and they are the
-version of this test that means anything.
+Three request shapes against `nvdbapiles.atlas.vegvesen.no` — the Gjendesheim
+`kartutsnitt` query below, a shortened form of it, and the parameterless
+datakatalog lookup for type 43 — each returned HTTP 400 from the authoring
+environment, which cannot set the `Accept: application/json` header NVDB
+requires. That is a fact about the tool, not evidence about NVDB's coverage, and
+it must not be read as one; NVDB's failure below rests on a field report instead.
+Run the `curl` commands at the end of this document from a normal shell if a
+measured NVDB count is wanted.
 
 **Also unverified:** the live NVDB response shape. `src/parking/api.ts` reads
 attributes by matching their Norwegian names rather than by `egenskapstype` id,
@@ -74,6 +85,306 @@ A wrong id fails silently by reading the wrong column; a missed name renders an
 honest "—". That is a deliberate trade of precision for a safe failure mode, and
 it should be tightened to ids once the smoke test at the end of this document has
 actually been run.
+
+---
+
+## The gate, measured — 2026-08-22 (later the same day)
+
+The gate named at the top of this document has now been run, and **NVDB failed
+it.** The trigger was a report from the field: Innerdal Parkeringsplass in
+Nerdal, Sunndal — a signed, asphalted, 89-space lot charging 75 NOK at the end of
+the private toll road into Innerdalen — is absent from the tab. That is not an
+edge case. It is the archetype of a Norwegian trailhead: the parking is a fee box
+on a farm road, and the road belongs to the farm.
+
+Four candidate sources were measured against it. Only one has the lot.
+
+| Source | Parking objects in Norway | Has the Innerdal lot? | What it can tell a driver | Licence |
+| --- | --- | --- | --- | --- |
+| OpenStreetMap | 47,422 | **Yes** | name, capacity, fee, surface, payment method, `hiking`/`ski` | ODbL 1.0 (share-alike) |
+| Overture Places | 5,582 | No — nothing within the valley | name and category only | CDLA-Permissive-2.0 |
+| Kartverket N50 | 95 in Møre og Romsdal, 164 in Innlandet | No — nearest is 7.95 km away | nothing; see below | CC BY 4.0 |
+| NVDB type 43 | not measurable from here | No (the field report) | name, capacity, surface, restrictions | NLOD |
+
+**OpenStreetMap** carries the lot as way 171691144, "Parkering Innerdalen", whose
+centroid is 62.7384/8.7100 — about 20 m from the coordinates in the field report,
+which for an 89-space lot means the same piece of ground. It has `fee=yes`,
+`charge=75 NOK`, `capacity=89`,
+`surface=asphalt`, `payment:app` and `payment:credit_cards`. Spot checks at other
+start points found Gjendesheim split into a long-term lot of 550 spaces and a
+short-term lot with a two-hour free period, and Preikestolen priced at 40 NOK for
+two hours or 275 NOK for the day. Several are tagged `hiking=yes` and `ski=yes` —
+a semantic none of the official registers has, because none of them was built by
+people who park at trailheads.
+
+**Overture Places** is the interesting near-miss, and the earlier assumption
+about it was wrong in both directions. Its Places theme is *not* ODbL; it is
+CDLA-Permissive-2.0, sourced from Meta, Microsoft, Foursquare and others, so it
+would have been a genuine permissive escape from the licence problem. It simply
+does not have the data. Querying the 2026-07-22.0 release directly, the box
+around Innerdalen returns seventeen places — Innerdalshytta, Renndølsetra,
+Innerdal Turisthytte, half a dozen peaks — and not one parking area. The likely
+reason, and this is inference rather than measurement, is that a POI dataset
+assembled from business listings knows the hotel and the café at the end of the
+valley and has no reason to know the fee box, because a fee box is not a
+business. That would also explain a national count an order of magnitude below
+OSM's while still being large enough to cover urban and commercial parking. It
+has not been tested beyond this one valley.
+
+**N50** deserves a fairer hearing than a flat no, because its own product
+specification promises exactly what Fjellrute wants: *"alle parkeringsområder som
+er naturlig utgangspunkt for tur- og friluftsliv søkes tatt med"* — all parking
+areas that are a natural starting point for hiking and outdoor life are sought to
+be included. Measured, it half keeps that promise. It has Gjendesheim (330 m) and
+Spiterstulen (90 m), the two most-used trailheads in Jotunheimen. It does not
+have Innerdal. Three start points is far too small a sample to call a pattern,
+and the tempting reading — that N50 has the famous publicly-reached lots and
+misses the ones up a private road — should be treated as a hypothesis worth
+testing against twenty trailheads, not as a finding. What is not in doubt is the
+single result that prompted the question: N50 does not have the lot the guide
+went looking for. And it is thin even where it hits: the features are
+points, not areas, and of the 259 parking points across two large counties,
+**not one has a name** — no capacity, no fee, no surface, no access note. N50 can
+put a dot on a map. It cannot tell a guide what the dot costs or whether the car
+will fit.
+
+**SSR**, the national place-name register, was also checked and is a dead end.
+Parking is not a `navneobjekttype`; "Innerdal Parkeringsplass" is a business
+listing, not an official Norwegian place name.
+
+So the answer to "is there a free database with more parking in it" is yes, there
+is exactly one, and it is the one that was rejected in the first round.
+
+### What ODbL would actually cost
+
+Not as much as the first-round rejection assumed, and the cost falls in a
+different place than expected.
+
+The **Collective Database Guideline**, endorsed by the OSMF board, sets the rule
+that matters: *"An OSM dataset and a non-OSM dataset combined in a single
+database will be considered independent (and thus form a Collective Database
+rather than a Derivative Database) so long as the data used for a particular data
+type is either all OSM or all non-OSM within the same regional cut."* It adds
+that *"two data sets need not be physically separated to qualify as
+'independent'"*. Its worked examples are close to this case: proprietary traffic
+data stored alongside OSM roads and used for route optimisation is *"not subject
+to share-alike"*.
+
+Applied here: Fjellrute's routes, elevation profiles, snow and avalanche caches
+are a different data type from parking. They stay proprietary. Share-alike
+reaches the parking table and stops.
+
+The map, the tab list and the printed briefing sheet are **Produced Works** — the
+guideline names *".PNG, JPG, .PDF, SVG images and any raster image; a map in a
+physically printed work"* explicitly. They need attribution, not publication.
+
+What does need publishing is the parking extract itself. A Norway-wide subset of
+OSM parking is a Derivative Database, and ODbL §4.6 requires that it be offered
+under ODbL once produced works from it are publicly used. This is the cheapest
+obligation in the whole analysis, because the extract has no proprietary value —
+it is OSM data with the non-parking rows removed.
+
+**The real catch is the Horizontal Map Layers Guideline, and it bites the current
+design specifically.** It states that *"if you use OpenStreetMap data along with
+non-OpenStreetMap data for a given Feature Type, then the share-alike condition
+would apply regardless of whether some data for that Feature Type is in a
+different layer than the other data"*, and its worked example is exactly ours,
+quoted in full because the condition in the middle of it is the whole point:
+*"if there are restaurants in the OpenStreetMap layer and you add additional
+restaurants in another layer, but you include only those restaurants not present
+in the OpenStreetMap layer so that the restaurant layers will complement each
+other, then the layers for this feature are interacting and the restaurants added
+in your non-OpenStreetMap layer must be shared."*
+
+Substitute "parking" for "restaurants" and that is a precise description of what
+running NVDB alongside OSM would be for: filling the lots OSM does not have. The
+guideline calls that complementary, and complementary is the trigger. **Serving
+NVDB parking and OSM parking together for the same region would pull the NVDB
+rows into share-alike too** — and, far more importantly, would pull in any
+user-contributed parking Fjellrute ever adds. Note the converse: two parking sets
+that genuinely did not interact, because one wholly replaced the other in a given
+region, are the case the Collective Database rule protects. The `source` discriminator already
+in `ParkingArea` is what makes the alternative enforceable, but it has to become a
+*partition* — one source per regional cut — rather than a blend. Mixing is the
+expensive choice; choosing is free.
+
+One thing the guidelines are silent on is spatial computation, and it is worth
+being deliberate rather than assuming. The current implementation computes
+`distanceM` from the user's route start at query time and holds it in an
+in-process `Map` that dies with the session; nothing is persisted, and no
+distance is ever written into a stored parking record. That is the right side of
+every line that exists, and it should stay that way — a cached table of "distance
+from private route X to OSM parking Y" is where an argument could actually be
+had.
+
+Attribution would be "© OpenStreetMap contributors" wherever the current NVDB
+credit appears: the map corner, the data panel, the briefing sheet's credit line,
+and `DATA_LICENSES.md`. That plumbing already exists and is already conditional.
+
+The honest unknowns: no ODbL case law was found, and the practical enforcement
+route is a complaint to the OSMF rather than litigation. Whether a Norwegian
+company is caught by the EU Database Directive via the EEA is a question for a
+Norwegian lawyer, not for this document. OSMF answers licence questions free at
+legal-questions@osmfoundation.org, which is worth using before launch.
+
+### Recommendation
+
+Move parking to OSM, all of it, and drop NVDB from the parking feature type
+rather than running the two side by side. The licence price is real but small and
+lands on a table with no commercial value; the mixing rule above means that
+keeping NVDB "as well" buys coverage at the cost of entangling every future
+parking row, including user-submitted ones.
+
+The larger cost is not legal, it is the pipeline. Overpass is explicitly not for
+production application traffic, so this means a Geofabrik extract, a filter to
+`amenity=parking`, a D1 table, a refresh job, and a published ODbL copy of the
+extract — precisely the machinery live NVDB let us avoid. That, not the licence,
+is what this decision actually buys and pays for, and it should be estimated
+properly before it is scheduled rather than taken from this note.
+
+Overture Places is worth re-testing in a year. If its Norwegian coverage deepens
+it is the only candidate that is both permissive and structurally capable of
+carrying fee and capacity data.
+
+**The case for doing nothing, which is not weak.** NVDB is an authoritative
+register maintained by the road authority; OSM is a volunteer dataset where the
+"75 NOK" could be four years stale, the capacity could be someone's estimate, and
+nothing prevents a bad edit from putting a car park in a lake. For a product
+whose other data sources are all official, adopting a crowd-sourced one is a
+change in kind and not only in coverage, and it imports a vandalism and staleness
+risk that live NVDB does not have. The counter is that a wrong fee is a smaller
+failure than no lot at all — a guide who is told nothing drives to Innerdal
+anyway, whereas a guide told "75 NOK, 89 spaces, may be out of date" is strictly
+better off — and that the risk is manageable by showing attributes with their
+provenance and refresh date rather than as bare fact. That is a judgement about
+product tone, and it belongs to the owner rather than to this document. What the
+document can say is that the coverage difference is not marginal: on the test
+case that prompted all of this, three of the four candidates have nothing at all.
+
+### How these numbers were produced, so they can be re-run
+
+OSM counts are taginfo's Norway instance (6,391 nodes, 40,547 ways, 484
+relations, summing to 47,422). The candidate table further down this document
+says 47,415, from the same source on 19 August; the seven-object difference is
+three days of mapping, not a contradiction, and both figures are left as they
+were read. The Innerdal and trailhead records came from Overpass `amenity=parking`
+bounding-box queries. Overture was queried straight off the public GeoParquet
+with DuckDB `httpfs` against
+`s3://overturemaps-us-west-2/release/2026-07-22.0/theme=places/type=place/*.parquet`.
+N50 came from the Geonorge download API — a POST order for dataset
+`ea192681-d039-42ec-b1bc-f3ce04c189ac`, FGDB, EPSG:25833, fylke 15 and fylke 34 —
+reading `objtype='Parkeringsområde'` out of `N50_BygningerOgAnlegg_posisjon` and
+reprojecting to WGS84 to measure distances. The `_omrade` layer was checked too
+and holds no parking objects at all.
+
+**Still not verified.** NVDB's own national count: the API host answers HTTP 400
+to the tooling available here, so NVDB's failure rests on the field report rather
+than on a measurement, and a proper count would sharpen the comparison. The
+Turtagrø check returned 12 km but is void — Turtagrø is in Vestland and the
+Innlandet download is clipped at the county line. And OSM's Innerdal attributes
+are a mapper's claim, not a survey; 75 NOK and 89 spaces should be treated as
+what someone wrote down, which is the standing caveat on all crowd-sourced
+attributes and an argument for showing them with a source, never as fact.
+
+---
+
+## The recommendation, executed — 2026-08-22 (evening)
+
+The recommendation above was taken in full: parking moved to OpenStreetMap, NVDB
+was removed rather than kept alongside, and the ODbL copy of the extract was
+published at the same time rather than deferred to launch. What follows is what
+was actually done and what was actually measured, so the numbers in this
+document can be checked against the ones in the repository.
+
+**The pipeline, as predicted, is the real cost.** Geofabrik's
+`norway-latest.osm.pbf`, filtered by `scripts/parking/build_parking_extract.py`
+(pyosmium, whole-extract node-location index, `idx="flex_mem"`, about 4 GB of
+RAM and eight minutes for Norway), into the `parking` table added by
+`migrations/0009_parking.sql`, answered by bounding box at `/api/parking`
+(`worker/parking.js`). Refresh is monthly and manual for now; the estimate this
+document asked for turned out to be roughly a day of work, most of it in the
+attribute mapping rather than the extraction.
+
+**The counts.** 47,422 `amenity=parking` features in the extract — the same
+number taginfo reported in "How these numbers were produced", which is not a
+coincidence to be quietly pleased about but a check worth keeping: the build
+script prints it, and an inequality would mean the filter had stopped reading
+the whole file. 7,262 were dropped as `access=private|no|permit` or as roadside
+parking (`parking=lane|street_side|on_kerb|half_on_kerb|shoulder`); 484 were
+relations, which are not handled. **39,676 rows published.**
+
+**The test case is closed.** Innerdalen is `way/171691144`, "Parkering
+Innerdalen", 62.738433/8.7101885 — about 25 m from the coordinate in the
+original report — with `capacity=89`, `fee=75 NOK`, `surface=asphalt` and
+`payment=app,credit_cards`. Every attribute this document predicted OSM would
+carry, it carries.
+
+**The licence obligations, discharged.** §4.3 attribution is on the map, the
+tab and the printed sheet; §4.6 is `public/data/parking/`, served at
+`https://fjellrute.no/data/parking` with the GeoJSON, `LICENSE.txt` and a
+`README.md`. `docs/DATA_LICENSES.md` §6 was rewritten around both and is now the
+authoritative statement of the posture; this document is the reasoning behind
+it, not a second copy of it.
+
+**The mixing rule was honoured literally.** The `/nvdb-api` proxy, the
+`NVDB_HEADERS`, the Vite dev-proxy entry and the NLOD credit are gone.
+`ParkingArea.source` survives them, which was the point of putting it there —
+but it now carries `check ("source" = 'osm')` in the schema, so it is a lock
+rather than an invitation. Adding a second source means editing a migration and
+re-reading the Horizontal Map Layers analysis, in that order.
+
+**Two regressions the coverage question hid, both found by looking at real
+rows rather than at counts.** This document argued the swap on coverage, and
+coverage was the easy part; what it did not anticipate is that OSM changes the
+*values* as well as the number of them.
+
+The first was a filter bug: `parking=surface` is OSM's way of saying "a normal
+open car park", the overwhelming default, and the build script was reading the
+`parking` key as a description of what the lot is *for*. 15,214 of 39,676 rows
+would have printed "Bruk: surface" directly beneath "Dekke: Asfalt".
+`UNINFORMATIVE_PARKING_KINDS` now drops it and `yes` at build time. After the
+fix the `usage` column is 3,125 `hiking` and 1,660 `ski` at the top — the two
+values this app exists to surface — and nothing meaningless above them.
+
+The second is structural and is the reason `src/parking/format.ts` grew a
+tag-translation layer. NVDB answered in Norwegian prose and the panel could
+print the field straight through; OSM answers in machine tags, so the same
+panel would have shown a Norwegian driver `Dekke: asphalt · Avgift: no ·
+Adkomst: yes · Betaling: easypark,mastercard,visa` — worse than the register it
+replaced, on a screen that is read in a car park. The maps were built from the
+measured value distributions in D1 rather than from the wiki, which is how
+`access=customers` (2,849 rows, a fact worth eight hours of worry) got
+separated from `access=yes` (4,138 rows, pure noise, now dropped). The rule in
+that module is that an unrecognised value is humanised and never dropped: OSM
+tagging is open, and a lookup returning null for anything it had not been told
+about would silently delete true facts as the data improved.
+
+**What was lost, stated plainly.** NVDB's winter-maintenance attribute. OSM has
+no established tag for ploughing, and for a ski-touring app that was the single
+most useful column on the briefing sheet. `payment` took its slot, on the
+grounds that "app only" is the fact most likely to strand a driver in a valley
+with no signal. This is the one respect in which the swap is a regression, and
+it is recorded in `ParkingPanel.tsx`, `BriefingSheet.tsx` and
+`docs/DATA_LICENSES.md` §6 rather than left to be rediscovered.
+
+**One judgement made without asking, flagged here for disagreement.**
+`TERMS_VERSION` was **not** bumped when §7 of `src/terms/content.ts` was
+rewritten from NLOD to ODbL, because bumping it re-gates every signed-in alpha
+tester behind an acceptance dialog to tell them a credit line changed. The
+argument against is that ODbL is share-alike and NLOD is not, so the *kind* of
+licence disclosed changed and not only the name. The counter-argument, and the
+reason for the call, is that the share-alike obligation runs against Fjellrute
+rather than against the user, and its user-facing consequence — a published
+extract they may take — adds to their rights rather than subtracting. Reversing
+it is two constants, `src/terms/content.ts` and `worker/policyVersions.js`,
+which `pnpm test:policies` requires to agree.
+
+**Still open.** Vandalism and staleness monitoring: nothing yet watches for a
+car park appearing in a lake or a fee going four years stale, and the "case for
+doing nothing" above was right that adopting a crowd-sourced source is a change
+in kind. A sanity pass in the build script — features implausibly far from any
+road, capacities in the thousands — would be the cheap first version of it. And
+the monthly refresh is a calendar reminder rather than a scheduled job.
 
 ---
 

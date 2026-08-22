@@ -106,6 +106,17 @@ const STATIC_PAGES = new Set([
   '/about.html',
   '/privacy',
   '/privacy.html',
+  // The ODbL download page for the OpenStreetMap parking extract
+  // (public/data/parking/index.html), reachable with or without the trailing
+  // slash. Listed for a reason stronger than tidiness: ODbL §4.6 obliges us to
+  // make the database behind the parking layer available to the people we show
+  // it to, and this is the URL that does it — named in the terms
+  // (src/terms/content.ts §7) and in docs/DATA_LICENSES.md. Drop it from this
+  // list and the path redirects to the site root instead, which turns a licence
+  // obligation into a 302 nobody notices. The files inside the directory carry
+  // extensions and are served by the LOOKS_LIKE_A_FILE branch below; only the
+  // bare directory path needs naming here.
+  '/data/parking',
 ]);
 
 /**

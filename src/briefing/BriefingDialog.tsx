@@ -37,8 +37,8 @@
 // along the route; the avalanche forecast turns off when Varsom has not assessed
 // any region the route crosses, out of season or off the edge of the forecast
 // area, where the section prints as a question mark and the words "ikke
-// vurdert"; parking turns off when NVDB has no registered area anywhere near the
-// start, since a heading over "nothing registered here" costs paper to say
+// vurdert"; parking turns off when OpenStreetMap has nothing mapped anywhere
+// near the start, since a heading over "nothing mapped here" costs paper to say
 // nothing; and the notes field turns off when the tour was saved without any,
 // since a guide who wrote nothing down is not asking for a page of ruled lines
 // under a heading that says Notes.
@@ -223,9 +223,9 @@ export function BriefingDialog({
   const [plannerScale] = useState(recallProfileScale);
   // How far out the parking tab is searching, read the same way and for a
   // blunter reason: the tab and this dialog are both mounted and both query
-  // NVDB, so asking a different question would mean two answers fighting over
-  // the map's pins. Falls back to the tab's own default when nobody has moved
-  // the slider — the same value the tab would be showing.
+  // the same parking endpoint, so asking a different question would mean two
+  // answers fighting over the map's pins. Falls back to the tab's own default
+  // when nobody has moved the slider — the value the tab would be showing.
   const [parkingRadiusM] = useState(
     () => recallParkingRadius() ?? PARKING_DEFAULT_RADIUS_M,
   );
@@ -317,10 +317,11 @@ export function BriefingDialog({
     [route],
   );
   // Asked for whether or not the section is switched on, like the snow query
-  // above and for the same reason: the switch's default depends on whether NVDB
-  // has anything to say, so the answer has to be in before the guide opens the
-  // gear. Not frozen with the rest of a saved route's forecasts — a car park is
-  // not a forecast, and the register's answer today is the one the driver wants.
+  // above and for the same reason: the switch's default depends on whether the
+  // map has anything to say, so the answer has to be in before the guide opens
+  // the gear. Not frozen with the rest of a saved route's forecasts — a car
+  // park is not a forecast, and OpenStreetMap today is what the driver wants;
+  // the extract behind it is refreshed monthly, so it does move.
   const parking = useParking(parkingOrigin, parkingRadiusM);
   const snowSummary = useMemo(
     () => summariseSnow(profile, snow.snow),
@@ -358,14 +359,15 @@ export function BriefingDialog({
   const notes = routeDescription?.trim() ?? '';
   const unwrittenTour = notes === '';
 
-  // A trailhead NVDB has never heard of, which in Norway is the common case
-  // rather than the odd one: the register covers the roads Statens vegvesen has
-  // registered, and the gravel turning-circle at the end of a private forest
-  // road is not one of them. On screen that emptiness is worth saying, because
-  // the guide asked the question by opening the tab and deserves to know the
-  // answer came back empty rather than broken. On paper it is a heading and two
-  // sentences of disclaimer about a section with no rows, so the switch steps
-  // aside — and says why, so the guide can put it back.
+  // A trailhead nobody has mapped yet. Rarer than it was under NVDB — that is
+  // the whole reason the layer moved to OpenStreetMap — but OSM is surveyed by
+  // volunteers, so a lay-by at the end of a private forest road is in it
+  // exactly when somebody has been there with a phone. On screen that
+  // emptiness is worth saying, because the guide asked the question by opening
+  // the tab and deserves to know the answer came back empty rather than
+  // broken. On paper it is a heading and two sentences of disclaimer about a
+  // section with no rows, so the switch steps aside — and says why, so the
+  // guide can put it back.
   //
   // Read like the other two: an error is not an answer, and neither is a
   // request still in flight.
@@ -711,17 +713,20 @@ export function BriefingDialog({
         checked={options.weather}
         onChange={(on) => setOption('weather', on)}
       />
-      {/* Says why it is off in the register's terms rather than the world's, the
-          same wording the tab uses: "NVDB has nothing here" is a statement about
-          a road database, and "there is nowhere to park" would be a statement
-          about a valley the database has never described. Kept switchable, so a
+      {/* Says why it is off in the map's terms rather than the world's, the
+          same wording the tab uses: "OpenStreetMap has nothing here" is a
+          statement about a map, and "there is nowhere to park" would be a
+          statement about a valley nobody has surveyed. Kept switchable, so a
           guide who wants the disclaimer itself on the page can have it. */}
       <Switch
         label={t('Parkering', 'Parking')}
         checked={options.parking}
         hint={
           unparkedTour
-            ? t('Ingenting registrert i NVDB', 'Nothing registered in NVDB')
+            ? t(
+                'Ingenting kartlagt i OpenStreetMap',
+                'Nothing mapped in OpenStreetMap',
+              )
             : null
         }
         onChange={(on) => setOption('parking', on)}

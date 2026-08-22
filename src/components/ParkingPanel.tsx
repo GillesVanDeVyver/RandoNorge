@@ -1,18 +1,27 @@
-// "Parking" summary tab: the nearest places NVDB knows about to leave the car,
-// measured from where the route starts.
+// "Parking" summary tab: the nearest mapped places to leave the car, measured
+// from where the route starts. Source is OpenStreetMap (see
+// docs/parking-data-sources.md and src/parking/api.ts); it was NVDB until
+// 2026-08-22, and the swap is why the coverage wording below changed.
 //
-// Two things this panel is careful about, both from docs/parking-data-sources.md:
+// Two things this panel is careful about:
 //
-//  1. An empty result is reported as a gap in NVDB's coverage, not as "there is
-//     nowhere to park". NVDB only describes the road network Statens vegvesen
-//     administers or has registered, so the gravel lot at the end of a private
-//     forest road — the classic Norwegian trailhead — is frequently absent. A
-//     planner that says "no parking found" flatly would be lying to the user
-//     about the ground.
+//  1. An empty result is reported as a gap in the map, not as "there is
+//     nowhere to park". OSM's trailhead coverage is much better than the
+//     register's — that is the whole reason for the move — but it is still
+//     volunteer-surveyed, and a lot nobody has walked past with a phone is a
+//     lot nobody has mapped. A planner that says "no parking found" flatly
+//     would be lying to the user about the ground.
 //
-//  2. Attributes are shown only where the register actually carries them.
-//     Coverage of fee, capacity and winter maintenance is patchy, and an
-//     invented "free" is worse than a visible "—".
+//  2. Attributes are shown only where a mapper actually recorded them.
+//     Coverage of fee, capacity and payment method is uneven, and an invented
+//     "free" is worse than a visible "—".
+//
+//  3. Every value below goes through a formatter in ../parking/format. OSM
+//     answers in machine tags where NVDB answered in Norwegian prose, so the
+//     raw row for Innerdalen reads `fee=75 NOK, surface=asphalt,
+//     payment=app,credit_cards` — printable as-is only to someone who already
+//     knows the tagging scheme. The formatters are shared with the printed
+//     briefing so the two never disagree about one row of one query.
 import { useMemo, useState } from 'react';
 import type { LatLng, Route } from '../types';
 import { routeEnds } from '../geometry';
@@ -28,10 +37,15 @@ import { recallParkingRadius, rememberParkingRadius } from '../parking/radius';
 import { setHoverPoint } from '../hoverStore';
 import { PARKING_PIN_COLOR } from '../parking/pin';
 import {
+  formatParkingAccess,
   formatParkingDistance,
+  formatParkingFee,
+  formatParkingPayment,
   formatParkingRadius,
+  formatParkingSurface,
+  formatParkingUsage,
 } from '../parking/format';
-import { SourceAttribution, NLOD } from './SourceAttribution';
+import { SourceAttribution, ODBL } from './SourceAttribution';
 import { useT, type Translate } from '../i18n/index.ts';
 import styles from './ParkingPanel.module.css';
 
@@ -80,16 +94,37 @@ function ParkingRow({
             {formatParkingDistance(area.distanceM, t)}
           </span>
         </div>
+        {/* What is missing here, deliberately: "Vinter" / winter maintenance,
+            which NVDB carried and OSM has no established tag for. It was the
+            most useful attribute on the sheet for a ski tour and losing it is
+            a real regression — but NVDB carried it for lots that were mostly
+            not trailheads, so a field that was reliably present about the
+            wrong car parks has been traded for a wider set of the right ones.
+            If OSM settles on a tag for it, add it back here first. */}
         <div className={styles.facts}>
           <Fact
             label={t('Plasser', 'Spaces')}
             value={area.capacity !== null ? String(area.capacity) : null}
           />
-          <Fact label={t('Avgift', 'Fee')} value={area.fee} />
-          <Fact label={t('Vinter', 'Winter')} value={area.winter} />
-          <Fact label={t('Dekke', 'Surface')} value={area.surface} />
-          <Fact label={t('Eier', 'Owner')} value={area.owner} />
-          <Fact label={t('Bruk', 'Use')} value={area.usage} />
+          <Fact label={t('Avgift', 'Fee')} value={formatParkingFee(area.fee, t)} />
+          <Fact
+            label={t('Betaling', 'Payment')}
+            value={formatParkingPayment(area.payment, t)}
+          />
+          <Fact
+            label={t('Dekke', 'Surface')}
+            value={formatParkingSurface(area.surface, t)}
+          />
+          {/* maxstay and operator are free text a mapper typed — "48 t", "Stryn
+              kommune" — not an enumeration, so there is nothing to translate
+              and they pass through. */}
+          <Fact label={t('Maks tid', 'Max stay')} value={area.maxstay} />
+          <Fact
+            label={t('Adkomst', 'Access')}
+            value={formatParkingAccess(area.access, t)}
+          />
+          <Fact label={t('Drives av', 'Operator')} value={area.operator} />
+          <Fact label={t('Bruk', 'Use')} value={formatParkingUsage(area.usage, t)} />
         </div>
         {/* Getting there is the whole point of knowing it exists. */}
         <a
@@ -186,8 +221,8 @@ export function ParkingPanel({ route }: Props) {
         </p>
         <p className={styles.emptyNote}>
           {t(
-            'NVDB dekker bare vegnettet Statens vegvesen har registrert. Utfartsparkering langs private veier og skogsbilveier mangler ofte — at det ikke står noe her betyr ikke at det ikke finnes parkering.',
-            "NVDB only covers the road network Statens vegvesen has registered. Trailhead parking along private and forest roads is often missing — nothing listed here does not mean there is nowhere to park.",
+            'Dataene kommer fra OpenStreetMap og er kartlagt av frivillige. Dekningen er god ved kjente utfartssteder, men en plass ingen har kartlagt står ikke her — at det ikke står noe her betyr ikke at det ikke finnes parkering.',
+            'The data comes from OpenStreetMap and is mapped by volunteers. Coverage is good at well-known trailheads, but a lot nobody has mapped will not appear — nothing listed here does not mean there is nowhere to park.',
           )}
         </p>
       </div>
@@ -209,18 +244,18 @@ export function ParkingPanel({ route }: Props) {
       {areas.length > 0 && (
         <p className={styles.coverageNote}>
           {t(
-            'Kun områder registrert i NVDB. Utfartsparkering langs private veier mangler ofte.',
-            'Only areas registered in NVDB. Trailhead parking on private roads is often missing.',
+            'Kartlagt av frivillige i OpenStreetMap. Avgift og antall plasser er ikke alltid oppdatert.',
+            'Mapped by volunteers in OpenStreetMap. Fees and space counts are not always current.',
           )}
         </p>
       )}
       <SourceAttribution
         what={t('Parkeringsområder', 'Parking areas')}
         source={{
-          label: 'Statens vegvesen (NVDB)',
-          href: 'https://www.vegvesen.no/fag/teknologi/nasjonal-vegdatabank/',
+          label: 'OpenStreetMap',
+          href: 'https://www.openstreetmap.org/copyright',
         }}
-        license={NLOD}
+        license={ODBL}
         note={
           fetchedAt != null && Number.isFinite(fetchedAt) ? (
             <>

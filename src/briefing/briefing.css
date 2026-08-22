@@ -43,10 +43,11 @@
  * Parking's 26 mm is a heading over five ruled rows of about 4 mm, and it is
  * the one section whose height is bounded by a constant rather than by the
  * data: the list is capped at five lots (PARKING_LIMIT), so a trailhead with
- * forty registered areas around it costs exactly what one with five does. It is
- * also the section most often absent, since the switch turns itself off when
- * NVDB has nothing registered near the start — which, on the private forest
- * roads most Norwegian tours start from, is the common case.
+ * forty mapped areas around it costs exactly what one with five does. It is
+ * also the section that can vanish, since the switch turns itself off when
+ * OpenStreetMap has nothing mapped near the start — rarer since the layer
+ * moved off NVDB, but still the case wherever no volunteer has surveyed the
+ * lay-by at the end of the forest road.
  *
  * That leaves roughly 40 sheet mm (30 mm of paper) of headroom, which is what
  * absorbs the blocks holding text of unknown length — a wordy Varsom bulletin,
@@ -1408,9 +1409,9 @@
   color: var(--briefing-muted);
 }
 
-/* The only column allowed to wrap, and the only one that needs to: NVDB's names
- * run to things like "Rondvassbu parkering, øvre felt". It takes the space the
- * other three do not, so a long name costs a second line here rather than
+/* The only column allowed to wrap, and the only one that needs to: OSM `name`
+ * tags run to things like "Rondvassbu parkering, øvre felt". It takes the space
+ * the other three do not, so a long name costs a second line here rather than
  * pushing the distance off the row. */
 .briefingParkingName {
   font-weight: 600;
@@ -1440,7 +1441,7 @@
 /* The coverage caveat under the list. Provenance rather than content, so it
  * takes .briefingRetrieved's size and colour: this is the line that stops the
  * five rows above being read as "these are the places to park" rather than
- * "these are the places NVDB knows about". */
+ * "these are the places OpenStreetMap knows about". */
 .briefingParkingNote {
   margin: 1mm 0 0;
   font-size: 7pt;

@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Generated build products that are rebuilt rather than reviewed. The one that
+# matters today is build/parking.sql: 4 MB of INSERTs regenerated from the
+# OpenStreetMap extract on every refresh (scripts/parking/build_parking_extract.py).
+# The *published* copy of that data, public/data/parking/, IS committed — it has
+# to be, ODbL §4.6 requires us to serve it — and the loader can be rebuilt from
+# it with --from-geojson, so keeping the SQL out of git loses nothing.
+build/
+
 # This project uses pnpm only. Never commit an npm/yarn lockfile —
 # mixing package managers causes lockfile drift and phantom-dependency build failures.
 package-lock.json

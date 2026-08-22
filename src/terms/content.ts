@@ -38,6 +38,19 @@ export interface TermsText {
  * Bump this whenever the terms text changes materially. It is shown on both
  * the gate page and the dialog ("Last updated") and can later be recorded
  * server-side if acceptance ever needs to be versioned per account.
+ *
+ * NOT bumped on 2026-08-22, when §7 was rewritten to say that parking comes
+ * from OpenStreetMap under ODbL rather than from NVDB under NLOD. The
+ * judgement, which is worth disagreeing with in the open rather than
+ * discovering later: §7 discloses whose data the app shows and on what terms,
+ * and nothing in the rewrite changes what the user may do or what Fjellrute
+ * owes them. The ODbL obligations the new text mentions are ours to discharge
+ * — attribution in the UI, the published extract at /data/parking — not
+ * theirs to accept. Bumping would re-gate every signed-in alpha tester behind
+ * an acceptance dialog to tell them a credit line changed.
+ *
+ * If that reasoning is wrong the fix is one line here plus one in
+ * worker/policyVersions.js, and `pnpm test:policies` enforces the pair.
  */
 export const TERMS_VERSION = '2026-07-16';
 
@@ -143,10 +156,13 @@ export const TERMS: Record<TermsLang, TermsText> = {
             '(CC BY 4.0). Slope steepness/runout, snow depth (seNorge) ' +
             'and avalanche forecasts © NVE / Varsom.no, licensed under ' +
             'the Norwegian Licence for Open Government Data (NLOD). ' +
-            'Parking areas © Statens vegvesen (NVDB), also NLOD; NVDB ' +
-            'covers only the road network Statens vegvesen has ' +
-            'registered, so parking at trailheads on private and forest ' +
-            'roads is often missing. ' +
+            'Parking areas © OpenStreetMap contributors, licensed under ' +
+            'the Open Database License (ODbL) 1.0. The extract Fjellrute ' +
+            'uses is published under that same licence at ' +
+            'fjellrute.no/data/parking. OpenStreetMap is mapped by ' +
+            'volunteers, so a parking area nobody has mapped will not ' +
+            'appear, and recorded fees and space counts are not always ' +
+            'current. ' +
             'Weather forecasts © MET Norway (CC BY 4.0). 3D terrain from ' +
             'Mapzen/AWS Open Data terrain tiles and their upstream ' +
             'sources. These providers accept no responsibility for how ' +
@@ -285,10 +301,13 @@ export const TERMS: Record<TermsLang, TermsText> = {
             '(CC BY 4.0). Bratthet/utløp, snødybde (seNorge) og ' +
             'snøskredvarsler © NVE / Varsom.no, lisensiert under Norsk ' +
             'lisens for offentlige data (NLOD). Parkeringsområder © ' +
-            'Statens vegvesen (NVDB), også NLOD; NVDB dekker bare ' +
-            'vegnettet Statens vegvesen har registrert, så ' +
-            'utfartsparkering langs private veier og skogsbilveier ' +
-            'mangler ofte. Værvarsler © ' +
+            'OpenStreetMap-bidragsytere, lisensiert under Open Database ' +
+            'License (ODbL) 1.0. Datasettet Fjellrute bruker er publisert ' +
+            'under samme lisens på fjellrute.no/data/parking. ' +
+            'OpenStreetMap kartlegges av frivillige, så en ' +
+            'parkeringsplass ingen har kartlagt vises ikke, og registrert ' +
+            'avgift og antall plasser er ikke alltid oppdatert. ' +
+            'Værvarsler © ' +
             'Meteorologisk institutt (CC BY 4.0). 3D-terreng fra ' +
             'Mapzen/AWS Open Data terrain tiles og deres kilder. ' +
             'Leverandørene tar ikke ansvar for hvordan dataene brukes.',

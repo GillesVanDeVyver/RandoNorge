@@ -33,9 +33,14 @@ function Credits({ view, overlay }: Props) {
   // Parking is not a layer with a `overlay` value of its own — the pins are
   // drawn from the parking store, and they appear and disappear with the tab's
   // query rather than with a control the map owns. So the credit asks the same
-  // store the pins do: exactly when there is something of NVDB's on the map,
-  // NVDB is credited for it, and on a session where nobody opened the tab the
+  // store the pins do: exactly when there is OpenStreetMap data on the map,
+  // OSM is credited for it, and on a session where nobody opened the tab the
   // line never appears at all.
+  //
+  // This one is a licence condition rather than a courtesy. ODbL §4.3 requires
+  // the notice wherever the data is publicly used, so the coupling to the
+  // store is what makes the credit provably exact — it cannot be showing OSM
+  // pins without this line, and it cannot be claiming OSM without pins.
   const parkingShown = useParkingAreas().length > 0;
   return (
     <>
@@ -73,14 +78,15 @@ function Credits({ view, overlay }: Props) {
       </span>
       {parkingShown && (
         <span className={styles.item}>
-          {t('Parkering:', 'Parking:')}{' '}
-          <a
-            href="https://www.vegvesen.no/fag/teknologi/nasjonal-vegdatabank/"
-            {...ext}
-          >
-            Statens vegvesen
+          {t('Parkering:', 'Parking:')} ©{' '}
+          <a href="https://www.openstreetmap.org/copyright" {...ext}>
+            {t('OpenStreetMap-bidragsytere', 'OpenStreetMap contributors')}
           </a>{' '}
-          (NVDB, NLOD)
+          (
+          <a href="https://opendatacommons.org/licenses/odbl/1-0/" {...ext}>
+            ODbL
+          </a>
+          )
         </span>
       )}
       {view === '3d' && (

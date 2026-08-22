@@ -461,55 +461,81 @@ const FETCHED_AT = new Date(2026, 2, 13, 18, 20, 0).getTime(); // Varsom
 const SNOW_FETCHED_AT = new Date(2026, 2, 14, 5, 41, 0).getTime(); // seNorge
 const LOW_FETCHED_AT = new Date(2026, 2, 14, 7, 32, 0).getTime(); // MET, older
 const HIGH_FETCHED_AT = new Date(2026, 2, 14, 9, 53, 0).getTime(); // MET, newer
-const PARKING_FETCHED_AT = new Date(2026, 2, 14, 6, 14, 0).getTime(); // NVDB
+const PARKING_FETCHED_AT = new Date(2026, 2, 14, 6, 14, 0).getTime(); // OpenStreetMap
 
-/** Three registered lots near the start, of the three kinds the register
- *  actually returns: one fully described, one with a name and nothing else, and
- *  one with no name at all. The middle and last are not padding — an NVDB row
- *  whose only populated attribute is its geometry is the normal case outside the
- *  big trailheads, and both of them are how the sheet comes to print "undefined"
- *  or an empty facts cell if the fallbacks are ever dropped. */
+/** Three mapped lots near the start, of the three kinds the extract actually
+ *  holds: one fully described, one with a name and nothing else, and one with
+ *  no name at all. The middle and last are not padding — an OpenStreetMap
+ *  feature whose only populated tag is amenity=parking is the normal case
+ *  outside the big trailheads, and both of them are how the sheet comes to
+ *  print "undefined" or an empty facts cell if the fallbacks are ever dropped.
+ *
+ *  Ids are spelled the way scripts/parking/build_parking_extract.py writes
+ *  them, `<node|way>/<osm id>`, because that string is what the sheet's React
+ *  keys are built from and a change in its shape should be visible here.
+ *
+ *  The first lot carries `payment` and not `winter`: NVDB's ploughing
+ *  attribute has no OpenStreetMap equivalent and was dropped with the register
+ *  (see src/briefing/BriefingSheet.tsx). A fixture still setting `winter`
+ *  would be asserting on a field the type no longer has.
+ *
+ *  Values are raw OpenStreetMap tags — `gravel`, `customers`, `app,credit_cards`
+ *  — and not the Norwegian the sheet prints. That is the point of them. NVDB
+ *  answered in prose and the sheet could print the field straight through; OSM
+ *  answers in machine tags, so between the row and the paper there is now
+ *  src/parking/format.ts, and a fixture pre-spelling `surface: 'Grus'` would
+ *  assert that the sheet can print a string while proving nothing about the
+ *  translation that has to happen first. Written as the build script writes
+ *  them, comma-joined with no space, so the splitting is exercised too. */
 const parkingAreas = [
   {
-    id: 'nvdb:78012345',
-    source: 'nvdb',
+    id: 'way/78012345',
+    source: 'osm',
     point: [61.8712, 6.8564],
     distanceM: 240,
     name: 'Tj\u00f8rnadalen parkering',
     capacity: 40,
-    fee: 'Avgift',
-    surface: 'Grus',
-    winter: 'Vinterdrift',
-    owner: 'Stryn kommune',
-    usage: 'Utfart',
+    fee: '75 NOK',
+    surface: 'gravel',
+    access: 'customers',
+    operator: 'Stryn kommune',
+    usage: 'hiking',
+    payment: 'app,credit_cards',
+    maxstay: '48 t',
     fetchedAt: PARKING_FETCHED_AT,
   },
   {
-    id: 'nvdb:78012346',
-    source: 'nvdb',
+    id: 'way/78012346',
+    source: 'osm',
     point: [61.8688, 6.8611],
     distanceM: 1240,
     name: 'Loen sentrum',
     capacity: null,
     fee: null,
     surface: null,
-    winter: null,
-    owner: null,
+    access: null,
+    operator: null,
     usage: null,
+    payment: null,
+    maxstay: null,
     fetchedAt: PARKING_FETCHED_AT,
   },
   {
-    id: 'nvdb:78012347',
-    source: 'nvdb',
+    id: 'node/78012347',
+    source: 'osm',
     point: [61.8601, 6.8702],
     distanceM: 1980,
     name: null,
     capacity: 6,
-    fee: null,
-    surface: 'Asfalt',
-    winter: null,
-    owner: null,
+    // `fee=no` is the single most common value in the extract and `access=yes`
+    // the second: one has to become a word, the other has to disappear.
+    fee: 'no',
+    surface: 'asphalt',
+    access: 'yes',
+    operator: null,
     usage: null,
+    payment: null,
+    maxstay: null,
     fetchedAt: PARKING_FETCHED_AT,
   },
 ];
@@ -784,7 +810,7 @@ for (const options of combos) {
   // 1 km" and "nothing within 10 km" are different facts about the valley.
   ok(
     options.parking ===
-      /(Parkering|Parking) \u00b7 NVDB \u00b7 [^<]*\bkm\b/.test(flat),
+      /(Parkering|Parking) \u00b7 OpenStreetMap \u00b7 [^<]*\bkm\b/.test(flat),
     `[${name}] the parking heading carries the radius it searched`,
   );
 
@@ -2446,14 +2472,15 @@ ok(
   'and the sheet prints the ruled lines exactly when the switch says so',
 );
 
-// Parking, on a start point NVDB has never described. Structurally the fourth
-// of these, and the one whose empty state is most likely to be believed: a
-// reader who sees "no registered parking areas" under a heading has been handed
-// a fact about a valley by a page that only knows about a database. NVDB covers
-// the road network Statens vegvesen has registered, which is not where most
-// Norwegian tours start — the gravel turning-circle at the end of a private
-// forest road is absent from it as a matter of course, not as an error. So the
-// wording is checked as carefully as the switch.
+// Parking, on a start point nobody has mapped. Structurally the fourth of
+// these, and the one whose empty state is most likely to be believed: a reader
+// who sees "no parking areas" under a heading has been handed a fact about a
+// valley by a page that only knows about a database. OpenStreetMap's trailhead
+// coverage is far better than the register the section used to read — that is
+// why it moved — but it is surveyed by volunteers, so the gravel
+// turning-circle at the end of a private forest road is there exactly when
+// somebody has walked past it with a phone. So the wording is checked as
+// carefully as the switch.
 ok(
   DEFAULT_OPTIONS.parking === true,
   'parking is on by default: what it answers to is the trailhead, not the sheet',
@@ -2462,7 +2489,7 @@ const unparkedTest = /const unparkedTour =[\s\S]*?;/.exec(dialogSrc)?.[0] ?? '';
 ok(
   /!parking\.loading/.test(unparkedTest) &&
     /parking\.error === null/.test(unparkedTest),
-  'a query still in flight, or one NVDB refused, is not read as an empty valley',
+  'a query still in flight, or one that failed, is not read as an empty valley',
 );
 ok(
   /if \(unparkedTour && !touched\.parking\) out\.parking = false/.test(
@@ -2477,8 +2504,8 @@ ok(
   'the switch says why it is off and stays switchable, like the other three',
 );
 ok(
-  /NVDB/.test(parkingSwitch),
-  'and it says so in the register\u2019s terms, not the ground\u2019s',
+  /OpenStreetMap/.test(parkingSwitch),
+  'and it says so in the map\u2019s terms, not the ground\u2019s',
 );
 ok(
   /!\(options\.parking && parking\.loading\)/.test(dialogSrc),
@@ -2527,7 +2554,7 @@ const parked = plain(render(makeData(DEFAULT_OPTIONS)));
 
 ok(
   /Tj\u00f8rnadalen parkering/.test(parked),
-  'a registered lot prints the name the register gave it',
+  'a mapped lot prints the name the mapper gave it',
 );
 // One formatter, exercised directly in both languages and then looked for on
 // the page. Directly, because the sheet renders in one locale per run and the
@@ -2561,6 +2588,23 @@ for (const src of [sheetSrc, readFileSync(join(ROOT, 'src/components/ParkingPane
     /formatParkingDistance/.test(src) && !/toFixed\(1\)\} km/.test(src),
     'both the sheet and the tab measure with the same ruler',
   );
+  // And translate with the same dictionary. A guide checking the sheet against
+  // the screen in a car park is comparing two renderings of one query, so a
+  // fact printed "Grus" on one and "gravel" on the other reads as a
+  // disagreement about the ground rather than about a lookup table. The tab
+  // shows four fields the sheet has no room for; these four are the overlap,
+  // and the overlap is where the two can contradict each other.
+  for (const fn of [
+    'formatParkingFee',
+    'formatParkingPayment',
+    'formatParkingSurface',
+    'formatParkingAccess',
+  ]) {
+    ok(
+      new RegExp(`${fn}\\(`).test(src),
+      `and both put ${fn.slice('formatParking'.length).toLowerCase()} through the shared formatter`,
+    );
+  }
 }
 // Order is the hook's, nearest first. Re-sorting on the sheet would be a second
 // opinion about the same question, and the numbered pins on the map are drawn
@@ -2572,29 +2616,104 @@ ok(
 );
 ok(
   /Parkeringsomr\u00e5de|Parking area/.test(parked),
-  'a lot the register never named prints a generic name rather than a blank',
+  'a lot nobody named prints a generic name rather than a blank',
 );
 ok(
   /\u2014/.test(parked),
   'a lot with no attributes at all prints a dash rather than an empty cell',
 );
 ok(
-  /40 (plasser|spaces)/.test(parked) && /Avgift/.test(parked),
-  'the facts the register does carry are printed',
+  /40 (plasser|spaces)/.test(parked) && /75 NOK/.test(parked),
+  'the tags the mapper did record are printed',
+);
+// The rest of the facts cell arrives as OpenStreetMap tags rather than as the
+// Norwegian prose NVDB used to answer in, so between the row and the paper
+// there is now a translation, and it is the translation that is checked here
+// — first directly in both languages, then on the rendered page, the same
+// shape as the distance formatter above and for the same reason.
+const {
+  formatParkingAccess,
+  formatParkingFee,
+  formatParkingPayment,
+  formatParkingSurface,
+  formatParkingUsage,
+} = await import(pathToFileURL(join(ROOT, 'src/parking/format.ts')).href);
+ok(
+  formatParkingFee('no', no) === 'Gratis' &&
+    formatParkingFee('no', en) === 'Free' &&
+    formatParkingFee('75 NOK', no) === '75 NOK',
+  'the fee booleans become words; a price is left exactly as the mapper wrote it',
+);
+ok(
+  formatParkingSurface('gravel', no) === 'Grus' &&
+    formatParkingSurface('grass_paver', no) === 'Gressarmering',
+  'surfaces are Norwegian, including the ones a driver would want to know about',
+);
+// The rule the whole module turns on: OSM tagging is open, so a value nobody
+// has written a mapping for is a value the data gained, not one the sheet may
+// quietly drop. Humanised is a small ugliness; hidden is a lie about the map.
+ok(
+  formatParkingSurface('woodchips', no) === 'Woodchips' &&
+    formatParkingPayment('klarna', no) === 'Klarna',
+  'a tag value nobody mapped is humanised rather than dropped',
+);
+ok(
+  formatParkingAccess('yes', no) === null &&
+    formatParkingAccess('public', no) === null &&
+    formatParkingAccess('unknown', no) === null,
+  'access says nothing when it only restates the reader\u2019s own assumption',
+);
+// 2,849 lots in the extract are access=customers, and eight hours on a tour is
+// a long time to have left the car outside somebody's hotel by accident.
+ok(
+  formatParkingAccess('customers', no) === 'Kun for kunder' &&
+    formatParkingAccess('customers', en) === 'Customers only',
+  'and says it plainly when it is a restriction worth reading before walking off',
+);
+ok(
+  formatParkingPayment('app,credit_cards', no) === 'App, Kredittkort' &&
+    formatParkingPayment('Vipps,vipps,easypark', no) === 'Vipps, EasyPark',
+  'payment is unpacked into a readable list; brands keep one spelling',
+);
+ok(
+  formatParkingUsage('hiking,multi-storey', no) === 'Turparkering, Parkeringshus' &&
+    formatParkingUsage('tourism=camp_site', no) === 'Camp site',
+  'usage keeps the build script\u2019s order and drops the tag key that carried it',
+);
+// The fact that replaced NVDB's winter-maintenance column. It earns the slot
+// because "app only" is what strands a driver in a valley with no signal, and
+// because a facts cell silently missing a field is the failure this whole
+// section is built to catch.
+ok(
+  /App, Kredittkort/.test(parked),
+  'including how the lot is paid for, which is the column winter used to hold',
+);
+ok(
+  /Grus/.test(parked) && /Kun for kunder/.test(parked) && /Gratis/.test(parked),
+  'and the sheet prints what those formatters return, not what the tag said',
+);
+// The failure this is all here to prevent, asserted from the other side: one
+// forgotten call and a Norwegian party drives to "Dekke: gravel · Avgift: no".
+ok(
+  !/\b(gravel|asphalt|customers|credit_cards)\b/.test(parked),
+  'a raw OpenStreetMap tag never reaches the paper',
 );
 ok(
   !/null|undefined/.test(parked),
   'and the ones it does not carry are never printed as the absence of a value',
 );
+// ODbL §4.3: the sheet is a Produced Work and has to carry the notice. It is
+// the one credit on this page that is a licence term rather than a courtesy,
+// so it is asserted in both directions.
 ok(
-  /NVDB/.test(parked) && /Statens vegvesen/.test(parked),
-  'the sheet credits the register it read',
+  /OpenStreetMap/.test(parked) && /ODbL/.test(parked),
+  'the sheet credits the map it read, under the licence that map carries',
 );
 ok(
-  !/Statens vegvesen/.test(
+  !/OpenStreetMap/.test(
     plain(render(makeData({ ...DEFAULT_OPTIONS, parking: false }))),
   ),
-  'and with the section off it credits Statens vegvesen for nothing it printed',
+  'and with the section off it credits OpenStreetMap for nothing it printed',
 );
 
 // The empty sheet, which is the common one. It has to say who did not know
@@ -2605,16 +2724,16 @@ ok(
   'an empty result prints no table',
 );
 ok(
-  /NVDB/.test(unparked) &&
-    /(private veier|private and forest roads)/.test(unparked),
-  'it names the register and the kind of trailhead the register misses',
+  /OpenStreetMap/.test(unparked) &&
+    /(frivillige|volunteers)/.test(unparked),
+  'it names the map and why the map, not the valley, is what came back empty',
 );
 ok(
   !/^(?:.|\n)*(Ingen parkering\.|No parking\.)/.test(unparked),
   'and it never states flatly that there is nowhere to park',
 );
 
-// A sheet still waiting on NVDB. Print is gated on this in the dialog, so this
+// A sheet still waiting on the query. Print is gated on this in the dialog, so this
 // state should be unreachable on paper — which is exactly why it is worth
 // checking that it degrades to a line of text rather than to a half-table.
 const parkingPending = plain(
@@ -2626,8 +2745,8 @@ ok(
   'a query still in flight prints as a waiting line, not as an empty valley',
 );
 ok(
-  !/(private veier|private and forest roads)/.test(parkingPending),
-  'and does not blame the register for an answer that has not arrived',
+  !/(frivillige|volunteers)/.test(parkingPending),
+  'and does not blame the mappers for an answer that has not arrived',
 );
 
 // The radius reaches the page. A heading that always said 2 km would be a

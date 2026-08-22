@@ -26,8 +26,12 @@ import {
 import type { SnowData } from '../snow/useSnow';
 import type { ParkingArea } from '../parking/api';
 import {
+  formatParkingAccess,
   formatParkingDistance,
+  formatParkingFee,
+  formatParkingPayment,
   formatParkingRadius,
+  formatParkingSurface,
 } from '../parking/format';
 import { summariseTerrain, runoutLevelLabel } from './terrain';
 import { ProfileSvg } from './ProfileSvg';
@@ -153,9 +157,9 @@ export interface BriefingData {
    *  as a forecast. */
   snowIsFallback: boolean;
   /** Parking areas near the route start, nearest first, as listed in the
-   *  planner's Parking tab. Empty means NVDB had nothing in range, which the
-   *  section states as a fact about the register rather than about the ground
-   *  — see src/parking/api.ts. */
+   *  planner's Parking tab. Empty means OpenStreetMap had nothing mapped in
+   *  range, which the section states as a fact about the map rather than
+   *  about the ground — see src/parking/api.ts. */
   parking: ParkingArea[];
   parkingLoading: boolean;
   /** The radius the list was gathered within, meters. Printed in the heading:
@@ -1007,10 +1011,12 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
       : null,
     options.weather ? `${t('Vær', 'Weather')} © MET Norway (CC BY 4.0)` : null,
     // Credited whenever the section printed, including when it printed empty:
-    // "NVDB has no parking area within 2 km" is itself a statement sourced from
-    // NVDB, and the reader is entitled to know whose register said so.
+    // "nothing mapped within 2 km" is itself a statement sourced from OSM, and
+    // the reader is entitled to know whose map said so. This credit is also
+    // the one that is not optional — the printed sheet is an ODbL Produced
+    // Work, and §4.3 wants the notice on it.
     options.parking
-      ? `${t('Parkering', 'Parking')} © Statens vegvesen (NVDB, NLOD)`
+      ? `${t('Parkering', 'Parking')} © OpenStreetMap ${t('bidragsytere', 'contributors')} (ODbL)`
       : null,
   ].filter(Boolean);
 
@@ -1468,7 +1474,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
                 the others put their date, because it is the equivalent
                 qualifier: it is what decides whether an empty section means
                 "nothing here" or "we did not look far enough". */}
-            {t('Parkering', 'Parking')} · NVDB ·{' '}
+            {t('Parkering', 'Parking')} · OpenStreetMap ·{' '}
             {t(
               `innen ${formatParkingRadius(parkingRadiusM)} fra start`,
               `within ${formatParkingRadius(parkingRadiusM)} of the start`,
@@ -1477,15 +1483,16 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
           {parkingLoading ? (
             <p className="briefingEmpty">{t('Laster …', 'Loading…')}</p>
           ) : parking.length === 0 ? (
-            // Worded as a gap in the register, never as a gap in the world.
-            // NVDB only knows the road network Statens vegvesen has registered,
-            // and the gravel lot at the end of a private forest road — the
-            // classic Norwegian trailhead — is routinely absent from it. A sheet
-            // that printed a flat "no parking" would be lying to a driver.
+            // Worded as a gap in the map, never as a gap in the world. OSM's
+            // trailhead coverage is far better than the register's — that is
+            // why the sheet moved to it — but it is volunteer-surveyed, and a
+            // lot nobody has walked past with a phone is a lot nobody has
+            // mapped. A sheet that printed a flat "no parking" would be lying
+            // to a driver.
             <p className="briefingEmpty">
               {t(
-                'Ingen parkeringsområder registrert i NVDB innenfor søkeradien. NVDB dekker bare vegnettet Statens vegvesen har registrert — utfartsparkering langs private veier og skogsbilveier mangler ofte, så dette betyr ikke at det ikke finnes parkering.',
-                'No parking areas registered in NVDB within the search radius. NVDB covers only the road network Statens vegvesen has registered — trailhead parking on private and forest roads is often missing, so this does not mean there is nowhere to park.',
+                'Ingen parkeringsområder kartlagt i OpenStreetMap innenfor søkeradien. OpenStreetMap kartlegges av frivillige — en plass ingen har kartlagt står ikke her, så dette betyr ikke at det ikke finnes parkering.',
+                'No parking areas mapped in OpenStreetMap within the search radius. OpenStreetMap is mapped by volunteers — a lot nobody has mapped will not appear, so this does not mean there is nowhere to park.',
               )}
             </p>
           ) : (
@@ -1506,16 +1513,30 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
                         {formatParkingDistance(p.distanceM, t)}
                       </td>
                       <td className="briefingParkingFacts">
-                        {/* Only what the register actually carries. An invented
+                        {/* Only what a mapper actually recorded. An invented
                             "free" on a sheet someone drives to is worse than a
-                            gap they can see is a gap. */}
+                            gap they can see is a gap.
+                            Payment method rather than the winter maintenance
+                            NVDB used to give here: OSM has no established tag
+                            for ploughing, and "app only" is the fact most
+                            likely to strand someone in a valley with no
+                            signal.
+                            Through the same formatters the tab uses — the
+                            values arrive as OSM tags (`fee=no`,
+                            `surface=gravel`), and a sheet printed for a
+                            Norwegian party must not be the one place they
+                            leak. Access is last and usually absent: the
+                            formatter returns null for `yes`/`public`, so it
+                            costs a column only on the lots where it is a
+                            restriction worth reading before walking off. */}
                         {[
                           p.capacity !== null
                             ? `${p.capacity} ${t('plasser', 'spaces')}`
                             : null,
-                          p.fee,
-                          p.winter,
-                          p.surface,
+                          formatParkingFee(p.fee, t),
+                          formatParkingPayment(p.payment, t),
+                          formatParkingSurface(p.surface, t),
+                          formatParkingAccess(p.access, t),
                         ]
                           .filter(Boolean)
                           .join(' · ') || '—'}
@@ -1526,8 +1547,8 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
               </table>
               <p className="briefingParkingNote">
                 {t(
-                  'Kun områder registrert i NVDB; utfartsparkering langs private veier mangler ofte.',
-                  'Only areas registered in NVDB; trailhead parking on private roads is often missing.',
+                  'Kartlagt av frivillige i OpenStreetMap; avgift og antall plasser er ikke alltid oppdatert.',
+                  'Mapped by volunteers in OpenStreetMap; fees and space counts are not always current.',
                 )}
               </p>
             </>

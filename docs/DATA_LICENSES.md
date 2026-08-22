@@ -1,6 +1,7 @@
 # Data rights audit — upstream sources, licenses & rate limits
 
-Last verified: 2026-07-13 (against the linked pages on that date).
+Last verified: 2026-08-22 (§6 rewritten for the NVDB → OpenStreetMap swap;
+§§1–5 last checked against the linked pages on 2026-07-13).
 
 This app (Fjellrute) is a commercial service. Every upstream source below has been
 checked for (a) whether commercial use is permitted, (b) what attribution is
@@ -11,6 +12,11 @@ Summary: **all sources permit commercial use.** All require attribution, which i
 shown in the map-corner attribution line (2D Leaflet + 3D MapLibre), in the
 in-app info dialog (`TermsDialog.tsx`), and in the Terms of Service
 (`docs/terms-of-service.{en,no}.md`).
+
+One source, **OpenStreetMap (§6)**, is additionally **share-alike**. Its
+obligations do not stop at a credit line, they constrain the architecture, and
+they are the reason parking is a single-source layer. Read §6 before adding any
+data to that feature.
 
 ---
 
@@ -184,56 +190,109 @@ Links:
 - Høydedata / NDH: https://hoydedata.no (license: https://creativecommons.org/licenses/by/4.0/)
 - AWS terrain tiles: https://registry.opendata.aws/terrain-tiles/
 
-## 6. Statens vegvesen — NVDB (parkeringsområder)
+## 6. OpenStreetMap — parking areas (`amenity=parking`)
 
-Endpoint used:
+Replaced Statens vegvesen's NVDB on **2026-08-22**. The former §6 is preserved
+in `docs/parking-data-sources.md`; the short version is that NVDB registers the
+parking the road authority administers, which is not the same set as the lots
+Norwegian tours start from, and this is the one source swap made for coverage
+rather than for terms.
 
-- `https://nvdbapiles.atlas.vegvesen.no/vegobjekter/api/v4/vegobjekter/43`
-  (vegobjekttype 43 "Parkeringsområde", proxied at `/nvdb-api`)
+What we use:
 
-**License: NLOD.** Same license family as NVE above: NLOD §3 grants the right to
-copy, distribute, adapt and exploit the data **for commercial and
-non-commercial purposes**. Commercial use: OK.
+- **Source file:** `https://download.geofabrik.de/europe/norway-latest.osm.pbf`
+  (Geofabrik's Norway extract of the OSM planet).
+- **Build:** `scripts/parking/build_parking_extract.py` filters the extract to
+  `amenity=parking`, drops `access=private|no|permit` and roadside parking
+  (`parking=lane|street_side|on_kerb|half_on_kerb|shoulder`), reduces closed
+  ways to their centroid, and writes both the D1 loader SQL and the published
+  bundle below. Relations are not included.
+- **Serving:** rows live in the `parking` table in our own D1
+  (`migrations/0009_parking.sql`) and are answered by bounding box at
+  `/api/parking` (`worker/parking.js`). Nothing is fetched from an OSM server
+  at request time.
 
-**Attribution:** "© Statens vegvesen (NVDB)", NLOD. ✅ Shown under the Parking
-tab (`SourceAttribution`), on the printed briefing's credit line, and in the
-map-corner attribution while parking pins are on the map.
+**License: Open Database License (ODbL) 1.0**, with the individual contents
+under the Database Contents License. Commercial use: explicitly permitted. ODbL
+is, however, the only **share-alike** license in this document, and it carries
+two obligations the others do not.
+
+**§4.3 — attribution wherever the work is publicly used.** ✅
+"© OpenStreetMap contributors (ODbL)" appears under the Parking tab
+(`SourceAttribution`), in the map-corner attribution while parking pins are
+shown (`MapAttribution.tsx`), and on the printed briefing's credit line
+(`BriefingSheet.tsx`) — the printed sheet being a Produced Work in ODbL's sense,
+which is why the credit prints even when the section came back empty.
+
+**§4.6 — the database behind a publicly used Produced Work must itself be
+made available, under ODbL, at no more than a reasonable cost.** ✅ Discharged
+at **https://fjellrute.no/data/parking** (`public/data/parking/`), which serves
+the extract as GeoJSON alongside `LICENSE.txt` and a `README.md` recording
+provenance and filter rules. Three things depend on that URL continuing to
+resolve, and all three are easy to break silently:
+
+1. `'/data/parking'` is in `STATIC_PAGES` in `worker/knownPaths.js`. Remove it
+   and the path 302s to the site root, turning a licence obligation into a
+   redirect nobody notices.
+2. `public/data/parking/` is **committed**, deliberately, and is the one
+   generated artefact in the tree that is. The 4 MB loader SQL is not — it goes
+   to the gitignored `build/`, and `--from-geojson` rebuilds it from the
+   published copy, so the committed file is both the obligation and the source
+   of truth.
+3. `src/terms/content.ts` §7 and this section both name the URL. Moving it
+   means changing both.
+
+**Share-alike, and why parking is all-OSM or nothing.** Under the OSMF
+Collective Database Guideline, Fjellrute's own data (routes, tracks, saved
+tours) stays a separate database in a collection rather than a Derivative
+Database, so ODbL does not reach it. That holds while parking is *all* OSM or
+*all* non-OSM within one regional cut. The Horizontal Map Layers Guideline is
+the sharper edge: two complementary sources for the **same feature type** in the
+same area do trigger share-alike. So NVDB was **removed** rather than kept as a
+gap-filler, and `ParkingArea.source` stays a mandatory discriminator with a
+`check ("source" = 'osm')` on the column — the schema will reject a second
+source rather than let one arrive unnoticed. Do not add one without redoing this
+analysis.
 
 **Service requirements (distinct from the license):**
 
-- **Identifying headers requested:** `X-Client` and `X-Kontaktperson`. Not
-  enforced, but SVV asks for them so they can contact heavy clients rather than
-  block them. ✅ Stamped server-side by the Worker (`NVDB_HEADERS` in
-  `worker/proxy.js`) and by the Vite dev proxy — browsers cannot set these
-  reliably from script, which is the reason the route is proxied at all.
-- **Rate limit: 40 requests/second.** Our pattern is one request per route
-  start per radius, debounced 300 ms and cached at the edge for 24 h, so this is
-  not close.
-- **URL length limit: 2048 characters**, enforced by a firewall in front of the
-  API — a longer URL is rejected before it reaches NVDB.
-  ✅ `src/parking/api.ts` refuses to send one rather than letting it fail
-  opaquely.
-- **SVV prefers live querying to bulk extraction**, which is why this is a live
-  proxied query and not a nightly import into D1. Worth remembering if the
-  coverage question below is ever revisited.
+- **The Overpass API is not used, and must not be.** Its fair-use policy
+  excludes production application traffic. Bulk extract plus our own D1 is the
+  supported pattern and also the faster one.
+- **Refresh:** monthly, by re-running the build against a fresh Geofabrik
+  extract and reloading the table. The counts quoted in
+  `public/data/parking/index.html` come from that run and are updated with it.
+- **Nominatim is not used** either — no geocoding against OSM infrastructure.
 
-⚠️ **Coverage caveat, and it is a product concern rather than a legal one.**
-NVDB describes the road network Statens vegvesen has registered. Trailhead
-parking at the end of a private road or a forest road is frequently absent, and
-those are where a large share of Norwegian tours start. Every empty state in the
-UI is therefore worded as a gap in the register, never as "there is nowhere to
-park" — see `docs/parking-data-sources.md` for the alternatives considered
-(chiefly OSM, rejected on ODbL share-alike grounds) and for the coverage test
-that is still outstanding.
+**Coverage, measured.** The 2026-08-22 build saw 47,422 `amenity=parking`
+features in the Norway extract — exactly the national count taginfo reported for
+that tag, which is the standing check that the filter reads the whole file.
+7,262 were dropped by the access and roadside filters and 484 were relations,
+leaving **39,676 published**. Innerdalen, the lot whose absence started this,
+is `way/171691144` with `capacity=89`, `fee=75 NOK` and `payment=app;credit_cards`.
 
-`ParkingArea.source` is a discriminator carried from day one for that reason: if
-a second source is ever added, the schema already distinguishes rows by origin,
-which is what keeps a differently-licensed source from contaminating this one.
+⚠️ **Regression, recorded rather than glossed.** NVDB carried a winter
+maintenance attribute; OSM has no established equivalent tag, and the field is
+gone. For a ski-touring app that was the single most useful column on the sheet.
+It was traded for coverage — a field reliably present about the wrong car parks,
+for a wider set of the right ones — and `payment` took its slot on the briefing,
+"app only" being the fact most likely to strand someone in a valley with no
+signal. If OSM settles on a ploughing tag, `ParkingPanel.tsx` is where it goes
+back.
+
+**Corrections belong upstream.** A wrong or missing lot is fixed by editing
+OpenStreetMap, not by patching our table; the edit then reaches every consumer
+of the data at the next monthly refresh. That is the better half of the bargain
+and is stated as such on the download page.
 
 Links:
-- NVDB API LES v4 docs: https://nvdbapiles.atlas.vegvesen.no/dokumentasjon/
-- NVDB open data / terms: https://www.vegvesen.no/fag/teknologi/nasjonal-vegdatabank/
-- NLOD 2.0 license text: https://data.norge.no/nlod/en/2.0
+- OSM copyright & attribution: https://www.openstreetmap.org/copyright
+- ODbL 1.0 license text: https://opendatacommons.org/licenses/odbl/1-0/
+- Collective Database Guideline: https://wiki.osmfoundation.org/wiki/Licence/Community_Guidelines/Collective_Database_Guideline
+- Horizontal Map Layers Guideline: https://wiki.osmfoundation.org/wiki/Licence/Community_Guidelines/Horizontal_Map_Layers_-_Guideline
+- Produced Work Guideline: https://wiki.osmfoundation.org/wiki/Licence/Community_Guidelines/Produced_Work_-_Guideline
+- Geofabrik Norway extract: https://download.geofabrik.de/europe/norway.html
+- Our published extract: https://fjellrute.no/data/parking
 
 ---
 
@@ -241,27 +300,46 @@ Links:
 
 1. **Map corner (always visible):** Leaflet attribution control (2D) and
    MapLibre attribution control (3D, now expanded, not collapsed) — credits
-   Kartverket, NVE/seNorge, MET Norway, Varsom, Mapzen/AWS, and Statens
-   vegvesen while parking pins are shown.
-2. **Info dialog:** `src/components/TermsDialog.tsx` §6, full wording with
-   license links (NLOD, CC BY 4.0).
+   Kartverket, NVE/seNorge, MET Norway, Varsom, Mapzen/AWS, and OpenStreetMap
+   contributors while parking pins are shown.
+2. **Terms of use, §7 "Data sources and licences":** `src/terms/content.ts`,
+   English and Norwegian, full wording with license names (NLOD, CC BY 4.0,
+   ODbL 1.0) — rendered both by the acceptance gate (`TermsPage`) and by the
+   in-app info dialog (`TermsDialog.tsx`), which hold no copy of their own.
+   This is also the only place in the UI that names the §4.6 download URL.
 3. **Data panels:** `src/components/SourceAttribution.tsx` under the snow,
    avalanche and parking panels.
-4. **ToS:** `docs/terms-of-service.en.md` / `.no.md` §6.
+4. `docs/terms-of-service.{en,no}.md` are **pointers** to §7 above, not a
+   second copy — deliberately, so there is only one terms text to keep true.
 5. **Printed briefing:** the credit line at the foot of the sheet
    (`src/briefing/BriefingSheet.tsx`), which credits only the sources whose
    sections were actually switched on — a sheet with parking off does not cite
-   Statens vegvesen, and the test harness asserts that.
+   OpenStreetMap, and the test harness asserts that in both directions. The
+   parking credit is the one on that line that is a licence term (ODbL §4.3)
+   rather than a courtesy, which is also why it prints when the section came
+   back empty: "nothing mapped within 2 km" is itself a statement sourced from
+   OSM.
+6. **The extract itself:** https://fjellrute.no/data/parking, which is ODbL
+   §4.6 rather than attribution, but belongs on this list because it is the
+   obligation most easily lost in a refactor.
 
 ### A note on `TERMS_VERSION`
 
-The NVDB credit was added to §7 of `src/terms/content.ts` **without bumping
-`TERMS_VERSION`** (still `2026-07-16`). The judgement: adding a source to the
-attribution list is a disclosure, not a change to what the user is agreeing to,
-and bumping the version puts every existing user back through the acceptance
-gate. That is a real cost to pay for a credit line. Recorded here rather than
-left implicit so a reviewer can disagree with it — if the call is wrong, the fix
-is one constant.
+§7 of `src/terms/content.ts` has twice been edited **without bumping
+`TERMS_VERSION`** (still `2026-07-16`): once when the NVDB credit was added, and
+again on 2026-08-22 when that credit was replaced by OpenStreetMap under ODbL.
+The judgement is the same both times: §7 discloses whose data the app shows and
+on what terms, nothing in either edit changes what the user may do or what
+Fjellrute promises, and bumping the version puts every existing user back
+through the acceptance gate to be told a credit line changed.
+
+Recorded here rather than left implicit so a reviewer can disagree with it. The
+second edit is the more arguable of the two, because ODbL is share-alike and
+NLOD is not — but the share-alike obligation runs against *Fjellrute*, not
+against the user, and the user-facing consequence of it (the published extract)
+is an addition to their rights rather than a subtraction. If the call is wrong,
+the fix is two constants: `TERMS_VERSION` here and its copy in
+`worker/policyVersions.js`, which `pnpm test:policies` requires to agree.
 
 ## Open action items
 

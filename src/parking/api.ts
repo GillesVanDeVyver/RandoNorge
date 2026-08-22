@@ -1,203 +1,175 @@
-// Parking areas near a route start, from Statens vegvesen's Nasjonal
-// vegdatabank (NVDB), vegobjekttype 43 "Parkeringsområde" — *område avsatt til
-// parkering for mer enn ett kjøretøy*.
+// Parking areas near a route start, from OpenStreetMap.
 //
-// Why NVDB and not OpenStreetMap: see docs/parking-data-sources.md. The short
-// version is that OSM has materially better trailhead coverage (47k objects,
-// with the Norwegian `hiking=yes` utfartsparkering convention) but cannot be
-// queried live by a commercial service — both Overpass and the OSM editing API
-// forbid it — so using it means a bulk extract, a D1 table, a build pipeline,
-// and taking on ODbL share-alike. NVDB is NLOD, the licence Fjellrute already
-// carries for NVE and seNorge, needs no key, and its own guidelines actively
-// prefer live querying over bulk download.
+// This replaced NVDB (Statens vegvesen, vegobjekttype 43) on 2026-08-22. The
+// reason is coverage and nothing else: NVDB registers the parking the road
+// authority administers, which is a different set from the lots a tour starts
+// from. Innerdalen — 89 marked spaces, 75 NOK, one of the better-known
+// trailheads in Trollheimen — was simply not in it, and the first thing a user
+// did with the parking tab was notice. docs/parking-data-sources.md has the
+// measurement: four candidate sources, one real lot, counts that can be re-run.
+// OSM had 47.4k parking features nationally and had Innerdalen.
 //
-// The honest limitation, and it is a real one: NVDB describes the road network
-// Statens vegvesen administers or has registered. Europaveg, riksveg, fylkesveg
-// and municipal roads are in scope. The unsigned gravel pull-off at the end of
-// a private toll road above a valley farm generally is not — and that is a
-// large share of Norwegian trailheads. An empty result here means "NVDB does
-// not know about parking here", never "there is nowhere to park". The UI says
-// so; see ParkingPanel.
+// HOW THE DATA GETS HERE. Not live. OSM's live query interface is Overpass,
+// whose fair-use policy excludes production application traffic, so the data
+// is extracted monthly from the Geofabrik Norway PBF
+// (scripts/parking/build_parking_extract.py) into a D1 table (migration 0009)
+// and served by worker/parking.js as a bounding-box query.
+//
+// WHY THE SERVER RETURNS A BOX AND THIS FILE MEASURES THE CIRCLE. The Worker
+// could answer "within N km of this point" in one line of SQL. It deliberately
+// does not. A distance from a private route start to an OSM car park is a
+// value derived from both, and the Worker's answers are edge-cached for a day;
+// keeping the cache holding nothing but plain OSM rows keeps the ODbL question
+// uninteresting. So the box goes out, the haversine runs here, and the result
+// lives in this module's Map until the tab closes. See worker/parking.js.
+//
+// THE LICENCE, BRIEFLY. OSM is ODbL 1.0 and share-alike. Fjellrute's routes
+// stay proprietary under the OSMF Collective Database Guideline, which holds
+// while parking is all-OSM or all-non-OSM within one regional cut — hence
+// `source` below staying a mandatory discriminator, and hence NVDB being
+// removed rather than kept as a gap-filler. Attribution is not optional:
+// "© OpenStreetMap contributors" appears in the map credits and on the
+// briefing sheet, and the extract itself is published under ODbL at
+// /data/parking to satisfy §4.6.
 
 import { haversine } from '../geometry';
 import type { LatLng } from '../types';
 
-// Proxied through the Worker in production and the Vite dev server locally, so
-// the X-Client / X-Kontaktperson headers NVDB's guidelines ask for are stamped
-// server-side. Browsers cannot set them from fetch() in a way we'd control, and
-// going direct would make us anonymous traffic. See worker/proxy.js.
-const ENDPOINT = '/nvdb-api/vegobjekter/api/v4/vegobjekter/43';
+// Served by the Worker in production and proxied there by the Vite dev server
+// locally (vite.config.ts already forwards /api to localhost:8787).
+const ENDPOINT = '/api/parking';
 
 /** Where a parking area's record came from.
  *
- *  A mandatory source discriminator from day one, on the advice of
- *  docs/parking-data-sources.md: if OSM-derived rows are ever added alongside
- *  these, keeping them separately identified (and never merging coordinates)
- *  keeps the collection arguable as a Collective Database, where each part
- *  retains its own licence, rather than one Derivative Database to which ODbL
- *  share-alike applies wholesale. That distinction is free to preserve now and
- *  expensive to retrofit later. */
-export type ParkingSource = 'nvdb';
+ *  Still a mandatory discriminator now that there is only one source, and for
+ *  a sharper reason than before: it is what makes "is the parking layer still
+ *  single-sourced?" a question with a checkable answer. Under the OSMF
+ *  Collective Database Guideline, a collection keeps each part's own licence
+ *  only while the parts stay separable; blending a second parking source into
+ *  the same feature type is what the Horizontal Map Layers Guideline treats as
+ *  complementary, interacting layers, and that is the share-alike trigger.
+ *  Widening this union is a licensing decision. Read the guidelines first. */
+export type ParkingSource = 'osm';
 
 export interface ParkingArea {
-  /** Stable within `source`; NVDB's vegobjekt id. */
+  /** `node/<id>` or `way/<id>` — the OSM element, which is also its permalink
+   *  at https://www.openstreetmap.org/{id}. Stable within `source`. */
   id: string;
   source: ParkingSource;
-  /** Representative point — the centre of the object's bounding box, since
-   *  NVDB returns type 43 as a point, a line or a polygon depending on how it
-   *  was surveyed. */
+  /** Representative point. Ways (the majority — most lots are mapped as an
+   *  area) are reduced to the centroid of their nodes by the build script. */
   point: LatLng;
-  /** Straight-line distance from the query origin, meters. */
+  /** Straight-line distance from the query origin, meters. Computed here, in
+   *  the browser, per session — see the note at the top of this file. */
   distanceM: number;
-  /** NVDB's own name where it carries one; many objects are unnamed. */
+  /** OSM `name`, falling back to `operator:short` then `ref`. Null is common
+   *  and honest: most Norwegian lots are mapped as geometry with no name. */
   name: string | null;
-  /** Number of spaces, where recorded. */
+  /** OSM `capacity`, parsed to the first integer it contains. */
   capacity: number | null;
-  /** Raw NVDB value for the fee attribute, e.g. "Avgiftsbelagt" / "Gratis". */
+  /** OSM `charge` when a mapper recorded an amount ("75 NOK"), else the raw
+   *  `fee` value ("yes", "no", "seasonal"). Text, not a number: a price with
+   *  no currency, no validity window and no survey date should not be
+   *  presented as something the app can do arithmetic on. */
   fee: string | null;
-  /** Surface, e.g. "Asfalt" / "Grus". A gravel surface is a mild hint that a
-   *  lot is rural, which is exactly the kind we most want to find. */
+  /** OSM `surface` — asphalt, gravel, ground. Matters in April, when a gravel
+   *  lot at 900 m is still under snow and the asphalt one is not. */
   surface: string | null;
-  /** Whether the lot is maintained through winter, where recorded — the single
-   *  most useful attribute for ski touring and the one most often missing. */
-  winter: string | null;
-  /** Who owns or maintains it, e.g. "Stat" / "Kommune" / "Privat". */
-  owner: string | null;
-  /** NVDB "Bruksområde", e.g. "Rasteplass" / "Innfartsparkering". */
+  /** OSM `access` where it restricts rather than forbids: "customers",
+   *  "destination". Lots tagged private/no/permit never reach the table. */
+  access: string | null;
+  /** OSM `operator`. */
+  operator: string | null;
+  /** What the lot is for: `hiking`, `ski`, the `parking` kind, tourism tags,
+   *  comma-joined. This is what distinguishes a trailhead from a shopping
+   *  centre, and the `hiking=yes` / `ski=yes` convention is well used in
+   *  Norway — it is a large part of why OSM won the comparison. */
   usage: string | null;
-  /** Epoch ms when this result was actually retrieved. Cached results keep
-   *  their original time so the UI reports honest data age. */
+  /** Accepted payment methods from OSM `payment:*=yes`, comma-joined: app,
+   *  credit_cards, coins. Norwegian trailhead lots are increasingly app-only,
+   *  which is worth knowing before driving into a valley with no signal. */
+  payment: string | null;
+  /** OSM `maxstay`. */
+  maxstay: string | null;
+  /** Epoch ms when this result was retrieved. Cached results keep their
+   *  original time so the UI reports honest data age.
+   *
+   *  Note what this is not: it is when *we* fetched the row, not when anyone
+   *  last stood in the car park. OSM carries a per-element edit timestamp, but
+   *  an edit is not a survey and the extract does not carry it, so the sheet
+   *  says what it can defend. */
   fetchedAt: number;
 }
 
-// ---------------------------------------------------------------------------
-// NVDB response shapes. Deliberately loose: docs/parking-data-sources.md notes
-// that the live request/response shapes were never exercised, only read from
-// upstream documentation, and the documentation pages for the endpoint are
-// navigation stubs. Everything below is therefore parsed defensively — an
-// attribute we cannot find renders as "—" rather than throwing.
-// ---------------------------------------------------------------------------
-
-interface NvdbEgenskap {
-  id?: number;
-  navn?: string;
-  verdi?: unknown;
+/** One row as worker/parking.js serves it: the stored OSM facts, no distance.
+ *  Field names match the D1 columns (migration 0009). */
+interface ParkingRow {
+  id?: unknown;
+  source?: unknown;
+  lat?: unknown;
+  lon?: unknown;
+  name?: unknown;
+  capacity?: unknown;
+  fee?: unknown;
+  surface?: unknown;
+  access?: unknown;
+  operator?: unknown;
+  usage?: unknown;
+  payment?: unknown;
+  maxstay?: unknown;
 }
 
-interface NvdbGeometri {
-  wkt?: string;
+interface ParkingResponse {
+  areas?: ParkingRow[];
 }
 
-interface NvdbObjekt {
-  id?: number;
-  egenskaper?: NvdbEgenskap[];
-  geometri?: NvdbGeometri;
-  lokasjon?: { geometri?: NvdbGeometri };
-}
-
-interface NvdbResponse {
-  objekter?: NvdbObjekt[];
-}
-
-/** Centre of a WKT geometry's bounding box, as [lat, lng].
- *
- *  Type 43 comes back as POINT, LINESTRING or POLYGON depending on how the
- *  object was surveyed, sometimes with a Z ordinate, so this handles any of
- *  them by reading every vertex and taking the extent's midpoint. Bounding-box
- *  centre rather than vertex mean on purpose: a polygon ring repeats its first
- *  vertex at the end and often has vertices bunched along one edge, both of
- *  which drag a mean off-centre. For an object tens of metres across the
- *  difference is cosmetic, but the bbox centre is the one that cannot be
- *  argued with.
- *
- *  Coordinates are lon-lat because the caller requests srid=4326. */
-export function wktCenter(wkt: string): LatLng | null {
-  const body = wkt.slice(wkt.indexOf('('));
-  if (!body) return null;
-  // Is there a Z (or M) ordinate to skip? Read it off the type prefix rather
-  // than guessing from the number count, which cannot distinguish "x y z" from
-  // two 2D points written without a comma.
-  const header = wkt.slice(0, wkt.indexOf('(')).trim().toUpperCase();
-  const stride = /\s(Z|ZM|M)$/.test(header) ? 3 : 2;
-
-  let minLon = Infinity;
-  let maxLon = -Infinity;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-  let found = false;
-
-  for (const chunk of body.replace(/[()]/g, ' ').split(',')) {
-    const nums = chunk.trim().split(/\s+/);
-    if (nums.length < stride) continue;
-    const lon = Number.parseFloat(nums[0]);
-    const lat = Number.parseFloat(nums[1]);
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-    found = true;
-    if (lon < minLon) minLon = lon;
-    if (lon > maxLon) maxLon = lon;
-    if (lat < minLat) minLat = lat;
-    if (lat > maxLat) maxLat = lat;
-  }
-  if (!found) return null;
-  return [(minLat + maxLat) / 2, (minLon + maxLon) / 2];
-}
-
-// Attributes are matched on their Norwegian name rather than their numeric
-// egenskapstype id. The ids for type 43 could not be verified against the live
-// datakatalog (see the verification note in docs/parking-data-sources.md), and
-// a wrong hardcoded id fails silently by reading the wrong column, whereas a
-// name match that misses simply leaves the field null and shows "—". Once the
-// smoke test in that document has been run, swapping these for ids would be a
-// small and strictly safer change.
-function attr(
-  egenskaper: NvdbEgenskap[],
-  matches: (name: string) => boolean,
-): string | null {
-  for (const e of egenskaper) {
-    if (!e.navn || e.verdi === undefined || e.verdi === null) continue;
-    if (!matches(e.navn.toLowerCase())) continue;
-    const v = String(e.verdi).trim();
-    if (v !== '') return v;
-  }
-  return null;
+function text(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
 }
 
 function toArea(
-  o: NvdbObjekt,
+  row: ParkingRow,
   origin: LatLng,
   fetchedAt: number,
 ): ParkingArea | null {
-  const wkt = o.geometri?.wkt ?? o.lokasjon?.geometri?.wkt;
-  if (!wkt || o.id === undefined) return null;
-  const point = wktCenter(wkt);
-  if (!point) return null;
+  const id = text(row.id);
+  const lat = typeof row.lat === 'number' ? row.lat : Number.NaN;
+  const lon = typeof row.lon === 'number' ? row.lon : Number.NaN;
+  if (!id || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
-  const eg = o.egenskaper ?? [];
-  const capacityRaw = attr(eg, (n) => n.includes('antall') && n.includes('plass'));
-  const capacity = capacityRaw ? Number.parseInt(capacityRaw, 10) : NaN;
+  const point: LatLng = [lat, lon];
+  const capacity = typeof row.capacity === 'number' ? row.capacity : null;
 
   return {
-    id: String(o.id),
-    source: 'nvdb',
+    id,
+    // Pinned rather than read from the row. The column is CHECK-constrained to
+    // 'osm' in D1, so trusting the payload here would only add a way for the
+    // discriminator to drift from the thing it is supposed to be guarding.
+    source: 'osm',
     point,
     distanceM: haversine(origin, point),
-    name: attr(eg, (n) => n === 'navn' || n.endsWith('navn')),
-    capacity: Number.isFinite(capacity) ? capacity : null,
-    fee: attr(eg, (n) => n.includes('avgift') || n.includes('betaling')),
-    surface: attr(eg, (n) => n.includes('dekke')),
-    winter: attr(eg, (n) => n.includes('vinter') || n.includes('brøyt')),
-    owner: attr(eg, (n) => n === 'eier' || n.includes('vedlikeholdsansvarlig')),
-    usage: attr(eg, (n) => n.includes('bruksområde')),
+    name: text(row.name),
+    capacity: Number.isFinite(capacity as number) ? (capacity as number) : null,
+    fee: text(row.fee),
+    surface: text(row.surface),
+    access: text(row.access),
+    operator: text(row.operator),
+    usage: text(row.usage),
+    payment: text(row.payment),
+    maxstay: text(row.maxstay),
     fetchedAt,
   };
 }
 
 /** Longitude/latitude half-spans of a `radiusM` box around `lat`.
  *
- *  A box, not a circle: NVDB filters by `kartutsnitt`, a rectangular map
- *  extent. It therefore over-fetches the corners, which is harmless — every
- *  candidate is re-measured with a real haversine distance and anything past
- *  the radius is dropped before the user sees it. */
+ *  A box, not a circle, because that is what the endpoint takes — and because
+ *  a box is a question about the world rather than about the user's route.
+ *  It over-fetches the corners by up to √2, which is harmless: every candidate
+ *  is re-measured with a real haversine distance below and anything past the
+ *  radius is dropped before the user sees it. */
 function bboxHalfSpans(lat: number, radiusM: number) {
   const latDeg = radiusM / 110540;
   // Meridians converge toward the pole, so a fixed ground distance spans more
@@ -207,12 +179,10 @@ function bboxHalfSpans(lat: number, radiusM: number) {
   return { latDeg, lonDeg };
 }
 
-// One page is requested rather than following NVDB's cursor paging. A 10 km
-// radius is a 20 km box, which in open country holds a handful of objects and
-// in central Oslo could hold hundreds — but the caller only ever shows the
-// five nearest, and truncation can only drop objects that were never going to
-// be displayed in the first place. Paging through a city to throw the results
-// away would cost the user latency for nothing.
+// One page, no paging. A 10 km radius is a 20 km box, which in open country
+// holds a handful of lots and in central Oslo could hold hundreds — but the
+// caller only ever shows the five nearest, so truncation can only drop rows
+// that were never going to be displayed.
 const MAX_CANDIDATES = 500;
 
 // (lat, lon, radius) → results. Quantized to ~100 m so nudging the route start
@@ -220,7 +190,10 @@ const MAX_CANDIDATES = 500;
 // is a genuinely different question.
 //
 // No TTL: unlike a forecast, a car park does not change during a session. The
-// edge cache in front of this holds 24 h for the same reason.
+// edge cache in front of this holds 24 h, and the table behind it is rebuilt
+// monthly, so a session-lifetime memo is the finest granularity that means
+// anything. Being in-process is also the point — this Map holds the only
+// route-derived distances that exist anywhere, and it dies with the tab.
 const cache = new Map<string, ParkingArea[]>();
 
 function cacheKey(origin: LatLng, radiusM: number): string {
@@ -229,9 +202,11 @@ function cacheKey(origin: LatLng, radiusM: number): string {
 
 /** The `limit` parking areas nearest `origin` within `radiusM`, nearest first.
  *
- *  Returns an empty array when NVDB has nothing in range — which, per the note
- *  at the top of this file, is a statement about NVDB's coverage rather than
- *  about the ground. */
+ *  An empty array means OSM has no mapped parking in range. That is a much
+ *  stronger statement than the NVDB version of this function could make, but
+ *  it is still a statement about a map rather than about the ground: OSM is
+ *  volunteer-surveyed and a lot nobody has walked past with a phone is a lot
+ *  nobody has mapped. The UI says so; see ParkingPanel. */
 export async function fetchParkingNear(
   origin: LatLng,
   radiusM: number,
@@ -243,41 +218,26 @@ export async function fetchParkingNear(
   if (cached) return cached.slice(0, limit);
 
   const { latDeg, lonDeg } = bboxHalfSpans(origin[0], radiusM);
-  // kartutsnitt is minLon,minLat,maxLon,maxLat — x first, matching the example
-  // in the NVDB docs (8.80,61.48,8.90,61.53 is the Gjendesheim area, where the
-  // 8.8 is plainly the longitude).
-  const kartutsnitt = [
-    (origin[1] - lonDeg).toFixed(5),
-    (origin[0] - latDeg).toFixed(5),
-    (origin[1] + lonDeg).toFixed(5),
-    (origin[0] + latDeg).toFixed(5),
-  ].join(',');
-
   const params = new URLSearchParams({
-    kartutsnitt,
-    srid: '4326',
-    inkluder: 'egenskaper,lokasjon,geometri',
-    antall: String(MAX_CANDIDATES),
+    minLat: (origin[0] - latDeg).toFixed(5),
+    maxLat: (origin[0] + latDeg).toFixed(5),
+    minLon: (origin[1] - lonDeg).toFixed(5),
+    maxLon: (origin[1] + lonDeg).toFixed(5),
+    limit: String(MAX_CANDIDATES),
   });
-  // NVDB sits behind a firewall that rejects request URLs over 2048 characters.
-  // This one is nowhere near it, but the ceiling is documented and cheap to
-  // assert, and the failure it prevents is an opaque upstream error.
-  const url = `${ENDPOINT}?${params}`;
-  if (url.length > 2048) throw new Error('NVDB request URL too long');
 
-  const res = await fetch(url, {
+  const res = await fetch(`${ENDPOINT}?${params}`, {
     signal,
     headers: { Accept: 'application/json' },
   });
-  if (!res.ok) throw new Error(`NVDB API ${res.status}`);
-  const data = (await res.json()) as NvdbResponse;
+  if (!res.ok) throw new Error(`parking API ${res.status}`);
+  const data = (await res.json()) as ParkingResponse;
 
   const now = Date.now();
-  const areas = (data.objekter ?? [])
-    .map((o) => toArea(o, origin, now))
+  const areas = (data.areas ?? [])
+    .map((row) => toArea(row, origin, now))
     .filter((a): a is ParkingArea => a !== null)
-    // The box over-fetches its corners by up to √2; drop what the circle
-    // wouldn't have included.
+    // The box over-fetches its corners; drop what the circle wouldn't include.
     .filter((a) => a.distanceM <= radiusM)
     .sort((a, b) => a.distanceM - b.distanceM);
 

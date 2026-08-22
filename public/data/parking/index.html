@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b1018" />
+    <link rel="canonical" href="https://fjellrute.no/data/parking/" />
+    <meta
+      name="description"
+      content="The OpenStreetMap parking extract behind Fjellrute's parking layer, published under the Open Database License (ODbL) 1.0."
+    />
+    <title>Parking data — Fjellrute</title>
+    <!--
+      WHY THIS PAGE EXISTS, AND WHY IT MAY NOT QUIETLY GO AWAY.
+
+      Fjellrute's parking layer is derived from OpenStreetMap, which is licensed
+      under the Open Database License 1.0. ODbL §4.6 says that if you publicly
+      use a Produced Work made from a Derivative Database — which the map, the
+      parking tab and the printed briefing sheet all are — you must also make
+      that database available to the recipients of the work, under ODbL, at no
+      more than a reasonable cost. This page is how Fjellrute does that: the
+      extract is here, in full, with its licence, for anyone who sees a parking
+      pin in the app.
+
+      It is written in English only, deliberately. The rest of the site is
+      Norwegian-first because its readers are; this page's reader is someone
+      exercising a licence term, and the licence is in English.
+
+      KEEP IN STEP WITH:
+        - scripts/parking/build_parking_extract.py — writes the three files
+          linked below into this directory. The counts in the prose come from
+          its output; re-run it and update them together.
+        - worker/knownPaths.js — '/data/parking' is in STATIC_PAGES, without
+          which this path is redirected to the site root and the obligation is
+          silently unmet.
+        - src/terms/content.ts §7 and docs/DATA_LICENSES.md §6 — both name this
+          URL.
+    -->
+    <style>
+      :root {
+        --accent: #7fe3c8;
+        --accent-contrast: #04241f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #0b1018;
+      }
+      body {
+        font-family:
+          'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          Helvetica, Arial, sans-serif;
+        color: rgba(255, 255, 255, 0.82);
+        line-height: 1.6;
+      }
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: clamp(24px, 4vw, 56px) clamp(20px, 3.5vw, 48px)
+          clamp(48px, 6vw, 88px);
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        color: #fff;
+        font-weight: 700;
+        font-size: 1.25rem;
+        letter-spacing: -0.01em;
+      }
+      .brandIcon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--accent-contrast);
+        font-weight: 800;
+      }
+      h1 {
+        margin: clamp(28px, 4vw, 44px) 0 0;
+        font-size: clamp(30px, 4vw, 46px);
+        line-height: 1.08;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: #fff;
+      }
+      h2 {
+        margin: 40px 0 12px;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0 0 14px;
+        max-width: 62ch;
+      }
+      a {
+        color: var(--accent);
+      }
+      .files {
+        margin: 22px 0 0;
+        padding: 0;
+        list-style: none;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .files li + li {
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .files a {
+        display: block;
+        padding: 14px 18px;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .files a:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .files span {
+        display: block;
+        font-weight: 400;
+        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.6);
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: rgba(255, 255, 255, 0.07);
+        padding: 1px 5px;
+        border-radius: 4px;
+      }
+      pre {
+        margin: 0 0 14px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        font-size: 0.85rem;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      footer {
+        margin-top: 48px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.55);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="brand" href="/">
+        <span class="brandIcon" aria-hidden="true">F</span>
+        Fjellrute
+      </a>
+
+      <h1>Parking data</h1>
+
+      <p>
+        Fjellrute shows parking areas near the start of a planned route. That
+        layer is derived from
+        <a href="https://www.openstreetmap.org/" rel="noopener">OpenStreetMap</a
+        >, which is licensed under the
+        <a href="https://opendatacommons.org/licenses/odbl/1-0/" rel="noopener"
+          >Open Database License (ODbL) 1.0</a
+        >. ODbL is a share-alike licence, and one of its terms is that the
+        database behind a published work must itself be published. This page is
+        that publication. The extract below is the same data the application
+        queries — nothing withheld, nothing added.
+      </p>
+
+      <ul class="files">
+        <li>
+          <a href="/data/parking/parking-norway.geojson" download>
+            parking-norway.geojson
+            <span>39,676 parking areas in Norway · ~6 MB</span>
+          </a>
+        </li>
+        <li>
+          <a href="/data/parking/LICENSE.txt">
+            LICENSE.txt
+            <span>ODbL 1.0 notice and attribution</span>
+          </a>
+        </li>
+        <li>
+          <a href="/data/parking/README.md">
+            README.md
+            <span>Provenance, filter rules, field definitions</span>
+          </a>
+        </li>
+      </ul>
+
+      <h2>What is in it</h2>
+      <p>
+        Every OpenStreetMap node and closed way in Norway tagged
+        <code>amenity=parking</code>, as of the build date recorded in the
+        README, excluding areas tagged <code>access=private</code>,
+        <code>access=no</code> or <code>access=permit</code>, and excluding
+        roadside parking (<code>parking=lane</code>,
+        <code>street_side</code>, <code>on_kerb</code>,
+        <code>half_on_kerb</code>, <code>shoulder</code>). Ways are reduced to
+        the arithmetic centroid of their nodes. Multipolygon relations are not
+        included.
+      </p>
+      <p>
+        The upstream extract held 47,422 <code>amenity=parking</code> features
+        on 22 August 2026; 7,262 were dropped by the filters above and 484 were
+        relations, leaving the 39,676 published here.
+      </p>
+
+      <h2>How to rebuild it yourself</h2>
+      <p>
+        You should not have to take our word for any of the above. The build
+        script is in the repository and reads the public Geofabrik extract:
+      </p>
+      <pre><code>pip install osmium
+curl -O https://download.geofabrik.de/europe/norway-latest.osm.pbf
+python scripts/parking/build_parking_extract.py norway-latest.osm.pbf \
+    --publish-dir public/data/parking \
+    --sql-out build/parking.sql</code></pre>
+
+      <h2>What you may do with it</h2>
+      <p>
+        Whatever ODbL allows, which is a great deal: copy it, distribute it,
+        adapt it, and use it commercially. The conditions are that you credit
+        OpenStreetMap and its contributors, and that if you distribute an
+        adapted version of the database you do so under ODbL as well. The full
+        text is linked above and governs; this paragraph is a summary and not a
+        substitute for it.
+      </p>
+
+      <h2>Corrections</h2>
+      <p>
+        If a car park here is wrong, missing, or has changed its price, the
+        place to fix it is
+        <a href="https://www.openstreetmap.org/" rel="noopener"
+          >OpenStreetMap itself</a
+        >, not us. An edit there reaches every application using the data,
+        including this one, at the next monthly refresh. That is the better half
+        of the bargain and the reason the layer moved to OSM in the first place.
+      </p>
+
+      <footer>
+        © OpenStreetMap contributors. Published by Fjellrute under ODbL 1.0.
+        <a href="/about.html">About Fjellrute</a>
+      </footer>
+    </div>
+  </body>
+</html>
