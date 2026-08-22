@@ -20,7 +20,7 @@ import type {
   SkySpecification,
 } from 'maplibre-gl';
 import type { Route } from './types';
-import { routeEnds } from './geometry';
+import { routeConnectors, routeEnds } from './geometry';
 import {
   ROUTE_COLOR,
   ROUTE_WEIGHT,
@@ -28,6 +28,9 @@ import {
   FINISH_COLOR,
   ENDPOINT_RADIUS,
   ENDPOINT_RING,
+  CONNECTOR_COLOR,
+  CONNECTOR_DASH_RATIO,
+  connectorWeight,
 } from './routeStyle';
 
 /** Vertical exaggeration of the terrain mesh. 1.0 is true-to-life; a small
@@ -73,6 +76,38 @@ export const TERRAIN_ROUTE_PAINT: LineLayerSpecification['paint'] = {
   'line-color': ROUTE_COLOR,
   'line-width': ROUTE_WEIGHT,
 };
+
+/** The dotted legs bridging gaps between consecutive segments, so a tour drawn
+ *  in parts reads as one tour here too. Like the route line it gets no halo, for
+ *  the same reason: on a shaded mesh a halo reads as a second line.
+ *
+ *  MapLibre measures line-dasharray in multiples of the line's own width, which
+ *  is the unit CONNECTOR_DASH_RATIO is already stated in — so the pair goes in
+ *  untouched and comes out as the same dotted rhythm the flat maps draw in
+ *  absolute pixels. */
+export const TERRAIN_CONNECTOR_PAINT: LineLayerSpecification['paint'] = {
+  'line-color': CONNECTOR_COLOR,
+  'line-width': connectorWeight(),
+  'line-dasharray': [...CONNECTOR_DASH_RATIO],
+};
+
+/** Those legs as LineString features, ready for the line layer above. Empty
+ *  when the route has no gaps, which is the common case and a valid
+ *  FeatureCollection — same contract as routeEndpointsGeoJSON below. */
+export function routeConnectorsGeoJSON(route: Route): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: routeConnectors(route).map((leg) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        // Route coordinates are [lat, lng]; GeoJSON wants [lng, lat].
+        coordinates: leg.map(([lat, lng]) => [lng, lat]),
+      },
+    })),
+  };
+}
 
 /** Start and finish dots, coloured from the same pair the flat maps use — the
  *  circle takes its colour from the feature, so both dots are one layer and

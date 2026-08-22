@@ -67,6 +67,40 @@ export function routeEnds(
   return { start: first[0], end: points > 1 ? last[last.length - 1] : null };
 }
 
+/** The gaps between consecutive segments, as the legs that bridge them.
+ *
+ *  A Route is an ordered list of segments and that order is travel order, but a
+ *  bare polyline per segment doesn't say so: erase the middle of a tour and the
+ *  two halves left behind look like two separate tours. Each returned leg runs
+ *  from where one segment stops to where the next one starts, which is what the
+ *  maps draw as a dotted line.
+ *
+ *  Lives here, beside routeEnds, for exactly the reason routeEnds does: the
+ *  planner, the printed map and the 3D view all draw these, and three copies of
+ *  "last point of one segment, first point of the next" would eventually
+ *  disagree about which gaps exist.
+ *
+ *  Empty segments are skipped rather than bridged to, so a leg always has real
+ *  geometry at both ends. Coincident ends — segments that touch, which is a
+ *  seam in the drawing rather than a gap in the tour — yield no leg: a dotted
+ *  line of zero length is a single stray dot on the map.
+ *
+ *  Note these legs are for drawing only. They are never folded back into the
+ *  Route and never measured: the tour's distance and ascent are what was
+ *  drawn, and a straight line across a gap was not. */
+export function routeConnectors(route: Route): [LatLng, LatLng][] {
+  const drawn = route.filter((seg) => seg.length > 0);
+  const legs: [LatLng, LatLng][] = [];
+  for (let i = 1; i < drawn.length; i++) {
+    const prev = drawn[i - 1];
+    const from = prev[prev.length - 1];
+    const to = drawn[i][0];
+    if (from[0] === to[0] && from[1] === to[1]) continue;
+    legs.push([from, to]);
+  }
+  return legs;
+}
+
 // Total length of a polyline in meters.
 export function segmentLength(seg: Segment): number {
   let total = 0;

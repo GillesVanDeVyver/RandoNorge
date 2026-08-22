@@ -29,6 +29,46 @@ export const HALO_COLOR = '#ffffff';
 export const HALO_WEIGHT = ROUTE_WEIGHT + 3;
 export const HALO_OPACITY = 0.9;
 
+/** The dotted line bridging a gap between one segment and the next.
+ *
+ *  A route is an ordered list of segments with possible gaps (the eraser makes
+ *  them), and segment order is travel order. Drawn as bare polylines, two
+ *  segments either side of a gap read as two unrelated tours; the connector is
+ *  what says they are one, and in which order it is walked.
+ *
+ *  Deliberately NOT the route's teal: the connector is not terrain anybody
+ *  traced. Gray and thin, it reads as a link between drawn things rather than
+ *  as a drawn thing itself — the same language NavigationLayer already uses for
+ *  its off-route connector, and for the same reason. It is never counted in the
+ *  tour's distance or ascent, because nobody drew it. */
+export const CONNECTOR_COLOR = '#6b7280';
+
+/** Dot and gap of the dotted pattern, as multiples of the connector's own
+ *  width. Stated as a ratio rather than a pair of pixel numbers because this
+ *  has to come out as the same picture through three renderers that disagree
+ *  about units: Leaflet and canvas want absolute pixels (see connectorDash),
+ *  MapLibre's line-dasharray is already in multiples of line width and takes
+ *  this pair directly. */
+export const CONNECTOR_DASH_RATIO: readonly [number, number] = [1 / 3, 3];
+
+/** Connector width for a route drawn at `routeWeight`, in logical pixels.
+ *  Thinner than the line it joins, and derived from it so the two stay in
+ *  proportion at thumbnail size as well as on the printed sheet. Floored at 1
+ *  so it never thins away to nothing on the smallest tiles. */
+export function connectorWeight(weight: number = ROUTE_WEIGHT): number {
+  return Math.max(1, weight * 0.75);
+}
+
+/** The dotted pattern in absolute logical pixels, for a connector drawn at
+ *  `weight` — the form Leaflet's dashArray and canvas's setLineDash want. At
+ *  the planner's own weights this is [1, 9], the pattern NavigationLayer uses.
+ */
+export function connectorDash(
+  weight: number = connectorWeight(),
+): [number, number] {
+  return [weight * CONNECTOR_DASH_RATIO[0], weight * CONNECTOR_DASH_RATIO[1]];
+}
+
 /** Start and finish dots. Green for where the day begins, red for where it
  *  ends — the one piece of the picture that says which way round the route is
  *  meant to be walked, which a bare line cannot. */

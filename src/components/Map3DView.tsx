@@ -42,6 +42,8 @@ import {
   TERRAIN_SKY,
   TERRAIN_SNOW_OPACITY,
   TERRAIN_STEEPNESS_OPACITY,
+  TERRAIN_CONNECTOR_PAINT,
+  routeConnectorsGeoJSON,
   routeEndpointsGeoJSON,
 } from '../terrainView';
 import { rememberTerrainCamera } from '../terrainCamera';
@@ -402,6 +404,13 @@ export function Map3DView({
             maxzoom: 16,
           },
           route: { type: 'geojson', data: routeToGeoJSON(routeRef.current) },
+          // The gaps between segments, in their own source for the same reason
+          // the ends are: they are derived from the route but are not the route,
+          // and the dotted layer has to be styled and ordered on its own.
+          connectors: {
+            type: 'geojson',
+            data: routeConnectorsGeoJSON(routeRef.current),
+          },
           // The route's two ends, in their own source so the dots can be
           // repainted with the line without the line's geometry deciding where
           // they go. Same green and red as the 2D map's.
@@ -475,6 +484,15 @@ export function Map3DView({
               'line-width': 4,
               'line-dasharray': [2.5, 1.5],
             },
+          },
+          // Below the route, so where a dotted leg meets the line it joins, the
+          // drawn line is what shows.
+          {
+            id: 'connectors',
+            type: 'line',
+            source: 'connectors',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: TERRAIN_CONNECTOR_PAINT,
           },
           {
             id: 'route',
@@ -595,6 +613,14 @@ export function Map3DView({
       // travels with the pen instead of jumping to it on mouse-up.
       const ends = map.getSource('ends') as maplibregl.GeoJSONSource | undefined;
       if (ends) ends.setData(routeEndpointsGeoJSON(live ? [...base, live] : base));
+      // The gap connectors deliberately do NOT take the live stroke: a dotted
+      // line redrawn from the previous segment to the pen on every frame is
+      // noise. `base` is the eraser's pending result while erasing, though, so
+      // a connector still appears as soon as the eraser opens a gap.
+      const gaps = map.getSource('connectors') as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (gaps) gaps.setData(routeConnectorsGeoJSON(base));
     };
     renderRef.current = renderRoute;
 
@@ -1039,6 +1065,10 @@ export function Map3DView({
       if (src) src.setData(routeToGeoJSON(route));
       const ends = map.getSource('ends') as maplibregl.GeoJSONSource | undefined;
       if (ends) ends.setData(routeEndpointsGeoJSON(route));
+      const gaps = map.getSource('connectors') as
+        | maplibregl.GeoJSONSource
+        | undefined;
+      if (gaps) gaps.setData(routeConnectorsGeoJSON(route));
     };
     return whenStyleReady(map, apply);
   }, [route]);

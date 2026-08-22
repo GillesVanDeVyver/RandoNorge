@@ -8,7 +8,7 @@ import {
   Polyline,
 } from 'react-leaflet';
 import type { DrawStyle, LatLng, Mode, Route, Segment } from '../types';
-import { routeEnds, simplify } from '../geometry';
+import { routeConnectors, routeEnds, simplify } from '../geometry';
 // The route's colour, widths and endpoint dots. Shared with the canvas
 // renderer behind the printed briefing, so the exported map is a miniature of
 // this one rather than a second, heavier drawing of the same tour.
@@ -22,6 +22,9 @@ import {
   FINISH_COLOR,
   ENDPOINT_RADIUS,
   ENDPOINT_RING,
+  CONNECTOR_COLOR,
+  connectorWeight,
+  connectorDash,
 } from '../routeStyle';
 import { useT } from '../i18n/index.ts';
 import styles from './DrawingHandler.module.css';
@@ -75,6 +78,15 @@ const RUBBER_BAND_STYLE = {
   weight: ROUTE_WEIGHT - 1,
   opacity: 0.75,
   dashArray: '6 7',
+} as const;
+// Dotted leg across a gap between two consecutive segments, so an erased or
+// multi-part tour still reads as one tour walked in one order. Gray rather than
+// teal because nobody drew this ground — see routeStyle's CONNECTOR_COLOR.
+const CONNECTOR_STYLE = {
+  color: CONNECTOR_COLOR,
+  weight: connectorWeight(),
+  dashArray: connectorDash().join(' '),
+  lineCap: 'round',
 } as const;
 // Start and finish dots, white-ringed so they read against both the topo base
 // and the steepness ramp. Non-interactive, like every other decoration on this
@@ -820,8 +832,30 @@ export function DrawingHandler({
     [displayRoute, previewDraft, livePoints],
   );
 
+  // Dotted legs bridging the gaps between committed segments, so a tour cut in
+  // two by the eraser still reads as one tour in one order.
+  //
+  // Committed geometry only — unlike the endpoint dots above, which follow the
+  // pen. A finish dot travelling with the stroke is the drawing keeping up; a
+  // dotted line rubber-banding across the map from the previous segment on
+  // every mousemove is just a second rubber band arguing with the real one.
+  // Since `displayRoute` is the eraser's pending result while erasing, the
+  // connector still appears the moment the eraser opens a gap.
+  const connectors = useMemo(() => routeConnectors(displayRoute), [displayRoute]);
+
   return (
     <>
+      {/* Gap connectors at the very bottom, so the drawn route and its halo
+          always win where the two meet and the dots tuck under the line
+          instead of crossing it. */}
+      {connectors.map((leg, i) => (
+        <Polyline
+          key={`gap-${i}`}
+          positions={leg}
+          pathOptions={CONNECTOR_STYLE}
+          interactive={false}
+        />
+      ))}
       {/* White halos first, so every teal line renders on top of every halo. */}
       {displayRoute.map((seg, i) => (
         <Polyline key={`halo-${i}`} positions={seg} pathOptions={HALO_STYLE} />

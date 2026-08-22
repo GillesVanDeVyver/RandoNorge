@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Segment connectors — visual check</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0; padding: 32px 28px 48px;
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #1f2937; background: #f6f7f9;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 21px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  p.lede { margin: 0 0 28px; color: #4b5563; max-width: 68ch; }
+  .card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    padding: 18px 20px 20px; margin-bottom: 18px;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 2px; letter-spacing: .01em; }
+  .card .sub { font-size: 12.5px; color: #6b7280; margin: 0 0 14px; }
+  canvas { display: block; width: 100%; height: auto; border-radius: 8px; }
+  .row { display: flex; gap: 18px; flex-wrap: wrap; }
+  .row .card { flex: 1 1 260px; margin-bottom: 0; }
+  table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  td, th { text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid #f1f3f5; }
+  th { color: #6b7280; font-weight: 600; }
+  code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #374151; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px;
+        vertical-align: -1px; margin-right: 6px; border: 1px solid rgba(0,0,0,.15); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Segment connectors</h1>
+  <p class="lede">
+    A mock three-segment tour with two gaps, drawn with the exact constants from
+    <code>routeStyle.ts</code> and in the same order the renderers use: connectors
+    at the bottom, then the white halo, then the route, then the end dots. The map
+    is faked; the line work is real.
+  </p>
+
+  <div class="card">
+    <h2>Planner map &amp; printed briefing</h2>
+    <p class="sub">Route weight 4 — connector weight 3, dash 1&nbsp;/&nbsp;9</p>
+    <canvas id="big" width="1840" height="620"></canvas>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2>Library thumbnail</h2>
+      <p class="sub">Route weight 2.5 — connector 1.875, dash 0.63&nbsp;/&nbsp;5.63</p>
+      <canvas id="thumb" width="320" height="320"></canvas>
+    </div>
+    <div class="card">
+      <h2>Numbers</h2>
+      <p class="sub">Derived, so the proportion holds at every size</p>
+      <table>
+        <tr><th>Colour</th><td><span class="sw" style="background:#6b7280"></span><code>#6b7280</code></td></tr>
+        <tr><th>Route</th><td><span class="sw" style="background:#2dd4bf"></span><code>#2dd4bf</code></td></tr>
+        <tr><th>Weight</th><td><code>routeWeight &times; 0.75</code>, min 1</td></tr>
+        <tr><th>Dash</th><td><code>[w/3, w&times;3]</code></td></tr>
+        <tr><th>In stats</th><td>never counted</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- the real constants, from src/routeStyle.ts --------------------------
+const ROUTE_COLOR = '#2dd4bf';
+const ROUTE_WEIGHT = 4;
+const HALO_COLOR = '#ffffff';
+const HALO_WEIGHT = ROUTE_WEIGHT + 3;
+const HALO_OPACITY = 0.9;
+const CONNECTOR_COLOR = '#6b7280';
+const CONNECTOR_DASH_RATIO = [1 / 3, 3];
+const START_COLOR = '#16a34a';
+const FINISH_COLOR = '#dc2626';
+const connectorWeight = (w = ROUTE_WEIGHT) => Math.max(1, w * 0.75);
+const connectorDash = (w = connectorWeight()) =>
+  [w * CONNECTOR_DASH_RATIO[0], w * CONNECTOR_DASH_RATIO[1]];
+
+// ---- routeConnectors, from src/geometry/index.ts ------------------------
+function routeConnectors(route) {
+  const drawn = route.filter((s) => s.length > 0);
+  const legs = [];
+  for (let i = 1; i < drawn.length; i++) {
+    const prev = drawn[i - 1];
+    const from = prev[prev.length - 1];
+    const to = drawn[i][0];
+    if (from[0] === to[0] && from[1] === to[1]) continue;
+    legs.push([from, to]);
+  }
+  return legs;
+}
+
+// A mock tour in canvas space: three drawn segments, two gaps between them.
+const TOUR = [
+  [[60,300],[130,250],[200,262],[268,214],[330,178],[398,186],[452,150]],
+  [[610,140],[668,182],[720,178],[788,224],[852,214],[915,258]],
+  [[1055,300],[1120,262],[1188,276],[1252,238],[1318,250],[1384,214],[1440,236]],
+];
+
+// Faint contour-ish backdrop so the gray reads in context rather than on white.
+function backdrop(ctx, w, h) {
+  ctx.fillStyle = '#eef1f4';
+  ctx.fillRect(0, 0, w, h);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(140,150,160,.30)';
+  ctx.lineWidth = 1;
+  for (let i = -h; i < w + h; i += 34) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.bezierCurveTo(i + 60, h * .34, i - 40, h * .68, i + 28, h);
+    ctx.stroke();
+  }
+  // A patch of the steepness ramp, the hardest ground for a thin gray line.
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, 'rgba(250,204,21,0)');
+  g.addColorStop(.55, 'rgba(249,115,22,.34)');
+  g.addColorStop(1, 'rgba(220,38,38,.40)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+function draw(canvas, { routeWeight, scale = 1, dots = true }) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  backdrop(ctx, w, h);
+  ctx.save();
+  ctx.scale(scale, scale);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  const route = TOUR;
+  const gapW = connectorWeight(routeWeight);
+
+  // 1. Connectors, bottom-most — mirrors staticMap.ts.
+  ctx.save();
+  ctx.strokeStyle = CONNECTOR_COLOR;
+  ctx.lineWidth = gapW;
+  ctx.setLineDash(connectorDash(gapW));
+  ctx.beginPath();
+  for (const [from, to] of routeConnectors(route)) {
+    ctx.moveTo(from[0], from[1]);
+    ctx.lineTo(to[0], to[1]);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // 2. Halo, then 3. the teal line — one subpath per segment, never joined.
+  const trace = () => {
+    ctx.beginPath();
+    for (const seg of route) {
+      seg.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+    }
+    ctx.stroke();
+  };
+  ctx.strokeStyle = `rgba(255,255,255,${HALO_OPACITY})`;
+  ctx.lineWidth = (HALO_WEIGHT / ROUTE_WEIGHT) * routeWeight;
+  trace();
+  ctx.strokeStyle = ROUTE_COLOR;
+  ctx.lineWidth = routeWeight;
+  trace();
+
+  // 4. Start green, finish red — first point of the first segment, last of the last.
+  if (dots) {
+    const r = Math.max(4, routeWeight * 1.6);
+    const dot = (p, fill) => {
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], r, 0, Math.PI * 2);
+      ctx.fillStyle = fill; ctx.fill();
+      ctx.lineWidth = Math.max(1.5, r * 0.4);
+      ctx.strokeStyle = '#fff'; ctx.stroke();
+    };
+    const last = route[route.length - 1];
+    dot(route[0][0], START_COLOR);
+    dot(last[last.length - 1], FINISH_COLOR);
+  }
+  ctx.restore();
+}
+
+draw(document.getElementById('big'),  { routeWeight: ROUTE_WEIGHT, scale: 1.24 });
+draw(document.getElementById('thumb'), { routeWeight: 2.5, scale: 0.208, dots: false });
+</script>
+</body>
+</html>

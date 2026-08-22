@@ -27,7 +27,7 @@
 
 import type { LatLng, Overlay, Route } from '../types';
 import { OFFLINE_LAYERS } from '../offline/layers';
-import { routeEnds } from '../geometry';
+import { routeConnectors, routeEnds } from '../geometry';
 import { clampZoom, FIT, type Framing } from './mapFraming';
 import {
   ROUTE_COLOR,
@@ -35,6 +35,9 @@ import {
   HALO_WEIGHT,
   START_COLOR,
   FINISH_COLOR,
+  CONNECTOR_COLOR,
+  connectorWeight,
+  connectorDash,
 } from '../routeStyle';
 
 const TILE_SIZE = 256;
@@ -128,6 +131,13 @@ export interface StaticMapOptions {
   routeWeight?: number;
   /** Halo width under the route line, in logical pixels. */
   haloWeight?: number;
+  /**
+   * Width of the dotted legs bridging gaps between segments, in logical pixels.
+   * Defaults to a fixed fraction of `routeWeight`, so the thumbnails get a
+   * connector in proportion to their own thinner line without having to know
+   * this feature exists — the same reasoning as routeWeight's own default.
+   */
+  connectorWeight?: number;
   /** Mark the first and last point of the route (start green, finish red). */
   endpoints?: boolean;
   /** Draw a metric scale bar in the bottom-left corner. */
@@ -178,6 +188,7 @@ export async function renderStaticMap(
     snowDate,
     routeWeight = ROUTE_WEIGHT,
     haloWeight = HALO_WEIGHT,
+    connectorWeight: gapWeight = connectorWeight(routeWeight),
     endpoints = false,
     scaleBar = false,
     cancelled = () => false,
@@ -365,6 +376,28 @@ export async function renderStaticMap(
   // Route on top: white halo, then the planner's accent teal.
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
+
+  // Gap connectors first, so the route and its halo cover them where the two
+  // meet. Dashes are set and cleared around this block: leaving a dash pattern
+  // on the context would dot the route line, the endpoint rings and the scale
+  // bar as well.
+  const gaps = routeConnectors(route);
+  if (gaps.length > 0) {
+    ctx.save();
+    ctx.strokeStyle = CONNECTOR_COLOR;
+    ctx.lineWidth = gapWeight;
+    ctx.setLineDash(connectorDash(gapWeight));
+    ctx.beginPath();
+    for (const [from, to] of gaps) {
+      const [ax, ay] = project(from[0], from[1], zoom);
+      const [bx, by] = project(to[0], to[1], zoom);
+      ctx.moveTo(px(ax), py(ay));
+      ctx.lineTo(px(bx), py(by));
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const trace = () => {
     ctx.beginPath();
     for (const seg of route) {

@@ -53,6 +53,8 @@ import {
   TERRAIN_SKY,
   TERRAIN_SNOW_OPACITY,
   TERRAIN_STEEPNESS_OPACITY,
+  TERRAIN_CONNECTOR_PAINT,
+  routeConnectorsGeoJSON,
   routeEndpointsGeoJSON,
 } from '../terrainView';
 import { recallTerrainCamera } from '../terrainCamera';
@@ -292,6 +294,7 @@ export async function createTerrainMap(
             maxzoom: 9,
           },
           route: { type: 'geojson', data: routeToGeoJSON(route) },
+          connectors: { type: 'geojson', data: routeConnectorsGeoJSON(route) },
           ends: { type: 'geojson', data: routeEndpointsGeoJSON(route) },
         },
         layers: [
@@ -320,6 +323,15 @@ export async function createTerrainMap(
               visibility: overlay === 'snowdepth' ? 'visible' : 'none',
             },
             paint: { 'raster-opacity': TERRAIN_SNOW_OPACITY },
+          },
+          // Under the route, as in the planner's 3D view: the printed sheet is
+          // meant to be that view, gaps and all.
+          {
+            id: 'connectors',
+            type: 'line',
+            source: 'connectors',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: TERRAIN_CONNECTOR_PAINT,
           },
           {
             id: 'route',
