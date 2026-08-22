@@ -51,6 +51,7 @@ import {
   offeredViewCamera,
   reportViewCamera,
 } from '../viewCamera';
+import type { ViewCamera } from '../viewCamera';
 import { useT } from '../i18n/index.ts';
 import styles from './Map3DView.module.css';
 
@@ -163,6 +164,43 @@ function regionsToGeoJSON(regions: RegionMeta[]): GeoJSON.FeatureCollection {
 // RegionBoundaryLayer's 2D poll so both views refresh in lockstep.
 const REGION_POLL_MS = 3000;
 
+// Maps whose one and only `load` has fired.
+//
+// `map.isStyleLoaded()` does not mean what its name suggests. It is false not
+// just before the style is up but at any moment a source still has tiles in
+// flight — which, for this style (raster basemap + DEM + two overlays), is most
+// of the time the user is moving. Pairing it with `once('load')` therefore
+// deadlocks: a false reading taken after the map's single `load` has already
+// gone by queues the work on an event that will never fire again, and the work
+// is silently dropped for good.
+//
+// That is the bug behind a 2D/3D switch that sometimes just does nothing: press
+// 2D while a tile is still arriving and the tilt is queued behind an event
+// already in the past, so the camera never flattens, `onFlattened` never fires,
+// and the switch is dead until the view is rebuilt. The same trap sat under
+// every other deferred style edit here — route repaints, overlay changes, the
+// zoom-to-route button.
+//
+// So remember `load` ourselves and let that, not tile traffic, be the gate.
+const styleLoaded = new WeakSet<maplibregl.Map>();
+
+/**
+ * Run `job` as soon as the map's style exists, and exactly once.
+ *
+ * Returns a canceller so an effect that is torn down before its turn comes does
+ * not leave a listener behind — the old code left one on every call.
+ */
+function whenStyleReady(map: maplibregl.Map, job: () => void): () => void {
+  if (styleLoaded.has(map) || map.isStyleLoaded()) {
+    job();
+    return () => {};
+  }
+  map.once('load', job);
+  return () => {
+    map.off('load', job);
+  };
+}
+
 interface Props {
   route: Route;
   snowDate: string;
@@ -181,8 +219,11 @@ interface Props {
    *  the same rotation played backwards instead of a cut. */
   flatten?: boolean;
   /** The camera has finished tilting back down and this view is ready to be
-   *  replaced by the flat map. */
-  onFlattened?: () => void;
+   *  replaced by the flat map. Carries the standpoint it actually came to rest
+   *  on, which is where the flat map should be showing — normally the one it
+   *  already opened on, but a pan during the tilt interrupts the ease and moves
+   *  it. */
+  onFlattened?: (landed: ViewCamera) => void;
   /** The terrain view has painted. Until this fires the flat map is left
    *  mounted underneath, so the switch never shows an empty pane. */
   onReady?: () => void;
@@ -814,6 +855,11 @@ export function Map3DView({
     });
 
     map.on('load', () => {
+      // First thing, before any other `load` listener gets a turn: from here on
+      // "is the style up?" is answered by this flag rather than by
+      // isStyleLoaded(), which also goes false for ordinary tile traffic and
+      // would strand later work on an event that has now been and gone.
+      styleLoaded.add(map);
       // Once the style is up, force one more resize so the initial fitBounds
       // below is computed against the true container size rather than whatever
       // the map was constructed with.
@@ -840,13 +886,38 @@ export function Map3DView({
         });
       }
       setBearing(map.getBearing());
+      // Say where this view is standing straight away rather than waiting for
+      // the user to move it. The flat map is now built the instant 2D is
+      // pressed, so on a terrain view nobody has panned yet — one opened
+      // straight onto a route rather than through the switch — the last
+      // standpoint reported would otherwise still be some earlier flat map's,
+      // and the pre-built map would spend the whole tilt loading the wrong
+      // hillside before being corrected at the swap.
+      const { lng, lat } = map.getCenter();
+      reportViewCamera({ center: [lng, lat], zoom: map.getZoom() });
     });
 
     // Tell the switch the terrain view has something on screen, so it can drop
-    // the flat map it is holding underneath. `idle` rather than `load`: load
-    // fires as soon as the style is up, with the tiles still arriving, and
-    // pulling the map out from under a half-painted canvas is the flicker this
-    // is meant to avoid.
+    // the flat map it is holding underneath.
+    //
+    // Not `load`, which fires with the style up but the canvas still empty:
+    // pulling the flat map out from under that is the flicker this is meant to
+    // avoid. But not `idle` alone either, which is what made the switch feel
+    // slow. `idle` means *every* source has settled — including the DEM and
+    // both overlays — so a slow snow-depth tile could hold the flat map on
+    // screen for seconds after the terrain view was perfectly presentable, and
+    // the switch looked like it had been ignored.
+    //
+    // What "something on screen" actually means here is the basemap: it is the
+    // opaque layer, and once its visible tiles are in there is a finished
+    // picture to hand over to. The relief and the overlays arrive on top of a
+    // view the user is already looking at.
+    map.on('sourcedata', (e) => {
+      if (e.sourceId === 'basemap' && e.isSourceLoaded) onReadyRef.current?.();
+    });
+    // Still keep `idle` as the backstop, for the case where the basemap was
+    // served entirely from cache and its `sourcedata` went by before anything
+    // was painted.
     //
     // Every idle, not just the first: a user who flips to 2D and straight back
     // gets this same view handed back to them mid-fade, which needs saying
@@ -876,9 +947,18 @@ export function Map3DView({
   // and comes back up from wherever it had got to, instead of queueing a
   // second switch behind the first.
   //
-  // Only for a view that opened level. Without a hand-over there is nothing to
-  // tilt from: the map is already framed on the route at the terrain angle, and
-  // starting it flat only to swing it up would be an animation of nothing.
+  // The tilt *up* is only for a view that opened level. Without a hand-over
+  // there is nothing to tilt from: the map is already framed on the route at
+  // the terrain angle, and starting it flat only to swing it up would be an
+  // animation of nothing.
+  //
+  // The tilt *down* is for every view, however it was opened. Gating it on
+  // `opening` too — as this used to — meant that a terrain view reached any way
+  // other than the switch (or one whose hand-over offer had already been
+  // withdrawn, which happens if the flat map is released before the lazy 3D
+  // chunk has even arrived) had a dead 2D button: pressing it set `flatten`,
+  // nothing tilted, `onFlattened` never fired, and the view was stuck in 3D for
+  // good. The way out has to work regardless of the way in.
   //
   // And nothing once `handBack` is set. The flatten ends by clearing `flatten`
   // as it hands over, which without this guard reads as "tilt back up" — so the
@@ -887,7 +967,8 @@ export function Map3DView({
   // its way out its camera is finished.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !opening || handBack) return;
+    if (!map || handBack) return;
+    if (!flatten && !opening) return;
     let cancelled = false;
     let timer: number | null = null;
 
@@ -913,24 +994,37 @@ export function Map3DView({
       if (!flatten) return;
       // Hand over on a timer rather than on `moveend`, which also fires for a
       // pan the user starts mid-tilt and would swap the map out under their
-      // hand. Report the standpoint here too: the flat map is about to be built
-      // from it, and moveend may not have landed yet. Rounded again in case the
-      // user zoomed during the tilt and interrupted the ease above.
+      // hand. Report the standpoint here too: moveend may not have landed yet.
+      // Rounded again in case the user zoomed during the tilt and interrupted
+      // the ease above.
       timer = window.setTimeout(() => {
         if (cancelled) return;
         const { lng, lat } = map.getCenter();
-        reportViewCamera({ center: [lng, lat], zoom: flatZoom(map.getZoom()) });
-        onFlattenedRef.current?.();
+        const landed: ViewCamera = {
+          center: [lng, lat],
+          zoom: flatZoom(map.getZoom()),
+        };
+        reportViewCamera(landed);
+        onFlattenedRef.current?.(landed);
       }, VIEW_TILT_MS);
     };
 
-    // On mount the style is still loading; tilting before the terrain source is
-    // up would raise the camera over a flat mesh and drop the relief in late.
-    if (map.isStyleLoaded()) run();
-    else map.once('load', run);
+    // Which way we are going decides whether this may wait.
+    //
+    // Tilting up, it must: on mount the style is still loading, and raising the
+    // camera before the terrain source is up would swing it over a flat mesh
+    // and drop the relief in late.
+    //
+    // Tilting down, it must not. The relief is already there — this movement
+    // only takes it away — so there is nothing to wait for, and waiting is
+    // exactly what made the 2D button feel unresponsive: the press landed, and
+    // then the view sat still until whatever tile happened to be in flight came
+    // in. A press on the switch starts moving the camera in the same frame.
+    const stopWaiting = flatten ? (run(), () => {}) : whenStyleReady(map, run);
 
     return () => {
       cancelled = true;
+      stopWaiting();
       if (timer !== null) window.clearTimeout(timer);
     };
   }, [flatten, handBack, opening]);
@@ -946,8 +1040,7 @@ export function Map3DView({
       const ends = map.getSource('ends') as maplibregl.GeoJSONSource | undefined;
       if (ends) ends.setData(routeEndpointsGeoJSON(route));
     };
-    if (map.isStyleLoaded()) apply();
-    else map.once('load', apply);
+    return whenStyleReady(map, apply);
   }, [route]);
 
   // Push the travelled track into its source (review mode) without rebuilding
@@ -959,8 +1052,7 @@ export function Map3DView({
       const src = map.getSource('track') as maplibregl.GeoJSONSource | undefined;
       if (src) src.setData(routeToGeoJSON(track));
     };
-    if (map.isStyleLoaded()) apply();
-    else map.once('load', apply);
+    return whenStyleReady(map, apply);
   }, [track]);
 
   // Push the downloaded-region boundaries into the regions source whenever the
@@ -974,8 +1066,7 @@ export function Map3DView({
         | undefined;
       if (src) src.setData(regionsToGeoJSON(regions));
     };
-    if (map.isStyleLoaded()) apply();
-    else map.once('load', apply);
+    return whenStyleReady(map, apply);
   }, [regions]);
 
   // Show/hide the region boundaries when the shared visibility flag flips.
@@ -988,8 +1079,7 @@ export function Map3DView({
         if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
       }
     };
-    if (map.isStyleLoaded()) apply();
-    else map.once('load', apply);
+    return whenStyleReady(map, apply);
   }, [regionsVisible]);
 
   // Offline gray tint: lay a translucent gray veil over everything outside
@@ -1078,10 +1168,10 @@ export function Map3DView({
 
     map.on('move', update);
     map.on('resize', update);
-    if (map.isStyleLoaded()) update();
-    else map.once('load', update);
+    const stopWaiting = whenStyleReady(map, update);
 
     return () => {
+      stopWaiting();
       map.off('move', update);
       map.off('resize', update);
       wrap.remove();
@@ -1120,8 +1210,7 @@ export function Map3DView({
         duration: 600,
       });
     };
-    if (map.isStyleLoaded()) fit();
-    else map.once('load', fit);
+    return whenStyleReady(map, fit);
   }, [route, track]);
 
   // Refresh the snow grid tiles when the date changes (no rebuild).
@@ -1134,8 +1223,7 @@ export function Map3DView({
         | undefined;
       src?.setTiles([offlineTileTemplate('snowdepth', snowDate)]);
     };
-    if (map.isStyleLoaded()) apply();
-    else map.once('load', apply);
+    return whenStyleReady(map, apply);
   }, [snowDate]);
 
   // React to the offline/online flag flipping (the dev offline simulator).
@@ -1150,7 +1238,9 @@ export function Map3DView({
     const map = mapRef.current;
     if (!map) return;
     const refresh = () => {
-      if (!map.isStyleLoaded()) return;
+      // The sources exist from `load` onwards; isStyleLoaded() would also say
+      // no here for tiles merely in flight and drop the refresh on the floor.
+      if (!styleLoaded.has(map)) return;
       const reset = (id: string, template: string) => {
         const src = map.getSource(id) as
           | maplibregl.RasterTileSource
@@ -1208,8 +1298,7 @@ export function Map3DView({
         );
       }
     };
-    if (map.isStyleLoaded()) apply();
-    else map.once('load', apply);
+    return whenStyleReady(map, apply);
   }, [overlay]);
 
   const hasRoute = route.length > 0;
@@ -1309,7 +1398,7 @@ export function Map3DView({
       ref={rootRef}
       className={[
         styles.root,
-        opening ? styles.handoff : '',
+        opening || handBack ? styles.handoff : '',
         handBack ? styles.handingBack : '',
         handBack === 'fading' ? styles.leaving : '',
       ]

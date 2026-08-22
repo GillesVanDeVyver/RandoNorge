@@ -59,14 +59,49 @@ import { useT } from './i18n/index.ts';
 import { translate } from './i18n/locale.ts';
 import { loadDrawStyle, storeDrawStyle } from './draw/drawStyle';
 import { armViewHandoff, disarmViewHandoff } from './viewCamera';
+import type { ViewCamera } from './viewCamera';
 import type { DrawStyle, Mode, Overlay, Route } from './types';
 import styles from './App.module.css';
 
 // MapLibre GL is a large dependency only needed once the user switches to the
 // 3D view, so load it (and its chunk) on demand rather than in the main bundle.
+const loadMap3DView = () => import('./components/Map3DView');
 const Map3DView = lazy(() =>
-  import('./components/Map3DView').then((m) => ({ default: m.Map3DView })),
+  loadMap3DView().then((m) => ({ default: m.Map3DView })),
 );
+
+// Fetch that chunk quietly once the planner has settled, rather than at the
+// moment the user presses 3D.
+//
+// On-demand is right for the bundle and wrong for the press: MapLibre is the
+// better part of a megabyte, so the first switch spent its first second doing
+// nothing visible while the chunk came down — the map could not even begin
+// building until it landed. Warming it in the background costs the user
+// nothing they were not going to pay anyway and makes the first press behave
+// like every press after it.
+function usePrefetchedTerrainView(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const warm = () => {
+      if (!cancelled) void loadMap3DView().catch(() => {});
+    };
+    // Behind whatever the planner is still doing to get itself on screen.
+    const ric = window.requestIdleCallback;
+    if (ric) {
+      const id = ric(warm, { timeout: 3000 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(id);
+      };
+    }
+    const id = window.setTimeout(warm, 1500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
+  }, [enabled]);
+}
 
 type ViewMode = '2d' | '3d';
 
@@ -75,10 +110,18 @@ type ViewMode = '2d' | '3d';
 // Map3DView.module.css, plus a little slack.
 const HANDBACK_FADE_MS = 260;
 
-// A ceiling on waiting for either map to report itself painted. They normally
-// do within a second; this only stops a stalled tile fetch from leaving two
-// maps stacked indefinitely.
-const PAINT_TIMEOUT_MS = 4000;
+// Ceilings on waiting for a map to report itself painted. Neither is part of
+// the normal path — both maps say for themselves when they have a picture —
+// they only stop a stalled tile fetch from leaving the two stacked.
+//
+// The terrain view gets the longer one because it is genuinely being built:
+// there is nothing underneath it but the empty pane, so releasing the flat map
+// early would flash. The flat map gets a short one because by the time this
+// applies it has already had the whole tilt to load, and the cost of crossing a
+// little early is a soft edge on tiles still arriving — much cheaper than
+// leaving a dead terrain view parked over a map the user is trying to use.
+const TERRAIN_PAINT_TIMEOUT_MS = 4000;
+const FLAT_PAINT_TIMEOUT_MS = 1200;
 
 // First-run safety disclaimer: shown once per device, then re-shown at the
 // start of each new winter season and whenever its wording is materially
@@ -552,6 +595,26 @@ function App({
   // hand-back, where it decides when the terrain view held on top may start
   // crossing to it; reset at the start of each one.
   const [flatPainted, setFlatPainted] = useState(false);
+  // The standpoint the terrain view actually came to rest on, handed to the
+  // flat map at the moment of the swap. Almost always exactly where that map
+  // already opened — it only says anything new when the user moved the camera
+  // during the tilt, which interrupts the ease and lands it somewhere else.
+  const [flatSync, setFlatSync] = useState<ViewCamera | null>(null);
+  // Whether the flat map is on screen ahead of the swap, loading underneath the
+  // tilt. Set a beat after the press rather than in the same frame as it — see
+  // the effect further down that raises it.
+  //
+  // Cleared by the two switch handlers rather than by that effect, which only
+  // ever sets it. A `flattening` that ends does not mean this map should go:
+  // the usual way for it to end is the hand-over, after which the map stays as
+  // the live one. The one path that does retire it — pressing 3D again — says
+  // so there.
+  const [prewarmFlat, setPrewarmFlat] = useState(false);
+  // The second frame's handle, which does not exist until the first has run.
+  // The cleanup has to be able to cancel it: a 3D press landing inside that one
+  // frame reverses the flatten, and a mount that went ahead regardless would
+  // leave a Leaflet map running under a terrain view that is staying put.
+  const prewarmFrameRef = useRef(0);
   // Straight-line drawing is a 2D-map interaction (vertex handles live on the
   // Leaflet map), so the 3D view always draws freehand — and the toolbar shows
   // that honestly instead of advertising a style it can't deliver there.
@@ -564,8 +627,11 @@ function App({
   // has. So the offer is withdrawn as soon as it has been taken up, which is
   // when the incoming map has the pane to itself...
   useEffect(() => {
-    if (!holdover) disarmViewHandoff();
-  }, [holdover]);
+    // `flattening` counts as a switch in progress too: the flat map is already
+    // being built underneath during the tilt, and withdrawing the offer before
+    // it mounts would have it open on the whole of Norway.
+    if (!holdover && !flattening) disarmViewHandoff();
+  }, [flattening, holdover]);
   // ...and again when the planner goes away, so it cannot outlive the session
   // that made it and greet the next route with the last one's viewpoint.
   useEffect(() => disarmViewHandoff, []);
@@ -576,6 +642,15 @@ function App({
   // wherever it had got to rather than queueing a second switch.
   const handleShow3D = useCallback(() => {
     setFlattening(false);
+    // Any landing point from an earlier hand-back is spent; leaving it set
+    // would have the next flat map corrected to a standpoint from two switches
+    // ago the moment it mounts.
+    setFlatSync(null);
+    // And the flat map built for a hand-back that is now over — either handed
+    // over already, or reversed by this very press — is released here. Nowhere
+    // else retires it, so leaving it set would keep a Leaflet map alive under
+    // the terrain view for the rest of the session.
+    setPrewarmFlat(false);
     if (view === '3d') return;
     armViewHandoff();
     setView('3d');
@@ -585,21 +660,65 @@ function App({
   // To 2D: the terrain view tilts down to a top view first and only hands over
   // once it is level, so the return is the same movement in reverse instead of
   // a cut. handleFlattened below does the swap.
+  //
+  // The flat map is built *now*, at the press, rather than after the tilt. This
+  // is the difference between a switch that answers and one that appears to
+  // hang. Building it at the hand-over meant the tilt and the tile fetch ran
+  // one after the other — 700 ms of animation and then a second or more of the
+  // finished terrain picture sitting frozen on screen while Leaflet quietly
+  // filled in behind it. Started here instead, the two overlap: the flat map
+  // spends the tilt loading and is ready the moment the camera lands.
+  //
+  // It opens on the standpoint offered here, which the terrain view is already
+  // reporting on every moveend. The tilt only changes pitch (and rounds the
+  // zoom to a level the flat map can hold), so that standpoint is where the
+  // camera is about to come to rest — and handleFlattened confirms the exact
+  // one if the user moved the map mid-tilt.
   const handleShow2D = useCallback(() => {
-    if (view === '2d') return;
-    setFlattening(true);
-  }, [view]);
-
-  const handleFlattened = useCallback(() => {
-    // The terrain view has just reported where it came to rest, so this offers
-    // the flat map the standpoint it is looking at right now.
+    if (view === '2d' || flattening) return;
     armViewHandoff();
+    // A fresh flat map is about to mount, so whatever the last one reported is
+    // no longer about this one.
+    setFlatPainted(false);
+    setFlattening(true);
+  }, [flattening, view]);
+
+  const handleFlattened = useCallback((landed: ViewCamera) => {
+    // Where the camera actually came to rest. Normally the standpoint the flat
+    // map already opened on, but a pan during the tilt interrupts the ease and
+    // moves it, so hand the real one down and let the flat map correct itself
+    // before it is uncovered.
+    setFlatSync(landed);
     setFlattening(false);
     setView('2d');
-    // The flat map is only now being built, so it has nothing on screen yet.
-    setFlatPainted(false);
     setHoldover('3d');
+    // `flatPainted` deliberately survives from the press: the flat map has been
+    // loading underneath for the whole tilt and has most likely already said it
+    // has a picture. Clearing it here — as this used to — threw that away and
+    // made every hand-back wait out a paint that had already happened.
   }, []);
+
+  // Raises `prewarmFlat`, declared above with the rest of the switch state.
+  //
+  // Building a Leaflet map is real main-thread work — the container, its tile
+  // layers, the drawing handler, the controls, the offline overlays. Spent in
+  // the frame that starts the tilt, that cost lands on the animation's first
+  // frames, which is exactly where a hitch reads as the switch having stalled:
+  // the complaint this change is about, reintroduced by the fix for it. Two
+  // frames later the ease is visibly under way, and there is still the better
+  // part of the tilt left for tiles to arrive in.
+  useEffect(() => {
+    if (!flattening) return;
+    const first = requestAnimationFrame(() => {
+      prewarmFrameRef.current = requestAnimationFrame(() =>
+        setPrewarmFlat(true),
+      );
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(prewarmFrameRef.current);
+    };
+  }, [flattening]);
 
   const handleTerrainReady = useCallback(() => {
     setHoldover((held) => (held === '2d' ? null : held));
@@ -622,14 +741,20 @@ function App({
   useEffect(() => {
     if (!holdover) return;
     if (holdover === '2d') {
-      const id = window.setTimeout(() => setHoldover(null), PAINT_TIMEOUT_MS);
+      const id = window.setTimeout(
+        () => setHoldover(null),
+        TERRAIN_PAINT_TIMEOUT_MS,
+      );
       return () => window.clearTimeout(id);
     }
     if (!flatPainted) {
       // Nothing to cross to yet. On the ceiling, cross anyway: a fade onto tiles
       // still arriving is worse than this, but not as bad as a terrain view
       // parked over a map the user is trying to use.
-      const id = window.setTimeout(() => setFlatPainted(true), PAINT_TIMEOUT_MS);
+      const id = window.setTimeout(
+        () => setFlatPainted(true),
+        FLAT_PAINT_TIMEOUT_MS,
+      );
       return () => window.clearTimeout(id);
     }
     const id = window.setTimeout(() => setHoldover(null), HANDBACK_FADE_MS);
@@ -1148,6 +1273,10 @@ function App({
   // and on shared/public views (which are 2D-only).
   const allowViewToggle = !session || (reviewing && !isPublic);
 
+  // Have MapLibre on hand before it is asked for, wherever the switch is
+  // offered. No early returns above this, so the hook order is stable.
+  usePrefetchedTerrainView(allowViewToggle);
+
   // One-line summary for the sheet's collapsed grabber strip.
   const sheetPeek =
     showActualStats && !trackHasLine
@@ -1172,29 +1301,45 @@ function App({
             outgoing one underneath, still painted, until the incoming one has
             something to show. Order matters: the terrain view is absolutely
             positioned and comes second, so it covers the flat map on the way
-            in and fades off it on the way out. */}
-        {(view === '2d' || holdover === '2d') && (
-          <Map
-            mode={mode}
-            drawStyle={effectiveDrawStyle}
-            route={route}
-            onRouteChange={handleRouteChange}
-            overlay={overlay}
-            onOverlayChange={setOverlay}
-            snowDate={snowDate}
-            track={displayTrack}
-            position={reviewing ? null : tracking.position}
-            positionAccuracy={reviewing ? null : tracking.accuracy}
-            navigating={navLive}
-            progress={routeProgress}
-            fitTo={reviewFit}
-            // Placing vertices republishes the route after every click, and
-            // re-framing the map under the cursor each time would fight the
-            // user. The fit resumes once the line is done.
-            holdView={placingVertices}
-            onOpenOfflineMaps={onOpenOfflineMaps}
-            onPainted={handleFlatPainted}
-          />
+            in and fades off it on the way out.
+
+            "Underneath" only holds if the flat map's own chrome is underneath
+            too, and by default it is not: Leaflet's container is positioned
+            but sets no z-index, so its panes and this map's controls
+            (z-index 1000+) escape into the page's stacking order and land on
+            top of the terrain view, which claims no z-index at all. Left
+            alone, a switch to 3D would show two control clusters in the same
+            corner and route clicks meant for the terrain view to the map
+            hidden behind it. The wrapper below is what keeps them down. */}
+        {(view === '2d' || holdover === '2d' || prewarmFlat) && (
+          <div
+            className={`${styles.flatLayer} ${
+              view === '3d' ? styles.flatCovered : ''
+            }`}
+          >
+            <Map
+              mode={mode}
+              drawStyle={effectiveDrawStyle}
+              route={route}
+              onRouteChange={handleRouteChange}
+              overlay={overlay}
+              onOverlayChange={setOverlay}
+              snowDate={snowDate}
+              track={displayTrack}
+              position={reviewing ? null : tracking.position}
+              positionAccuracy={reviewing ? null : tracking.accuracy}
+              navigating={navLive}
+              progress={routeProgress}
+              fitTo={reviewFit}
+              // Placing vertices republishes the route after every click, and
+              // re-framing the map under the cursor each time would fight the
+              // user. The fit resumes once the line is done.
+              holdView={placingVertices}
+              onOpenOfflineMaps={onOpenOfflineMaps}
+              onPainted={handleFlatPainted}
+              syncTo={flatSync}
+            />
+          </div>
         )}
         {(view === '3d' || holdover === '3d') && (
           <Suspense fallback={null}>

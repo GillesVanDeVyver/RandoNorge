@@ -7,10 +7,11 @@
   animation: fade-in var(--dur) var(--ease);
 }
 
-/* Opened off the 2D/3D switch, with the flat map still mounted underneath
-   showing the same ground until this canvas has painted. The dark backdrop and
-   the fade-in are for an empty pane; here they would only flash over a picture
-   that is already right. */
+/* A flat map is mounted underneath showing the same ground — either on the way
+   in, until this canvas has painted, or on the way out, waiting to be crossed
+   to. The dark backdrop and the fade-in are for an empty pane; over a picture
+   that is already right they would only flash, and on the way out the backdrop
+   would additionally be what the flat map faded up from behind. */
 .handoff {
   background: transparent;
   animation: none;

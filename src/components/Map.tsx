@@ -12,6 +12,7 @@ import {
   toLeafletZoom,
   toMapLibreZoom,
 } from '../viewCamera';
+import type { ViewCamera } from '../viewCamera';
 import { CursorReadout } from './CursorReadout';
 import { DrawingHandler } from './DrawingHandler';
 import { HoverMarker } from './HoverMarker';
@@ -37,6 +38,31 @@ function InvalidateOnResize() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [map]);
+  return null;
+}
+
+// Puts the map exactly where the terrain view came to rest, at the moment the
+// switch hands over.
+//
+// This map is built at the *press*, not at the hand-over, so that it spends the
+// tilt loading its tiles instead of making the user wait for them afterwards.
+// The price of starting early is that it opens on where the tilt was expected
+// to land rather than where it did, and a pan during the tilt breaks that
+// prediction. So the terrain view confirms its final standpoint here.
+//
+// Without animation, and before this map is uncovered: it is a correction, not
+// a movement, and in the ordinary case there is nothing to correct at all.
+function SyncTo({ camera }: { camera: ViewCamera | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!camera) return;
+    const zoom = toLeafletZoom(camera.zoom);
+    const here = map.getCenter();
+    const there = L.latLng(camera.center[1], camera.center[0]);
+    // A metre of float drift is not a correction worth a redraw.
+    if (map.getZoom() === zoom && here.distanceTo(there) < 1) return;
+    map.setView(there, zoom, { animate: false });
+  }, [camera, map]);
   return null;
 }
 
@@ -148,6 +174,13 @@ interface Props {
    *  know when the terrain view it is holding on top can safely cross to this
    *  one; fires again after each pan, which the switch ignores. */
   onPainted?: () => void;
+  /** Where the terrain view came to rest, handed down at the moment of the
+   *  swap. This map is built at the *start* of the tilt so it can load while
+   *  the camera is still moving, which means it opens on where the tilt was
+   *  predicted to land; this is the confirmation. Normally identical and so a
+   *  no-op — it only moves the map when the user panned mid-tilt and took the
+   *  camera somewhere else. */
+  syncTo?: ViewCamera | null;
 }
 
 export function Map({
@@ -167,6 +200,7 @@ export function Map({
   holdView = false,
   onOpenOfflineMaps,
   onPainted,
+  syncTo = null,
 }: Props) {
   // Offline-maps panel: lets the user select a rectangle and download its
   // tiles into IndexedDB so the map keeps working with no connectivity.
@@ -299,6 +333,7 @@ export function Map({
         />
       )}
       <InvalidateOnResize />
+      <SyncTo camera={syncTo} />
       <ReportCamera />
       <FitToRoute
         route={fitTo ?? route}
