@@ -254,48 +254,123 @@ export function formatParkingPayment(
   return parts.length > 0 ? parts.join(', ') : null;
 }
 
-const USAGE_NO: Record<string, string> = {
+// The `usage` column holds two kinds of fact that a reader treats completely
+// differently, and printing them in one row under one label was the reason
+// nobody could tell what the row meant.
+//
+// The first is *why a tour planner cares that this lot exists*: somebody has
+// recorded that people leave the car here to walk or ski into the hills. That
+// is the answer to the question the panel was opened to ask, and it belongs
+// where the eye already is — beside the lot's name, as a badge.
+//
+// The second is what sort of structure it is: a multi-storey, a rooftop deck,
+// a lay-by, a camp site's own parking. True, worth showing, and no more
+// urgent than the surface or the fee — so it stays in the attribute row, under
+// a label that says what it is answering.
+//
+// Splitting them here rather than in the panel keeps the vocabulary in the one
+// module that knows how OSM tags read in Norwegian.
+
+/** A lot somebody starts a tour from. Two values, both from tags a mapper set
+ *  deliberately, and the whole reason this panel is on by default. */
+const PURPOSE_NO: Record<string, string> = {
   hiking: 'Turparkering',
   ski: 'Skiparkering',
+};
+
+const PURPOSE_EN: Record<string, string> = {
+  hiking: 'Trailhead parking',
+  ski: 'Ski touring parking',
+};
+
+/** `trailhead=yes` is a third spelling of `hiking=yes` — the same claim about
+ *  the same ground, from a mapper who reached for a different key — so it
+ *  resolves to the same badge instead of standing beside it saying the same
+ *  thing twice. */
+const PURPOSE_ALIASES: Record<string, string> = {
+  trailhead: 'hiking',
+};
+
+const KIND_NO: Record<string, string> = {
   underground: 'Under bakken',
   'multi-storey': 'Parkeringshus',
   rooftop: 'Takparkering',
   carports: 'Carport',
   sheds: 'Garasjer',
   layby: 'Lomme langs veien',
+  camp_site: 'Campingplass',
+  caravan_site: 'Bobilplass',
+  alpine_hut: 'Turisthytte',
+  wilderness_hut: 'Ubetjent hytte',
+  hotel: 'Hotell',
+  attraction: 'Attraksjon',
+  viewpoint: 'Utsiktspunkt',
+  picnic_site: 'Rasteplass',
+  information: 'Informasjonspunkt',
 };
 
-const USAGE_EN: Record<string, string> = {
-  hiking: 'Trailhead',
-  ski: 'Ski touring',
+const KIND_EN: Record<string, string> = {
   underground: 'Underground',
   'multi-storey': 'Multi-storey',
   rooftop: 'Rooftop',
   carports: 'Carports',
   sheds: 'Garages',
   layby: 'Lay-by',
+  camp_site: 'Camp site',
+  caravan_site: 'Caravan site',
+  alpine_hut: 'Alpine hut',
+  wilderness_hut: 'Wilderness hut',
+  hotel: 'Hotel',
+  attraction: 'Attraction',
+  viewpoint: 'Viewpoint',
+  picnic_site: 'Picnic site',
+  information: 'Information point',
 };
 
-/** What the lot is for. Order is the build script's, and the build script puts
- *  `hiking` and `ski` first deliberately (usage_of in
- *  scripts/parking/build_parking_extract.py) — they are the two values this
- *  app exists to surface, and a row reading "Turparkering, Parkeringshus" has
- *  answered the question in its first word. Do not sort here; sorting would
- *  put the alphabet in charge of that.
+/** Tag values that mean "the key is true", and therefore carry no information
+ *  of their own. `trailhead=yes` printed as "Yes" was the old bug: the word
+ *  that meant something was the key, and it was the one thrown away. */
+const BOOLEAN_VALUES = new Set(['yes', 'true', '1']);
+
+export interface ParkingUsage {
+  /** Labelled for the badge beside the name. Usually empty or one entry; both
+   *  when a lot is tagged for summer and winter starts. */
+  purposes: string[];
+  /** Everything else the mapper recorded about what sort of place it is. */
+  kinds: string[];
+}
+
+/** Split the `usage` column into the badge and the attribute row.
  *
- *  Values of the form `tourism=camp_site` are passed through with the key
- *  dropped: the reader wants "Camp site", not the tag that carried it. */
-export function formatParkingUsage(
-  usage: string | null,
-  t: Translate,
-): string | null {
-  if (!usage) return null;
-  const parts: string[] = [];
-  for (const raw of usage.split(',')) {
-    const key = raw.trim().split('=').pop()?.trim().toLowerCase() ?? '';
+ *  Order within each list is the build script's, never sorted here: usage_of
+ *  in scripts/parking/build_parking_extract.py writes `hiking` and `ski`
+ *  first deliberately, and sorting would put the alphabet in charge of which
+ *  fact the reader meets first.
+ *
+ *  A token of the form `key=value` is read on its value when the value says
+ *  something (`tourism=camp_site` → "Campingplass") and on its key when it
+ *  does not (`trailhead=yes` → "Turparkering"). Unrecognised either way, it is
+ *  humanised rather than dropped — same rule as every map above. */
+export function parkingUsage(usage: string | null, t: Translate): ParkingUsage {
+  const purposes: string[] = [];
+  const kinds: string[] = [];
+  if (!usage) return { purposes, kinds };
+
+  for (const token of usage.split(',')) {
+    const [rawKey, ...rest] = token.trim().split('=');
+    const key = rawKey.trim().toLowerCase();
     if (!key) continue;
-    const label = t(USAGE_NO[key] ?? humanise(key), USAGE_EN[key] ?? humanise(key));
-    if (!parts.includes(label)) parts.push(label);
+    const value = rest.join('=').trim().toLowerCase();
+    const word = value && !BOOLEAN_VALUES.has(value) ? value : key;
+
+    const canonical = PURPOSE_ALIASES[word] ?? word;
+    if (PURPOSE_NO[canonical]) {
+      const label = t(PURPOSE_NO[canonical], PURPOSE_EN[canonical]);
+      if (!purposes.includes(label)) purposes.push(label);
+      continue;
+    }
+    const label = t(KIND_NO[word] ?? humanise(word), KIND_EN[word] ?? humanise(word));
+    if (!kinds.includes(label)) kinds.push(label);
   }
-  return parts.length > 0 ? parts.join(', ') : null;
+  return { purposes, kinds };
 }

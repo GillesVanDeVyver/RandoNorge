@@ -2636,7 +2636,7 @@ const {
   formatParkingFee,
   formatParkingPayment,
   formatParkingSurface,
-  formatParkingUsage,
+  parkingUsage,
 } = await import(pathToFileURL(join(ROOT, 'src/parking/format.ts')).href);
 ok(
   formatParkingFee('no', no) === 'Gratis' &&
@@ -2675,10 +2675,36 @@ ok(
     formatParkingPayment('Vipps,vipps,easypark', no) === 'Vipps, EasyPark',
   'payment is unpacked into a readable list; brands keep one spelling',
 );
+// `usage` is the one column that answers two questions at once — "do people
+// start tours from here" and "what sort of place is it" — and the tab now reads
+// the first beside the lot's name and the second in the attribute row. The
+// split is asserted here because it is the only place the two can be told
+// apart before they reach a screen.
 ok(
-  formatParkingUsage('hiking,multi-storey', no) === 'Turparkering, Parkeringshus' &&
-    formatParkingUsage('tourism=camp_site', no) === 'Camp site',
-  'usage keeps the build script\u2019s order and drops the tag key that carried it',
+  parkingUsage('hiking,multi-storey', no).purposes.join() === 'Turparkering' &&
+    parkingUsage('hiking,multi-storey', no).kinds.join() === 'Parkeringshus',
+  'usage splits into why a tour planner cares and what sort of place it is',
+);
+ok(
+  parkingUsage('tourism=camp_site', no).kinds.join() === 'Campingplass' &&
+    parkingUsage('tourism=camp_site', en).kinds.join() === 'Camp site',
+  'a tag read on its value drops the key that carried it',
+);
+// The bug the badge was built on top of: `trailhead=yes` printed as "Yes",
+// because the formatter kept the value and threw away the word that meant
+// something. It is the same claim as `hiking=yes` and must not read as a
+// second one.
+ok(
+  parkingUsage('trailhead=yes', no).purposes.join() === 'Turparkering' &&
+    parkingUsage('trailhead=yes', no).kinds.length === 0 &&
+    parkingUsage('hiking,trailhead=yes', no).purposes.length === 1,
+  'a key=yes tag is read on its key, and says the same thing only once',
+);
+ok(
+  parkingUsage('hiking,ski', en).purposes.length === 2 &&
+    parkingUsage(null, no).purposes.length === 0 &&
+    parkingUsage('grass_paddock', no).kinds.join() === 'Grass paddock',
+  'both seasons survive, nothing is invented, and an unmapped kind is humanised',
 );
 // The fact that replaced NVDB's winter-maintenance column. It earns the slot
 // because "app only" is what strands a driver in a valley with no signal, and

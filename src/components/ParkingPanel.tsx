@@ -43,7 +43,7 @@ import {
   formatParkingPayment,
   formatParkingRadius,
   formatParkingSurface,
-  formatParkingUsage,
+  parkingUsage,
 } from '../parking/format';
 import { SourceAttribution, ODBL } from './SourceAttribution';
 import { useT, type Translate } from '../i18n/index.ts';
@@ -76,6 +76,12 @@ function ParkingRow({
   // Hovering a row lights the matching point on the map, reusing the same
   // hover store the elevation chart drives. Cheaper than a bespoke highlight
   // and it already behaves correctly across the 2D/3D switch.
+
+  // "Is this a lot people actually start tours from" is the question this
+  // panel is open to answer, so it is not an attribute among seven — it sits
+  // beside the name. Everything else `usage` carries is a kind of structure
+  // and stays in the facts row below. See parkingUsage in ../parking/format.
+  const { purposes, kinds } = parkingUsage(area.usage, t);
   return (
     <li
       className={styles.row}
@@ -87,8 +93,26 @@ function ParkingRow({
       </span>
       <div className={styles.body}>
         <div className={styles.head}>
-          <span className={styles.name}>
-            {area.name ?? t('Parkeringsområde', 'Parking area')}
+          <span className={styles.headLead}>
+            <span className={styles.name}>
+              {area.name ?? t('Parkeringsområde', 'Parking area')}
+            </span>
+            {/* The tooltip says who claims it, because the badge is a mapper's
+                assertion rather than something we worked out: a lot with no
+                badge may well be a trailhead nobody has tagged yet, and the
+                panel must not read as if the two were the same. */}
+            {purposes.map((purpose) => (
+              <span
+                key={purpose}
+                className={styles.purpose}
+                title={t(
+                  'Merket som utfartsparkering i OpenStreetMap',
+                  'Tagged as trailhead parking in OpenStreetMap',
+                )}
+              >
+                {purpose}
+              </span>
+            ))}
           </span>
           <span className={styles.distance}>
             {formatParkingDistance(area.distanceM, t)}
@@ -124,7 +148,14 @@ function ParkingRow({
             value={formatParkingAccess(area.access, t)}
           />
           <Fact label={t('Drives av', 'Operator')} value={area.operator} />
-          <Fact label={t('Bruk', 'Use')} value={formatParkingUsage(area.usage, t)} />
+          {/* What sort of place it is — "Parkeringshus", "Campingplass". The
+              old label here was "Bruk / Use", which named the database column
+              rather than the question: a row reading "Use: Trailhead" left the
+              reader working out whose use, and of what. */}
+          <Fact
+            label={t('Type', 'Type')}
+            value={kinds.length > 0 ? kinds.join(', ') : null}
+          />
         </div>
         {/* Getting there is the whole point of knowing it exists. */}
         <a
