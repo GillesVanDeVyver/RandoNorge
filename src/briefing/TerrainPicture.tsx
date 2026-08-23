@@ -158,7 +158,7 @@ export function TerrainPicture({
   // The lots reach the map being built through a ref, and every later change
   // through setParking below. Deliberately NOT a dependency of the build
   // effect: the lots arrive from Overpass a few seconds after the dialog opens
-  // and again on every move of the radius slider, and each of those would
+  // and again on every change of the search radius, and each of those would
   // otherwise throw away a built mesh, its tiles and the camera the guide had
   // aimed — to add five points to a source. Initialised rather than synced in
   // an effect, so the first build already has whatever was known at mount and

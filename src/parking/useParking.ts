@@ -10,23 +10,34 @@ export const PARKING_LIMIT = 5;
 
 /** Default search radius, meters.
  *
- *  2 km rather than something larger because a car park further than that from
+ *  3 km rather than something larger because a car park further than that from
  *  the trailhead is not somewhere anyone actually leaves the car; it is noise
  *  that pushes the real answer down the list. docs/parking-data-sources.md puts
- *  the realistic range at 300 m to 2 km. The slider goes to 10 km for the cases
- *  that break the rule — a long approach up a closed winter road, say. */
-export const PARKING_DEFAULT_RADIUS_M = 2000;
+ *  the realistic range at 300 m to 2 km, and the extra kilometre is slack for
+ *  the tour whose start is up a side valley from the road. The radius can be
+ *  raised to 20 km for the cases that break the rule — a long approach up a
+ *  closed winter road, say — but that is a number the guide has to go and
+ *  type, which is the right amount of friction for a search that wide. */
+export const PARKING_DEFAULT_RADIUS_M = 3000;
 export const PARKING_MIN_RADIUS_M = 1000;
-export const PARKING_MAX_RADIUS_M = 10000;
+export const PARKING_MAX_RADIUS_M = 20000;
+
+/** The radius is chosen, shown and stored in whole kilometres.
+ *
+ *  It used to move in 500 m steps behind a label that rounded to whole ones, so
+ *  a guide could leave it reading "3 km" while the query ran at 2.5 or 3.5 —
+ *  and the printed briefing, which prints the same label, said "3 km" too.
+ *  One unit, all the way through. */
+export const PARKING_RADIUS_STEP_M = 1000;
 
 /** Debounce before querying /api/parking, ms.
  *
- *  The route start only moves on a committed stroke, but the radius slider
- *  emits continuously while dragged, and each distinct radius is a distinct
- *  request. Cheaper than it was against a third-party register — the rows are
- *  now in our own D1 — but a hundred bounding boxes a second is still a
- *  hundred D1 reads a second. Waiting for the drag to settle turns them into
- *  one. */
+ *  Both inputs now change one commit at a time — the route start on a finished
+ *  stroke, the radius when the guide leaves the field — so this no longer has a
+ *  drag to swallow, as it did when the radius was a slider emitting a distinct
+ *  request per pixel. It stays because the route start still arrives in bursts
+ *  while a stroke is being edited, and because each distinct query is a D1 read:
+ *  cheaper than the third-party register this replaced, and still not free. */
 const DEBOUNCE_MS = 300;
 
 export interface ParkingState {

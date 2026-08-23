@@ -26,7 +26,7 @@
 //     but not the list is what let the sheet fall three fields behind this panel
 //     and lose the labels off the rest, while every individual value it printed
 //     stayed correct.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LatLng, Route } from '../types';
 import { routeEnds } from '../geometry';
 import {
@@ -34,6 +34,7 @@ import {
   PARKING_LIMIT,
   PARKING_MAX_RADIUS_M,
   PARKING_MIN_RADIUS_M,
+  PARKING_RADIUS_STEP_M,
   useParking,
 } from '../parking/useParking';
 import type { ParkingArea } from '../parking/api';
@@ -46,9 +47,11 @@ import {
   formatParkingDistance,
   formatParkingRadius,
   parkingFacts,
+  parkingRadiusKm,
   parkingUsage,
 } from '../parking/format';
 import { SourceAttribution, ODBL } from './SourceAttribution';
+import { GearIcon } from './icons';
 import { useT, type Translate } from '../i18n/index.ts';
 import styles from './ParkingPanel.module.css';
 
@@ -182,11 +185,150 @@ function ParkingRow({
   );
 }
 
+/** The line at the top of the tab that says what is being shown, and the only
+ *  way to change it.
+ *
+ *  This replaced a labelled range slider, and the trade is deliberate. The
+ *  slider was permanently on screen, and it spent a third of the panel's first
+ *  fold — above the answer, in a tab whose answer is a list of five lots —
+ *  advertising an adjustment almost nobody makes, while never actually saying
+ *  what the list in front of them was. A sentence says the thing the reader
+ *  needs ("these are the lots within 3 km") in the space the control was using
+ *  to say "Search radius from start", and the adjustment moves behind a cog.
+ *
+ *  The number is edited in place rather than in a popover: it is one integer,
+ *  the sentence around it is already the label, and a panel that opens a
+ *  floating layer to collect a single digit is a panel with too many surfaces.
+ *
+ *  Committing on Enter or on leaving the field, rather than on every keystroke,
+ *  is what keeps "12" from being a query for 1 km on its way to 12 — the old
+ *  slider's continuous emission was the reason useParking debounces at all.
+ */
+function RadiusNote({
+  radiusM,
+  onChange,
+  t,
+}: {
+  radiusM: number;
+  onChange: (radiusM: number) => void;
+  t: Translate;
+}) {
+  const [editing, setEditing] = useState(false);
+  // A string, not a number: mid-edit the field is legitimately empty, and a
+  // draft held as a number cannot represent "the guide has cleared it and is
+  // about to type". Range and step are the ones the constants define, so the
+  // spinners and the keyboard can only produce values the query supports.
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const gearRef = useRef<HTMLButtonElement>(null);
+
+  const minKm = PARKING_MIN_RADIUS_M / 1000;
+  const maxKm = PARKING_MAX_RADIUS_M / 1000;
+  const km = parkingRadiusKm(radiusM);
+
+  const open = () => {
+    setDraft(String(km));
+    setEditing(true);
+  };
+
+  // Select rather than merely focus, so the first keystroke replaces the
+  // number instead of being appended to it: typing "5" at a field reading "3"
+  // must not ask for 35 km.
+  useEffect(() => {
+    if (!editing) return;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, [editing]);
+
+  // Closing the field unmounts the focused element, so somebody has to be told
+  // where focus went. The cog, whenever the close was deliberate — Enter,
+  // Escape, or clicking the cog again — because that is where the guide was
+  // before they opened it. Not on a blur that closed the field by moving focus
+  // somewhere else: dragging focus back out of wherever they just clicked is
+  // worse than the wart it fixes.
+  const close = (refocus: boolean) => {
+    setEditing(false);
+    if (refocus) gearRef.current?.focus();
+  };
+
+  const commit = (refocus: boolean) => {
+    close(refocus);
+    const typed = Number(draft);
+    // An empty or unparseable field keeps the radius it opened with. The
+    // alternative — treating it as zero, or as the minimum — would answer a
+    // question the guide did not finish asking.
+    if (draft.trim() === '' || !Number.isFinite(typed)) return;
+    const stepped =
+      Math.round((typed * 1000) / PARKING_RADIUS_STEP_M) * PARKING_RADIUS_STEP_M;
+    const next = Math.min(
+      PARKING_MAX_RADIUS_M,
+      Math.max(PARKING_MIN_RADIUS_M, stepped),
+    );
+    if (next !== radiusM) onChange(next);
+  };
+
+  return (
+    <p className={styles.radiusNote}>
+      {t('Viser parkering innen ', 'Showing parking within ')}
+      {editing ? (
+        <input
+          ref={inputRef}
+          className={styles.radiusInput}
+          type="number"
+          inputMode="numeric"
+          min={minKm}
+          max={maxKm}
+          step={PARKING_RADIUS_STEP_M / 1000}
+          value={draft}
+          aria-label={t(
+            `Søkeradius i kilometer, ${minKm}–${maxKm}`,
+            `Search radius in kilometres, ${minKm}–${maxKm}`,
+          )}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => commit(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit(true);
+            } else if (e.key === 'Escape') {
+              // Abandons the draft rather than committing it: Escape is the
+              // key that means "forget I typed this".
+              e.preventDefault();
+              close(true);
+            }
+          }}
+        />
+      ) : (
+        <span className={styles.radiusKm}>{km}</span>
+      )}
+      {t(' km fra startpunktet', ' km of the starting point')}
+      {/* The cog both opens the field and closes it. Suppressing mousedown's
+          default keeps focus in the input while it is open, so this click is
+          the toggle it looks like rather than a blur that commits, closes and
+          lets the click reopen the field a frame later. */}
+      <button
+        ref={gearRef}
+        type="button"
+        className={styles.gear}
+        aria-expanded={editing}
+        aria-label={t('Endre søkeradius', 'Change search radius')}
+        title={t('Endre søkeradius', 'Change search radius')}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => (editing ? commit(true) : open())}
+      >
+        <GearIcon />
+      </button>
+    </p>
+  );
+}
+
 export function ParkingPanel({ route }: Props) {
   const t = useT();
   // Survives the panel being unmounted and back — clearing the route and
   // drawing another one in the same valley should not put the search back to
-  // 2 km — and is what the briefing reads to print the radius the guide is
+  // 3 km — and is what the briefing reads to print the radius the guide is
   // actually looking at. See parking/radius.ts.
   const [radiusM, setRadiusM] = useState(
     () => recallParkingRadius() ?? PARKING_DEFAULT_RADIUS_M,
@@ -204,30 +346,20 @@ export function ParkingPanel({ route }: Props) {
     PARKING_LIMIT,
   );
 
-  const control = (
-    <div className={styles.controls}>
-      <label className={styles.radiusField} htmlFor="parking-radius">
-        <span className={styles.radiusLabel}>
-          {t('Søkeradius fra start', 'Search radius from start')}
-        </span>
-        <span className={styles.radiusValue}>{formatParkingRadius(radiusM)}</span>
-      </label>
-      <input
-        id="parking-radius"
-        className={styles.slider}
-        type="range"
-        min={PARKING_MIN_RADIUS_M}
-        max={PARKING_MAX_RADIUS_M}
-        step={500}
-        value={radiusM}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          setRadiusM(next);
-          rememberParkingRadius(next);
-        }}
-      />
-    </div>
-  );
+  // Only where there is a start to measure from. With no route the sentence
+  // would be claiming to show a list that isn't there, next to a control for
+  // narrowing it — and the panel already has one line to say what to do
+  // instead. The radius survives the wait in parking/radius.ts either way.
+  const control = origin ? (
+    <RadiusNote
+      radiusM={radiusM}
+      onChange={(next) => {
+        setRadiusM(next);
+        rememberParkingRadius(next);
+      }}
+      t={t}
+    />
+  ) : null;
 
   let content: React.ReactNode;
   if (!origin) {

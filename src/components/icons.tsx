@@ -475,6 +475,20 @@ export function LinkIcon() {
   );
 }
 
+export function GearIcon() {
+  // Lucide "settings" — the cog. Used at 15px beside the parking tab's radius
+  // sentence, which is why the stroke is thinner than baseProps: the toothed
+  // outline has eight corners in the space a chevron spends on one, and at 2px
+  // on a 15px box they close up into a blob. Sized by the button's CSS rather
+  // than here, so the caller decides how loud it is.
+  return (
+    <svg {...baseProps} strokeWidth={1.75}>
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 export function GoogleIcon({ className }: { className?: string }) {
   // Official multi-colour "G" mark (filled, not stroked, so it doesn't
   // take the Lucide baseProps). Used on the "Continue with Google" button.

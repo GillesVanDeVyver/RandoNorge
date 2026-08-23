@@ -35,7 +35,8 @@ recorded there so the figures can be re-run rather than believed.
 **NVDB vegobjekttype 43, queried live.** Shipped as a Parking tab after Weather,
 numbered pins on the 2D map, and a switchable section on the printed briefing.
 Radius defaults to 2 km with a 1–10 km slider, five lots listed, measured from
-`routeEnds().start`.
+`routeEnds().start`. (Both numbers and the slider itself have since changed —
+see "The radius control" below, which supersedes this sentence.)
 
 Chosen over OSM deliberately and with the trade-off understood. OSM has by far
 the better trailhead coverage; NVDB has the licence that costs nothing — NLOD,
@@ -387,6 +388,41 @@ road, capacities in the thousands — would be the cheap first version of it. An
 the monthly refresh is a calendar reminder rather than a scheduled job.
 
 ---
+
+## The radius control — 2026-08-23
+
+The slider is gone. The Parking tab now opens with a sentence — "Viser parkering
+innen 3 km fra startpunktet" / "Showing parking within 3 km of the starting
+point" — and a cog at the end of it that turns the number into a field. Defaults
+in `src/parking/useParking.ts`: **3 km, adjustable 1–20 km in whole
+kilometres.**
+
+Three things changed and each is worth separating from the others.
+
+**The wording.** The slider was labelled "Søkeradius fra start" and never said
+what the list under it was, so the panel spent its first fold on a control and
+described its answer nowhere. The sentence is the label the control needed all
+along, and it is also the caveat the empty state already made: these are the
+lots *within a radius*, not the lots that exist.
+
+**The default, 2 km → 3 km.** Applied at `PARKING_DEFAULT_RADIUS_M`, so the
+printed briefing's fallback moves with it — the two read the same constant
+through `parking/radius.ts` precisely so a guide who has not touched the setting
+cannot be shown one radius on screen and printed another. 300 m to 2 km is still
+the realistic range this document measured; the extra kilometre is slack for the
+tour whose start is up a side valley from the road, where 2 km returned nothing
+and the guide had to go and widen it by hand to find the obvious car park.
+
+**The unit, 500 m → 1 km steps.** This fixed a quiet lie rather than a
+preference: the slider moved in half kilometres under a label that rounded to
+whole ones, so 2,500 m displayed — and printed on the briefing — as "3 km". The
+radius is now chosen in the same unit it is shown in, and
+`parkingRadiusKm()` in `src/parking/format.ts` is the one place that converts.
+
+The ceiling went 10 km → 20 km at the same time, for the long approach up a
+closed winter road. It is deliberately behind two actions now (open the cog,
+type a number) rather than one drag: a 20 km search is not a radius anyone
+should arrive at by overshooting.
 
 ## What the feature actually asks of the data
 

@@ -57,9 +57,9 @@ export interface Lot {
  * filters: whoever fetched the lots decided which five they are.
  *
  * A hovered id that isn't in `areas` is ignored rather than honoured. It
- * happens for a frame whenever a re-fetch lands under the pointer — the radius
- * slider moved, or the route start did — and taking it at face value would fade
- * all five signs to highlight a lot that is no longer on the map, which is
+ * happens for a frame whenever a re-fetch lands under the pointer — the search
+ * radius changed, or the route start did — and taking it at face value would
+ * fade all five signs to highlight a lot that is no longer on the map, which is
  * worse than highlighting nothing.
  */
 export function parkingSigns(

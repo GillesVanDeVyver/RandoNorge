@@ -24,13 +24,24 @@ export function formatParkingDistance(m: number, t: Translate): string {
   return t(`${km.replace('.', ',')} km`, `${km} km`);
 }
 
-/** The search radius, in the whole kilometres the slider moves in.
+/** The search radius as the whole number of kilometres it is chosen in.
  *
- *  Takes no Translate, unlike the distance above: the slider steps in half
- *  kilometres and this rounds to whole ones, so there is no decimal separator
- *  for a language to have an opinion about. */
+ *  Shared with the panel's radius editor, which needs the number without the
+ *  unit: the sentence around it supplies the "km", and the field the guide
+ *  types into must be pre-filled with exactly the value the sentence was
+ *  showing. Doing that arithmetic in the panel is how a field opens at 3 under
+ *  a sentence reading 2 km. */
+export function parkingRadiusKm(m: number): number {
+  return Math.round(m / 1000);
+}
+
+/** The search radius, in the whole kilometres it is chosen in.
+ *
+ *  Takes no Translate, unlike the distance above: the radius is set in whole
+ *  kilometres, so there is no decimal separator for a language to have an
+ *  opinion about. */
 export function formatParkingRadius(m: number): string {
-  return `${(m / 1000).toFixed(0)} km`;
+  return `${parkingRadiusKm(m)} km`;
 }
 
 // --- Tag values ------------------------------------------------------------

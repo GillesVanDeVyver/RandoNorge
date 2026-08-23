@@ -183,8 +183,8 @@ export interface TerrainMapHandle {
    *
    * Touches one GeoJSON source and nothing else: the camera, the tiles and the
    * loaded DEM all survive, which is what makes it safe to call when the lots
-   * land late or the radius slider moves. The still copy catches up on its own,
-   * because changing a source makes the map draw and then go idle.
+   * land late or the search radius changes. The still copy catches up on its
+   * own, because changing a source makes the map draw and then go idle.
    */
   setParking(points: readonly LatLng[]): void;
   /** Redraw the still copy from the frame currently on screen. */

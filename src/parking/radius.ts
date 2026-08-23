@@ -1,9 +1,9 @@
 // How far out the guide was looking for parking when they opened the export.
 //
 // The same idea as profileScale.ts, and for a sharper reason. The parking tab's
-// slider is not a display preference but a search: a guide who widened it to
-// 8 km did so because 2 km returned nothing, and the lots they found at 8 km are
-// the ones they are driving to. A briefing that printed the 2 km answer would
+// radius is not a display preference but a search: a guide who widened it to
+// 8 km did so because 3 km returned nothing, and the lots they found at 8 km are
+// the ones they are driving to. A briefing that printed the 3 km answer would
 // print an empty section under a heading, on a page whose whole purpose is to be
 // the thing carried away from the screen.
 //
@@ -19,7 +19,7 @@
 
 let remembered: number | null = null;
 
-/** Called by the parking panel whenever the guide moves the slider. */
+/** Called by the parking panel whenever the guide changes the radius. */
 export function rememberParkingRadius(radiusM: number): void {
   remembered = radiusM;
 }
@@ -32,7 +32,7 @@ export function forgetParkingRadius(): void {
 
 /**
  * The radius the parking tab is currently searching at, or null when the guide
- * has not moved the slider this session.
+ * has not changed it this session.
  *
  * Null is not the default radius: it is "nobody has said", which lets the
  * caller fall back to its own default rather than having this module assert one

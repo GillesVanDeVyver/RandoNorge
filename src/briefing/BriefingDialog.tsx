@@ -54,7 +54,8 @@
 // the more recent statement of what the guide wants to see.
 //
 // The parking search radius is inherited the same way and is not a control here
-// at all — see parking/radius.ts for why the sheet has no slider of its own.
+// at all — see parking/radius.ts for why the sheet has no radius field of its
+// own.
 //
 // All six stay adjustable, not locks. The guide can turn any of them back, and
 // doing so is what stops the sheet second-guessing them again: an unrated day on
@@ -225,7 +226,7 @@ export function BriefingDialog({
   // blunter reason: the tab and this dialog are both mounted and both query
   // the same parking endpoint, so asking a different question would mean two
   // answers fighting over the map's pins. Falls back to the tab's own default
-  // when nobody has moved the slider — the value the tab would be showing.
+  // when nobody has changed it — the value the tab would be showing.
   const [parkingRadiusM] = useState(
     () => recallParkingRadius() ?? PARKING_DEFAULT_RADIUS_M,
   );

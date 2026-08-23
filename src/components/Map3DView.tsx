@@ -405,7 +405,7 @@ export function Map3DView({
           // The parking lots the Parking tab lists. Declared empty and filled
           // by Map3DParkingSigns, because the lots are fetched from Overpass
           // several seconds after this map is built and change again whenever
-          // the radius slider moves — and none of that is worth a rebuild.
+          // the search radius changes — and none of that is worth a rebuild.
           parking: { type: 'geojson', data: parkingSignsGeoJSON([]) },
         },
         layers: [

@@ -4,46 +4,108 @@
   gap: var(--space-3);
 }
 
-/* Radius control. The label and its current value sit on one line above the
-   slider so the number is readable while dragging on a touch screen, where a
-   thumb covers the track. */
-.controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
+/* The radius line: a sentence saying what the list below is, with the number in
+   it editable behind the cog at its end. It replaced a labelled range slider
+   that took three rows of this panel — see RadiusNote in ParkingPanel.tsx for
+   why.
 
-.radiusField {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-  cursor: pointer;
-}
+   Caption weight, not heading weight: it describes the answer rather than being
+   it, and the five rows underneath are what the eye should land on. The cog is
+   allowed to sit at the end of the sentence rather than pushed hard right,
+   because it acts on the number a few characters to its left and the gap would
+   break that association.
 
-.radiusLabel {
+   Deliberately not a flex row: it is a sentence, and flex would turn each run
+   of text into an item whose leading and trailing spaces are trimmed — the gap
+   between "within" and the number would then be a length in this file rather
+   than the word space it is. Inline layout keeps the spacing and the wrapping
+   the reader's font decides on. */
+.radiusNote {
+  margin: 0;
   font-size: var(--text-xs);
   color: var(--text-2);
-  font-weight: 600;
+  line-height: 1.45;
 }
 
-.radiusValue {
-  font-size: var(--text-sm);
+/* The number carries the emphasis the label used to: it is the one word in the
+   sentence that is a setting. Tabular so 3 → 12 doesn't shuffle the words after
+   it. */
+.radiusKm {
   color: var(--text-1);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.slider {
-  width: 100%;
-  accent-color: var(--accent);
-  cursor: pointer;
+/* Editing happens inside the sentence, so the field inherits the line's font
+   and sits on its baseline rather than imposing an input's. Fixed at four
+   characters' width: the value is one or two digits, and the browsers that draw
+   spinners draw them inside the box, so a field sized to "3" would put the up
+   arrow on top of the number the moment it was focused. Not `field-sizing:
+   content` — an explicit width wins over it, and a field that resized itself as
+   the guide typed would shove the words after it sideways mid-keystroke. */
+.radiusInput {
+  width: 4.2em;
+  padding: 0 2px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
-.slider:focus-visible {
+.radiusInput:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Quiet until reached for. A cog that is always tinted reads as an action the
+   panel wants taken, and this one is for the tour where 3 km found nothing.
+
+   The open state is a pressed wash rather than the accent: --accent is the
+   glacier teal, and a 15px stroked outline in it on white is the same contrast
+   problem .purpose below had to darken its way out of. The field it opens is
+   already carrying the focus ring, so the cog only has to look held down. */
+.gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -4px;
+  margin-left: var(--space-1);
+  padding: 2px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+/* Block, so the icon doesn't sit on the button's own text baseline and add a
+   descender's worth of height to a line the sentence has to hold. */
+.gear svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+.gear:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.gear[aria-expanded='true'] {
+  background: var(--surface-active);
+  color: var(--text-1);
+}
+
+.gear:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-ring);
-  border-radius: var(--radius-pill);
 }
 
 .status {
