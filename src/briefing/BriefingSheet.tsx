@@ -10,10 +10,17 @@
 // The page is intentionally NOT a dump of every panel. Anything a person can't
 // act on in the field is left off to keep it to a single sheet.
 
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { ProfileData } from '../elevation/profile';
-import type { Overlay, Route } from '../types';
+import type { LatLng, Overlay, Route } from '../types';
 import type { AvalancheWarning } from '../avalanche/api';
 import type { WeatherHour } from '../weather/api';
 import { DANGER_LEVELS, dangerLevelLabel } from '../avalanche/dangerScale';
@@ -626,6 +633,7 @@ function MapPicture({
   route,
   overlay,
   snowDate,
+  parking,
   view,
   onReady,
 }: {
@@ -640,6 +648,21 @@ function MapPicture({
    *  including when the tour is too far out for seNorge and the section falls
    *  back to today's grid, which it says on the page. */
   snowDate: string;
+  /**
+   * The parking lots to plant numbered signs on, in the order the sheet's own
+   * Parking section numbers them — so a reader holding the paper can look up
+   * sign 3 and find row 3.
+   *
+   * Empty when the Parking section is switched off, which is the whole of the
+   * signs' own switch: a section the guide has turned off is not a section
+   * whose numbers the map should be referring to. Also empty while the lots are
+   * still being fetched, which nobody sees on paper because the dialog holds
+   * Print until they land.
+   *
+   * Must be referentially stable between renders that did not change it; the
+   * caller memoises it.
+   */
+  parking: readonly LatLng[];
   /** Flat and north-up, or the planner's tilted terrain view. One frame, one
    *  canvas, either way — the page does not change shape around the choice. */
   view: MapView;
@@ -772,6 +795,7 @@ function MapPicture({
       // route was drawn with. The sheet used to ask for 9 and 17 here, which
       // is why the export came out as a blunter drawing of the same tour.
       endpoints: true,
+      parking,
       scaleBar: true,
       cancelled: () => cancelled,
     })
@@ -786,7 +810,12 @@ function MapPicture({
     return () => {
       cancelled = true;
     };
-  }, [route, overlay, snowDate, terrain, framing]);
+    // `parking` is a dependency because a redraw is exactly what a new list of
+    // lots needs — unlike the terrain map next door, the flat map has no way to
+    // move five signs without repainting the tiles under them. It costs a
+    // redraw when the lots land, which is the same redraw a nudge of the
+    // framing costs and happens once per fetch.
+  }, [route, overlay, snowDate, terrain, framing, parking]);
 
   return (
     <div
@@ -844,7 +873,7 @@ function MapPicture({
         ref={canvasRef}
         className="briefingMapCanvas"
         role="img"
-        aria-label={mapLabel(t, drawn, overlay)}
+        aria-label={mapLabel(t, drawn, overlay, parking.length)}
       />
       {/* On top of it on screen, and gone by the time anything is printed: the
           live map the guide turns. */}
@@ -853,6 +882,7 @@ function MapPicture({
           route={route}
           overlay={overlay}
           snowDate={snowDate}
+          parking={parking}
           width={MAP_W}
           height={MAP_H}
           scale={MAP_SCALE}
@@ -912,8 +942,29 @@ function MapPicture({
 
 /** What the map is, for a reader who cannot see it. Spelled out per case
  *  rather than assembled from fragments, because the two languages do not
- *  agree on where the clauses go. */
-function mapLabel(t: Translate, view: MapView, overlay: Overlay): string {
+ *  agree on where the clauses go.
+ *
+ *  `signs` is how many numbered parking signs are on it. Added as a sentence of
+ *  its own rather than as another clause, and so as another dozen spelled-out
+ *  cases: a separate sentence is a place where the two languages cannot
+ *  disagree about order. It is worth saying at all because the numbers are a
+ *  cross-reference — a reader who is told the list has five lots but not that
+ *  the map is marked with the same five has no reason to look. */
+function mapLabel(
+  t: Translate,
+  view: MapView,
+  overlay: Overlay,
+  signs: number,
+): string {
+  const map = baseMapLabel(t, view, overlay);
+  if (signs === 0) return map;
+  return `${map}. ${t(
+    `Med ${signs} nummererte parkeringsskilt, nummerert som i parkeringslista`,
+    `With ${signs} numbered parking signs, numbered as in the parking list`,
+  )}`;
+}
+
+function baseMapLabel(t: Translate, view: MapView, overlay: Overlay): string {
   if (view === '3d') {
     if (overlay === 'steepness') {
       return t(
@@ -1021,6 +1072,22 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
     COL_WEIGHTS.wind,
   ];
   const snowSummary = options.snow ? summariseSnow(profile, snow) : null;
+  // The lots for the map, from the same array in the same order as the numbered
+  // rows below — so the badge on a sign and the row a reader looks it up in are
+  // the same number by construction rather than by two files agreeing.
+  //
+  // Tied to the Parking switch and nothing else: the signs' numbers only mean
+  // anything next to the list that explains them, so a sheet without the list
+  // is a sheet without the signs. That is also why there is no switch of their
+  // own in the dialog.
+  //
+  // Memoised because both maps take this as a prop and both treat a new array
+  // as a change: the flat one repaints and the terrain one resets a source, and
+  // a fresh `[]` on every render of this sheet would mean doing that forever.
+  const parkingPoints = useMemo<readonly LatLng[]>(
+    () => (options.parking ? parking.map((p) => p.point) : []),
+    [options.parking, parking],
+  );
   // Credit only the sources that actually contributed to this print: a footer
   // citing Varsom on a sheet with no avalanche section is a small lie.
   const credits = [
@@ -1089,6 +1156,7 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             route={route}
             overlay={options.mapOverlay}
             snowDate={snowDate}
+            parking={parkingPoints}
             view={options.map3d ? '3d' : '2d'}
             onReady={onMapReady}
           />

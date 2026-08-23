@@ -53,6 +53,11 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 const terrainSrc = stripComments(read('src/components/Map3DView.tsx'));
 const appSrc = stripComments(read('src/App.tsx'));
 const flatSrc = stripComments(read('src/components/Map.tsx'));
+// The readiness helper started out inside Map3DView and moved to a module of its
+// own once a second component needed it — the parking signs on the terrain,
+// which set their source through the same gate. It kept its single WeakSet in
+// the move, which is the whole point of the extraction and is checked below.
+const readySrc = stripComments(read('src/mapStyleReady.ts'));
 // Read raw: these are matched on selectors and declarations, and the rules in
 // question are short enough that their bodies are unambiguous.
 const appCss = read('src/App.module.css');
@@ -90,36 +95,65 @@ check(
 
 check(
   'whenStyleReady() exists and remembers `load` rather than re-testing it',
-  /const styleLoaded = new WeakSet<maplibregl\.Map>\(\)/.test(terrainSrc) &&
-    /function whenStyleReady\(/.test(terrainSrc) &&
-    /styleLoaded\.has\(map\)/.test(terrainSrc),
+  /const styleLoaded = new WeakSet<maplibregl\.Map>\(\)/.test(readySrc) &&
+    /function whenStyleReady\(/.test(readySrc) &&
+    /styleLoaded\.has\(map\)/.test(readySrc),
   'the helper is what makes "is the style up?" answerable after load',
+);
+
+// One WeakSet, wherever the helper lives. Two — a second copy in the module
+// that moved, say — and a map marked loaded in one is unknown to the other, so
+// the deadlock comes straight back for whichever caller reads the empty set.
+check(
+  'there is one record of which maps have loaded, not one per caller',
+  (read('src/mapStyleReady.ts').match(/new WeakSet/g) ?? []).length === 1 &&
+    !/new WeakSet/.test(terrainSrc),
+  'the extraction exists to keep the set single; a second one restores the bug',
+);
+check(
+  'the helper is the only way in — callers import it rather than re-testing',
+  /from '\.\.\/mapStyleReady'/.test(terrainSrc) &&
+    /markStyleLoaded/.test(terrainSrc) &&
+    /isStyleReady/.test(terrainSrc),
+  'Map3DView must go through the module it used to hold',
 );
 
 check(
   'the map registers itself as loaded from inside its `load` handler',
-  /map\.on\(['"]load['"],\s*\(\)\s*=>\s*\{\s*styleLoaded\.add\(map\)/.test(
+  /map\.on\(['"]load['"],\s*\(\)\s*=>\s*\{\s*markStyleLoaded\(map\)/.test(
     terrainSrc,
   ),
   'must be the first thing that handler does, before any other `load` ' +
     'listener gets a turn',
 );
 
-// Every remaining isStyleLoaded() must be inside the helper itself. Anywhere
-// else it is the same misreading of the name, whatever it guards.
-const strayReadiness = terrainSrc
-  .split('\n')
-  .map((line, i) => [i + 1, line])
-  .filter(([, line]) => line.includes('isStyleLoaded()'))
-  .filter(([n]) => {
-    const helper = terrainSrc.slice(0, terrainSrc.indexOf('function whenStyleReady('));
-    const helperStartLine = helper.split('\n').length;
-    return n < helperStartLine || n > helperStartLine + 12;
-  });
+// Every isStyleLoaded() must be inside the helper module. Anywhere else it is
+// the same misreading of the name, whatever it guards — so the sweep now covers
+// the callers as well as the two files the helper used to sit between.
+const strayReadiness = [
+  ['src/components/Map3DView.tsx', terrainSrc],
+  ['src/components/Map3DParkingSigns.tsx', stripComments(read('src/components/Map3DParkingSigns.tsx'))],
+  ['src/briefing/TerrainPicture.tsx', stripComments(read('src/briefing/TerrainPicture.tsx'))],
+  ['src/App.tsx', appSrc],
+].flatMap(([path, code]) =>
+  code
+    .split('\n')
+    .map((line, i) => [i + 1, line])
+    .filter(([, line]) => line.includes('isStyleLoaded()'))
+    .map(([n, line]) => `${path}:${n}: ${line.trim()}`),
+);
 check(
-  'isStyleLoaded() appears only inside whenStyleReady()',
+  'isStyleLoaded() appears only inside mapStyleReady',
   strayReadiness.length === 0,
-  strayReadiness.map(([n, l]) => `line ${n}: ${l.trim()}`).join('; '),
+  strayReadiness.join('; '),
+);
+// And inside it, only in the one branch that is allowed to ask: the first
+// reading, before any `load` has been seen for this map.
+check(
+  'the helper itself asks isStyleLoaded() once, as a fallback to its own record',
+  (readySrc.match(/isStyleLoaded\(\)/g) ?? []).length === 1 &&
+    /styleLoaded\.has\(map\) \|\| map\.isStyleLoaded\(\)/.test(readySrc),
+  'the remembered answer has to come first, or a tile fetch overrules it',
 );
 
 // ---------------------------------------------------------------------------

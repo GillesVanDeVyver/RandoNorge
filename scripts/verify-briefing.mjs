@@ -2257,8 +2257,14 @@ ok(
   /Math\.round\(px\(\(tx \+ 1\) \* TILE_SIZE\)\) - l/.test(staticSrc),
   'neighbouring tiles are given a shared edge, or the seams print as white threads',
 );
+// Open-ended after `framing`, because the printed flat map has since gained
+// inputs that also need a repaint — the numbered parking signs were the first,
+// there being no way to move five signs on a canvas without painting the tiles
+// under them again. Pinning the list to exactly five would fail on each new one
+// while saying nothing about what it is guarding: that these five are in it, and
+// `framing` above all, since the sheet's own zoom and pan ride on it.
 ok(
-  /\[route, overlay, snowDate, terrain, framing\]/.test(sheetSrc),
+  /\}, \[route, overlay, snowDate, terrain, framing(?:, \w+)*\]\)/.test(sheetSrc),
   'moving the frame redraws the map that is printed, not just the one on screen',
 );
 

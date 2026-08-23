@@ -32,6 +32,13 @@ import {
 import { subscribeNetworkMode } from '../offline/networkMode';
 import { clamp, subtractRects, MASK_TINT, type Rect } from '../offline/maskGeometry';
 import { Map3DCursorReadout } from './Map3DCursorReadout';
+import { Map3DParkingSigns } from './Map3DParkingSigns';
+import {
+  PARKING_SIGN_LAYER,
+  PARKING_SIGN_LAYOUT,
+  PARKING_SIGN_PAINT,
+  parkingSignsGeoJSON,
+} from '../parking/signImage';
 import {
   TERRAIN_BEARING,
   TERRAIN_ENDPOINT_PAINT,
@@ -47,6 +54,11 @@ import {
   routeEndpointsGeoJSON,
 } from '../terrainView';
 import { rememberTerrainCamera } from '../terrainCamera';
+import {
+  isStyleReady,
+  markStyleLoaded,
+  whenStyleReady,
+} from '../mapStyleReady';
 import {
   VIEW_TILT_MS,
   flatZoom,
@@ -166,42 +178,9 @@ function regionsToGeoJSON(regions: RegionMeta[]): GeoJSON.FeatureCollection {
 // RegionBoundaryLayer's 2D poll so both views refresh in lockstep.
 const REGION_POLL_MS = 3000;
 
-// Maps whose one and only `load` has fired.
-//
-// `map.isStyleLoaded()` does not mean what its name suggests. It is false not
-// just before the style is up but at any moment a source still has tiles in
-// flight — which, for this style (raster basemap + DEM + two overlays), is most
-// of the time the user is moving. Pairing it with `once('load')` therefore
-// deadlocks: a false reading taken after the map's single `load` has already
-// gone by queues the work on an event that will never fire again, and the work
-// is silently dropped for good.
-//
-// That is the bug behind a 2D/3D switch that sometimes just does nothing: press
-// 2D while a tile is still arriving and the tilt is queued behind an event
-// already in the past, so the camera never flattens, `onFlattened` never fires,
-// and the switch is dead until the view is rebuilt. The same trap sat under
-// every other deferred style edit here — route repaints, overlay changes, the
-// zoom-to-route button.
-//
-// So remember `load` ourselves and let that, not tile traffic, be the gate.
-const styleLoaded = new WeakSet<maplibregl.Map>();
-
-/**
- * Run `job` as soon as the map's style exists, and exactly once.
- *
- * Returns a canceller so an effect that is torn down before its turn comes does
- * not leave a listener behind — the old code left one on every call.
- */
-function whenStyleReady(map: maplibregl.Map, job: () => void): () => void {
-  if (styleLoaded.has(map) || map.isStyleLoaded()) {
-    job();
-    return () => {};
-  }
-  map.once('load', job);
-  return () => {
-    map.off('load', job);
-  };
-}
+// The style-ready gate — and the reason the obvious version of it deadlocks —
+// now lives in ../mapStyleReady, because the parking-sign component needs the
+// same answer and two WeakSets would be two different answers.
 
 interface Props {
   route: Route;
@@ -423,6 +402,11 @@ export function Map3DView({
             type: 'geojson',
             data: regionsToGeoJSON(regionsRef.current),
           },
+          // The parking lots the Parking tab lists. Declared empty and filled
+          // by Map3DParkingSigns, because the lots are fetched from Overpass
+          // several seconds after this map is built and change again whenever
+          // the radius slider moves — and none of that is worth a rebuild.
+          parking: { type: 'geojson', data: parkingSignsGeoJSON([]) },
         },
         layers: [
           { id: 'basemap', type: 'raster', source: 'basemap' },
@@ -529,6 +513,17 @@ export function Map3DView({
               'line-color': TRACK_COLOR,
               'line-width': TRACK_WIDTH,
             },
+          },
+          // Signs last, so they are on top of everything they might land on —
+          // the endpoint dots most of all, since a trailhead lot and the start
+          // of the route are usually the same place. The 2D map keeps the same
+          // order with ParkingLayer's zIndexOffset.
+          {
+            id: PARKING_SIGN_LAYER,
+            type: 'symbol',
+            source: 'parking',
+            layout: PARKING_SIGN_LAYOUT,
+            paint: PARKING_SIGN_PAINT,
           },
         ],
         terrain: { source: 'terrain', exaggeration: TERRAIN_EXAGGERATION },
@@ -885,7 +880,7 @@ export function Map3DView({
       // "is the style up?" is answered by this flag rather than by
       // isStyleLoaded(), which also goes false for ordinary tile traffic and
       // would strand later work on an event that has now been and gone.
-      styleLoaded.add(map);
+      markStyleLoaded(map);
       // Once the style is up, force one more resize so the initial fitBounds
       // below is computed against the true container size rather than whatever
       // the map was constructed with.
@@ -1270,7 +1265,7 @@ export function Map3DView({
     const refresh = () => {
       // The sources exist from `load` onwards; isStyleLoaded() would also say
       // no here for tiles merely in flight and drop the refresh on the floor.
-      if (!styleLoaded.has(map)) return;
+      if (!isStyleReady(map)) return;
       const reset = (id: string, template: string) => {
         const src = map.getSource(id) as
           | maplibregl.RasterTileSource
@@ -1445,6 +1440,10 @@ export function Map3DView({
         snowDate={snowDate}
         disabled={mode !== 'idle'}
       />
+      {/* The numbered parking signs, kept in step with the Parking tab. Its own
+          component, rendering nothing, so that a hover moving from row to row
+          re-renders four lines of source-setting instead of this whole map. */}
+      <Map3DParkingSigns map={glMap} />
       <div className={styles.controls}>
         <div style={{ position: 'relative' }}>
           <button

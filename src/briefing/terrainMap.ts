@@ -41,8 +41,16 @@
 // prints is the resolution it was rendered at, not the resolution it was
 // watched at.
 
-import type { Map as MapLibreMap } from 'maplibre-gl';
-import type { Overlay, Route } from '../types';
+import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import type { LatLng, Overlay, Route } from '../types';
+import {
+  PARKING_SIGN_LAYER,
+  PARKING_SIGN_LAYOUT,
+  PARKING_SIGN_PAINT,
+  parkingSignsGeoJSON,
+  serveParkingSignIcons,
+} from '../parking/signImage';
+import { plainParkingSigns } from '../parking/signs';
 import {
   TERRAIN_BEARING,
   TERRAIN_ENDPOINT_PAINT,
@@ -110,6 +118,15 @@ export interface TerrainMapOptions {
   /** Which day's snow to drape, as YYYY-MM-DD. Only read when `overlay` is
    *  'snowdepth'. */
   snowDate?: string;
+  /**
+   * Parking lots to plant numbered signs on, in the sheet's own list order.
+   *
+   * Passed at build time and replaceable afterwards through `setParking`, which
+   * is the path the caller actually uses: the lots arrive from Overpass seconds
+   * after the map is asked for, and rebuilding a terrain map to add five points
+   * would throw away the tiles, the DEM and the camera the guide had aimed.
+   */
+  parking?: readonly LatLng[];
   /** The still copy that actually prints. Redrawn whenever the camera rests. */
   canvas: HTMLCanvasElement;
   /** Told the compass bearing whenever it changes, so the sheet's north mark
@@ -160,6 +177,16 @@ export interface TerrainMapHandle {
    * framing for exactly that reason.
    */
   reset(): void;
+  /**
+   * Replace the parking signs with the ones for `points`, numbered in the order
+   * given.
+   *
+   * Touches one GeoJSON source and nothing else: the camera, the tiles and the
+   * loaded DEM all survive, which is what makes it safe to call when the lots
+   * land late or the radius slider moves. The still copy catches up on its own,
+   * because changing a source makes the map draw and then go idle.
+   */
+  setParking(points: readonly LatLng[]): void;
   /** Redraw the still copy from the frame currently on screen. */
   capture(): void;
   /** Tear down the GL context, the tile pipeline and the render loop. */
@@ -219,6 +246,7 @@ export async function createTerrainMap(
     scale,
     overlay = 'steepness',
     snowDate,
+    parking = [],
     canvas,
     onBearing,
     cancelled = () => false,
@@ -296,6 +324,10 @@ export async function createTerrainMap(
           route: { type: 'geojson', data: routeToGeoJSON(route) },
           connectors: { type: 'geojson', data: routeConnectorsGeoJSON(route) },
           ends: { type: 'geojson', data: routeEndpointsGeoJSON(route) },
+          parking: {
+            type: 'geojson',
+            data: parkingSignsGeoJSON(plainParkingSigns(parking)),
+          },
         },
         layers: [
           { id: 'basemap', type: 'raster', source: 'basemap' },
@@ -346,6 +378,19 @@ export async function createTerrainMap(
             source: 'ends',
             paint: TERRAIN_ENDPOINT_PAINT,
           },
+          // Above everything, including the endpoints: a lot is usually within
+          // a few metres of the start, so these two marks land on top of each
+          // other, and the sign is the one carrying a number the printed list
+          // refers to. The layer is declared even when there are no lots yet —
+          // an empty GeoJSON source draws nothing, and declaring it up front is
+          // what lets `setParking` fill it later without touching the style.
+          {
+            id: PARKING_SIGN_LAYER,
+            type: 'symbol',
+            source: 'parking',
+            layout: PARKING_SIGN_LAYOUT,
+            paint: PARKING_SIGN_PAINT,
+          },
         ],
         terrain: { source: 'terrain', exaggeration: TERRAIN_EXAGGERATION },
         sky: TERRAIN_SKY,
@@ -395,6 +440,12 @@ export async function createTerrainMap(
     });
 
     const gl = map;
+
+    // Registered before the first frame, because the first frame is when the
+    // symbol layer asks for its icons. See parking/signImage.ts for why they
+    // are baked on demand rather than added here.
+    const stopServingIcons = serveParkingSignIcons(gl);
+
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('no 2d context to copy the frame into');
 
@@ -518,8 +569,18 @@ export async function createTerrainMap(
         // map ends up leashed to a place it is no longer anywhere near.
         base = { center: gl.getCenter(), zoom: gl.getZoom() };
       },
+      setParking(next) {
+        const source = gl.getSource<GeoJSONSource>('parking');
+        // A style that has been torn down, or a map still building one, has no
+        // such source. Nothing to update and nothing to log: the build hands
+        // its own points in through the style above, so the only way here early
+        // is a caller racing its own map, and its next call will land.
+        if (!source) return;
+        source.setData(parkingSignsGeoJSON(plainParkingSigns(next)));
+      },
       capture,
       destroy() {
+        stopServingIcons();
         gl.remove();
       },
     };

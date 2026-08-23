@@ -16,13 +16,17 @@ import { PARKING_PIN_COLOR } from './pin';
 // node. The id is what the panel and the parking store already agree on.
 //
 // TWO STORES, ONE HIGHLIGHT. Pointing at a lot also moves the dot in
-// hoverStore — the same dot the elevation chart drives, and the only half of
-// the highlight that exists in the 3D view, where there are no Leaflet markers
-// to grow. So the highlight is two stores that must agree, and the way they are
-// kept in agreement is that nothing sets either of them directly: callers use
-// takeParkingHighlight / releaseParkingHighlight, here, together. A panel row
-// and a sign on the map both do, which is why pointing at either end lights the
-// same lot and why neither end can drift from the other.
+// hoverStore — the same dot the elevation chart drives. So the highlight is two
+// stores that must agree, and the way they are kept in agreement is that nothing
+// sets either of them directly: callers use takeParkingHighlight /
+// releaseParkingHighlight, here, together. A panel row, a sign on the flat map
+// and a sign on the 3D terrain all do, which is why pointing at any of the three
+// lights the same lot and why none of them can drift from the others.
+//
+// The 3D view grows and dims its signs off this store too, through a MapLibre
+// expression on the id rather than by restyling a marker — see
+// parking/signImage.ts. It used to have only the coordinate dot, which is why
+// the note about "the only half of the highlight that exists in 3D" is gone.
 
 let current: string | null = null;
 const listeners = new Set<() => void>();

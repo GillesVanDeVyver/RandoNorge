@@ -28,7 +28,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
-import type { Overlay, Route } from '../types';
+import type { LatLng, Overlay, Route } from '../types';
 import type { TerrainMapHandle } from './terrainMap';
 import { MapZoomControls } from './MapZoomControls';
 import { clampZoom, useWheelZoom, ZOOM_STEP } from './mapFraming';
@@ -62,6 +62,7 @@ export function TerrainPicture({
   route,
   overlay,
   snowDate,
+  parking,
   width,
   height,
   scale,
@@ -75,6 +76,15 @@ export function TerrainPicture({
   overlay: Overlay;
   /** Which day's snow to drape, when the overlay is snow depth. */
   snowDate: string;
+  /**
+   * The parking lots to plant numbered signs on, in the sheet's list order.
+   *
+   * Must be referentially stable across renders that did not change it — the
+   * effect below sets a GeoJSON source every time this array is a new one, and
+   * a fresh `[]` per render would be a redraw per render. The caller memoises
+   * it off the fetched lots; see BriefingSheet.
+   */
+  parking: readonly LatLng[];
   /** The size the map is *rendered* at, which is the size it prints at. */
   width: number;
   height: number;
@@ -145,6 +155,19 @@ export function TerrainPicture({
     cbRef.current = { onReady, onFailed, onBearing };
   }, [onReady, onFailed, onBearing]);
 
+  // The lots reach the map being built through a ref, and every later change
+  // through setParking below. Deliberately NOT a dependency of the build
+  // effect: the lots arrive from Overpass a few seconds after the dialog opens
+  // and again on every move of the radius slider, and each of those would
+  // otherwise throw away a built mesh, its tiles and the camera the guide had
+  // aimed — to add five points to a source. Initialised rather than synced in
+  // an effect, so the first build already has whatever was known at mount and
+  // the sync below only ever has later changes to carry.
+  const parkingRef = useRef(parking);
+  useEffect(() => {
+    parkingRef.current = parking;
+  }, [parking]);
+
   useEffect(() => {
     const holder = holderRef.current;
     const canvas = canvasRef.current;
@@ -161,6 +184,7 @@ export function TerrainPicture({
           scale,
           overlay,
           snowDate,
+          parking: parkingRef.current,
           canvas,
           onBearing: (deg) => cbRef.current.onBearing(deg),
           cancelled: () => cancelled,
@@ -202,6 +226,19 @@ export function TerrainPicture({
     // the drag does, for a guide who presses + and then Print.
     handle.capture();
   }, [zoom, built]);
+
+  // The lots, whenever they change and again as soon as there is a map to tell.
+  // Same shape and same reason as the zoom effect above: a fetch that lands
+  // while the terrain is still being built must not be forgotten.
+  //
+  // No capture() here, unlike the zoom. Changing a source makes the map draw
+  // and then go idle, and the idle handler inside terrainMap takes the copy —
+  // whereas capturing now would photograph the frame from before the signs were
+  // drawn and put *that* on the paper.
+  useEffect(() => {
+    if (!built) return;
+    handleRef.current?.setParking(parking);
+  }, [parking, built]);
 
   // The last thing between the picture and the paper. The copy is already
   // retaken every time the camera comes to rest, so this is belt and braces —

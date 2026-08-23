@@ -29,6 +29,8 @@ import type { LatLng, Overlay, Route } from '../types';
 import { OFFLINE_LAYERS } from '../offline/layers';
 import { routeConnectors, routeEnds } from '../geometry';
 import { clampZoom, FIT, type Framing } from './mapFraming';
+import { drawParkingSign } from '../parking/sign';
+import { plainParkingSigns } from '../parking/signs';
 import {
   ROUTE_COLOR,
   ROUTE_WEIGHT,
@@ -140,6 +142,17 @@ export interface StaticMapOptions {
   connectorWeight?: number;
   /** Mark the first and last point of the route (start green, finish red). */
   endpoints?: boolean;
+  /**
+   * Parking lots to plant numbered signs on, in the order the caller lists
+   * them — which for the briefing is the order of the numbered rows in its
+   * Parking section, so sign 3 on the map and row 3 in the list are the same
+   * lot. The numbering is not this file's to invent; see parking/signs.ts.
+   *
+   * Empty by default, which is what the thumbnails want: a 160 px tile has no
+   * room for a 22 px sign, and the lots are not part of what a thumbnail is a
+   * picture of.
+   */
+  parking?: readonly LatLng[];
   /** Draw a metric scale bar in the bottom-left corner. */
   scaleBar?: boolean;
   /** Abort check, polled after the (async) tile fetches settle. */
@@ -190,6 +203,7 @@ export async function renderStaticMap(
     haloWeight = HALO_WEIGHT,
     connectorWeight: gapWeight = connectorWeight(routeWeight),
     endpoints = false,
+    parking = [],
     scaleBar = false,
     cancelled = () => false,
   } = opts;
@@ -436,6 +450,20 @@ export async function renderStaticMap(
       dot(ends.start, START_COLOR);
       if (ends.end) dot(ends.end, FINISH_COLOR);
     }
+  }
+
+  // Parking signs above the route and its endpoints. A sign covering a few
+  // metres of line is the right trade: the line is continuous and reads through
+  // a 22 px interruption, whereas a sign with a route drawn across its badge
+  // has lost the number that ties it to the list. The same order the planner's
+  // Leaflet layer keeps with its zIndexOffset.
+  //
+  // Drawn at their own logical size, not multiplied by `magnify` — the signs are
+  // furniture, like the endpoint dots and the scale bar, so closing in on the
+  // map brings the lots closer together without swelling their plates.
+  for (const sign of plainParkingSigns(parking)) {
+    const [gx, gy] = project(sign.point[0], sign.point[1], zoom);
+    drawParkingSign(ctx, px(gx), py(gy), sign.n, sign.state);
   }
 
   if (scaleBar) {
