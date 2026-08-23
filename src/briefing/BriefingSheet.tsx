@@ -26,12 +26,11 @@ import {
 import type { SnowData } from '../snow/useSnow';
 import type { ParkingArea } from '../parking/api';
 import {
-  formatParkingAccess,
   formatParkingDistance,
-  formatParkingFee,
-  formatParkingPayment,
   formatParkingRadius,
-  formatParkingSurface,
+  parkingFacts,
+  parkingUsage,
+  takeParkingFacts,
 } from '../parking/format';
 import { summariseTerrain, runoutLevelLabel } from './terrain';
 import { ProfileSvg } from './ProfileSvg';
@@ -108,6 +107,47 @@ const TIME_COL_PCT = 10;
 // little here when the panel's direction arrow joined the compass letters.
 const COL_WEIGHTS = { sky: 6.5, temp: 8.5, precip: 12, wind: 18 };
 const ANCHOR_WEIGHT = Object.values(COL_WEIGHTS).reduce((a, b) => a + b, 0);
+
+// How much labelled parking detail one printed row holds, in characters.
+//
+// A count rather than a width because the choice being made is which whole
+// facts to print, and that has to be made before any of them is laid out — the
+// sheet gives each lot exactly one line (see the vertical budget at the top of
+// briefing.css), paper does not reflow, and CSS cannot count. takeParkingFacts
+// spends this and drops the least load-bearing fields; .briefingParkingFacts
+// clips as a backstop, so a bad estimate here costs a fact rather than a second
+// line or a lot pushed off the page.
+//
+// Measured rather than derived, because the arithmetic was wrong twice — both
+// times optimistically about the width and pessimistically about the budget,
+// which cost printed facts for nothing.
+//
+// The section is full-bleed: 253.3 sheet mm, being 280 mm of A4 at the sheet's
+// 0.75 zoom less two 13.3 mm edges. After the plate, the 62 mm lead, the 14 mm
+// distance and their gaps, .briefingParkingFacts renders 194.8 mm wide. The
+// fully tagged fixture row prints all seven of its facts in 177 mm for 134
+// characters; a sparser row costs 1.255 mm a character and that one 1.321, so
+// the line holds somewhere between 147 and 155 characters depending on what is
+// in them.
+//
+// Set at 142, inside the pessimistic end of that range. The rate varies because
+// the values are strings mappers typed — "Betaling App, Kredittkort, Mynt" is
+// wider per character than "Plasser 40" — and it varies in the wrong direction:
+// the row that would overrun is reliably the one carrying the most, so the
+// margin has to be sized against the worst rate rather than the average. At 142
+// the widest observed rate lands at 187.6 mm of the 194.8 available.
+//
+// The other end matters as much. The fullest lot the extract realistically
+// produces — every field set, a municipal operator, two payment methods — comes
+// to 137, so it prints whole and the sheet shows exactly what the tab shows.
+// Dropping is for lots past that, and is meant to stay the exception; a budget
+// tight enough to trim real data would have reintroduced the very gap between
+// paper and screen this section was rewritten to close.
+//
+// Do not re-derive this from a font metric. Verify it: scripts/verify-briefing.mjs
+// checks both that the fully tagged fixture keeps everything and that a
+// deliberately overfull lot sheds the right facts.
+const PARKING_FACT_BUDGET = 142;
 
 /** One end of the route as a weather anchor: the forecast, plus the elevation
  *  it applies to (a summit reading means little without its height). */
@@ -1460,9 +1500,13 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
       {/* Where to leave the car. Last of the data sections and first in the
           day's actual order, which is not a contradiction: the sheet is read
           top to bottom the night before, and this is the part that is acted on
-          before the reader has left the house. Compact by design — a name, a
-          distance and whether it costs anything is the whole of what a driver
-          needs, and the planner's tab has the rest. */}
+          before the reader has left the house.
+          Compact, but no longer abridged. This was "a name, a distance and
+          whether it costs anything is the whole of what a driver needs, and the
+          planner's tab has the rest" — which is true of a driver who has the tab
+          in front of them, and this page exists precisely for the reader who
+          does not. It now shows what the tab shows, in the tab's order and under
+          the tab's labels, cut only where one line will not hold it. */}
       {options.parking && (
         <section className="briefingSection">
           <h2 className="briefingH2">
@@ -1497,54 +1541,93 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
             </p>
           ) : (
             <>
-              <table className="briefingParkingTable">
-                <tbody>
-                  {parking.map((p, i) => (
-                    <tr key={p.id}>
-                      <td className="briefingParkingIndex">{i + 1}</td>
-                      <td className="briefingParkingName">
-                        {p.name ?? t('Parkeringsområde', 'Parking area')}
-                      </td>
-                      <td className="briefingParkingDist">
-                        {/* The tab's formatter, not a second one. A guide
-                            checking the sheet against the screen is comparing
-                            two renderings of one query, and "1,2 km" beside
-                            "1.2 km" reads as a disagreement about the ground. */}
+              {/* The tab's rows, printed: a numbered plate matching the sign on
+                  the map, the name, the trailhead badge if a mapper set one,
+                  the distance hard right, and the labelled facts. It was a
+                  four-column table until the resemblance was checked against
+                  the screen — the distances read down a column, which a table
+                  did well, but everything else about it read as a spreadsheet
+                  about the panel rather than as the panel, and the facts cell
+                  had lost its labels to fit 48 mm. The columns survive as
+                  fixed-width boxes in a flex row, so the plates, names and
+                  distances still line up down the page. */}
+              <ol className="briefingParkingList">
+                {parking.map((p, i) => {
+                  const { purposes } = parkingUsage(p.usage, t);
+                  const facts = takeParkingFacts(
+                    parkingFacts(p, t),
+                    PARKING_FACT_BUDGET,
+                  );
+                  return (
+                    <li className="briefingParkingRow" key={p.id}>
+                      <span className="briefingParkingIndex">{i + 1}</span>
+                      {/* Name and badge share one fixed box, as they share one
+                          flex-wrapped line in the tab. They have to travel
+                          together and they have to not push: the distance sits
+                          immediately after, and a badge that widened this pair
+                          would step the distances out of their column on
+                          exactly the rows that have one. */}
+                      <span className="briefingParkingLead">
+                        <span className="briefingParkingName">
+                          {p.name ?? t('Parkeringsområde', 'Parking area')}
+                        </span>
+                        {/* Why a tour planner cares that this lot exists, and
+                            so the one thing here that is not an attribute. The
+                            tab puts it beside the name; so does this. Untagged
+                            is not the same as not a trailhead, which is why its
+                            absence says nothing. */}
+                        {purposes.map((purpose) => (
+                          <span className="briefingParkingPurpose" key={purpose}>
+                            {purpose}
+                          </span>
+                        ))}
+                      </span>
+                      {/* The tab's formatter, not a second one. A guide
+                          checking the sheet against the screen is comparing two
+                          renderings of one query, and "1,2 km" beside "1.2 km"
+                          reads as a disagreement about the ground. */}
+                      <span className="briefingParkingDist">
                         {formatParkingDistance(p.distanceM, t)}
-                      </td>
-                      <td className="briefingParkingFacts">
-                        {/* Only what a mapper actually recorded. An invented
-                            "free" on a sheet someone drives to is worse than a
-                            gap they can see is a gap.
-                            Payment method rather than the winter maintenance
-                            NVDB used to give here: OSM has no established tag
-                            for ploughing, and "app only" is the fact most
-                            likely to strand someone in a valley with no
-                            signal.
-                            Through the same formatters the tab uses — the
-                            values arrive as OSM tags (`fee=no`,
-                            `surface=gravel`), and a sheet printed for a
-                            Norwegian party must not be the one place they
-                            leak. Access is last and usually absent: the
-                            formatter returns null for `yes`/`public`, so it
-                            costs a column only on the lots where it is a
-                            restriction worth reading before walking off. */}
-                        {[
-                          p.capacity !== null
-                            ? `${p.capacity} ${t('plasser', 'spaces')}`
-                            : null,
-                          formatParkingFee(p.fee, t),
-                          formatParkingPayment(p.payment, t),
-                          formatParkingSurface(p.surface, t),
-                          formatParkingAccess(p.access, t),
-                        ]
-                          .filter(Boolean)
-                          .join(' · ') || '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                      {/* The same labelled list the tab shows, from the same
+                          function, cut to what one line holds — see
+                          takeParkingFacts. Labels because the sheet is read in
+                          a car park by someone who was not there when it was
+                          made: "Gratis · Grus · Kun for kunder" is three facts
+                          in a private order, and the reader cannot tell which
+                          of the eight possible fields they are looking at, nor
+                          which were absent from the map versus absent from the
+                          paper. */}
+                      <span className="briefingParkingFacts">
+                        {/* A lot where OpenStreetMap holds nothing but the
+                            geometry — the normal case away from the big
+                            trailheads — keeps the dash the table printed. The
+                            row is a real place and the blank is a real answer,
+                            but an empty stretch of line reads as a rendering
+                            fault on paper, where there is no cell border left
+                            to show that the space was meant. */}
+                        {facts.length === 0
+                          ? '—'
+                          : facts.map((fact) => (
+                              <span className="briefingParkingFact" key={fact.key}>
+                                {/* The space is markup and not a ::after on the
+                                    label, unlike the middot between facts. The
+                                    middot is decoration the sheet adds; this
+                                    space is part of what the row says, and a
+                                    reader who selects a line out of the saved
+                                    PDF should get "Maks tid 48 t" rather than
+                                    "Maks tid48 t". */}
+                                <span className="briefingParkingFactLabel">
+                                  {fact.label}
+                                </span>{' '}
+                                {fact.value}
+                              </span>
+                            ))}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
               <p className="briefingParkingNote">
                 {t(
                   'Kartlagt av frivillige i OpenStreetMap; avgift og antall plasser er ikke alltid oppdatert.',

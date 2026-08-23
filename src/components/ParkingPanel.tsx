@@ -21,7 +21,11 @@
 //     raw row for Innerdalen reads `fee=75 NOK, surface=asphalt,
 //     payment=app,credit_cards` — printable as-is only to someone who already
 //     knows the tagging scheme. The formatters are shared with the printed
-//     briefing so the two never disagree about one row of one query.
+//     briefing so the two never disagree about one row of one query, and so is
+//     the list of which facts a lot has (parkingFacts): sharing the formatters
+//     but not the list is what let the sheet fall three fields behind this panel
+//     and lose the labels off the rest, while every individual value it printed
+//     stayed correct.
 import { useEffect, useMemo, useState } from 'react';
 import type { LatLng, Route } from '../types';
 import { routeEnds } from '../geometry';
@@ -39,12 +43,9 @@ import {
   takeParkingHighlight,
 } from '../parking/hover';
 import {
-  formatParkingAccess,
   formatParkingDistance,
-  formatParkingFee,
-  formatParkingPayment,
   formatParkingRadius,
-  formatParkingSurface,
+  parkingFacts,
   parkingUsage,
 } from '../parking/format';
 import { SourceAttribution, ODBL } from './SourceAttribution';
@@ -86,7 +87,9 @@ function ParkingRow({
   // panel is open to answer, so it is not an attribute among seven — it sits
   // beside the name. Everything else `usage` carries is a kind of structure
   // and stays in the facts row below. See parkingUsage in ../parking/format.
-  const { purposes, kinds } = parkingUsage(area.usage, t);
+  // Only the badge half is read here; the "Type" half of `usage` reaches the
+  // facts row below through parkingFacts, which calls parkingUsage itself.
+  const { purposes } = parkingUsage(area.usage, t);
 
   // Leaving by having the row taken away, rather than by moving the pointer off
   // it, fires no mouseleave — switching tabs while hovering, or a re-fetch that
@@ -144,44 +147,26 @@ function ParkingRow({
             {formatParkingDistance(area.distanceM, t)}
           </span>
         </div>
-        {/* What is missing here, deliberately: "Vinter" / winter maintenance,
-            which NVDB carried and OSM has no established tag for. It was the
-            most useful attribute on the sheet for a ski tour and losing it is
-            a real regression — but NVDB carried it for lots that were mostly
-            not trailheads, so a field that was reliably present about the
-            wrong car parks has been traded for a wider set of the right ones.
-            If OSM settles on a tag for it, add it back here first. */}
+        {/* Which facts, in which order, under which labels: ../parking/format,
+            because the printed briefing shows the same list and the two used to
+            drift. The tab is the side with room, so it shows all of them and
+            wraps; the sheet takes as many as fit its one line per lot.
+
+            Two of the labels are worth knowing the history of. "Type" was
+            "Bruk / Use", which named the database column rather than the
+            question — a row reading "Use: Trailhead" left the reader working
+            out whose use, and of what. And what is missing, deliberately:
+            "Vinter" / winter maintenance, which NVDB carried and OSM has no
+            established tag for. It was the most useful attribute here for a ski
+            tour and losing it is a real regression — but NVDB carried it for
+            lots that were mostly not trailheads, so a field that was reliably
+            present about the wrong car parks has been traded for a wider set of
+            the right ones. If OSM settles on a tag for it, add it back in
+            parkingFacts, where both renderings will pick it up at once. */}
         <div className={styles.facts}>
-          <Fact
-            label={t('Plasser', 'Spaces')}
-            value={area.capacity !== null ? String(area.capacity) : null}
-          />
-          <Fact label={t('Avgift', 'Fee')} value={formatParkingFee(area.fee, t)} />
-          <Fact
-            label={t('Betaling', 'Payment')}
-            value={formatParkingPayment(area.payment, t)}
-          />
-          <Fact
-            label={t('Dekke', 'Surface')}
-            value={formatParkingSurface(area.surface, t)}
-          />
-          {/* maxstay and operator are free text a mapper typed — "48 t", "Stryn
-              kommune" — not an enumeration, so there is nothing to translate
-              and they pass through. */}
-          <Fact label={t('Maks tid', 'Max stay')} value={area.maxstay} />
-          <Fact
-            label={t('Adkomst', 'Access')}
-            value={formatParkingAccess(area.access, t)}
-          />
-          <Fact label={t('Drives av', 'Operator')} value={area.operator} />
-          {/* What sort of place it is — "Parkeringshus", "Campingplass". The
-              old label here was "Bruk / Use", which named the database column
-              rather than the question: a row reading "Use: Trailhead" left the
-              reader working out whose use, and of what. */}
-          <Fact
-            label={t('Type', 'Type')}
-            value={kinds.length > 0 ? kinds.join(', ') : null}
-          />
+          {parkingFacts(area, t).map((fact) => (
+            <Fact key={fact.key} label={fact.label} value={fact.value} />
+          ))}
         </div>
         {/* Getting there is the whole point of knowing it exists. */}
         <a

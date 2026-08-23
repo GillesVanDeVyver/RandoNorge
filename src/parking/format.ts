@@ -16,6 +16,7 @@
 // prints "1.2 km" is a sheet that was written somewhere else.
 
 import type { Translate } from '../i18n/index.ts';
+import type { ParkingArea } from './api';
 
 export function formatParkingDistance(m: number, t: Translate): string {
   if (m < 1000) return `${Math.round(m / 10) * 10} m`;
@@ -373,4 +374,148 @@ export function parkingUsage(usage: string | null, t: Translate): ParkingUsage {
     if (!kinds.includes(label)) kinds.push(label);
   }
   return { purposes, kinds };
+}
+
+// --- The attribute row -----------------------------------------------------
+//
+// Which facts a lot shows, in which order, under which labels — for both the
+// planner's tab and the printed sheet, from here.
+//
+// The formatters above were already shared, on the grounds that the tab and the
+// briefing are two renderings of one query and must not disagree about a row.
+// The *selection* was not, and that is exactly where they drifted: the tab grew
+// max stay, operator and type, and the sheet — written when the section was a
+// four-column table with 48 mm to spend — kept the five it started with and
+// printed them label-less, middot-joined. So a guide comparing paper to screen
+// found the screen's "Avgift: Gratis · Maks tid: 48 t · Drives av: Stryn
+// kommune" against the paper's "Gratis · Grus", and had no way to tell a lot
+// where nobody recorded the max stay from a lot where the sheet simply does not
+// carry the field. One list, one order, one set of labels: the two renderings
+// can now only differ in how many of these fit, which is a fact about the paper
+// rather than about the car park.
+//
+// Order is the tab's, which is roughly descending usefulness to a driver, and
+// is what both sides read top to bottom / left to right.
+
+export interface ParkingFact {
+  /** Stable across languages, for React keys and for the tests. */
+  key: string;
+  label: string;
+  value: string;
+  /** What survives when there is not room for all of it. Lower is kept
+   *  longer; see takeParkingFacts. Display order is the array's, never this —
+   *  a sheet that reordered its columns per lot would be unreadable down the
+   *  page. */
+  priority: number;
+}
+
+/** Every fact a mapper actually recorded about this lot, in the order both the
+ *  tab and the sheet show them.
+ *
+ *  Absent fields are dropped rather than rendered as "—": across the whole
+ *  extract most lots carry two or three of these eight, and a row padded to
+ *  eight columns of dashes says "we asked and the map is empty" eight times
+ *  over. The one caller that wants a placeholder for a lot with nothing at all
+ *  supplies it itself. */
+export function parkingFacts(area: ParkingArea, t: Translate): ParkingFact[] {
+  const { kinds } = parkingUsage(area.usage, t);
+  const all: (Omit<ParkingFact, 'value'> & { value: string | null })[] = [
+    {
+      key: 'capacity',
+      label: t('Plasser', 'Spaces'),
+      value: area.capacity !== null ? String(area.capacity) : null,
+      priority: 2,
+    },
+    // Fee and access are the two that are kept to the last column. Whether it
+    // costs anything is the question the section is opened to answer, and
+    // access is only ever present when it restricts — the formatter returns
+    // null for yes/public/unknown — so on the lots that have it, it is the
+    // sentence to read before walking away from the car for eight hours.
+    {
+      key: 'fee',
+      label: t('Avgift', 'Fee'),
+      value: formatParkingFee(area.fee, t),
+      priority: 1,
+    },
+    {
+      key: 'payment',
+      label: t('Betaling', 'Payment'),
+      value: formatParkingPayment(area.payment, t),
+      priority: 2,
+    },
+    {
+      key: 'surface',
+      label: t('Dekke', 'Surface'),
+      value: formatParkingSurface(area.surface, t),
+      priority: 3,
+    },
+    // maxstay and operator are free text a mapper typed — "48 t", "Stryn
+    // kommune" — not an enumeration, so there is nothing to translate.
+    { key: 'maxstay', label: t('Maks tid', 'Max stay'), value: area.maxstay, priority: 4 },
+    {
+      key: 'access',
+      label: t('Adkomst', 'Access'),
+      value: formatParkingAccess(area.access, t),
+      priority: 1,
+    },
+    { key: 'operator', label: t('Drives av', 'Operator'), value: area.operator, priority: 5 },
+    {
+      key: 'kinds',
+      label: t('Type', 'Type'),
+      value: kinds.length > 0 ? kinds.join(', ') : null,
+      priority: 5,
+    },
+  ];
+  return all.filter((f): f is ParkingFact => Boolean(f.value));
+}
+
+/** As many facts as fit a line `budget` characters wide, most important first,
+ *  returned in display order.
+ *
+ *  For the printed sheet, which has one line per lot and no way to discover it
+ *  has overrun: paper does not reflow, and CSS cannot count. The tab wraps
+ *  instead and calls parkingFacts directly.
+ *
+ *  This function drops whole facts and never truncates one: "Betaling: EasyPark,
+ *  Mastercard, V…" is a worse thing to hand a driver than no payment column at
+ *  all, because they cannot tell whether the card they hold is in the part that
+ *  was cut. What goes is the least load-bearing — type, then operator, then max
+ *  stay — so a lot with eight recorded facts prints the same first few as a lot
+ *  with three, and the columns stay comparable down the page.
+ *
+ *  What it cannot promise is that the page agrees, because `budget` counts
+ *  characters and the column is measured in millimetres, and the exchange rate
+ *  between them depends on which characters. Measured on the sheet's 7.4 pt
+ *  face, real rows cost 1.255–1.321 mm per character against a column that
+ *  breaks even at 1.372, so the margin is real but not large; a value made of
+ *  unusually wide glyphs can spend well under budget and still overrun, and
+ *  .briefingParkingFacts then clips it. Two things make that acceptable rather
+ *  than a bug to design around. The clip falls on the last fact in display
+ *  order, which is the low-priority end, so what gets damaged is what would have
+ *  been dropped next anyway. And it cannot cost a line: the cell is nowrap, so
+ *  the row's height — the thing the page's vertical budget is built on — holds
+ *  whatever the data does. Widening the budget past the measured range would
+ *  trade that for nothing. */
+export function takeParkingFacts(
+  facts: ParkingFact[],
+  budget: number,
+): ParkingFact[] {
+  // Label, the space before the value, the value, and the " · " that will
+  // separate this fact from the next. Counted for the first fact too: it is one
+  // separator's worth of slack in the caller's favour, and the alternative is a
+  // budget whose meaning depends on which fact happens to come first.
+  const cost = (f: ParkingFact) => f.label.length + 1 + f.value.length + 3;
+  const order = facts
+    .map((f, i) => ({ f, i }))
+    .sort((a, b) => a.f.priority - b.f.priority || a.i - b.i);
+
+  const kept = new Set<number>();
+  let used = 0;
+  for (const { f, i } of order) {
+    const next = used + cost(f);
+    if (kept.size > 0 && next > budget) continue;
+    kept.add(i);
+    used = next;
+  }
+  return facts.filter((_, i) => kept.has(i));
 }

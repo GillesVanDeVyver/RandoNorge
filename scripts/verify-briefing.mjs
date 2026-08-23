@@ -605,6 +605,17 @@ const BAD = ['NaN', 'undefined', 'Infinity', 'null cm', '[object Object]'];
  *  heading like "Weather · MET · Sat 14 March 2026" is unmatchable. */
 const plain = (html) => html.replace(/<!--[\s\S]*?-->/g, '');
 
+/** The page as a reader sees it: comments gone and tags removed too.
+ *
+ *  For assertions about a phrase that the markup splits across elements, which
+ *  is most of them once a value gets a styled label in front of it. `plain`
+ *  above only removes comments, despite the name — it was written when a fact
+ *  on this sheet was one text node, and an assertion looking for "Plasser 40"
+ *  against its output is really looking for "Plasser</span> 40" and silently
+ *  fails. Not a drop-in replacement for it: several checks below are about the
+ *  markup and need the tags kept. */
+const textOf = (html) => plain(html).replace(/<[^>]*>/g, '');
+
 /** The text of every "Retrieved …" sub-line on the page. Reading them out of
  *  their own element, rather than out of the page as a whole, is what proves
  *  they sit under the headings instead of inside them. */
@@ -625,9 +636,13 @@ const colWidths = (html) =>
  *
  *  Cut from the weather table by name rather than by being the first `<tbody>`
  *  on the page. It was the first for as long as the sheet had one table; the
- *  parking section is a second, and on a sheet with weather switched off but
- *  parking on, "the first tbody" would quietly have become a list of car parks
- *  being read for wind speeds. */
+ *  parking section became a second, and on a sheet with weather switched off
+ *  but parking on, "the first tbody" would quietly have become a list of car
+ *  parks being read for wind speeds. Parking is a `<ol>` again as of the row
+ *  gaining its labels, so the weather table is once more the only one on the
+ *  page — but it is named here regardless, because which sections are tables is
+ *  a layout decision and this helper should not be what breaks when one
+ *  changes. */
 const tbody = (html) =>
   plain(html)
     .split('briefingWeatherTable')[1]
@@ -765,7 +780,7 @@ for (const options of combos) {
     `[${name}] the weather table follows its switch`,
   );
   ok(
-    options.parking === html.includes('briefingParkingTable'),
+    options.parking === html.includes('briefingParkingList'),
     `[${name}] the parking list follows its switch`,
   );
   ok(
@@ -2588,21 +2603,38 @@ for (const src of [sheetSrc, readFileSync(join(ROOT, 'src/components/ParkingPane
     /formatParkingDistance/.test(src) && !/toFixed\(1\)\} km/.test(src),
     'both the sheet and the tab measure with the same ruler',
   );
-  // And translate with the same dictionary. A guide checking the sheet against
-  // the screen in a car park is comparing two renderings of one query, so a
-  // fact printed "Grus" on one and "gravel" on the other reads as a
-  // disagreement about the ground rather than about a lookup table. The tab
-  // shows four fields the sheet has no room for; these four are the overlap,
-  // and the overlap is where the two can contradict each other.
-  for (const fn of [
-    'formatParkingFee',
-    'formatParkingPayment',
-    'formatParkingSurface',
-    'formatParkingAccess',
-  ]) {
+  // And describe the lot with the same list, in the same order, under the same
+  // labels. A guide checking the sheet against the screen in a car park is
+  // comparing two renderings of one query, so a fact printed "Grus" on one and
+  // "gravel" on the other reads as a disagreement about the ground rather than
+  // about a lookup table.
+  //
+  // This was once a loop asserting that both files called each of
+  // formatParkingFee, -Payment, -Surface and -Access — the four fields the two
+  // sides had in common, checked because the overlap is where they could
+  // contradict each other. What it could not check was the part outside the
+  // overlap, and that is where they actually drifted: the tab grew max stay,
+  // operator and type, the sheet did not, and the sheet dropped the labels from
+  // the four it kept in order to fit a 48 mm cell. Every one of those calls was
+  // still present and correct.
+  //
+  // So the assertion is now that neither file has an opinion of its own about
+  // which facts a lot has. Both ask parkingFacts, which is the only place the
+  // selection, the order and the labels exist; a field added there appears on
+  // both, and a field added to one of these files instead cannot appear at all.
+  ok(
+    /parkingFacts\(/.test(src),
+    'and both describe the lot with the shared, labelled fact list',
+  );
+  // The raw tag fields, reachable on ParkingArea and formerly read here. A
+  // renderer that goes back to `p.surface` is one that has started keeping its
+  // own list again, and it would read as a machine tag on the page — the whole
+  // reason format.ts exists. `capacity` is the tell that matters most: it is the
+  // one field that is not a string, so it is the one somebody reformats by hand.
+  for (const field of ['surface', 'maxstay', 'operator', 'capacity']) {
     ok(
-      new RegExp(`${fn}\\(`).test(src),
-      `and both put ${fn.slice('formatParking'.length).toLowerCase()} through the shared formatter`,
+      !new RegExp(`\\.${field}\\b`).test(src.replace(/^import[^\n]*\n/gm, '')),
+      `and neither reads \`${field}\` off the row to render it itself`,
     );
   }
 }
@@ -2622,9 +2654,128 @@ ok(
   /\u2014/.test(parked),
   'a lot with no attributes at all prints a dash rather than an empty cell',
 );
+// Labelled, as on screen. The old sheet printed the capacity as "40 plasser"
+// and the rest as bare values — "Gratis · Grus · Kun for kunder" — which is
+// three facts in an order the reader cannot see and has no way to name. The
+// label is what makes a printed row answerable without the tab open beside it,
+// and it is why a lot with nothing recorded now differs visibly from a lot whose
+// fields the sheet never carried.
+const parkedText = textOf(render(makeData(DEFAULT_OPTIONS)));
 ok(
-  /40 (plasser|spaces)/.test(parked) && /75 NOK/.test(parked),
-  'the tags the mapper did record are printed',
+  /(Plasser|Spaces) 40/.test(parkedText) &&
+    /(Avgift|Fee) 75 NOK/.test(parkedText),
+  'the tags the mapper did record are printed, under the labels the tab gives them',
+);
+ok(
+  !/40 (plasser|spaces)/.test(parkedText),
+  'and the capacity is not also spelled out in its own words',
+);
+// One of the three the sheet used not to have room for at all. Max stay is free
+// text a mapper typed, so it is printed as typed.
+ok(
+  /(Maks tid|Max stay) 48 t/.test(parkedText),
+  'the fields the sheet used to drop for want of width are printed too',
+);
+
+// --- What one line will not hold ------------------------------------------
+//
+// The sheet gives each lot one line and no more, because a section that reflows
+// is a section with no bound on its height, and the page's budget is written in
+// millimetres. So there is a width past which facts have to go, and these check
+// where it falls and what goes first.
+//
+// The fixture's richest lot — every field a mapper can set, a municipal
+// operator, a payment list of two — is the widest row the extract realistically
+// produces, and it fits. That is the point of PARKING_FACT_BUDGET being set
+// from a measurement of the rendered column rather than guessed: on real data
+// the sheet shows what the tab shows, whole, and dropping is the exception.
+ok(
+  /(Drives av|Operator) Stryn kommune/.test(parkedText) &&
+    /(Betaling|Payment) App, Kredittkort/.test(parkedText),
+  'the fullest realistic lot fits, down to its operator \u2014 the sheet drops nothing',
+);
+// Past that width, the question stops being whether something was dropped and
+// becomes which. This lot is deliberately past it: five payment methods, a
+// structure type, and an operator with a department after it. Nothing here is
+// impossible to tag, it is just rarer than the line is wide.
+const overfullText = textOf(
+  render(
+    makeData(DEFAULT_OPTIONS, {
+      parking: [
+        {
+          ...parkingAreas[0],
+          usage: 'hiking,multi-storey',
+          operator: 'Stryn kommune ved Teknisk etat',
+          payment: 'app,credit_cards,coins,notes,contactless',
+        },
+      ],
+    }),
+  ),
+);
+ok(
+  !/(Drives av|Operator) Stryn kommune/.test(overfullText) &&
+    !/(Type) Parkeringshus/.test(overfullText),
+  'a lot too wide for its line gives up its least load-bearing facts, not a second line',
+);
+ok(
+  /(Avgift|Fee) 75 NOK/.test(overfullText) &&
+    /(Adkomst|Access) Kun for kunder/.test(overfullText),
+  'and what it keeps is the cost and the restriction, which are why it is read',
+);
+// The two that go are the two priority-5 facts, and they go together rather
+// than the earlier-printed one surviving on position: display order is the
+// array's, but what survives is decided by priority. A row that had kept `Type`
+// because it comes last, or dropped `Avgift` because it comes early, would have
+// confused the two orders.
+ok(
+  /(Maks tid|Max stay) 48 t/.test(overfullText) &&
+    /(Plasser|Spaces) 40/.test(overfullText),
+  'everything above that priority stays, however far down the line it prints',
+);
+ok(
+  !/Stryn kom(?!mune)|Kontaktl(?!\u00f8st)|\u2026/.test(overfullText),
+  'nothing is cut mid-value \u2014 a half-printed payment list is worse than none',
+);
+// A driver cannot tell a dropped fact from an unrecorded one, so the two must
+// not be confusable in the other direction either: the field the crowded lot
+// gave up has to print in full the moment there is room, or the budget would be
+// indistinguishable from the sheet simply not carrying the column.
+ok(
+  /(Drives av|Operator) Stryn kommune ved Teknisk etat/.test(
+    textOf(
+      render(
+        makeData(DEFAULT_OPTIONS, {
+          parking: [
+            {
+              ...parkingAreas[0],
+              operator: 'Stryn kommune ved Teknisk etat',
+              capacity: null,
+              payment: null,
+              maxstay: null,
+              access: null,
+              surface: null,
+            },
+          ],
+        }),
+      ),
+    ),
+  ),
+  'and prints in full on a lot with room for it, so a gap is never the sheet\u2019s doing',
+);
+// The badge, which had never been on the sheet at all. It is the answer to why
+// a tour planner lists car parks, so a sheet without it was a sheet that had
+// kept the attributes and lost the point.
+ok(
+  /Turparkering|Trailhead parking/.test(parked),
+  'a lot a mapper tagged as a trailhead says so, as it does on screen',
+);
+ok(
+  !/Turparkering|Trailhead parking/.test(
+    plain(render(makeData(DEFAULT_OPTIONS, {
+      parking: parkingAreas.map((p) => ({ ...p, usage: null })),
+    }))),
+  ),
+  'and a lot nobody tagged claims nothing — untagged is not the same as not one',
 );
 // The rest of the facts cell arrives as OpenStreetMap tags rather than as the
 // Norwegian prose NVDB used to answer in, so between the row and the paper
@@ -2744,10 +2895,16 @@ ok(
 
 // The empty sheet, which is the common one. It has to say who did not know
 // rather than what is not there.
-const unparked = plain(render(makeData(DEFAULT_OPTIONS, { parking: [] })));
+// Against the markup, not the text: the class name is the thing being looked
+// for and `plain` strips the attribute it lives in, so this pair and the one
+// below it passed unconditionally for as long as they were written that way —
+// including, briefly, while the section was mid-rewrite and rendering an empty
+// <ol> here.
+const unparkedRaw = render(makeData(DEFAULT_OPTIONS, { parking: [] }));
+const unparked = plain(unparkedRaw);
 ok(
-  !/briefingParkingTable/.test(unparked),
-  'an empty result prints no table',
+  !/briefingParkingList/.test(unparkedRaw),
+  'an empty result prints no list',
 );
 ok(
   /OpenStreetMap/.test(unparked) &&
@@ -2762,11 +2919,12 @@ ok(
 // A sheet still waiting on the query. Print is gated on this in the dialog, so this
 // state should be unreachable on paper — which is exactly why it is worth
 // checking that it degrades to a line of text rather than to a half-table.
-const parkingPending = plain(
-  render(makeData(DEFAULT_OPTIONS, { parking: [], parkingLoading: true })),
+const parkingPendingRaw = render(
+  makeData(DEFAULT_OPTIONS, { parking: [], parkingLoading: true }),
 );
+const parkingPending = plain(parkingPendingRaw);
 ok(
-  !/briefingParkingTable/.test(parkingPending) &&
+  !/briefingParkingList/.test(parkingPendingRaw) &&
     /(Laster|Loading)/.test(parkingPending),
   'a query still in flight prints as a waiting line, not as an empty valley',
 );
@@ -2784,18 +2942,50 @@ ok(
   'the heading prints the radius it was actually given',
 );
 
-// The stylesheet has to know the classes the section uses, or the table prints
-// as four unruled columns of default-size text in the middle of a sheet whose
-// every other block is measured in sheet millimetres.
+// The stylesheet has to know the classes the section uses, or the list prints
+// as a stack of bulleted default-size text in the middle of a sheet whose every
+// other block is measured in sheet millimetres. It matters more since the row
+// became a flex line of fixed boxes than it did when it was a table: a table
+// with no CSS is still in columns, whereas these classes are the only thing
+// holding the plate, the name, the distance and the facts apart.
 for (const cls of [
-  'briefingParkingTable',
+  'briefingParkingList',
+  'briefingParkingRow',
   'briefingParkingIndex',
   'briefingParkingName',
+  'briefingParkingPurpose',
   'briefingParkingDist',
   'briefingParkingFacts',
+  'briefingParkingFact',
+  'briefingParkingFactLabel',
   'briefingParkingNote',
 ]) {
   ok(css.includes(`.${cls}`), `briefing.css styles .${cls}`);
+}
+
+// The parking section's height is the only figure in the vertical budget that is
+// a ceiling rather than an estimate, and these two declarations are the whole
+// reason. PARKING_FACT_BUDGET counts characters while the column is measured in
+// millimetres, so a lot tagged with unusually wide values can spend under budget
+// and still overrun the line; nowrap is what makes that cost the tail of one
+// fact instead of a second line, five lots deep, on a page budgeted to 26 mm of
+// headroom. A future edit that let this cell wrap would look like an improvement
+// — nothing would be clipped any more — and would silently unbound the section,
+// which is exactly how the four-column table it replaced came to be documented
+// at 26 mm while really reaching 43.2. See takeParkingFacts.
+{
+  const rule = css.slice(
+    css.indexOf('.briefingParkingFacts {'),
+    css.indexOf('}', css.indexOf('.briefingParkingFacts {')),
+  );
+  ok(
+    /white-space:\s*nowrap/.test(rule),
+    'the facts cell cannot wrap, so no lot can cost the page a second line',
+  );
+  ok(
+    /overflow:\s*hidden/.test(rule),
+    'and overruns it cannot foresee are clipped rather than allowed to bleed',
+  );
 }
 
 // The profile's vertical scale, which is inherited rather than observed: the
