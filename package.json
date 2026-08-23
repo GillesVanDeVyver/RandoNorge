@@ -29,8 +29,9 @@
     "test:password": "node scripts/verify-password-hash.mjs",
     "test:briefing": "node scripts/verify-briefing.mjs",
     "test:viewswitch": "node scripts/verify-view-switch.mjs",
+    "test:parking": "node scripts/verify-parking-signs.mjs",
     "test:gdpr": "pnpm test:deletion && pnpm test:privacy && pnpm test:policies",
-    "test": "pnpm test:gdpr && pnpm test:landing && pnpm test:appbase && pnpm test:notfound && pnpm test:ratelimit && pnpm test:password && pnpm test:briefing && pnpm test:viewswitch"
+    "test": "pnpm test:gdpr && pnpm test:landing && pnpm test:appbase && pnpm test:notfound && pnpm test:ratelimit && pnpm test:password && pnpm test:briefing && pnpm test:viewswitch && pnpm test:parking"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

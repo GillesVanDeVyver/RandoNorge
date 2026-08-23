@@ -101,15 +101,27 @@
     border-color var(--dur-fast) var(--ease);
 }
 
-.row:hover {
+/* Hover and keyboard focus are the same state, because they ask the map the
+   same question. The row is focusable so tabbing through the list lights the
+   signs too; the tinted edge is what tells the reader the highlight out on the
+   map belongs to this row. */
+.row:hover,
+.row:focus-visible {
   background: var(--surface-3);
   border-color: var(--hairline-strong);
 }
 
-/* Numbered badge matching the map pin. The number is the whole point: it is
-   what ties row three to the third pin on the map. Colour is set here rather
-   than from parking/pin.ts because CSS modules can't read a TS constant —
-   keep the two in step if either changes. */
+.row:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.35);
+}
+
+/* Numbered badge matching the map sign. The number is the whole point: it is
+   what ties row three to the third sign on the map. Squared off to the same
+   4px as the sign's plate so the badge and the thing it points at share a
+   shape as well as a colour. Colour is set here rather than from
+   parking/pin.ts because CSS modules can't read a TS constant — keep the two
+   in step if either changes. */
 .pin {
   flex: 0 0 auto;
   display: flex;
@@ -117,7 +129,7 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: var(--radius-pill);
+  border-radius: 4px;
   background: #2f6fed;
   color: #ffffff;
   font-size: var(--text-xs);

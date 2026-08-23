@@ -61,6 +61,11 @@ __pycache__/
 # Saved third-party DPA web pages (authenticated captures; keep local, not in VCS)
 docs/dpa/
 
+# Contact sheet of the parking signs, re-rendered on every run of
+# scripts/verify-parking-signs.mjs. It is there to be looked at once after
+# changing the sign, not to be diffed.
+scripts/parking-signs.png
+
 # D1 exports. A dump holds every account, e-mail address and recorded GPS track
 # in the service, so one must never reach the repository — and .sql is
 # otherwise a committed file type here (migrations/, scripts/), so a plain

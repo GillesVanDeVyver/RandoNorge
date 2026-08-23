@@ -22,7 +22,7 @@
 //     payment=app,credit_cards` — printable as-is only to someone who already
 //     knows the tagging scheme. The formatters are shared with the printed
 //     briefing so the two never disagree about one row of one query.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { LatLng, Route } from '../types';
 import { routeEnds } from '../geometry';
 import {
@@ -34,8 +34,10 @@ import {
 } from '../parking/useParking';
 import type { ParkingArea } from '../parking/api';
 import { recallParkingRadius, rememberParkingRadius } from '../parking/radius';
-import { setHoverPoint } from '../hoverStore';
-import { PARKING_PIN_COLOR } from '../parking/pin';
+import {
+  releaseParkingHighlight,
+  takeParkingHighlight,
+} from '../parking/hover';
 import {
   formatParkingAccess,
   formatParkingDistance,
@@ -73,20 +75,44 @@ function ParkingRow({
   index: number;
   t: Translate;
 }) {
-  // Hovering a row lights the matching point on the map, reusing the same
-  // hover store the elevation chart drives. Cheaper than a bespoke highlight
-  // and it already behaves correctly across the 2D/3D switch.
+  // Pointing at a row lights the matching lot on the map: its parking sign
+  // grows and glows while the others fade, and the dot on the exact coordinate
+  // moves to it. Both halves come from ../parking/hover, which owns the pair —
+  // the sign highlight is the answer in 2D, the dot is the only half that
+  // exists in the 3D view, and the point of going through one function is that
+  // the two cannot end up pointing at different lots.
 
   // "Is this a lot people actually start tours from" is the question this
   // panel is open to answer, so it is not an attribute among seven — it sits
   // beside the name. Everything else `usage` carries is a kind of structure
   // and stays in the facts row below. See parkingUsage in ../parking/format.
   const { purposes, kinds } = parkingUsage(area.usage, t);
+
+  // Leaving by having the row taken away, rather than by moving the pointer off
+  // it, fires no mouseleave — switching tabs while hovering, or a re-fetch that
+  // drops this lot from the list. Without this the sign would stay lit for a
+  // row that is no longer on screen.
+  useEffect(
+    () => () => {
+      releaseParkingHighlight(area.id);
+    },
+    [area.id],
+  );
+
+  const take = () => takeParkingHighlight(area.id, area.point);
+  const release = () => releaseParkingHighlight(area.id);
+
   return (
     <li
       className={styles.row}
-      onMouseEnter={() => setHoverPoint(area.point, PARKING_PIN_COLOR)}
-      onMouseLeave={() => setHoverPoint(null)}
+      onMouseEnter={take}
+      onMouseLeave={release}
+      // Keyboard reaches the same highlight: the row is focusable because the
+      // reader who tabs to it needs to be told which sign is theirs just as
+      // much as the one who points at it.
+      tabIndex={0}
+      onFocus={take}
+      onBlur={release}
     >
       <span className={styles.pin} aria-hidden>
         {index + 1}
