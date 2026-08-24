@@ -15,11 +15,20 @@ after Phases 1–5.
 
 ```sh
 ./setup.sh
-cd app && npx expo start
+cd app && npx expo run:android          # or: npx expo run:ios (needs Xcode)
 ```
 
-Expo Go is sufficient — `react-native-webview` is bundled in it, so there is no
-development build to make and nothing to install on a Mac.
+This needs a **development build**, not Expo Go. `react-native-webview` is
+bundled in Expo Go, so Expo Go looks like the cheap option and this spike was
+written that way — but Expo Go only loads the one SDK currently shipped to the
+app stores, and `create-expo-app` scaffolds the next one, so the phone refuses
+the project with an error telling you to update an Expo Go that is already
+current. Pinning the SDK to whatever Expo Go supports works right up until
+either side ships. A development build compiles the SDK in and has no such
+ceiling; `setup.sh` explains the whole detour at the top.
+
+To measure several phones without plugging in each one, build a shareable APK:
+`npx eas build --profile development --platform android`.
 
 Three presets are wired into the app: the production planner (needs a login,
 which the WebView will keep for the session), a public share URL, and a LAN

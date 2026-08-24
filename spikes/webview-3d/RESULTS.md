@@ -16,21 +16,22 @@ mid-range iPhone. A flagship result tells you nothing about the audience.
 
 ## Read this before writing "No"
 
-This spike is pinned to Expo SDK 56, because that is the newest SDK Expo Go
-could open on 2026-08-24 and running in Expo Go is what makes the spike cheap.
-SDK 56 shipped a Hermes memory regression
-([expo/expo#46519](https://github.com/expo/expo/issues/46519), arrived with
-React Native 0.85, fixed in `expo@57.0.9` / RN 0.86.2) that raises baseline
-memory noticeably.
+A **No** here deletes Phase 6 and the whole 3D-on-mobile approach, so the runtime
+under the measurement has to be above suspicion. Two things to check, and record
+the SDK for every row so a surprising number can be re-examined later:
 
-The measurement here is frame time inside a WebView, which is the system
-WebView's own renderer and not the JS engine, so the regression is probably not
-what you are measuring. But "probably" is doing real work in that sentence, and
-a **No** here deletes Phase 6 and the whole 3D-on-mobile approach. So if the
-result is marginal, or the WebView is killed or reloaded under memory pressure,
-re-run on a development build at the latest SDK — `npx expo run:android`, no
-Expo Go and no SDK ceiling — before recording a No. Note in the table which SDK
-each row was measured on.
+**Use a development build.** `setup.sh` does this now. It is not only about Expo
+Go's SDK ceiling — SDK 56 shipped a Hermes memory regression
+([expo/expo#46519](https://github.com/expo/expo/issues/46519), fixed in
+`expo@57.0.9` / RN 0.86.2), and being forced onto a runtime with a known memory
+bug is how a performance spike on a cheap phone produces a false No. The script
+enforces a floor of SDK 57 for that reason. If the WebView is killed or reloaded
+under memory pressure, check the installed `expo` version before believing it.
+
+**Measure a real device, warm.** A development build on a flagship, or a cold
+phone, will pass anything. The protocol in `README.md` exists because the
+interesting number is the worst frame on a three-year-old mid-range Android after
+two minutes of dragging.
 
 ## Decision
 
