@@ -1,8 +1,9 @@
 # Kartverket — permission request for offline caching of topo tiles
 
-Status: **drafted and ready to send — not yet sent.** Send from a SonoFit
-address to `post@kartverket.no`, then record the date in
-`docs/kartverket-permission-log.md`.
+Status: **a shortened Norwegian version of the letter below was sent
+2026-07-21 from `Fjellrute@gmail.com`. No reply.** The follow-up at the end of
+this file is the next thing to send. `docs/kartverket-permission-log.md` records
+what went out and how it differed from this draft.
 
 Until permission is granted, the offline downloader caps topo tiles at z11
 (`packages/core/src/offline/layers.ts` → `topo.maxDownloadZoom = 11`), which
@@ -81,3 +82,67 @@ Med vennlig hilsen,
 Gilles
 SonoFit
 contact@fjellrute.no
+
+---
+
+## Follow-up — ready to send
+
+Send as a reply on the original 2026-07-21 thread if that mailbox still has it,
+so the history travels with it; otherwise as a new mail with the same subject
+prefixed «Purring». Either way, send it from a `fjellrute.no` address and say
+so, since the original went from a Gmail account. Then fill in
+`docs/kartverket-permission-log.md`.
+
+**To:** post@kartverket.no
+**Subject:** Purring — tillatelse til offline-lagring av topografiske fliser (sone 12–18), henvendelse 21. juli 2026
+
+Hei,
+
+Jeg sendte henvendelsen nedenfor til post@kartverket.no 21. juli 2026, men har
+ikke mottatt svar. Jeg purrer høflig, siden spørsmålet må avklares før lansering
+og jeg ikke ønsker å bygge funksjonen på en antakelse. (Merk: den opprinnelige
+henvendelsen ble sendt fra Fjellrute@gmail.com; denne adressen er vår
+virksomhetsadresse, og svar kan gjerne gå hit.)
+
+Kort om saken: vi bruker deres topografiske WMTS-fliser til live kartvisning i en
+kommersiell tur- og skredplanleggingstjeneste, med «© Kartverket» i
+kartattribusjonen. Vi ønsker å la den enkelte brukeren laste ned et selvvalgt
+kartområde til sin egen enhet, slik at kartet virker uten mobildekning. Flisene
+lagres kun lokalt hos brukeren, hentes fra tjenesten deres på samme måte som ved
+live visning, og deles aldri mellom brukere eller videreformidles fra våre
+servere.
+
+**Vi har i dag begrenset nedlastingen til sone 11 og lavere**, altså under det
+Geovekst-begrensede området sone 12–20, nettopp for å være innenfor vilkårene
+mens vi venter på svar. Vi ønsker å tilby offline-detaljer ned til omtrent sone
+16, som er der funksjonen blir reelt nyttig underveis på tur.
+
+Jeg vil være takknemlig for svar på tre punkter:
+
+1. Er offline-lagring hos den enkelte brukeren, til brukerens eget bruk, av
+   topografiske fliser i sone 12–18 tillatt under gjeldende vilkår, eller krever
+   det særskilt tillatelse eller egen avtale?
+2. Dersom særskilt tillatelse er nødvendig: hva er fremgangsmåten, hvem hos
+   Geovekst-lisensinnehaverne bør vi kontakte, og finnes det vilkår vi bør bygge
+   inn fra starten — formulering av attribusjon, levetid for lokal cache,
+   forventet volum?
+3. Kan vi få en skriftlig bekreftelse eller avtale å ha på fil? Tjenesten er
+   kommersiell, og vi trenger å kunne dokumentere grunnlaget.
+
+Om omfanget: nedlasting starter alltid av brukeren, ett område om gangen, med
+lav samtidighet (seks parallelle forespørsler) og et tak per kartlag, slik at én
+nedlasting ikke kan hente store flisvolum. Vi legger gjerne inn ytterligere
+begrensning, attribusjon eller rapportering dersom dere ønsker det.
+
+Dersom denne henvendelsen hører til en annen avdeling, er jeg takknemlig om den
+videreformidles — eller om dere gir meg riktig kontaktpunkt. Et saksnummer vil
+også være nyttig for videre oppfølging.
+
+Takk for hjelpen, og for de utmerkede åpne kartdataene.
+
+Med vennlig hilsen,
+Gilles Van De Vyver
+SonoFit
+contact@fjellrute.no
+
+*(Original henvendelse av 21. juli 2026 følger nedenfor.)*

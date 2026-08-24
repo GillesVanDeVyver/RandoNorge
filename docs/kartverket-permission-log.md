@@ -10,29 +10,49 @@ months instead of chased, and the z11 cap stays in place by default.
 
 ## Status
 
-**Not sent.** This is the one Phase 0 item that cannot be done from a keyboard
-here: it needs an email from a SonoFit address.
-
-## To do, once, today
-
-1. Send the letter body from `contact@fjellrute.no` (or another SonoFit address)
-   to `post@kartverket.no`, subject line as written in the draft.
-2. Fill in the table below.
-3. Put a calendar reminder three weeks out. Kartverket answer, but a request
-   routed to a Geovekst licensee can go quiet, and the polite follow-up is what
-   moves it.
+**Sent 2026-07-21. No reply after five weeks. Follow-up drafted, not yet sent —
+it was due 2026-08-11.**
 
 | Field | Value |
 | --- | --- |
-| Sent on | |
-| Sent from | |
+| Sent on | 2026-07-21 |
+| Sent from | `Fjellrute@gmail.com` |
 | Sent to | `post@kartverket.no` |
 | Subject | Permission request — offline caching of topo WMTS tiles (z12–18) in a commercial hiking app |
-| Reference / case number, if any | |
-| Follow-up due | (sent + 3 weeks) |
-| Follow-up sent | |
-| Reply received | |
-| Outcome | |
+| Reference / case number, if any | none received |
+| Follow-up due | 2026-08-11 (sent + 3 weeks) |
+| Follow-up sent | — drafted, see the request doc, "Follow-up" section |
+| Reply received | none as of 2026-08-24 |
+| Outcome | open |
+
+## What was actually sent, and how it differed from the draft
+
+The version that went out was a shortened Norwegian-only rewrite of the drafted
+letter. The draft in `kartverket-tile-cache-permission-request.md` is left as it
+was, so the difference stays visible; the follow-up closes the gaps. What the
+sent version left out:
+
+- **The three numbered questions**, including the request for a written
+  confirmation we can keep on file. A friendly informal reply would not be the
+  artefact needed to raise `topo.maxDownloadZoom`, so the question has to be
+  asked explicitly.
+- **The fact that we already cap the download at z11 today.** This is the
+  paragraph that shows the request comes from someone already complying rather
+  than someone asking for forgiveness.
+- **The scale and throttling detail** — user-initiated, one region at a time,
+  six parallel requests, willing to add limits. This pre-empts reading the
+  request as an intent to bulk-copy the cache.
+- **The English text**, and the sender was a personal Gmail address rather than
+  a SonoFit one. Both make the mail cheaper for a postmottak to leave unrouted.
+
+## Why the silence is not necessarily a no
+
+`post@kartverket.no` is the general postmottak, not the desk that owns tile
+licensing. Kartverket is a public body, so a written inquiry does warrant a
+response, and citing the original date is what turns an unrouted mail into a
+journalled case. If the follow-up also goes unanswered, the next step is their
+customer-service channel listed on kartverket.no rather than a third mail to the
+same inbox.
 
 ## Outcomes and what each one means
 
