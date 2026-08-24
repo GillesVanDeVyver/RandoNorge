@@ -1,10 +1,20 @@
 # Kartverket — permission request for offline caching of topo tiles
 
-Status: **draft, not yet sent.** Send from a SonoFit address to
-`post@kartverket.no`. Until permission is granted, the offline downloader caps
-topo tiles at z11 (`src/offline/layers.ts` → `topo.maxDownloadZoom = 11`), which
+Status: **drafted and ready to send — not yet sent.** Send from a SonoFit
+address to `post@kartverket.no`, then record the date in
+`docs/kartverket-permission-log.md`.
+
+Until permission is granted, the offline downloader caps topo tiles at z11
+(`packages/core/src/offline/layers.ts` → `topo.maxDownloadZoom = 11`), which
 stays below the Geovekst-restricted z12–20 range, so the app is compliant in the
 meantime. Raise the cap only once written permission is on file.
+
+**This is Phase 0c of the mobile build plan, and it is the one item there with a
+reply time nobody here controls.** Offline maps are both a headline mobile
+feature and a premium-tier feature, and at a z11 cap they are close to worthless
+for navigating a ski tour — so Phase 5 of that plan is blocked on the answer
+below, not on any code. Send it before starting Phase 1; three weeks of waiting
+should overlap the work, not follow it.
 
 ---
 
@@ -28,11 +38,13 @@ in the map attribution throughout the app. Our question concerns a new
 **offline** feature.
 
 The feature lets an individual user select a map area and download its tiles into
-that user's own device (the browser's local IndexedDB storage) so the map keeps
-working with no mobile coverage in the mountains. This is a per-user, personal
-offline cache for their own use — we do not build, host, mirror or redistribute a
-tile store on our own servers, and the tiles are never shared between users or
-served onward.
+that user's own device — the browser's local IndexedDB storage in our web app,
+and, in the mobile app we are now building, a local file on the phone read only
+by that app. This is a per-user, personal offline cache for their own use — we do
+not build, host, mirror or redistribute a tile store on our own servers, and the
+tiles are never shared between users or served onward. The mobile app requests
+each tile from your service exactly as the web app does; the only difference is
+where the copy on that user's own device is kept.
 
 We understand from your terms of use
 (https://www.kartverket.no/en/api-and-data/terms-of-use) that the topo cache/WMS

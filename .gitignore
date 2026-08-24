@@ -61,6 +61,13 @@ __pycache__/
 # Saved third-party DPA web pages (authenticated captures; keep local, not in VCS)
 docs/dpa/
 
+# The Expo scaffolds the Phase 0 spikes build for themselves (spikes/*/setup.sh
+# runs create-expo-app into app/). They are throwaway by design, they carry a
+# native project and a second node_modules, and their SDK version is whatever
+# was current on the day the spike was run. The parts worth keeping are
+# committed: each spike's template/, its README and its RESULTS.md.
+spikes/*/app/
+
 # Contact sheet of the parking signs, re-rendered on every run of
 # scripts/verify-parking-signs.mjs. It is there to be looked at once after
 # changing the sign, not to be diffed.

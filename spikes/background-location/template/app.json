@@ -1,0 +1,56 @@
+{
+  "_comment": [
+    "Permissions and entitlements for spike 0b. Without these the recorder stops",
+    "the moment the screen locks, which is indistinguishable from the OEM",
+    "battery-manager failure the spike exists to detect — so getting them right",
+    "is what makes a FAIL trustworthy.",
+    "",
+    "iOS: UIBackgroundModes.location is what keeps delivery going with the app",
+    "backgrounded; the two usage strings are shown in the permission dialogs and",
+    "App Review rejects vague ones, so they say what a tour recorder actually",
+    "does with the data.",
+    "",
+    "Android: ACCESS_BACKGROUND_LOCATION is the 'Allow all the time' choice, and",
+    "FOREGROUND_SERVICE_LOCATION is mandatory from Android 14 for a location",
+    "foreground service. WAKE_LOCK keeps the service alive between fixes.",
+    "expo-location's config plugin adds most of these, but they are stated here",
+    "so the spike does not depend on a plugin's defaults for the one thing it",
+    "measures."
+  ],
+  "expo": {
+    "name": "bg-location-spike",
+    "slug": "bg-location-spike",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "no.sonofit.spike.bglocation",
+      "infoPlist": {
+        "UIBackgroundModes": ["location"],
+        "NSLocationWhenInUseUsageDescription": "Records your position while you plan or walk a tour.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Keeps recording your tour with the screen off and the phone in a pocket, so the track is complete when you get back."
+      }
+    },
+    "android": {
+      "package": "no.sonofit.spike.bglocation",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "WAKE_LOCK"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "isAndroidBackgroundLocationEnabled": true,
+          "isIosBackgroundLocationEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Keeps recording your tour with the screen off and the phone in a pocket."
+        }
+      ]
+    ]
+  }
+}
