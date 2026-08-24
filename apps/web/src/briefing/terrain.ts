@@ -12,10 +12,10 @@
 // rule the profile chart uses to colour that stretch, so the numbers here and
 // the picture there always agree.
 
-import type { ProfileData, ProfilePoint } from '../elevation/profile';
-import { RUNOUT_UNKNOWN } from '../elevation/runout';
-import { STEEPNESS_BANDS, type SteepnessBand } from '../elevation/steepness';
-import { translate } from '../i18n/locale.ts';
+import type { ProfileData, ProfilePoint } from '@fjellrute/core/elevation/profile';
+import { RUNOUT_UNKNOWN } from '@fjellrute/core/elevation/runout';
+import { STEEPNESS_BANDS, type SteepnessBand } from '@fjellrute/core/elevation/steepness';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 /** The slope angle at which terrain is conventionally treated as avalanche
  *  terrain in Norwegian practice (and the threshold NVE's overlay starts

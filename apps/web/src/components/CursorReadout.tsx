@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMap, useMapEvents } from 'react-leaflet';
-import type { LatLng, Overlay } from '../types';
-import { fetchElevationSlope } from '../elevation/pointSample';
-import { fetchSnowDepths } from '../snow/api';
+import type { LatLng, Overlay } from '@fjellrute/core/types';
+import { fetchElevationSlope } from '@fjellrute/core/elevation/pointSample';
+import { fetchSnowDepths } from '@fjellrute/core/snow/api';
 import { useIsMobile } from '../useIsMobile';
 import styles from './CursorReadout.module.css';
 

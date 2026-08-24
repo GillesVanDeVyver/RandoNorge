@@ -2,7 +2,7 @@
 // and authenticated by the Better Auth session cookie, like the rest of the
 // app's own API, so there is nothing to configure here.
 
-import { translate } from '../i18n/locale.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 /** Must match MAX_MESSAGE_LENGTH in worker/feedback.js. Kept here so the form
  *  can count down to the same number the server enforces — a limit the user

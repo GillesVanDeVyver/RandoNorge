@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import type { Route } from '../types';
+import type { Route } from '@fjellrute/core/types';
 import { renderStaticMap } from '../briefing/staticMap';
 import { RouteIcon } from './icons';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './RouteThumbnail.module.css';
 
 // Tile stitching, projection and route tracing live in briefing/staticMap.ts,

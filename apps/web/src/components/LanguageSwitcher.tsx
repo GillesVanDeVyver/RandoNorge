@@ -4,7 +4,7 @@ import {
   LOCALE_SHORT_LABELS,
   useLocale,
   useT,
-} from '../i18n/index.ts';
+} from '@fjellrute/core/i18n';
 import { GlobeIcon } from './icons';
 import styles from './LanguageSwitcher.module.css';
 

@@ -21,7 +21,7 @@
 // the hovered id into a list of signs. That is what makes it checkable outside
 // a browser — see scripts/verify-parking-signs.mjs.
 
-import type { LatLng } from '../types';
+import type { LatLng } from '@fjellrute/core/types';
 import type { SignState } from './sign';
 
 /** One sign: where it stands, what number it carries, and how it is drawn. */

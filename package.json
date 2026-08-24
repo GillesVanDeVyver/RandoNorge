@@ -31,8 +31,10 @@
     "test:briefing": "node scripts/verify-briefing.mjs",
     "test:viewswitch": "node scripts/verify-view-switch.mjs",
     "test:parking": "node scripts/verify-parking-signs.mjs",
+    "test:core": "node scripts/verify-core-package.mjs",
     "test:gdpr": "pnpm test:deletion && pnpm test:privacy && pnpm test:policies",
-    "test": "pnpm test:gdpr && pnpm test:landing && pnpm test:appbase && pnpm test:notfound && pnpm test:ratelimit && pnpm test:password && pnpm test:briefing && pnpm test:viewswitch && pnpm test:parking"
+    "//test": "test:core runs FIRST. Everything after it imports modules out of packages/core, so if that package has stopped being platform-free the rest of the suite is running against a package that would not load on a phone — and it would still pass, because Node has most of what a browser has. Failing early names the actual problem.",
+    "test": "pnpm test:core && pnpm test:gdpr && pnpm test:landing && pnpm test:appbase && pnpm test:notfound && pnpm test:ratelimit && pnpm test:password && pnpm test:briefing && pnpm test:viewswitch && pnpm test:parking"
   },
   "dependencies": {
     "better-auth": "^1.6.23",

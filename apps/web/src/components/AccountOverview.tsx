@@ -11,7 +11,7 @@ import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { getSeason, OVERVIEW_PHOTOS } from '../theme/season';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import { FeedbackDialog } from './FeedbackDialog.tsx';
 import styles from './AccountOverview.module.css';
 

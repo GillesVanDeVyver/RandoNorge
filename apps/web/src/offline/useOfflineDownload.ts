@@ -9,7 +9,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import type { Map as LeafletMap } from 'leaflet';
-import type { OfflineLayerId } from './layers';
+import type { OfflineLayerId } from '@fjellrute/core/offline/layers';
 import {
   OVERVIEW_MIN_ZOOM,
   downloadRegion,
@@ -17,7 +17,7 @@ import {
   type DownloadPlan,
   type DownloadProgress,
 } from './download';
-import type { Bounds } from './tileMath';
+import type { Bounds } from '@fjellrute/core/offline/tileMath';
 
 // Rough average weight of one PNG map tile, used only for the pre-download size
 // estimate shown to the user (actual stored bytes are measured as they arrive).

@@ -100,7 +100,7 @@ per resource.
 **Node ≥ 22.18, and `corepack enable pnpm`.** Neither requirement announces itself;
 there is no `.nvmrc` and `engines` pins only the package manager. Three floors, in
 order: Vite needs 22.12, `verify-account-deletion.mjs` needs `node:sqlite`
-unflagged at 22.13, and `verify-privacy-sync.mjs` imports `src/terms/privacy.ts`
+unflagged at 22.13, and `verify-privacy-sync.mjs` imports `packages/core/src/terms/privacy.ts`
 directly, which needs TypeScript stripping unflagged at 22.18. Below that,
 `scripts/lib/type-stripping.mjs` re-execs with `--experimental-strip-types`, which
 is why older versions appear to work. `npx pnpm@10.11.1 <cmd>` is the fallback that
@@ -116,7 +116,7 @@ git status --short
 npx wrangler d1 list                               # one database, in the EU
 npx wrangler d1 info fjellrute-db-eu               # jurisdiction eu
 npx wrangler d1 time-travel info fjellrute-db-eu   # the only recovery path
-grep -h "PRIVACY_VERSION = " src/terms/privacy.ts worker/policyVersions.js
+grep -h "PRIVACY_VERSION = " packages/core/src/terms/privacy.ts worker/policyVersions.js
 ```
 
 Both `PRIVACY_VERSION` lines must read `2026-07-29`. If they ever differ, every

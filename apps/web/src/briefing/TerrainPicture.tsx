@@ -28,11 +28,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
-import type { LatLng, Overlay, Route } from '../types';
+import type { LatLng, Overlay, Route } from '@fjellrute/core/types';
 import type { TerrainMapHandle } from './terrainMap';
 import { MapZoomControls } from './MapZoomControls';
 import { clampZoom, useWheelZoom, ZOOM_STEP } from './mapFraming';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 
 /** A key press turns the map by a twelfth of a frame — 15° round, 7.5° up —
  *  which is coarse enough to get somewhere in a few presses and fine enough to

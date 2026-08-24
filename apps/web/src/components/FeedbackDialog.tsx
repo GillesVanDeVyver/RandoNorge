@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { MAX_FEEDBACK_LENGTH, sendFeedback } from '../feedback/api.ts';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './FeedbackDialog.module.css';
 
 // In-app feedback form, opened from the account overview.

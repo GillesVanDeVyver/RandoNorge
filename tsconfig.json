@@ -8,6 +8,10 @@
   // app added in Phase 2 will not have one. Keeping them as separate projects
   // rather than one wide `include` is also what lets tsc cache them
   // independently.
+  // `./packages/core` is listed first because it is where the boundary is
+  // enforced: that project sets `lib: ["ES2023"]` and `types: []`, so a module
+  // that reaches for `document` or `process` fails here rather than surviving
+  // until someone tries to run it under Hermes.
   "files": [],
-  "references": [{ "path": "./apps/web" }]
+  "references": [{ "path": "./packages/core" }, { "path": "./apps/web" }]
 }

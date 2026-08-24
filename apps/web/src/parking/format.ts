@@ -15,7 +15,7 @@
 // And the decimal separator follows the language, since a Norwegian sheet that
 // prints "1.2 km" is a sheet that was written somewhere else.
 
-import type { Translate } from '../i18n/index.ts';
+import type { Translate } from '@fjellrute/core/i18n';
 import type { ParkingArea } from './api';
 
 export function formatParkingDistance(m: number, t: Translate): string {

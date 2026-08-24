@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { UndoIcon } from './icons';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './Toast.module.css';
 
 interface Props {

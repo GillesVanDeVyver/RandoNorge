@@ -5,11 +5,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, CircleMarker, Polyline, useMap, useMapEvents } from 'react-leaflet';
-import type { LatLng, Route } from '../types';
-import { splitRouteAtDistance } from '../geometry';
+import type { LatLng, Route } from '@fjellrute/core/types';
+import { splitRouteAtDistance } from '@fjellrute/core/geometry';
 import type { RouteProgress } from '../tracking/useRouteProgress';
 import { LocateIcon } from './icons';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './NavigationLayer.module.css';
 
 // The travelled line: warm orange so it reads clearly against the teal

@@ -15,13 +15,13 @@ import {
   OFFLINE_LAYERS,
   effectiveDownloadZoom,
   type OfflineLayerId,
-} from './layers';
+} from '@fjellrute/core/offline/layers';
 import {
   countTiles,
   enumerateTiles,
   type Bounds,
   type TileCoord,
-} from './tileMath';
+} from '@fjellrute/core/offline/tileMath';
 
 // Zoom-out should keep working offline, so we always include coarse overview
 // levels down to this floor (they cost only a handful of tiles).

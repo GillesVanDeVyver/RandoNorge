@@ -6,15 +6,15 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ProfileData } from '../elevation/profile';
-import type { WeatherHour } from '../weather/api';
-import { useWeather, weatherCandidates } from '../weather/useWeather';
-import { ForecastContext } from '../forecast/snapshot';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
+import type { WeatherHour } from '@fjellrute/core/weather/api';
+import { useWeather, weatherCandidates } from '@fjellrute/core/weather/useWeather';
+import { ForecastContext } from '@fjellrute/core/forecast/snapshot';
 import { WeatherSymbol, WindArrowIcon } from './WeatherIcons';
 import { ChevronDownIcon } from './icons';
 import { SourceAttribution, NLOD } from './SourceAttribution';
-import { translate } from '../i18n/locale.ts';
-import { useT } from '../i18n/index.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './WeatherPanel.module.css';
 
 interface Props {

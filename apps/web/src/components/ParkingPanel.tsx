@@ -27,8 +27,8 @@
 //     and lose the labels off the rest, while every individual value it printed
 //     stayed correct.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { LatLng, Route } from '../types';
-import { routeEnds } from '../geometry';
+import type { LatLng, Route } from '@fjellrute/core/types';
+import { routeEnds } from '@fjellrute/core/geometry';
 import {
   PARKING_DEFAULT_RADIUS_M,
   PARKING_LIMIT,
@@ -52,7 +52,7 @@ import {
 } from '../parking/format';
 import { SourceAttribution, ODBL } from './SourceAttribution';
 import { GearIcon } from './icons';
-import { useT, type Translate } from '../i18n/index.ts';
+import { useT, type Translate } from '@fjellrute/core/i18n';
 import styles from './ParkingPanel.module.css';
 
 interface Props {

@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useRef, useState } from 'react';
-import type { Route } from '../types';
-import type { ProfileData } from './profile';
+import type { Route } from '@fjellrute/core/types';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
 
 interface ElevationState {
   profile: ProfileData | null;

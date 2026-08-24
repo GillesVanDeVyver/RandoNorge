@@ -14,7 +14,7 @@ import {
   ChevronRightIcon,
   MountainIcon,
 } from './icons';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './SummaryPanel.module.css';
 
 interface Props {

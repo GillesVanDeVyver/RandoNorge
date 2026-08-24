@@ -21,7 +21,7 @@
 
 import maplibregl, { type AddProtocolAction } from 'maplibre-gl';
 import { getTile } from './db';
-import { OFFLINE_LAYERS, type OfflineLayerId, type TileUrlOpts } from './layers';
+import { OFFLINE_LAYERS, type OfflineLayerId, type TileUrlOpts } from '@fjellrute/core/offline/layers';
 import { isForcedOffline } from './networkMode';
 
 export const OFFLINE_PROTOCOL = 'fjellrute-offline';

@@ -4,7 +4,7 @@
 // the length limits (worker/auth.js); this module exists for instant
 // feedback in the sign-up form.
 
-import { translate } from '../i18n/locale.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 128;

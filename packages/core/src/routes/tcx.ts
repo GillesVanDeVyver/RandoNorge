@@ -19,6 +19,7 @@ import { simplify } from '../geometry';
 import type { LatLng, Route, Segment } from '../types';
 import { translate } from '../i18n/locale.ts';
 import { RouteImportError } from './errors';
+import { isParserError, parseXml, type XmlElement } from './xml.ts';
 
 // Match the drawn-route / GPX simplification tolerance (see geometry/index.ts).
 const SIMPLIFY_EPSILON_M = 8;
@@ -35,7 +36,7 @@ function isValidLatLng(lat: number, lng: number): boolean {
 }
 
 /** Read the numeric text content of the first child with the given tag name. */
-function childNumber(parent: Element, tag: string): number | null {
+function childNumber(parent: XmlElement, tag: string): number | null {
   const el = parent.getElementsByTagName(tag)[0];
   if (!el || el.textContent === null) return null;
   const n = parseFloat(el.textContent);
@@ -43,7 +44,7 @@ function childNumber(parent: Element, tag: string): number | null {
 }
 
 /** Read lat/lng from a <Trackpoint>'s <Position>, or null if absent/malformed. */
-function pointFrom(trackpoint: Element): LatLng | null {
+function pointFrom(trackpoint: XmlElement): LatLng | null {
   const position = trackpoint.getElementsByTagName('Position')[0];
   if (!position) return null;
   const lat = childNumber(position, 'LatitudeDegrees');
@@ -53,7 +54,7 @@ function pointFrom(trackpoint: Element): LatLng | null {
 }
 
 /** Turn a <Track>'s trackpoints into a simplified segment (>= 2 points). */
-function toSegment(track: Element): Segment | null {
+function toSegment(track: XmlElement): Segment | null {
   const seg: Segment = [];
   for (const tp of Array.from(track.getElementsByTagName('Trackpoint'))) {
     const p = pointFrom(tp);
@@ -71,11 +72,11 @@ function toSegment(track: Element): Segment | null {
  *   with at least two positioned points.
  */
 export function parseTcx(text: string): Route {
-  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const doc = parseXml(text);
 
-  // DOMParser reports malformed XML as a <parsererror> node rather than
-  // throwing, so check for it explicitly.
-  if (doc.querySelector('parsererror')) {
+  // A browser's DOMParser reports malformed XML as a <parsererror> node rather
+  // than throwing, so check for it explicitly. See ./xml.ts.
+  if (isParserError(doc)) {
     throw new RouteImportError(
       translate(
         'Denne fila er ikke gyldig XML – den kan være ødelagt.',

@@ -247,7 +247,8 @@ for (const [lang, markers] of Object.entries(purposeMarkers)) {
 }
 
 // The limits of the service, stated before sign-up rather than only inside the
-// acceptance gate. Kept in step with §1 of the terms (src/terms/content.ts).
+// acceptance gate. Kept in step with §1 of the terms
+// (packages/core/src/terms/content.ts).
 check(
   'the "not a safety device" limitation is stated in both languages',
   /ikke sikkerhetsutstyr/.test(prose) && /not a safety device/.test(prose),

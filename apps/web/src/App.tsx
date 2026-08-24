@@ -30,14 +30,14 @@ import {
   UploadIcon,
 } from './components/icons';
 import { useElevation } from './elevation/useElevation';
-import { useSnow } from './snow/useSnow';
+import { useSnow } from '@fjellrute/core/snow/useSnow';
 import {
   ForecastContext,
   buildForecastSnapshot,
   type ForecastSelections,
-} from './forecast/snapshot';
-import { segmentLength } from './geometry';
-import { createRoute, updateRoute, type SavedRoute } from './routes/api';
+} from '@fjellrute/core/forecast/snapshot';
+import { segmentLength } from '@fjellrute/core/geometry';
+import { createRoute, updateRoute, type SavedRoute } from '@fjellrute/core/routes/api';
 import { createTrack, type SavedTrack } from './tracking/api';
 import { useTracking, type TrackingStatus } from './tracking/useTracking';
 import { useRouteProgress } from './tracking/useRouteProgress';
@@ -46,22 +46,22 @@ import {
   importRouteFile,
   RouteImportError,
   IMPORT_ACCEPT,
-} from './routes/import';
+} from '@fjellrute/core/routes/import';
 import {
   segmentsToGpx,
   routeToGpx,
   gpxFilename,
   type GpxTrackPoint,
-} from './routes/gpx';
+} from '@fjellrute/core/routes/gpx';
 import { downloadTextFile } from './routes/download';
-import { formatAscent, formatDate, formatDistance } from './routes/format';
+import { formatAscent, formatDate, formatDistance } from '@fjellrute/core/routes/format';
 import { useIsMobile } from './useIsMobile';
-import { useT } from './i18n/index.ts';
-import { translate } from './i18n/locale.ts';
+import { useT } from '@fjellrute/core/i18n';
+import { translate } from '@fjellrute/core/i18n/locale';
 import { loadDrawStyle, storeDrawStyle } from './draw/drawStyle';
 import { armViewHandoff, disarmViewHandoff } from './viewCamera';
 import type { ViewCamera } from './viewCamera';
-import type { DrawStyle, Mode, Overlay, Route } from './types';
+import type { DrawStyle, Mode, Overlay, Route } from '@fjellrute/core/types';
 import styles from './App.module.css';
 
 // MapLibre GL is a large dependency only needed once the user switches to the

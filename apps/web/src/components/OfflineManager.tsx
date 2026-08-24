@@ -6,7 +6,7 @@ import { ChevronRightIcon, CloseIcon } from './icons';
 import { useOfflineDownload } from '../offline/useOfflineDownload';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
 import { formatBytes } from '../offline/format';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './OfflineManager.module.css';
 
 interface Props {

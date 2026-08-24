@@ -6,8 +6,8 @@
 // planned route changes.
 
 import { useState } from 'react';
-import { projectOntoRouteAhead } from '../geometry';
-import type { LatLng, Route } from '../types';
+import { projectOntoRouteAhead } from '@fjellrute/core/geometry';
+import type { LatLng, Route } from '@fjellrute/core/types';
 
 // Beyond this straight-line distance from the route, the position is
 // considered "somewhere else": no connector is drawn, no progress is shown

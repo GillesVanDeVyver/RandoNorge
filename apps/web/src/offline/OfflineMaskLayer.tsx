@@ -30,7 +30,7 @@ import L from 'leaflet';
 import { useMap } from 'react-leaflet';
 import { useEffectiveOffline } from './networkMode';
 import { useOfflineRegions } from './useOfflineRegions';
-import { clamp, subtractRects, MASK_TINT, type Rect } from './maskGeometry';
+import { clamp, subtractRects, MASK_TINT, type Rect } from '@fjellrute/core/offline/maskGeometry';
 
 // Poll cadence for picking up newly downloaded / deleted regions — matches
 // RegionBoundaryLayer so the holes and the outlines refresh in lockstep.

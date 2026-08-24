@@ -280,8 +280,8 @@ Eastern Europe region … Cloudflare's network is worldwide, however, so we cann
 promise that no data ever passes outside the EU". That hedge can become a
 straight statement that the database is restricted to EU data centres.
 
-Edit **both** `src/terms/privacy.ts` and `public/privacy.html`, in English and
-Norwegian, bump `PRIVACY_VERSION` in **both** `src/terms/privacy.ts` and
+Edit **both** `packages/core/src/terms/privacy.ts` and `apps/web/public/privacy.html`, in English and
+Norwegian, bump `PRIVACY_VERSION` in **both** `packages/core/src/terms/privacy.ts` and
 `worker/policyVersions.js`, and run:
 
 ```sh

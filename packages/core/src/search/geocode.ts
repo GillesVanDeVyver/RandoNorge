@@ -39,7 +39,10 @@ export async function searchPlace(query: string): Promise<PlaceResult | null> {
     '&fuzzy=true&treffPerSide=1&side=1&koordsys=4258';
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) return null;
-  const data: StedsnavnResponse = await res.json();
+  // `as`, not an annotation: Response.json() is typed `Promise<unknown>` in this
+  // package (see src/globals.d.ts) because it is unknown — nothing validates the
+  // body. Every other API client here asserts the same way.
+  const data = (await res.json()) as StedsnavnResponse;
   const hit = data.navn?.[0];
   if (!hit || !hit.representasjonspunkt) return null;
   return {

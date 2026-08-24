@@ -14,6 +14,13 @@
 // a path into worker/ or migrations/ describes the service both apps talk to
 // and belongs on REPO. Getting it backwards throws ENOENT rather than passing
 // vacuously, which is the failure mode we want.
+//
+// CORE is the third case and the one most likely to be picked wrongly, because
+// it is also a src/. The test is not what the file does but who else has to
+// agree with it: the terms text, the tile arithmetic and the route geometry are
+// checked here precisely because the Worker and the phone app must match them,
+// so they are shared, so they are CORE. A path is only WEB if the answer would
+// be allowed to differ on a phone.
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,3 +33,7 @@ export const REPO = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
 /** The browser app package: its src/ and public/. */
 export const WEB = join(REPO, 'apps/web');
+
+/** The platform-free package both apps compile: geometry, parsers, tile maths,
+ *  the API clients, i18n, types and the terms and privacy text. */
+export const CORE = join(REPO, 'packages/core');

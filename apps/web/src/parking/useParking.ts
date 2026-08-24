@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useState } from 'react';
-import type { LatLng } from '../types';
+import type { LatLng } from '@fjellrute/core/types';
 import { fetchParkingNear, type ParkingArea } from './api';
 import { setParkingAreas } from './store';
 

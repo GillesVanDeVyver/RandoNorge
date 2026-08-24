@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import type { AvalancheProblem } from '../avalanche/api';
+import type { AvalancheProblem } from '@fjellrute/core/avalanche/api';
 import {
   DIRS,
   aspectList,
   elevationText,
   roseSectorPath,
-} from '../avalanche/problemText';
-import { useT } from '../i18n/index.ts';
+} from '@fjellrute/core/avalanche/problemText';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './AvalancheProblems.module.css';
 // Official EAWS avalanche-problem pictograms (the same five icons Varsom and
 // other European warning services use). Bundled locally so they render

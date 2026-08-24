@@ -20,7 +20,7 @@
 
 import L from 'leaflet';
 import { getTile } from './db';
-import { OFFLINE_LAYERS, type OfflineLayerId, type TileUrlOpts } from './layers';
+import { OFFLINE_LAYERS, type OfflineLayerId, type TileUrlOpts } from '@fjellrute/core/offline/layers';
 import { isForcedOffline, subscribeNetworkMode } from './networkMode';
 
 export interface OfflineTileLayerOptions extends L.TileLayerOptions {

@@ -1,7 +1,7 @@
 // Guards the one thing about the privacy policy that no type checker can:
 // that its two copies still say the same thing.
 //
-// src/terms/privacy.ts is canonical — it is what the acceptance gate shows
+// packages/core/src/terms/privacy.ts is canonical — it is what the acceptance gate shows
 // and what the user actually agrees to. public/privacy.html is a static
 // mirror, needed because the Google OAuth consent screen demands a plain
 // public URL. Both files carry a comment telling the next person to update
@@ -18,14 +18,16 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { REPO, WEB } from './lib/tree.mjs';
+import { CORE, REPO, WEB } from './lib/tree.mjs';
 import { ensureTypeStripping } from './lib/type-stripping.mjs';
 
 // Before the `await import(tsPath)` below. See the helper.
 ensureTypeStripping();
 
 const root = REPO;
-const tsPath = join(WEB, 'src/terms/privacy.ts');
+// The text is in packages/core because the phone app has to show the same
+// words; only the HTML copy served to search engines is web-only.
+const tsPath = join(CORE, 'src/terms/privacy.ts');
 const htmlPath = join(WEB, 'public/privacy.html');
 
 /** Collapse every run of whitespace so line wrapping cannot cause a diff. */
@@ -134,7 +136,7 @@ function firstDiff(a, b) {
 const mirror = sectionsFromHtml();
 
 for (const lang of ['en', 'no']) {
-  console.log(`\n[${lang}] canonical src/terms/privacy.ts vs public/privacy.html`);
+  console.log(`\n[${lang}] canonical packages/core/src/terms/privacy.ts vs apps/web/public/privacy.html`);
   const source = sectionsFromTs(lang);
   const copy = mirror[lang];
 

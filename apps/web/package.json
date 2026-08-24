@@ -3,13 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "//": "The browser planner: Vite + React + Leaflet + MapLibre. It is a workspace package so that the phone app added in Phase 2 can depend on the same @fjellrute/core without inheriting any of the dependencies below — leaflet and maplibre-gl mean nothing on React Native, and a single flat package.json is how they would end up in the phone app's install graph anyway. Note there is no `outDir` here: vite writes to ../../dist, because wrangler.jsonc at the repository root serves `dist` as its asset directory and the deploy path is deliberately unchanged by this move.",
+  "//": "The browser planner: Vite + React + Leaflet + MapLibre. It is a workspace package so that the phone app added in Phase 2 can depend on the same @fjellrute/core without inheriting any of the dependencies below \u2014 leaflet and maplibre-gl mean nothing on React Native, and a single flat package.json is how they would end up in the phone app's install graph anyway. Note there is no `outDir` here: vite writes to ../../dist, because wrangler.jsonc at the repository root serves `dist` as its asset directory and the deploy path is deliberately unchanged by this move.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fjellrute/core": "workspace:*",
     "@fontsource/inter": "^5.2.8",
     "@react-leaflet/core": "^3.0.0",
     "leaflet": "^1.9.4",

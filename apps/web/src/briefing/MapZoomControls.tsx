@@ -14,7 +14,7 @@
 
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './mapFraming';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 
 export function MapZoomControls({
   zoom,

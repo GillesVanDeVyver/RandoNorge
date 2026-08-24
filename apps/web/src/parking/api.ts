@@ -32,8 +32,8 @@
 // briefing sheet, and the extract itself is published under ODbL at
 // /data/parking to satisfy §4.6.
 
-import { haversine } from '../geometry';
-import type { LatLng } from '../types';
+import { haversine } from '@fjellrute/core/geometry';
+import type { LatLng } from '@fjellrute/core/types';
 
 // Served by the Worker in production and proxied there by the Vite dev server
 // locally (vite.config.ts already forwards /api to localhost:8787).

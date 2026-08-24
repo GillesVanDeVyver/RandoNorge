@@ -7,8 +7,8 @@ import {
   Marker,
   Polyline,
 } from 'react-leaflet';
-import type { DrawStyle, LatLng, Mode, Route, Segment } from '../types';
-import { routeConnectors, routeEnds, simplify } from '../geometry';
+import type { DrawStyle, LatLng, Mode, Route, Segment } from '@fjellrute/core/types';
+import { routeConnectors, routeEnds, simplify } from '@fjellrute/core/geometry';
 // The route's colour, widths and endpoint dots. Shared with the canvas
 // renderer behind the printed briefing, so the exported map is a miniature of
 // this one rather than a second, heavier drawing of the same tour.
@@ -26,7 +26,7 @@ import {
   connectorWeight,
   connectorDash,
 } from '../routeStyle';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './DrawingHandler.module.css';
 
 interface Props {

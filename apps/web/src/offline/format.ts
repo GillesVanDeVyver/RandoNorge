@@ -1,7 +1,7 @@
 // Shared formatting helpers for the offline-maps feature. Kept in one place so
 // the download form, the planner's manager panel and the offline maps page all
 // render sizes identically.
-import { translate } from '../i18n/locale.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 /** Human-readable byte size, e.g. "742 B", "18 KB", "124.3 MB". */
 export function formatBytes(bytes: number): string {

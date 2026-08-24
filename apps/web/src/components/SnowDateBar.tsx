@@ -9,7 +9,7 @@ import {
   SkipForwardIcon,
   SnowflakeIcon,
 } from './icons';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './SnowDateBar.module.css';
 
 interface Props {

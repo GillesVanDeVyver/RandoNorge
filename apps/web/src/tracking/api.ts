@@ -13,8 +13,8 @@
 // speed/pace at any point. Tracks saved before timestamps were recorded
 // simply have no `times` — reviews degrade to distance-only scrubbing.
 
-import type { LatLng, Route, TrackTimes } from '../types';
-import { translate } from '../i18n/locale.ts';
+import type { LatLng, Route, TrackTimes } from '@fjellrute/core/types';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 export interface TrackStats {
   distanceM: number | null;

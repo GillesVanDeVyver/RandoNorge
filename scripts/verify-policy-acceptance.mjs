@@ -23,7 +23,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { REPO, WEB } from './lib/tree.mjs';
+import { CORE, REPO, WEB } from './lib/tree.mjs';
 import { ensureTypeStripping } from './lib/type-stripping.mjs';
 
 // Before the first `await import` of a .ts file below. See the helper.
@@ -68,10 +68,10 @@ const check = (label, ok, detail) => {
 console.log('\n[versions] the Worker and the app agree on what is current');
 
 const { TERMS_VERSION: appTerms } = await import(
-  join(WEB, 'src/terms/content.ts')
+  join(CORE, 'src/terms/content.ts')
 );
 const { PRIVACY_VERSION: appPrivacy } = await import(
-  join(WEB, 'src/terms/privacy.ts')
+  join(CORE, 'src/terms/privacy.ts')
 );
 const { TERMS_VERSION: workerTerms, PRIVACY_VERSION: workerPrivacy } =
   await import(join(root, 'worker/policyVersions.js'));
@@ -79,12 +79,12 @@ const { TERMS_VERSION: workerTerms, PRIVACY_VERSION: workerPrivacy } =
 check(
   `TERMS_VERSION matches (${appTerms})`,
   appTerms === workerTerms,
-  `src/terms/content.ts: ${appTerms} — worker/policyVersions.js: ${workerTerms}`,
+  `packages/core/src/terms/content.ts: ${appTerms} — worker/policyVersions.js: ${workerTerms}`,
 );
 check(
   `PRIVACY_VERSION matches (${appPrivacy})`,
   appPrivacy === workerPrivacy,
-  `src/terms/privacy.ts: ${appPrivacy} — worker/policyVersions.js: ${workerPrivacy}`,
+  `packages/core/src/terms/privacy.ts: ${appPrivacy} — worker/policyVersions.js: ${workerPrivacy}`,
 );
 // A version that is not a date is not necessarily wrong, but every one so far
 // is, and a stray empty string would compare unequal to every stored value and

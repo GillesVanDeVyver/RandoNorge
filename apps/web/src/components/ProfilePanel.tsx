@@ -10,10 +10,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { ProfileData } from '../elevation/profile';
-import { RUNOUT_UNKNOWN } from '../elevation/runout';
-import { GRAY, RUNOUT_COLORS, steepnessColor } from '../elevation/steepness';
-import type { SnowData } from '../snow/useSnow';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
+import { RUNOUT_UNKNOWN } from '@fjellrute/core/elevation/runout';
+import { GRAY, RUNOUT_COLORS, steepnessColor } from '@fjellrute/core/elevation/steepness';
+import type { SnowData } from '@fjellrute/core/snow/useSnow';
 import { setHoverPoint } from '../hoverStore';
 import {
   distanceAtTime,
@@ -21,12 +21,12 @@ import {
   timeAtDistance,
   type TrackTiming,
 } from '../tracking/timing';
-import { formatPace, formatSpeed } from '../routes/format';
+import { formatPace, formatSpeed } from '@fjellrute/core/routes/format';
 import { rememberProfileScale } from '../profileScale';
 import { DatePopover } from './DatePopover';
 import { SourceAttribution, NLOD, CC_BY_4 } from './SourceAttribution';
-import { translate } from '../i18n/locale.ts';
-import { useT } from '../i18n/index.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './ProfilePanel.module.css';
 
 interface ElevationProps {

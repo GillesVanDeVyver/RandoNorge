@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
-import type { Bounds } from '../offline/tileMath';
+import type { Bounds } from '@fjellrute/core/offline/tileMath';
 import styles from './RegionSelector.module.css';
 
 // A draggable, resizable rectangle drawn over the map that the user adjusts to

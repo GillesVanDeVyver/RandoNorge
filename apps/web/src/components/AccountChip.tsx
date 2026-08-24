@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { authClient } from '../auth/client';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import { LanguageSwitcher } from './LanguageSwitcher.tsx';
 import styles from './AccountChip.module.css';
 

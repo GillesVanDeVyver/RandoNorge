@@ -4,7 +4,7 @@ import { RegionSelector } from './RegionSelector';
 import { OfflineDownloadFields } from './OfflineDownloadFields';
 import { CloseIcon } from './icons';
 import { useOfflineDownload } from '../offline/useOfflineDownload';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './OfflineManager.module.css';
 
 interface Props {

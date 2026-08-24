@@ -57,7 +57,7 @@ ensureTypeStripping();
 import { writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
-import { WEB } from './lib/tree.mjs';
+import { CORE, WEB } from './lib/tree.mjs';
 
 // Every path below is under the web app's src/, and the server-rendering
 // scratch files are written there too so that the `external: ['react', ...]`
@@ -1769,7 +1769,7 @@ ok(
 // printed flat map, the planner's 3D view and the printed 3D frame. They used
 // to work it out separately, which is fine until one of them decides an
 // out-and-back has no finish.
-const geometrySrc = readFileSync(join(ROOT, 'src/geometry/index.ts'), 'utf8');
+const geometrySrc = readFileSync(join(CORE, 'src/geometry/index.ts'), 'utf8');
 const terrainViewSrc = readFileSync(join(ROOT, 'src/terrainView.ts'), 'utf8');
 ok(
   /export function routeEnds/.test(geometrySrc),
@@ -3306,7 +3306,7 @@ const mapCssSrc = readFileSync(
   'utf8',
 );
 const appSrc = readFileSync(join(ROOT, 'src/App.tsx'), 'utf8');
-const layersSrc = readFileSync(join(ROOT, 'src/offline/layers.ts'), 'utf8');
+const layersSrc = readFileSync(join(CORE, 'src/offline/layers.ts'), 'utf8');
 
 // --- The split -------------------------------------------------------------
 
@@ -3673,7 +3673,7 @@ ok(
 // a map that creeps a few metres every time it is dragged to its limit.
 {
   const tm = await import(
-    pathToFileURL(join(ROOT, 'src/offline/tileMath.ts')).href
+    pathToFileURL(join(CORE, 'src/offline/tileMath.ts')).href
   );
   let worst = 0;
   for (const lat of [-84, -60, 0, 45, 58.9, 62.5, 69.7, 78.2, 84]) {

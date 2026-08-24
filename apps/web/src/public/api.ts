@@ -7,11 +7,11 @@
 // exact rendering the owner sees. The only extra is `owner` (public display
 // name + handle) travelling alongside.
 
-import type { LatLng, Route, TrackTimes } from '../types';
-import type { SavedRoute } from '../routes/api';
+import type { LatLng, Route, TrackTimes } from '@fjellrute/core/types';
+import type { SavedRoute } from '@fjellrute/core/routes/api';
 import type { SavedTrack } from '../tracking/api';
-import { parseSnapshot } from '../forecast/snapshot';
-import { translate } from '../i18n/locale.ts';
+import { parseSnapshot } from '@fjellrute/core/forecast/snapshot';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 /** Public identity of an account: never includes the email address. */
 export interface Owner {

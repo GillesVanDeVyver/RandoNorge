@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './DisclaimerModal.module.css';
 
 // First-run safety disclaimer, shown once per session before planning. It is

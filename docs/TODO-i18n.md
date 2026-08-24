@@ -4,8 +4,8 @@ Fjellrute is a Norwegian ski-touring / mountain-travel planner, but the
 **UI is currently English-only**. The only strings that already ship in both
 English and Norwegian are the legal texts, which have their own EN/NO toggle:
 
-- `src/terms/content.ts` — Terms of Use (EN + NO)
-- `src/terms/privacy.ts` — Privacy Policy (EN + NO)
+- `packages/core/src/terms/content.ts` — Terms of Use (EN + NO)
+- `packages/core/src/terms/privacy.ts` — Privacy Policy (EN + NO)
 
 Everything else (buttons, panels, toasts, onboarding hints, the first-run
 safety disclaimer, the Varsom call-to-action on the steepness layer, etc.) is
@@ -18,8 +18,8 @@ hard-coded English.
   locales.
 - Move all hard-coded UI strings into the catalogue. Known English-only spots
   added most recently and explicitly flagged with `TODO(i18n)` in code:
-  - `src/components/DisclaimerModal.tsx` — first-run safety disclaimer copy.
-  - `src/components/MapAttribution.tsx` — "Check the Varsom bulletin" CTA.
+  - `apps/web/src/components/DisclaimerModal.tsx` — first-run safety disclaimer copy.
+  - `apps/web/src/components/MapAttribution.tsx` — "Check the Varsom bulletin" CTA.
 - Fold the existing terms/privacy EN/NO toggle into the same global language
   selection so a single control switches the whole app.
 - Default the locale to Norwegian for `.no` visitors (or from the browser's

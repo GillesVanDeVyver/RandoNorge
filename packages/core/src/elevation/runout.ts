@@ -1,4 +1,5 @@
 import type { LatLng } from '../types';
+import { sampleRaster } from './raster.ts';
 
 // Classifies route points by snow-avalanche runout severity using NVE's
 // Bratthet_med_utlop_2024 service. The MapServer's /identify endpoint
@@ -7,6 +8,9 @@ import type { LatLng } from '../types';
 // instead fetch a single /export PNG covering the route bbox, draw it
 // to a canvas, and read each point's pixel directly. This guarantees
 // the chart sees the exact color rendered on the map, in one HTTP call.
+//
+// Everything here is arithmetic on the returned pixels; fetching and decoding
+// them is the platform's job and lives in ./raster.ts.
 
 const EXPORT_URL =
   'https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/export';
@@ -117,35 +121,11 @@ export async function fetchRunoutLevels(
   });
   const url = `${EXPORT_URL}?${params.toString()}`;
 
-  // Fetch as Blob + createImageBitmap + OffscreenCanvas, all of which are
-  // available in both DedicatedWorkerGlobalScope and the main window. This
-  // lets the whole pipeline run inside the elevation profile worker without
-  // touching DOM-only APIs (HTMLImageElement / HTMLCanvasElement).
-  let bitmap: ImageBitmap;
-  try {
-    const res = await fetch(url, { signal });
-    if (!res.ok) return unknown();
-    const blob = await res.blob();
-    bitmap = await createImageBitmap(blob);
-  } catch {
-    return unknown();
-  }
-
-  const canvas = new OffscreenCanvas(width, height);
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) {
-    bitmap.close();
-    return unknown();
-  }
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
-
-  let data: ImageData;
-  try {
-    data = ctx.getImageData(0, 0, width, height);
-  } catch {
-    return unknown();
-  }
+  // Null covers every failure the decode used to catch inline — a non-200, a
+  // network error, a canvas the platform would not give up, and now also a
+  // platform with no decoder at all. All of them land on RUNOUT_UNKNOWN.
+  const pixels = await sampleRaster(url, width, height, signal);
+  if (!pixels) return unknown();
 
   const dLng = maxLng - minLng;
   const dLat = maxLat - minLat;
@@ -163,10 +143,10 @@ export async function fetchRunoutLevels(
     );
     const idx = (py * width + px) * 4;
     result[i] = classify(
-      data.data[idx],
-      data.data[idx + 1],
-      data.data[idx + 2],
-      data.data[idx + 3],
+      pixels[idx],
+      pixels[idx + 1],
+      pixels[idx + 2],
+      pixels[idx + 3],
     );
   }
   return result;

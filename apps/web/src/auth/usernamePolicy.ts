@@ -4,7 +4,7 @@
 // conservative, URL-safe shape. This module exists for instant feedback in
 // the sign-up form; the worker validates independently and owns uniqueness.
 
-import { translate } from '../i18n/locale.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 export const MIN_USERNAME_LENGTH = 3;
 export const MAX_USERNAME_LENGTH = 30;

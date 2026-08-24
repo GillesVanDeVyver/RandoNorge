@@ -173,7 +173,7 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
 
    These live only in the Google Cloud console, so nothing in the repository can
    verify them and they were unrecorded until Week 3. The privacy-policy link
-   matters more than it looks: it is the entire reason `public/privacy.html`
+   matters more than it looks: it is the entire reason `apps/web/public/privacy.html`
    exists as a static mirror, and if it points somewhere stale it is the one
    piece of the policy a user sees *before* deciding to trust the app.
 
@@ -187,7 +187,7 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    | User support email | | `fjellrute@gmail.com` — 2026-07-29 |
    | Application home page | `https://fjellrute.no/about.html` — **not** the bare root; see the note below the table (the app itself is at `/alpha/`) | `https://fjellrute.no/about.html` — changed in the console on 2026-07-29, so the field and the file agree again |
    | Privacy policy link | `https://fjellrute.no/privacy.html` | `https://fjellrute.no/privacy.html` — as intended, 2026-07-29 |
-   | Terms of service link | Empty, or a URL that actually resolves. There is **no** `public/terms.html` — the terms exist only in-app via `src/terms/content.ts`, so any `fjellrute.no/terms…` URL entered here 404s | Empty — the trap described here was never walked into, 2026-07-29 |
+   | Terms of service link | Empty, or a URL that actually resolves. There is **no** `apps/web/public/terms.html` — the terms exist only in-app via `packages/core/src/terms/content.ts`, so any `fjellrute.no/terms…` URL entered here 404s | Empty — the trap described here was never walked into, 2026-07-29 |
    | Authorized domain | `fjellrute.no` | **Two** domains: `fjellrute.no` *and* `gillesvandevyver1.workers.dev` — 2026-07-29. See below |
    | Publishing status | In production | In production — read from the **Audience** page, 2026-07-29 |
 
@@ -197,7 +197,7 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    product, the Google-user-data disclosure, a privacy link, and no hint that
    the product was merely forthcoming. All of that was written for a reviewer,
    none of it for a visitor, and it made a pre-launch site look like a launched
-   one. The content therefore moved, unchanged, to `public/about.html`, and the
+   one. The content therefore moved, unchanged, to `apps/web/public/about.html`, and the
    root went back to being a holding page — wordmark and “Kommer snart”.
 
    The consequence is that **these two things must now be kept in step**: the
@@ -223,8 +223,8 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    logged, and neither `tsc` nor eslint has an opinion about which path a string
    contains.
 
-   The app therefore has a declared base, `APP_BASE` in `src/appBase.ts`, set to
-   `/alpha` — the address `public/about.html` gives testers. Every in-app URL is
+   The app therefore has a declared base, `APP_BASE` in `apps/web/src/appBase.ts`, set to
+   `/alpha` — the address `apps/web/public/about.html` gives testers. Every in-app URL is
    built with `appPath()` and every incoming path is read through
    `stripAppBase()`, so `/alpha/` is the overview, `/alpha/planner` the planner,
    and the six auth callbacks all return to `/alpha/`. Paths without the prefix
@@ -301,7 +301,7 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
 
    Google's verification review rejected the app on 2026-07-28 with four
    findings, all about the **application home page** — which at that point meant
-   `public/coming-soon.html`, because the field still named the bare domain and
+   `apps/web/public/coming-soon.html`, because the field still named the bare domain and
    `worker/index.js` serves that file for `/`. Since 2026-07-29 the field names
    `/about.html`, so "home page" in the table below means the file the content
    moved to.
@@ -339,7 +339,7 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    the purpose section present in *script-free* HTML, both languages static
    with the script only hiding one, no authentication call ahead of the root
    intercept in `worker/index.js`, and every same-origin link resolving to a
-   real file in `public/`. It reads the expected app name out of the table
+   real file in `apps/web/public/`. It reads the expected app name out of the table
    above, so renaming the app on the consent screen means updating that row and
    the test will then require the page to follow.
 
@@ -434,9 +434,9 @@ configured; everything else works.
   Auth's own migration compiler for the installed version — don't edit those
   columns by hand) plus an empty `route` table ready for the upcoming
   save/share-routes feature (GeoJSON geometry, owner, share flag + slug).
-- `src/auth/` — browser client and the client-side password policy.
-- `src/components/LoginPage.tsx` — login, sign-up, verify-email, forgot- and
-  reset-password views; `src/components/AccountChip.tsx` — signed-in
+- `apps/web/src/auth/` — browser client and the client-side password policy.
+- `apps/web/src/components/LoginPage.tsx` — login, sign-up, verify-email, forgot- and
+  reset-password views; `apps/web/src/components/AccountChip.tsx` — signed-in
   indicator with log-out.
 
 ## Account deletion — `DELETE /api/account`
@@ -476,7 +476,7 @@ address and therefore do not cascade. Nothing of the user lives outside D1.
 Whoever builds the UI: collect the address and password in a confirm dialog,
 send the DELETE, and on `200` treat the user as signed out — the response
 already clears the cookie. After that lands, soften the "email us for account
-deletion" sentence in privacy policy §6 (`src/terms/privacy.ts` **and**
-`public/privacy.html`).
+deletion" sentence in privacy policy §6 (`packages/core/src/terms/privacy.ts` **and**
+`apps/web/public/privacy.html`).
 
 Run `pnpm test:deletion` after touching any of this.

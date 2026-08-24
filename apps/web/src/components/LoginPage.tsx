@@ -12,8 +12,8 @@ import {
 } from './icons';
 import { TermsPage } from './TermsPage';
 import { getSeason, LOGIN_PHOTOS } from '../theme/season';
-import { useT } from '../i18n/index.ts';
-import { translate } from '../i18n/locale.ts';
+import { useT } from '@fjellrute/core/i18n';
+import { translate } from '@fjellrute/core/i18n/locale';
 import { LanguageSwitcher } from './LanguageSwitcher.tsx';
 import styles from './LoginPage.module.css';
 

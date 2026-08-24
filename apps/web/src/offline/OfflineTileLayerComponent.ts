@@ -10,7 +10,7 @@ import {
 } from '@react-leaflet/core';
 import type { TileLayerProps } from 'react-leaflet';
 import { OfflineTileLayer } from './OfflineTileLayer';
-import type { OfflineLayerId } from './layers';
+import type { OfflineLayerId } from '@fjellrute/core/offline/layers';
 
 export interface OfflineTileLayerProps
   extends Omit<TileLayerProps, 'url'> {

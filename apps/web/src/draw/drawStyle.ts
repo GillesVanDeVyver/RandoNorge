@@ -9,7 +9,7 @@
  * the planner from loading.
  */
 
-import type { DrawStyle } from '../types';
+import type { DrawStyle } from '@fjellrute/core/types';
 
 const STORAGE_KEY = 'randonorge:draw-style';
 

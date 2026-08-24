@@ -16,9 +16,9 @@
 // line is gated.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LatLng, Route, TrackTimes } from '../types';
-import { haversine } from '../geometry';
-import { translate } from '../i18n/locale.ts';
+import type { LatLng, Route, TrackTimes } from '@fjellrute/core/types';
+import { haversine } from '@fjellrute/core/geometry';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 export type TrackingStatus = 'idle' | 'recording' | 'paused' | 'finished';
 

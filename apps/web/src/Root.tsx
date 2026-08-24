@@ -27,15 +27,15 @@ import {
   listRoutes,
   setRouteShared,
   type SavedRoute,
-} from './routes/api.ts';
+} from '@fjellrute/core/routes/api';
 import {
   deleteTrack,
   listTracks,
   setTrackShared,
   type SavedTrack,
 } from './tracking/api.ts';
-import { formatAscent, formatDate, formatDistance } from './routes/format.ts';
-import { routeToGpx, gpxFilename } from './routes/gpx.ts';
+import { formatAscent, formatDate, formatDistance } from '@fjellrute/core/routes/format';
+import { routeToGpx, gpxFilename } from '@fjellrute/core/routes/gpx';
 import { downloadTextFile } from './routes/download.ts';
 
 /**

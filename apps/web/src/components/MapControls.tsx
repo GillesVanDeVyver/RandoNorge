@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { useMap } from 'react-leaflet';
-import type { Overlay, Route } from '../types';
+import type { Overlay, Route } from '@fjellrute/core/types';
 import {
   AreaIcon,
   FullscreenIcon,
@@ -15,13 +15,13 @@ import {
   SearchIcon,
   SnowflakeIcon,
 } from './icons';
-import { searchPlace } from '../search/geocode';
+import { searchPlace } from '@fjellrute/core/search/geocode';
 import {
   toggleRegionsVisible,
   useRegionsVisible,
 } from '../offline/regionOverlayMode';
 import { useIsMobile } from '../useIsMobile';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './MapControls.module.css';
 
 interface Props {

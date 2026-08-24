@@ -72,16 +72,16 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { ProfileData } from '../elevation/profile';
-import type { LatLng, Overlay, Route } from '../types';
-import { routeEnds } from '../geometry';
-import { ForecastContext } from '../forecast/snapshot';
-import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
-import { useWeather, weatherCandidates } from '../weather/useWeather';
-import { useSnow } from '../snow/useSnow';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
+import type { LatLng, Overlay, Route } from '@fjellrute/core/types';
+import { routeEnds } from '@fjellrute/core/geometry';
+import { ForecastContext } from '@fjellrute/core/forecast/snapshot';
+import { todayLocalYMD, useAvalanche } from '@fjellrute/core/avalanche/useAvalanche';
+import { useWeather, weatherCandidates } from '@fjellrute/core/weather/useWeather';
+import { useSnow } from '@fjellrute/core/snow/useSnow';
 import { PARKING_DEFAULT_RADIUS_M, useParking } from '../parking/useParking';
 import { recallParkingRadius } from '../parking/radius';
-import type { WeatherHour } from '../weather/api';
+import type { WeatherHour } from '@fjellrute/core/weather/api';
 import { BriefingSheet, type BriefingData } from './BriefingSheet';
 import { hasSnowOnRoute, summariseSnow } from './snowSummary';
 import { briefingFileName } from './fileName';
@@ -93,7 +93,7 @@ import {
   type BriefingOptions,
 } from './options';
 import { recallProfileScale } from '../profileScale';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 // A plain stylesheet, not a CSS module: the print rules have to reach the
 // document root and hide the rest of the app, which needs stable, unhashed
 // selectors. See briefing.css.

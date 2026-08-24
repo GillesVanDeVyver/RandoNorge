@@ -30,8 +30,8 @@ public in Enhetsregisteret to anyone who looks up the number.
 
 This was the change that opened `PRIVACY_VERSION` for the week; the in-app
 feedback feature then landed inside the same bump, so **2026-08-08** carries
-both. The version is set in three places that must agree — `src/terms/privacy.ts`,
-`public/privacy.html` (twice, once per language heading) and
+both. The version is set in three places that must agree — `packages/core/src/terms/privacy.ts`,
+`apps/web/public/privacy.html` (twice, once per language heading) and
 `worker/policyVersions.js` — and all three read `2026-08-08`. The two policy
 copies were compared section by section, both languages, and match. This bump
 re-presents the acceptance gate to signed-in users; doing it at alpha scale

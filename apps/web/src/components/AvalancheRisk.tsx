@@ -1,13 +1,13 @@
 import { useContext, useEffect, useMemo, useState } from 'react';
-import type { ProfileData } from '../elevation/profile';
-import type { AvalancheWarning } from '../avalanche/api';
-import { todayLocalYMD, useAvalanche } from '../avalanche/useAvalanche';
-import { DANGER_LEVELS, dangerLevelLabel } from '../avalanche/dangerScale';
-import { ForecastContext } from '../forecast/snapshot';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
+import type { AvalancheWarning } from '@fjellrute/core/avalanche/api';
+import { todayLocalYMD, useAvalanche } from '@fjellrute/core/avalanche/useAvalanche';
+import { DANGER_LEVELS, dangerLevelLabel } from '@fjellrute/core/avalanche/dangerScale';
+import { ForecastContext } from '@fjellrute/core/forecast/snapshot';
 import { DatePopover } from './DatePopover';
 import { AvalancheProblems } from './AvalancheProblems';
-import { translate } from '../i18n/locale.ts';
-import { useT } from '../i18n/index.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './AvalancheRisk.module.css';
 
 interface Props {

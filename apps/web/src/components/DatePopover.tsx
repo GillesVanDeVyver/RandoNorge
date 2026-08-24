@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { translate } from '../i18n/locale.ts';
-import { useT } from '../i18n/index.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './DatePopover.module.css';
 
 // Custom date picker shared by the snow-depth and avalanche-risk panels.

@@ -9,11 +9,11 @@
 // The numbers that go beside it live in snowSummary.ts, which the sheet also
 // reads for its key-facts panel.
 
-import type { ProfileData } from '../elevation/profile';
-import type { SnowData } from '../snow/useSnow';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
+import type { SnowData } from '@fjellrute/core/snow/useSnow';
 import { snowSamples, type SnowSample } from './snowSummary';
 import { ticks } from './axis';
-import { translate } from '../i18n/locale.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 const W = 1000;
 const H = 120;

@@ -3,10 +3,10 @@ import {
   effectiveDownloadZoom,
   type OfflineLayer,
   type OfflineLayerId,
-} from '../offline/layers';
+} from '@fjellrute/core/offline/layers';
 import type { DownloadProgress } from '../offline/download';
 import { formatBytes, formatResolution } from '../offline/format';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './OfflineManager.module.css';
 
 const MIN_DETAIL_ZOOM = 10;

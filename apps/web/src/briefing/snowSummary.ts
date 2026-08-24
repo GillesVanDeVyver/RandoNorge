@@ -8,8 +8,8 @@
 // Everything here therefore reports a range along the route and how much of it
 // the grid actually answered for, rather than one confident headline number.
 
-import type { ProfileData } from '../elevation/profile';
-import type { SnowData } from '../snow/useSnow';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
+import type { SnowData } from '@fjellrute/core/snow/useSnow';
 
 export interface SnowSummary {
   minCm: number;

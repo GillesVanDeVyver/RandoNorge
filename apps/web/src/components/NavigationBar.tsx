@@ -4,9 +4,9 @@
 // flips to a review state offering Save activity / Discard.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { formatDate, formatDistance } from '../routes/format';
+import { formatDate, formatDistance } from '@fjellrute/core/routes/format';
 import { ArrowLeftIcon, FlagIcon, PauseIcon, PlayIcon } from './icons';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './NavigationBar.module.css';
 
 /** How long (ms) the Finish button must be held before the tour ends. */

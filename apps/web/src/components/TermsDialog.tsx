@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { TERMS, TERMS_VERSION, type TermsLang } from '../terms/content';
-import { PRIVACY, PRIVACY_VERSION } from '../terms/privacy';
-import { useLocale } from '../i18n/index.ts';
+import { TERMS, TERMS_VERSION, type TermsLang } from '@fjellrute/core/terms/content';
+import { PRIVACY, PRIVACY_VERSION } from '@fjellrute/core/terms/privacy';
+import { useLocale } from '@fjellrute/core/i18n';
 import styles from './TermsDialog.module.css';
 
 // In-app reference view of the terms of use and the privacy policy, shown

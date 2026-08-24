@@ -71,7 +71,7 @@ Two paths were identified that could clear the quality bar:
 The complete removed implementation is preserved as
 `docs/winter-imagery.patch` — restore it with
 `git apply docs/winter-imagery.patch`. It comprises: `worker/winter.js`, the
-`'winter'` overlay in `src/types/index.ts`, layers in `Map.tsx` /
+`'winter'` overlay in `packages/core/src/types/index.ts`, layers in `Map.tsx` /
 `Map3DView.tsx`, picker entries in `MapControls.tsx`, credit in
 `MapAttribution.tsx`, plus wiring in `worker/index.js`, `wrangler.jsonc`
 (`run_worker_first`) and `vite.config.ts`. A working CDSE OGC configuration

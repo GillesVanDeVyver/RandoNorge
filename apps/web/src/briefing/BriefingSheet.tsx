@@ -19,18 +19,18 @@ import {
   useState,
 } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import type { ProfileData } from '../elevation/profile';
-import type { LatLng, Overlay, Route } from '../types';
-import type { AvalancheWarning } from '../avalanche/api';
-import type { WeatherHour } from '../weather/api';
-import { DANGER_LEVELS, dangerLevelLabel } from '../avalanche/dangerScale';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
+import type { LatLng, Overlay, Route } from '@fjellrute/core/types';
+import type { AvalancheWarning } from '@fjellrute/core/avalanche/api';
+import type { WeatherHour } from '@fjellrute/core/weather/api';
+import { DANGER_LEVELS, dangerLevelLabel } from '@fjellrute/core/avalanche/dangerScale';
 import {
   DIRS,
   aspectList,
   elevationText,
   roseSectorPath,
-} from '../avalanche/problemText';
-import type { SnowData } from '../snow/useSnow';
+} from '@fjellrute/core/avalanche/problemText';
+import type { SnowData } from '@fjellrute/core/snow/useSnow';
 import type { ParkingArea } from '../parking/api';
 import {
   formatParkingDistance,
@@ -58,8 +58,8 @@ import {
 } from './mapFraming';
 import { TERRAIN_BEARING } from '../terrainView';
 import type { BriefingOptions } from './options';
-import { useT, type Translate } from '../i18n/index.ts';
-import { translate } from '../i18n/locale.ts';
+import { useT, type Translate } from '@fjellrute/core/i18n';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 /** Which of the planner's two maps the sheet prints. Flat and north-up reads
  *  as a map and can be navigated from; the terrain view reads as a mountain and

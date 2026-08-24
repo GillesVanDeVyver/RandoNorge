@@ -17,7 +17,7 @@
 // a route it plausibly still looks at, so loading a different tour and printing
 // it in 3D cannot produce a beautifully angled photograph of the wrong valley.
 
-import type { Route } from './types';
+import type { Route } from '@fjellrute/core/types';
 
 /** A MapLibre camera, in the terms MapLibre's own jumpTo takes. */
 export interface TerrainCamera {

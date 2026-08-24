@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { DrawStyle, LatLng, Mode, Overlay, Route } from '../types';
+import type { DrawStyle, LatLng, Mode, Overlay, Route } from '@fjellrute/core/types';
 import type { RouteProgress } from '../tracking/useRouteProgress';
 import {
   FLAT_MAX_ZOOM,

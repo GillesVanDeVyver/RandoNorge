@@ -23,7 +23,7 @@
 // tour was planned on is a briefing about a different tour. Three states cannot
 // be a boolean, so `mapOverlay` is the one option here that is a choice.
 
-import type { Overlay } from '../types';
+import type { Overlay } from '@fjellrute/core/types';
 
 export interface BriefingOptions {
   /** Static Kartverket map with the route drawn over it. */

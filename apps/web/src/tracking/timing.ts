@@ -14,8 +14,8 @@
 // segments without adding the gap between them. That keeps this curve's
 // x-values aligned with the profile samples the chart actually renders.
 
-import type { Route, TrackTimes } from '../types';
-import { haversine } from '../geometry';
+import type { Route, TrackTimes } from '@fjellrute/core/types';
+import { haversine } from '@fjellrute/core/geometry';
 
 // Same threshold as the elevation profile (src/elevation/profile.ts).
 const MIN_SEGMENT_LENGTH_M = 50;

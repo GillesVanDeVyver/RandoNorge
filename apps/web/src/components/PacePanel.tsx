@@ -5,8 +5,8 @@
 // tracking session, so they keep ticking while recording and freeze on
 // Finish.
 
-import { formatDuration, formatPace, formatSpeed } from '../routes/format';
-import { useT } from '../i18n/index.ts';
+import { formatDuration, formatPace, formatSpeed } from '@fjellrute/core/routes/format';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './PacePanel.module.css';
 
 interface Props {

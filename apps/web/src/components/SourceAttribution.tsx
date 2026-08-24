@@ -9,7 +9,7 @@
 // The last of those is the only one where the credit is a licence term rather
 // than a courtesy — ODbL §4.3 — so it is also rendered outside this component,
 // in the map corner and on the printed briefing. See docs/DATA_LICENSES.md §6.
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './SourceAttribution.module.css';
 
 interface SourceLink {

@@ -5,12 +5,12 @@ import 'leaflet/dist/leaflet.css';
 import { ArrowLeftIcon, MapIcon, TrashIcon } from './icons';
 import { OfflineTileLayerComponent } from '../offline/OfflineTileLayerComponent';
 import { OfflineDownloadPanel } from './OfflineDownloadPanel';
-import { OFFLINE_LAYER_LIST } from '../offline/layers';
+import { OFFLINE_LAYER_LIST } from '@fjellrute/core/offline/layers';
 import { removeRegion } from '../offline/download';
 import { clearAllOffline } from '../offline/db';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
 import { formatBytes, formatResolution } from '../offline/format';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './OfflineMapsPage.module.css';
 
 interface Props {

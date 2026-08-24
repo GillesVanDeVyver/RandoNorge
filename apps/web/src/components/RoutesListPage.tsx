@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Route } from '../types';
+import type { Route } from '@fjellrute/core/types';
 import {
   ArrowLeftIcon,
   BookmarkIcon,
@@ -13,8 +13,8 @@ import {
   TrashIcon,
 } from './icons';
 import { RouteThumbnail } from './RouteThumbnail';
-import { translate } from '../i18n/locale.ts';
-import { useT } from '../i18n/index.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './RoutesListPage.module.css';
 
 /** One row in the route library (preformatted display strings). */

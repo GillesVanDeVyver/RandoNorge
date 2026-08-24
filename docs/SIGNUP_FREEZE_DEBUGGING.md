@@ -259,7 +259,7 @@ preferring `consume` would meet a no-op `get`, silently stop rate limiting
 `/api/auth/*` altogether, and say nothing. That is the one outcome worse than
 the freeze.
 
-### Fix — client (`src/components/LoginPage.tsx`)
+### Fix — client (`apps/web/src/components/LoginPage.tsx`)
 
 The server bug was only half of what the user saw. `performSignup` had no
 timeout and no `catch`, and is invoked as `void performSignup()` — so a
@@ -550,7 +550,7 @@ Cause C (2026-08-06):
   changes the storage back.
 - `worker/auth.js` — `storage: 'database'` → `customStorage:
   betterAuthRateLimitStorage(env)`.
-- `src/components/LoginPage.tsx` — the `authRequest` helper (timeout + catch)
+- `apps/web/src/components/LoginPage.tsx` — the `authRequest` helper (timeout + catch)
   behind every auth call, `try`/`finally` around the busy flag in every
   handler, an abort signal on both `/api/account-exists` pre-checks, and real
   error messages when they fire.

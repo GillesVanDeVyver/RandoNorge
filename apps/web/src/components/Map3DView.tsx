@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { LatLng, Mode, Overlay, Route, Segment } from '../types';
-import { simplify } from '../geometry';
+import type { LatLng, Mode, Overlay, Route, Segment } from '@fjellrute/core/types';
+import { simplify } from '@fjellrute/core/geometry';
 import {
   AreaIcon,
   CompassIcon,
@@ -16,7 +16,7 @@ import {
   SearchIcon,
   SnowflakeIcon,
 } from './icons';
-import { searchPlace } from '../search/geocode';
+import { searchPlace } from '@fjellrute/core/search/geocode';
 import type { RegionMeta } from '../offline/db';
 import {
   isRegionsVisible,
@@ -30,7 +30,7 @@ import {
   registerOfflineMapProtocol,
 } from '../offline/maplibreOffline';
 import { subscribeNetworkMode } from '../offline/networkMode';
-import { clamp, subtractRects, MASK_TINT, type Rect } from '../offline/maskGeometry';
+import { clamp, subtractRects, MASK_TINT, type Rect } from '@fjellrute/core/offline/maskGeometry';
 import { Map3DCursorReadout } from './Map3DCursorReadout';
 import { Map3DParkingSigns } from './Map3DParkingSigns';
 import {
@@ -66,7 +66,7 @@ import {
   reportViewCamera,
 } from '../viewCamera';
 import type { ViewCamera } from '../viewCamera';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './Map3DView.module.css';
 
 // Register the offline tile protocol so the raster sources below can read

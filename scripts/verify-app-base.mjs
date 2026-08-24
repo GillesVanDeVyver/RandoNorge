@@ -40,7 +40,7 @@ import { join, relative } from 'node:path';
 // Order-sensitive in a way that can silently blank out the code being checked
 // (it once did, here); the reasoning lives with the helper.
 import { stripComments } from './lib/strip-comments.mjs';
-import { REPO, WEB } from './lib/tree.mjs';
+import { CORE, REPO, WEB } from './lib/tree.mjs';
 
 const root = REPO;
 const basePath = join(WEB, 'src/appBase.ts');
@@ -258,7 +258,10 @@ if (workerOwnsRoot) {
 console.log('\n[literals] no route or redirect is hard-coded');
 
 // Files under src/, so a new component with a new redirect is covered without
-// anyone remembering to add it here.
+// anyone remembering to add it here — and under BOTH packages, because the
+// extraction into @fjellrute/core moved the API clients out of apps/web and
+// scanning only the app would have quietly narrowed this check to the half of
+// the frontend that no longer contains routes/api.ts.
 function sourceFiles(dir) {
   const out = [];
   for (const entry of readdirSync(dir)) {
@@ -268,7 +271,10 @@ function sourceFiles(dir) {
   }
   return out;
 }
-const files = sourceFiles(join(WEB, 'src'));
+const files = [
+  ...sourceFiles(join(WEB, 'src')),
+  ...sourceFiles(join(CORE, 'src')),
+];
 
 // Each pattern is a way of naming a destination. The `'/'` is what makes them
 // findable: a destination built with appPath() is an identifier, never a string

@@ -7,7 +7,7 @@ the account.
 
 ## How it works
 
-1. The sign-up form (`src/components/LoginPage.tsx`) shows an **Invite code**
+1. The sign-up form (`apps/web/src/components/LoginPage.tsx`) shows an **Invite code**
    field and sends it alongside name/email/password/username.
 2. The Worker intercepts `POST /api/auth/sign-up/email`
    (`worker/index.js` → `gatedEmailSignUp`) and validates the code against the

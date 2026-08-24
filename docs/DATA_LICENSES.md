@@ -54,7 +54,7 @@ ToS/info dialog).
   for z12+ without asking Kartverket first.
 - **Offline caching of z12+ topo tiles is a form of "copying" this data and
   is therefore currently disallowed.** The offline downloader caps topo at
-  z11 (`maxDownloadZoom: 11` in `src/offline/layers.ts`) so no Geovekst-
+  z11 (`maxDownloadZoom: 11` in `packages/core/src/offline/layers.ts`) so no Geovekst-
   restricted tile is ever persisted to a user's device. This is why a
   downloaded topo area looks crisp online but blurs when you zoom in close
   offline (most visible in the 3D view) — it is a licensing limit, not a bug.
@@ -109,7 +109,7 @@ Links:
 
 Endpoints used:
 
-- `https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}` (+ `/export` for pixel sampling in `src/elevation/runout.ts`)
+- `https://gis3.nve.no/arcgis/rest/services/wmts/Bratthet_med_utlop_2024/MapServer/tile/{z}/{y}/{x}` (+ `/export` for pixel sampling in `packages/core/src/elevation/runout.ts`)
 - `https://api01.nve.no/hydrology/forecast/avalanche/v6.3.2/api/AvalancheWarningByCoordinates/Detail` (proxied at `/varsom-api`)
 
 **License: verified — NLOD (Norsk lisens for offentlige data), compatible with
@@ -226,7 +226,7 @@ which is why the credit prints even when the section came back empty.
 
 **§4.6 — the database behind a publicly used Produced Work must itself be
 made available, under ODbL, at no more than a reasonable cost.** ✅ Discharged
-at **https://fjellrute.no/data/parking** (`public/data/parking/`), which serves
+at **https://fjellrute.no/data/parking** (`apps/web/public/data/parking/`), which serves
 the extract as GeoJSON alongside `LICENSE.txt` and a `README.md` recording
 provenance and filter rules. Three things depend on that URL continuing to
 resolve, and all three are easy to break silently:
@@ -234,12 +234,12 @@ resolve, and all three are easy to break silently:
 1. `'/data/parking'` is in `STATIC_PAGES` in `worker/knownPaths.js`. Remove it
    and the path 302s to the site root, turning a licence obligation into a
    redirect nobody notices.
-2. `public/data/parking/` is **committed**, deliberately, and is the one
+2. `apps/web/public/data/parking/` is **committed**, deliberately, and is the one
    generated artefact in the tree that is. The 4 MB loader SQL is not — it goes
    to the gitignored `build/`, and `--from-geojson` rebuilds it from the
    published copy, so the committed file is both the obligation and the source
    of truth.
-3. `src/terms/content.ts` §7 and this section both name the URL. Moving it
+3. `packages/core/src/terms/content.ts` §7 and this section both name the URL. Moving it
    means changing both.
 
 **Share-alike, and why parking is all-OSM or nothing.** Under the OSMF
@@ -261,7 +261,7 @@ analysis.
   supported pattern and also the faster one.
 - **Refresh:** monthly, by re-running the build against a fresh Geofabrik
   extract and reloading the table. The counts quoted in
-  `public/data/parking/index.html` come from that run and are updated with it.
+  `apps/web/public/data/parking/index.html` come from that run and are updated with it.
 - **Nominatim is not used** either — no geocoding against OSM infrastructure.
 
 **Coverage, measured.** The 2026-08-22 build saw 47,422 `amenity=parking`
@@ -302,17 +302,17 @@ Links:
    MapLibre attribution control (3D, now expanded, not collapsed) — credits
    Kartverket, NVE/seNorge, MET Norway, Varsom, Mapzen/AWS, and OpenStreetMap
    contributors while parking pins are shown.
-2. **Terms of use, §7 "Data sources and licences":** `src/terms/content.ts`,
+2. **Terms of use, §7 "Data sources and licences":** `packages/core/src/terms/content.ts`,
    English and Norwegian, full wording with license names (NLOD, CC BY 4.0,
    ODbL 1.0) — rendered both by the acceptance gate (`TermsPage`) and by the
    in-app info dialog (`TermsDialog.tsx`), which hold no copy of their own.
    This is also the only place in the UI that names the §4.6 download URL.
-3. **Data panels:** `src/components/SourceAttribution.tsx` under the snow,
+3. **Data panels:** `apps/web/src/components/SourceAttribution.tsx` under the snow,
    avalanche and parking panels.
 4. `docs/terms-of-service.{en,no}.md` are **pointers** to §7 above, not a
    second copy — deliberately, so there is only one terms text to keep true.
 5. **Printed briefing:** the credit line at the foot of the sheet
-   (`src/briefing/BriefingSheet.tsx`), which credits only the sources whose
+   (`apps/web/src/briefing/BriefingSheet.tsx`), which credits only the sources whose
    sections were actually switched on — a sheet with parking off does not cite
    OpenStreetMap, and the test harness asserts that in both directions. The
    parking credit is the one on that line that is a licence term (ODbL §4.3)
@@ -325,7 +325,7 @@ Links:
 
 ### A note on `TERMS_VERSION`
 
-§7 of `src/terms/content.ts` has twice been edited **without bumping
+§7 of `packages/core/src/terms/content.ts` has twice been edited **without bumping
 `TERMS_VERSION`** (still `2026-07-16`): once when the NVDB credit was added, and
 again on 2026-08-22 when that credit was replaced by OpenStreetMap under ODbL.
 The judgement is the same both times: §7 discloses whose data the app shows and
@@ -346,7 +346,7 @@ the fix is two constants: `TERMS_VERSION` here and its copy in
 - Kartverket permission request (submitted, **pending — under handling**):
   we have asked Kartverket (post@kartverket.no) for permission to cache z12+
   topo tiles offline. Until it is granted, the offline downloader stays capped
-  at z11 (`src/offline/layers.ts`, `maxDownloadZoom: 11`). When the reply
+  at z11 (`packages/core/src/offline/layers.ts`, `maxDownloadZoom: 11`). When the reply
   arrives, record the outcome here and, if approved, raise the cap.
 - If traffic grows, ask Kartverket about a service agreement before any
   server-side tile caching of z12+ (Geovekst restriction).

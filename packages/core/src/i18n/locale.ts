@@ -10,7 +10,17 @@
  * dictionary keyed by ids, callers pass both strings inline via
  * `t(no, en)`. For a two-language app this keeps each translation next to
  * where it is used and avoids drift between keys and copy.
+ *
+ * Persistence and the `<html lang>` label are the only two things here that
+ * ever needed a browser, and they live in ./environment.ts now that this module
+ * is shared with a phone app. The store is otherwise unchanged.
  */
+
+import {
+  readStoredLocaleValue,
+  setDocumentLanguage,
+  writeStoredLocaleValue,
+} from './environment.ts';
 
 export type Locale = 'no' | 'en';
 
@@ -28,8 +38,6 @@ export const LOCALE_SHORT_LABELS: Record<Locale, string> = {
   en: 'EN',
 };
 
-const STORAGE_KEY = 'randonorge:lang';
-
 /** App default: Norwegian, since this is a Norway-focused hiking app. */
 const DEFAULT_LOCALE: Locale = 'no';
 
@@ -38,14 +46,8 @@ function isLocale(value: unknown): value is Locale {
 }
 
 function readStoredLocale(): Locale {
-  if (typeof window === 'undefined') return DEFAULT_LOCALE;
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (isLocale(stored)) return stored;
-  } catch {
-    // localStorage can throw in private-mode / sandboxed contexts.
-  }
-  return DEFAULT_LOCALE;
+  const stored = readStoredLocaleValue();
+  return isLocale(stored) ? stored : DEFAULT_LOCALE;
 }
 
 let currentLocale: Locale = readStoredLocale();
@@ -61,14 +63,10 @@ export function getLocale(): Locale {
 export function setLocale(locale: Locale): void {
   if (!isLocale(locale) || locale === currentLocale) return;
   currentLocale = locale;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, locale);
-  } catch {
-    // Ignore persistence failures; in-memory locale still updates.
-  }
-  if (typeof document !== 'undefined') {
-    document.documentElement.lang = locale === 'no' ? 'nb' : 'en';
-  }
+  writeStoredLocaleValue(locale);
+  // Before notifying, as it was when this line read `document.documentElement`
+  // directly: a subscriber that measures text should see the new label.
+  setDocumentLanguage(locale === 'no' ? 'nb' : 'en');
   for (const listener of listeners) listener(locale);
 }
 

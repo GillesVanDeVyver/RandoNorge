@@ -19,8 +19,8 @@ import type {
   LineLayerSpecification,
   SkySpecification,
 } from 'maplibre-gl';
-import type { Route } from './types';
-import { routeConnectors, routeEnds } from './geometry';
+import type { Route } from '@fjellrute/core/types';
+import { routeConnectors, routeEnds } from '@fjellrute/core/geometry';
 import {
   ROUTE_COLOR,
   ROUTE_WEIGHT,

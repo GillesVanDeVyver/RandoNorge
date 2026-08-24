@@ -132,7 +132,7 @@ with a WMS at `https://wms.geonorge.no/skwms1/wms.friluftsruter2` and Atom feeds
 per format.
 
 GPX as a first-class distribution format matters more than it sounds: Fjellrute
-already has GPX import (`src/routes/`), so the ingest path for evaluation is
+already has GPX import (`packages/core/src/routes/`), so the ingest path for evaluation is
 hours, not days.
 
 Data capture is largely *innmeldinger* from lag, foreninger og privatpersoner via

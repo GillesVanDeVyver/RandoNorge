@@ -1,7 +1,7 @@
-import type { SavedRoute } from '../routes/api';
+import type { SavedRoute } from '@fjellrute/core/routes/api';
 import type { SavedTrack } from '../tracking/api';
 import type { Owner } from '../public/api';
-import { formatAscent, formatDate, formatDistance } from '../routes/format';
+import { formatAscent, formatDate, formatDistance } from '@fjellrute/core/routes/format';
 import {
   ArrowLeftIcon,
   BookmarkIcon,
@@ -10,8 +10,8 @@ import {
   RouteIcon,
 } from './icons';
 import { RouteThumbnail } from './RouteThumbnail';
-import { translate } from '../i18n/locale.ts';
-import { useT } from '../i18n/index.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
+import { useT } from '@fjellrute/core/i18n';
 import listStyles from './RoutesListPage.module.css';
 import styles from './PublicProfilePage.module.css';
 

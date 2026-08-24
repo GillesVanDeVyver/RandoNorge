@@ -10,6 +10,12 @@
 import { tileBBox3857 } from './tileMath';
 import { translate } from '../i18n/locale.ts';
 
+/** The page's origin in a browser, or '' where there is no `location` — see the
+ *  terrain layer below, the only descriptor that needs it. */
+function webOrigin(): string {
+  return (globalThis as { location?: { origin: string } }).location?.origin ?? '';
+}
+
 export type OfflineLayerId = 'topo' | 'steepness' | 'snowdepth' | 'terrain';
 
 export interface TileUrlOpts {
@@ -145,8 +151,13 @@ const snowdepth: OfflineLayer = {
       WIDTH: '256',
       HEIGHT: '256',
       BBOX: `${minX},${minY},${maxX},${maxY}`,
+      // TIME last, and in the initialiser rather than a later params.set(),
+      // because React Native's URLSearchParams implements only the object
+      // constructor, append() and toString() — set() throws "not implemented"
+      // there. Spreading keeps the emitted query string byte-identical to the
+      // set() this replaced, including the position of TIME.
+      ...(opts?.snowDate ? { TIME: opts.snowDate } : {}),
     });
-    if (opts?.snowDate) params.set('TIME', opts.snowDate);
     return `${SNOW_WMS_BASE}?${params.toString()}`;
   },
   storageKey: (z, x, y, opts) =>
@@ -177,7 +188,16 @@ const terrain: OfflineLayer = {
   needsDate: false,
   encoded: true,
   // Absolute (same-origin) URL: the Worker route lives at /terrain-dem/*.
-  tileUrl: (z, x, y) => `${location.origin}/terrain-dem/${z}/${x}/${y}.png`,
+  //
+  // `location` is read off globalThis rather than named directly because this
+  // package compiles without the DOM lib. In any browser context — window or
+  // worker — this produces exactly the string it always did. Off the web it
+  // produces the root-relative `/terrain-dem/…`, which is the same shape as the
+  // other same-origin endpoints in this package (`/metno-api/…`, `/gts-api/…`,
+  // `/api/routes`): all of them need one decision about what host the phone app
+  // talks to, and making that decision four different ways here would be worse
+  // than making it once in Phase 2.
+  tileUrl: (z, x, y) => `${webOrigin()}/terrain-dem/${z}/${x}/${y}.png`,
   storageKey: (z, x, y) => `terrain/${z}/${x}/${y}`,
 };
 

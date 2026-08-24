@@ -6,8 +6,8 @@
 // every pixel from it — doing all that on the UI thread is what was
 // pegging the CPU at ~100% and freezing the page during loading.
 
-import type { Route } from '../types';
-import { computeProfile, type ProfileData } from './profile';
+import type { Route } from '@fjellrute/core/types';
+import { computeProfile, type ProfileData } from '@fjellrute/core/elevation/profile';
 
 declare const self: DedicatedWorkerGlobalScope;
 

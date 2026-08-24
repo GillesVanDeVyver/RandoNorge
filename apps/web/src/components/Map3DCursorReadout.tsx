@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type maplibregl from 'maplibre-gl';
-import type { LatLng, Overlay } from '../types';
-import { fetchElevationSlope } from '../elevation/pointSample';
-import { fetchSnowDepths } from '../snow/api';
+import type { LatLng, Overlay } from '@fjellrute/core/types';
+import { fetchElevationSlope } from '@fjellrute/core/elevation/pointSample';
+import { fetchSnowDepths } from '@fjellrute/core/snow/api';
 import { useIsMobile } from '../useIsMobile';
 // Reuse the 2D readout's pill styling so the two maps look identical.
 import styles from './CursorReadout.module.css';

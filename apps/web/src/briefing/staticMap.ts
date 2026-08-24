@@ -25,9 +25,9 @@
 // map fail outright on strict tile-server setups. Anyone adding an "export as
 // PNG" button must revisit this decision, not just call toDataURL.
 
-import type { LatLng, Overlay, Route } from '../types';
-import { OFFLINE_LAYERS } from '../offline/layers';
-import { routeConnectors, routeEnds } from '../geometry';
+import type { LatLng, Overlay, Route } from '@fjellrute/core/types';
+import { OFFLINE_LAYERS } from '@fjellrute/core/offline/layers';
+import { routeConnectors, routeEnds } from '@fjellrute/core/geometry';
 import { clampZoom, FIT, type Framing } from './mapFraming';
 import { drawParkingSign } from '../parking/sign';
 import { plainParkingSigns } from '../parking/signs';

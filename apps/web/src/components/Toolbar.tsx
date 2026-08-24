@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import type { DrawStyle, Mode } from '../types';
-import { IMPORT_ACCEPT } from '../routes/import';
+import type { DrawStyle, Mode } from '@fjellrute/core/types';
+import { IMPORT_ACCEPT } from '@fjellrute/core/routes/import';
 import {
   CloseIcon,
   DownloadIcon,
@@ -12,7 +12,7 @@ import {
   TrashIcon,
   UploadIcon,
 } from './icons';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './Toolbar.module.css';
 
 interface Props {

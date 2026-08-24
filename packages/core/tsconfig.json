@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.core.tsbuildinfo",
+    "target": "es2023",
+
+    // THE IMPORTANT LINE IN THIS FILE.
+    //
+    // No "DOM". Every claim this package makes about being platform-free rests
+    // on it: with the DOM lib absent, a module that reaches for `document`,
+    // `localStorage`, `DOMParser` or `OffscreenCanvas` does not compile, so
+    // `tsc -b` is the thing enforcing the boundary rather than a convention
+    // somebody has to remember. That is deliberately awkward — the awkwardness
+    // is the point, and where it bites the answer is an adapter (see
+    // src/routes/xml.ts, src/elevation/raster.ts, src/i18n/environment.ts)
+    // rather than widening this line.
+    //
+    // React Native's types are absent for the same reason, from the other side.
+    "lib": ["ES2023"],
+    "types": [],
+
+    "module": "esnext",
+    "skipLibCheck": true,
+
+    /* Bundler mode — matched to apps/web/tsconfig.app.json, because both apps
+       compile these files from source rather than consuming a build. */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}

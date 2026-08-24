@@ -11,8 +11,8 @@ import {
   type PublicRoute,
   type PublicTrack,
 } from '../public/api';
-import { translate } from '../i18n/locale.ts';
-import { useT } from '../i18n/index.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
+import { useT } from '@fjellrute/core/i18n';
 import listStyles from './RoutesListPage.module.css';
 
 /** Which public page the URL points at. Shared routes/tours carry the

@@ -15,10 +15,10 @@
 // current `overlay` / `view` props, mirroring what the native controls
 // would have accumulated from the mounted layers.
 import { useEffect, useRef, useState } from 'react';
-import type { Overlay } from '../types';
+import type { Overlay } from '@fjellrute/core/types';
 import { useIsMobile } from '../useIsMobile';
 import { useParkingAreas } from '../parking/store';
-import { useT } from '../i18n/index.ts';
+import { useT } from '@fjellrute/core/i18n';
 import styles from './MapAttribution.module.css';
 
 const ext = { target: '_blank', rel: 'noopener noreferrer' } as const;

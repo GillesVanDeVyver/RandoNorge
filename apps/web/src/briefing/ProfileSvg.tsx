@@ -20,11 +20,11 @@
 // it. Only the plot's height and the number of elevations there is room to
 // label change between them; nothing about the drawing itself does.
 
-import type { ProfileData } from '../elevation/profile';
-import { RUNOUT_UNKNOWN } from '../elevation/runout';
-import { GRAY, RUNOUT_COLORS, steepnessColor } from '../elevation/steepness';
+import type { ProfileData } from '@fjellrute/core/elevation/profile';
+import { RUNOUT_UNKNOWN } from '@fjellrute/core/elevation/runout';
+import { GRAY, RUNOUT_COLORS, steepnessColor } from '@fjellrute/core/elevation/steepness';
 import { ticks } from './axis';
-import { translate } from '../i18n/locale.ts';
+import { translate } from '@fjellrute/core/i18n/locale';
 
 // Viewport units. The SVG is scaled to the page by CSS, so these are just the
 // internal coordinate system — chosen wide and short to suit a landscape strip.

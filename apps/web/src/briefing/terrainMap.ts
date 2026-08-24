@@ -42,7 +42,7 @@
 // watched at.
 
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
-import type { LatLng, Overlay, Route } from '../types';
+import type { LatLng, Overlay, Route } from '@fjellrute/core/types';
 import {
   PARKING_SIGN_LAYER,
   PARKING_SIGN_LAYOUT,
@@ -72,7 +72,7 @@ import {
   lngToTileX,
   tileXToLng,
   tileYToLat,
-} from '../offline/tileMath';
+} from '@fjellrute/core/offline/tileMath';
 
 /** How long the first copy waits for tiles, the DEM and the first paint before
  *  taking whatever has arrived. Long enough for a cold cache on a slow

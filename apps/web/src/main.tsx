@@ -13,7 +13,7 @@ import './index.css'
 import { consumeSeasonPathOverride } from './theme/season.ts'
 import { Root } from './Root.tsx'
 import { ErrorBoundary } from './ErrorBoundary.tsx'
-import { getLocale } from './i18n/index.ts'
+import { getLocale } from '@fjellrute/core/i18n'
 
 // Reflect the persisted UI language (default Norwegian) on the <html> tag so
 // screen readers and the browser use the correct language from first paint.

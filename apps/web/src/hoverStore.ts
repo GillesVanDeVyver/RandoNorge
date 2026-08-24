@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { LatLng } from './types';
+import type { LatLng } from '@fjellrute/core/types';
 
 // Tiny pub/sub store for the elevation-chart hover point. Kept out of
 // React state so that hovering the chart doesn't trigger re-renders of

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { LatLng } from '../types';
+import type { LatLng } from '@fjellrute/core/types';
 import { setHoverPoint } from '../hoverStore';
 import { PARKING_PIN_COLOR } from './pin';
 

@@ -47,10 +47,10 @@ extraction, which means the D1 import pipeline the OSM route required simply doe
 not exist. The cost is coverage, and it is a real cost rather than a rounding
 error.
 
-Files: `src/parking/{api,useParking,store,radius,format,pin}.ts`,
-`src/components/{ParkingPanel,ParkingLayer}.tsx`, the `/nvdb-api` route in
+Files: `apps/web/src/parking/{api,useParking,store,radius,format,pin}.ts`,
+`apps/web/src/components/{ParkingPanel,ParkingLayer}.tsx`, the `/nvdb-api` route in
 `worker/index.js` and `vite.config.ts`, and the parking section in
-`src/briefing/BriefingSheet.tsx`. Licence section 6 in `docs/DATA_LICENSES.md`.
+`apps/web/src/briefing/BriefingSheet.tsx`. Licence section 6 in `docs/DATA_LICENSES.md`.
 
 Two things were carried forward from this document verbatim. `ParkingArea.source`
 is a mandatory discriminator (`'nvdb'` today), because the Collective-Database
@@ -79,7 +79,7 @@ it must not be read as one; NVDB's failure below rests on a field report instead
 Run the `curl` commands at the end of this document from a normal shell if a
 measured NVDB count is wanted.
 
-**Also unverified:** the live NVDB response shape. `src/parking/api.ts` reads
+**Also unverified:** the live NVDB response shape. `apps/web/src/parking/api.ts` reads
 attributes by matching their Norwegian names rather than by `egenskapstype` id,
 precisely because the ids in this document were never exercised against the API.
 A wrong id fails silently by reading the wrong column; a missed name renders an
@@ -321,7 +321,7 @@ original report — with `capacity=89`, `fee=75 NOK`, `surface=asphalt` and
 carry, it carries.
 
 **The licence obligations, discharged.** §4.3 attribution is on the map, the
-tab and the printed sheet; §4.6 is `public/data/parking/`, served at
+tab and the printed sheet; §4.6 is `apps/web/public/data/parking/`, served at
 `https://fjellrute.no/data/parking` with the GeoJSON, `LICENSE.txt` and a
 `README.md`. `docs/DATA_LICENSES.md` §6 was rewritten around both and is now the
 authoritative statement of the posture; this document is the reasoning behind
@@ -347,7 +347,7 @@ would have printed "Bruk: surface" directly beneath "Dekke: Asfalt".
 fix the `usage` column is 3,125 `hiking` and 1,660 `ski` at the top — the two
 values this app exists to surface — and nothing meaningless above them.
 
-The second is structural and is the reason `src/parking/format.ts` grew a
+The second is structural and is the reason `apps/web/src/parking/format.ts` grew a
 tag-translation layer. NVDB answered in Norwegian prose and the panel could
 print the field straight through; OSM answers in machine tags, so the same
 panel would have shown a Norwegian driver `Dekke: asphalt · Avgift: no ·
@@ -369,7 +369,7 @@ it is recorded in `ParkingPanel.tsx`, `BriefingSheet.tsx` and
 `docs/DATA_LICENSES.md` §6 rather than left to be rediscovered.
 
 **One judgement made without asking, flagged here for disagreement.**
-`TERMS_VERSION` was **not** bumped when §7 of `src/terms/content.ts` was
+`TERMS_VERSION` was **not** bumped when §7 of `packages/core/src/terms/content.ts` was
 rewritten from NLOD to ODbL, because bumping it re-gates every signed-in alpha
 tester behind an acceptance dialog to tell them a credit line changed. The
 argument against is that ODbL is share-alike and NLOD is not, so the *kind* of
@@ -377,7 +377,7 @@ licence disclosed changed and not only the name. The counter-argument, and the
 reason for the call, is that the share-alike obligation runs against Fjellrute
 rather than against the user, and its user-facing consequence — a published
 extract they may take — adds to their rights rather than subtracting. Reversing
-it is two constants, `src/terms/content.ts` and `worker/policyVersions.js`,
+it is two constants, `packages/core/src/terms/content.ts` and `worker/policyVersions.js`,
 which `pnpm test:policies` requires to agree.
 
 **Still open.** Vandalism and staleness monitoring: nothing yet watches for a
@@ -394,7 +394,7 @@ the monthly refresh is a calendar reminder rather than a scheduled job.
 The slider is gone. The Parking tab now opens with a sentence — "Viser parkering
 innen 3 km fra startpunktet" / "Showing parking within 3 km of the starting
 point" — and a cog at the end of it that turns the number into a field. Defaults
-in `src/parking/useParking.ts`: **3 km, adjustable 1–20 km in whole
+in `apps/web/src/parking/useParking.ts`: **3 km, adjustable 1–20 km in whole
 kilometres.**
 
 Three things changed and each is worth separating from the others.
@@ -417,7 +417,7 @@ and the guide had to go and widen it by hand to find the obvious car park.
 preference: the slider moved in half kilometres under a label that rounded to
 whole ones, so 2,500 m displayed — and printed on the briefing — as "3 km". The
 radius is now chosen in the same unit it is shown in, and
-`parkingRadiusKm()` in `src/parking/format.ts` is the one place that converts.
+`parkingRadiusKm()` in `apps/web/src/parking/format.ts` is the one place that converts.
 
 The ceiling went 10 km → 20 km at the same time, for the long approach up a
 closed winter road. It is deliberately behind two actions now (open the cog,
@@ -426,7 +426,7 @@ should arrive at by overshooting.
 
 ## What the feature actually asks of the data
 
-The planner hands us a `Route` (`src/types/index.ts`): an ordered list of
+The planner hands us a `Route` (`packages/core/src/types/index.ts`): an ordered list of
 segments of `[lat, lng]`, drawn freehand or click-by-click, entirely client-side.
 "Parking close to the trail" is therefore a corridor query around a polyline, and
 in practice a heavily weighted one — what the user wants is almost always parking
@@ -435,7 +435,7 @@ uniform scatter of car parks along the whole line. A radius of roughly 300 m to
 2 km around the endpoints, with anything within ~500 m of the line itself as a
 bonus, covers the real use.
 
-`src/geometry/index.ts` already has everything needed for the geometry half:
+`packages/core/src/geometry/index.ts` already has everything needed for the geometry half:
 `haversine`, `projectOntoRouteAhead` (gives distance-from-route and
 distance-along-route in one pass) and `resample`. So the data problem is purely
 about getting a set of candidate points into the client or the Worker cheaply.
@@ -624,7 +624,7 @@ on a long point-to-point tour, or several boxes. Each of those is a Worker
 request against the 100k/day free-tier budget that `docs/cost-and-limits.md`
 tracks, and each happens while the user is actively drawing, so latency is
 user-visible in a way that a route-save or a briefing render is not. It also
-cannot serve the offline story at all: `src/offline/` downloads a region for use
+cannot serve the offline story at all: `packages/core/src/offline/` downloads a region for use
 with no network, and a live API contributes nothing to a downloaded region.
 
 **A pre-built table in D1** wins on every axis that matters here. 47,415 rows is
@@ -732,12 +732,12 @@ within tolerance of an OSM point.
 A Worker module `worker/parking.js` answering `GET /api/parking?bbox=…`, added to
 `ROUTES`-adjacent handling in `worker/index.js`, edge-cached through
 `caches.default` with a long TTL since the data is monthly. Client side, a
-`src/parking/api.ts` plus a `usePark`-style hook following the existing
+`apps/web/src/parking/api.ts` plus a `usePark`-style hook following the existing
 `useSnow` / `useAvalanche` pattern, debounced on route change, filtering
 candidates with `projectOntoRouteAhead`, rendered as markers with a distinct icon,
 and surfaced in `BriefingSheet` so the printed brief names the trailhead and says
 whether it costs anything. Offline regions get the rows for the region written
-alongside the tiles in `src/offline/download.ts`.
+alongside the tiles in `apps/web/src/offline/download.ts`.
 
 Free-tier impact: one Worker request per route plan, a few kilobytes, one indexed
 D1 read. Against the scenarios in `docs/cost-and-limits.md` this is noise.
