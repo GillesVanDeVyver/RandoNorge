@@ -37,15 +37,16 @@
 // Wired into `pnpm test:viewswitch`.
 
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { WEB } from './lib/tree.mjs';
 import { ensureTypeStripping } from './lib/type-stripping.mjs';
 import { stripComments } from './lib/strip-comments.mjs';
 
 ensureTypeStripping();
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (p) => readFileSync(join(root, p), 'utf8');
+// Every path this harness reads is under the web app's src/, so the helper
+// is rooted at the package rather than the repository. See lib/tree.mjs.
+const read = (p) => readFileSync(join(WEB, p), 'utf8');
 
 // Comments in these files describe the bugs below at length, and would match
 // almost every pattern this script searches for. Strip them: the checks are
@@ -357,7 +358,7 @@ check(
 console.log('\n[5] the predicted zoom is the zoom that is landed on');
 
 const { FLAT_MAX_ZOOM, FLAT_MIN_ZOOM, flatZoom, toLeafletZoom } = await import(
-  '../src/viewCamera.ts'
+  '../apps/web/src/viewCamera.ts'
 );
 
 const leafletSnap = (z) =>

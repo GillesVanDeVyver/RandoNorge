@@ -36,18 +36,18 @@
 // Wired into `pnpm test:appbase`.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, relative } from 'node:path';
+import { join, relative } from 'node:path';
 // Order-sensitive in a way that can silently blank out the code being checked
 // (it once did, here); the reasoning lives with the helper.
 import { stripComments } from './lib/strip-comments.mjs';
+import { REPO, WEB } from './lib/tree.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const basePath = join(root, 'src/appBase.ts');
-const rootTsxPath = join(root, 'src/Root.tsx');
-const loginPath = join(root, 'src/components/LoginPage.tsx');
-const workerPath = join(root, 'worker/index.js');
-const aboutPath = join(root, 'public/about.html');
+const root = REPO;
+const basePath = join(WEB, 'src/appBase.ts');
+const rootTsxPath = join(WEB, 'src/Root.tsx');
+const loginPath = join(WEB, 'src/components/LoginPage.tsx');
+const workerPath = join(REPO, 'worker/index.js');
+const aboutPath = join(WEB, 'public/about.html');
 
 const baseSource = readFileSync(basePath, 'utf8');
 const rootTsx = readFileSync(rootTsxPath, 'utf8');
@@ -268,7 +268,7 @@ function sourceFiles(dir) {
   }
   return out;
 }
-const files = sourceFiles(join(root, 'src'));
+const files = sourceFiles(join(WEB, 'src'));
 
 // Each pattern is a way of naming a destination. The `'/'` is what makes them
 // findable: a destination built with appPath() is an identifier, never a string

@@ -8,12 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@fontsource/inter':
-        specifier: ^5.2.8
-        version: 5.3.0
-      '@react-leaflet/core':
-        specifier: ^3.0.0
-        version: 3.0.0(leaflet@1.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       better-auth:
         specifier: ^1.6.23
         version: 1.6.23(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -23,6 +17,49 @@ importers:
       kysely-d1:
         specifier: ^0.4.0
         version: 0.4.0(kysely@0.29.3)
+    devDependencies:
+      '@eslint/js':
+        specifier: ^10.0.1
+        version: 10.0.1(eslint@10.4.1)
+      '@types/node':
+        specifier: ^24.12.3
+        version: 24.12.4
+      concurrently:
+        specifier: ^10.0.3
+        version: 10.0.3
+      esbuild:
+        specifier: ^0.28.0
+        version: 0.28.1
+      eslint:
+        specifier: ^10.3.0
+        version: 10.4.1
+      eslint-plugin-react-hooks:
+        specifier: ^7.1.1
+        version: 7.1.1(eslint@10.4.1)
+      eslint-plugin-react-refresh:
+        specifier: ^0.5.2
+        version: 0.5.2(eslint@10.4.1)
+      globals:
+        specifier: ^17.6.0
+        version: 17.6.0
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.3
+      typescript-eslint:
+        specifier: ^8.59.2
+        version: 8.60.0(eslint@10.4.1)(typescript@6.0.3)
+      wrangler:
+        specifier: ^4.110.0
+        version: 4.110.0
+
+  apps/web:
+    dependencies:
+      '@fontsource/inter':
+        specifier: ^5.2.8
+        version: 5.3.0
+      '@react-leaflet/core':
+        specifier: ^3.0.0
+        version: 3.0.0(leaflet@1.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -42,9 +79,6 @@ importers:
         specifier: ^3.8.1
         version: 3.8.1(@types/react@19.2.16)(react-dom@19.2.7(react@19.2.7))(react-is@19.2.7)(react@19.2.7)(redux@5.0.1)
     devDependencies:
-      '@eslint/js':
-        specifier: ^10.0.1
-        version: 10.0.1(eslint@10.4.1)
       '@types/leaflet':
         specifier: ^1.9.21
         version: 1.9.21
@@ -60,33 +94,12 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.1
         version: 6.0.2(vite@8.0.16(@types/node@24.12.4)(esbuild@0.28.1))
-      concurrently:
-        specifier: ^10.0.3
-        version: 10.0.3
-      eslint:
-        specifier: ^10.3.0
-        version: 10.4.1
-      eslint-plugin-react-hooks:
-        specifier: ^7.1.1
-        version: 7.1.1(eslint@10.4.1)
-      eslint-plugin-react-refresh:
-        specifier: ^0.5.2
-        version: 0.5.2(eslint@10.4.1)
-      globals:
-        specifier: ^17.6.0
-        version: 17.6.0
       typescript:
         specifier: ~6.0.2
         version: 6.0.3
-      typescript-eslint:
-        specifier: ^8.59.2
-        version: 8.60.0(eslint@10.4.1)(typescript@6.0.3)
       vite:
         specifier: ^8.0.12
         version: 8.0.16(@types/node@24.12.4)(esbuild@0.28.1)
-      wrangler:
-        specifier: ^4.110.0
-        version: 4.110.0
 
 packages:
 

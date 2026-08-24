@@ -4,6 +4,17 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // The bundle stays at the repository root, where it was before this app
+    // moved into apps/web. wrangler.jsonc names `dist` as its asset directory
+    // and lives at the root because the Worker is deployed from there, so
+    // pointing the build back out of the package is what keeps
+    // `pnpm build && wrangler deploy` — and the pre-push gate — byte-for-byte
+    // the same operation it was before the move.
+    outDir: '../../dist',
+    // Vite will not clean an outDir outside the project root unless told to.
+    emptyOutDir: true,
+  },
   server: {
     proxy: {
       // Auth (Better Auth) runs in the Cloudflare Worker, not in Vite. To

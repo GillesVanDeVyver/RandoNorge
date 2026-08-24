@@ -31,17 +31,17 @@
 // Wired into `pnpm test:ratelimit`.
 
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { REPO, WEB } from './lib/tree.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { betterAuthRateLimitStorage } from '../worker/rateLimit.js';
 import { stripComments } from './lib/strip-comments.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root = REPO;
 const limiterSource = readFileSync(join(root, 'worker/rateLimit.js'), 'utf8');
 const authSource = readFileSync(join(root, 'worker/auth.js'), 'utf8');
 const loginSource = readFileSync(
-  join(root, 'src/components/LoginPage.tsx'),
+  join(WEB, 'src/components/LoginPage.tsx'),
   'utf8',
 );
 const migration = readFileSync(

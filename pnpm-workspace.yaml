@@ -1,0 +1,27 @@
+# The repository is a pnpm workspace as of Phase 1 of the mobile build plan.
+#
+# WHY. The mobile app will share roughly 4,700 lines of platform-free TypeScript
+# with the web app — geometry, the GPX/TCX/FIT parsers, elevation profiles and
+# runout, tile maths, every API client, the i18n store. Copying those into a
+# second repository and keeping the copies in step by hand is the failure this
+# layout exists to prevent: the two would drift, and the drift would show up as a
+# route that measures one distance on a phone and another on a laptop.
+#
+# So the shared code lives in packages/core, both apps depend on it as
+# `workspace:*`, and there is exactly one definition of each of those functions.
+#
+#   packages/core   platform-free TypeScript: no DOM, no React Native, no Leaflet
+#   apps/web        the Vite + React + Leaflet planner (the desktop product)
+#   apps/mobile     the Expo app (Phase 2 onwards; not created yet)
+#
+# worker/ deliberately stays at the repository root and is NOT a workspace
+# package. It is deployed by wrangler from the root config, its dependencies are
+# the root package's, and a mobile app is simply another HTTP client of it — so
+# making it a package would add ceremony to something no other package imports.
+#
+# spikes/ is also excluded: the Phase 0 throwaways carry their own Expo
+# scaffolds, at whatever SDK was current when they were run, and a root install
+# has no business pulling those in.
+packages:
+  - apps/*
+  - packages/*

@@ -55,10 +55,15 @@ import { ensureTypeStripping } from './lib/type-stripping.mjs';
 ensureTypeStripping();
 
 import { writeFileSync, readFileSync, rmSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { WEB } from './lib/tree.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Every path below is under the web app's src/, and the server-rendering
+// scratch files are written there too so that the `external: ['react', ...]`
+// bundle resolves React from the one node_modules that has it. See
+// lib/tree.mjs for why the tree is split this way.
+const ROOT = WEB;
 
 let failures = 0;
 let checks = 0;

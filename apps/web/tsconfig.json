@@ -1,0 +1,11 @@
+{
+  // The web app's own solution file, referenced by the root one. The split
+  // between "app" and "node" is the split Vite's own template makes and is worth
+  // keeping: src/ is checked against the DOM, vite.config.ts against Node, and a
+  // config file that reached for `window` would otherwise pass.
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}

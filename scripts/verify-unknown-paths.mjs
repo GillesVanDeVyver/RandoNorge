@@ -45,14 +45,14 @@
 // Wired into `pnpm test:notfound`.
 
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { REPO, WEB } from './lib/tree.mjs';
 import { stripComments } from './lib/strip-comments.mjs';
 import { APP_BASE, resolveDocument } from '../worker/knownPaths.js';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const rootTsx = readFileSync(join(root, 'src/Root.tsx'), 'utf8');
-const appBaseTs = readFileSync(join(root, 'src/appBase.ts'), 'utf8');
+const root = REPO;
+const rootTsx = readFileSync(join(WEB, 'src/Root.tsx'), 'utf8');
+const appBaseTs = readFileSync(join(WEB, 'src/appBase.ts'), 'utf8');
 const workerIndex = readFileSync(join(root, 'worker/index.js'), 'utf8');
 const wrangler = readFileSync(join(root, 'wrangler.jsonc'), 'utf8');
 

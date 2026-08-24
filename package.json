@@ -9,15 +9,16 @@
     "npm": "please-use-pnpm",
     "yarn": "please-use-pnpm"
   },
+  "//": "This is the workspace root. It owns three things and no application code: the Cloudflare Worker (worker/, deployed from wrangler.jsonc at this level), the verification harness (scripts/), and the toolchain that has to see the whole tree at once — eslint, tsc -b, wrangler. The browser app's own dependencies live in apps/web/package.json. The script NAMES below are load-bearing: .githooks/pre-push runs `pnpm build` and `pnpm lint` from here, so they must keep working from the root however the tree is arranged underneath.",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "hooks:install": "git config core.hooksPath .githooks && echo 'pre-push build gate active'",
-    "dev": "concurrently -n vite,worker -c cyan,yellow \"vite\" \"wrangler dev\"",
-    "dev:frontend": "vite",
+    "dev": "concurrently -n vite,worker -c cyan,yellow \"pnpm -C apps/web dev\" \"wrangler dev\"",
+    "dev:frontend": "pnpm -C apps/web dev",
     "dev:worker": "wrangler dev",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && pnpm -C apps/web build",
     "lint": "eslint .",
-    "preview": "vite preview",
+    "preview": "pnpm -C apps/web preview",
     "test:deletion": "node scripts/verify-account-deletion.mjs && python3 scripts/verify-deletion-sql.py",
     "test:privacy": "node scripts/verify-privacy-sync.mjs",
     "test:landing": "node scripts/verify-landing-page.mjs",
@@ -34,33 +35,21 @@
     "test": "pnpm test:gdpr && pnpm test:landing && pnpm test:appbase && pnpm test:notfound && pnpm test:ratelimit && pnpm test:password && pnpm test:briefing && pnpm test:viewswitch && pnpm test:parking"
   },
   "dependencies": {
-    "@fontsource/inter": "^5.2.8",
-    "@react-leaflet/core": "^3.0.0",
     "better-auth": "^1.6.23",
     "kysely": "^0.29.3",
-    "kysely-d1": "^0.4.0",
-    "leaflet": "^1.9.4",
-    "maplibre-gl": "^5.24.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "react-leaflet": "^5.0.0",
-    "recharts": "^3.8.1"
+    "kysely-d1": "^0.4.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/leaflet": "^1.9.21",
     "@types/node": "^24.12.3",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^10.0.3",
+    "esbuild": "^0.28.0",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12",
     "wrangler": "^4.110.0"
   }
 }

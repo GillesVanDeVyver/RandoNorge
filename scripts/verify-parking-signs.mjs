@@ -44,6 +44,7 @@
 import { readFileSync, writeFileSync, mkdtempSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { WEB } from './lib/tree.mjs';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 
@@ -62,7 +63,9 @@ try {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = join(here, '..');
+// Everything read below is under the web app's src/, so `root` here means the
+// web package, not the repository. See lib/tree.mjs.
+const root = WEB;
 const src = (p) => readFileSync(join(root, p), 'utf8');
 
 let failures = 0;

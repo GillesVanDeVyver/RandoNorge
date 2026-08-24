@@ -1,7 +1,13 @@
 {
+  // The solution file. `tsc -b` from the repository root is the type-check gate
+  // that .githooks/pre-push runs before the app build, and it has to keep
+  // covering everything even though the app now lives a directory down.
+  //
+  // Each reference is a project that owns its own compilerOptions, because they
+  // genuinely differ: the web app compiles against the DOM lib, and the phone
+  // app added in Phase 2 will not have one. Keeping them as separate projects
+  // rather than one wide `include` is also what lets tsc cache them
+  // independently.
   "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "references": [{ "path": "./apps/web" }]
 }

@@ -17,16 +17,16 @@
 // Wired into `pnpm test:privacy`.
 
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { REPO, WEB } from './lib/tree.mjs';
 import { ensureTypeStripping } from './lib/type-stripping.mjs';
 
 // Before the `await import(tsPath)` below. See the helper.
 ensureTypeStripping();
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const tsPath = join(root, 'src/terms/privacy.ts');
-const htmlPath = join(root, 'public/privacy.html');
+const root = REPO;
+const tsPath = join(WEB, 'src/terms/privacy.ts');
+const htmlPath = join(WEB, 'public/privacy.html');
 
 /** Collapse every run of whitespace so line wrapping cannot cause a diff. */
 function normalise(text) {

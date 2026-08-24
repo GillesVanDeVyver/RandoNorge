@@ -36,14 +36,14 @@
 // Wired into `pnpm test:landing`.
 
 import { readFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { REPO, WEB } from './lib/tree.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root = REPO;
 // The declared OAuth home page — the file that has to satisfy the review.
-const homePath = join(root, 'public/about.html');
+const homePath = join(WEB, 'public/about.html');
 // The site root. Almost nothing is required of it; see check 5.
-const rootPagePath = join(root, 'public/coming-soon.html');
+const rootPagePath = join(WEB, 'public/coming-soon.html');
 const authDocPath = join(root, 'docs/AUTH_SETUP.md');
 const workerPath = join(root, 'worker/index.js');
 
@@ -472,7 +472,7 @@ for (const source of [page, rootPage]) {
     refs.add(m[1]);
 }
 const dangling = [...refs].filter(
-  (r) => !existsSync(join(root, 'public', r.replace(/^\//, ''))),
+  (r) => !existsSync(join(WEB, 'public', r.replace(/^\//, ''))),
 );
 check(
   `all ${refs.size} same-origin references exist in public/`,
@@ -594,7 +594,7 @@ console.log('\n[control] the checks detect the regressions they exist for');
     'a link to a non-existent page is caught',
     brokenLink !== page &&
       [...brokenRefs].some(
-        (r) => !existsSync(join(root, 'public', r.replace(/^\//, ''))),
+        (r) => !existsSync(join(WEB, 'public', r.replace(/^\//, ''))),
       ),
   );
 

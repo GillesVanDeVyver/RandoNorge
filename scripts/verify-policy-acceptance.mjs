@@ -22,21 +22,24 @@
 // scripts/verify-policy-sql.py.
 
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { REPO, WEB } from './lib/tree.mjs';
 import { ensureTypeStripping } from './lib/type-stripping.mjs';
 
 // Before the first `await import` of a .ts file below. See the helper.
 ensureTypeStripping();
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (p) => readFileSync(join(root, p), 'utf8');
+const root = REPO;
+const read = (p) => readFileSync(join(REPO, p), 'utf8');
+// src/ lives in apps/web since the workspace split; worker/ and migrations/
+// stayed at the root. See scripts/lib/tree.mjs.
+const readWeb = (p) => readFileSync(join(WEB, p), 'utf8');
 
 const authJs = read('worker/auth.js');
 const policiesJs = read('worker/policies.js');
 const indexJs = read('worker/index.js');
-const apiTs = read('src/public/api.ts');
-const rootTsx = read('src/Root.tsx');
+const apiTs = readWeb('src/public/api.ts');
+const rootTsx = readWeb('src/Root.tsx');
 const migration = read('migrations/0007_policy_acceptance.sql');
 
 let failures = 0;
@@ -65,10 +68,10 @@ const check = (label, ok, detail) => {
 console.log('\n[versions] the Worker and the app agree on what is current');
 
 const { TERMS_VERSION: appTerms } = await import(
-  join(root, 'src/terms/content.ts')
+  join(WEB, 'src/terms/content.ts')
 );
 const { PRIVACY_VERSION: appPrivacy } = await import(
-  join(root, 'src/terms/privacy.ts')
+  join(WEB, 'src/terms/privacy.ts')
 );
 const { TERMS_VERSION: workerTerms, PRIVACY_VERSION: workerPrivacy } =
   await import(join(root, 'worker/policyVersions.js'));
