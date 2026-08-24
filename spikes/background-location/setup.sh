@@ -10,6 +10,15 @@
 #
 # So: scaffold, prebuild, and install a development build on the device.
 #
+# That is also why this script, unlike spike 0a's, does NOT pin the Expo SDK. A
+# development build compiles the SDK into the app, so there is no Expo Go
+# version to be compatible with and no ceiling to name. Two reasons to stay on
+# the latest instead: the pin in 0a exists only to satisfy Expo Go and would be
+# pure cost here, and SDK 56 shipped a Hermes memory regression
+# (expo/expo#46519, fixed in expo@57.0.9) that a multi-hour background recording
+# is precisely the workload to be killed by. Do not "make the two scripts
+# consistent" by copying the pin across.
+#
 #   ./setup.sh
 #   cd app
 #   npx expo run:android          # or: npx expo run:ios (needs Xcode)
