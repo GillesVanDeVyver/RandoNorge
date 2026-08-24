@@ -2493,6 +2493,68 @@ ok(
   'and the sheet prints the ruled lines exactly when the switch says so',
 );
 
+// What the switch is FOR. The section is named after the tour's own Notes
+// field — the one in SaveRouteDialog, labelled "Notater" with a placeholder
+// asking for conditions and a plan B — and for a long time it did not print
+// that field at all. The typed note reached the page only as a subtitle under
+// the title, clamped to two lines, while the box headed Notes came out as bare
+// ruled paper. The switch already read the note to decide whether to draw the
+// box, which is what made the omission hard to see in the source and obvious
+// on paper: turn the tour's notes off and a section that never showed them
+// disappeared.
+//
+// So this is asserted from the reader's side, on the text of the page, not on
+// the presence of a class name. Where the words are is the whole bug.
+const NOTE = 'Klassisk vårtur, tidleg start.';
+const withNote = render(makeData(DEFAULT_OPTIONS));
+const notesSection =
+  /<section class="briefingNotes[^"]*">([\s\S]*?)<\/section>/.exec(
+    plain(withNote),
+  )?.[1] ?? '';
+const headerBlock =
+  /<header class="briefingHeader">([\s\S]*?)<\/header>/.exec(
+    plain(withNote),
+  )?.[1] ?? '';
+ok(
+  notesSection.includes(NOTE),
+  "the tour's saved notes print inside the section headed Notes",
+);
+ok(
+  !headerBlock.includes(NOTE),
+  'and not under the title, where they were truncated at two lines',
+);
+ok(
+  textOf(withNote).split(NOTE).length === 2,
+  'exactly once on the sheet — the subtitle is gone, not duplicated',
+);
+ok(
+  notesSection.indexOf(NOTE) > -1 &&
+    notesSection.indexOf(NOTE) < notesSection.indexOf('briefingNoteLines'),
+  'the typed note comes first and the writing space follows it',
+);
+// The other half of the switch's promise. A tour saved without notes still
+// gets the ruled line if the guide turns the section back on, and it must not
+// print an empty paragraph where the note would have been.
+const noNote = render(
+  makeData({ ...DEFAULT_OPTIONS, notes: true }, { routeDescription: null }),
+);
+ok(
+  noNote.includes('briefingNoteLines') &&
+    !noNote.includes('briefingNotesText'),
+  'a tour with no notes prints the ruled line and no empty note paragraph',
+);
+// The clamp is the only thing between a pasted essay and a second sheet, and
+// it lives in the stylesheet, so it is checked there. Four lines at 8.4pt is
+// 16 mm of the roughly 26 mm of headroom the budget comment reserves.
+ok(
+  /\.briefingNotesText\s*\{[^}]*line-clamp:\s*4/.test(css),
+  'and a note longer than four lines is clamped rather than trusted',
+);
+ok(
+  !/\.briefingSubtitle\s*\{/.test(css),
+  'the subtitle rule is gone with the element it styled',
+);
+
 // Parking, on a start point nobody has mapped. Structurally the fourth of
 // these, and the one whose empty state is most likely to be believed: a reader
 // who sees "no parking areas" under a heading has been handed a fact about a

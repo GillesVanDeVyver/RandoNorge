@@ -40,8 +40,8 @@
 // vurdert"; parking turns off when OpenStreetMap has nothing mapped anywhere
 // near the start, since a heading over "nothing mapped here" costs paper to say
 // nothing; and the notes field turns off when the tour was saved without any,
-// since a guide who wrote nothing down is not asking for a page of ruled lines
-// under a heading that says Notes.
+// since a guide who wrote nothing down is not asking for a heading that says
+// Notes over a blank ruled line.
 //
 // The other two are different: the profile's vertical scale and the map's
 // overlay are not judgements about the tour but judgements about how to read
@@ -352,10 +352,12 @@ export function BriefingDialog({
     avalanche.fetchedAt !== null &&
     avalanche.level === 0;
 
-  // A tour saved without notes. The ruled field is space for the party to write
-  // in, so it is not "empty" in the way a snowless chart is — but a guide who
-  // typed nothing into the tour's own notes has already said how much of this
-  // sheet they want spent on writing, and the field costs a third of a page.
+  // A tour saved without notes. This is now the plainest of the four: the
+  // section prints what the guide typed into the tour's own Notes field, so on
+  // a tour nobody wrote about it is a heading over one blank ruled line, empty
+  // in the same way a snowless chart is. The ruled line is still worth having
+  // when there IS a note — the car-park amendment goes under it — but it is not
+  // worth a heading of its own on a tour that has nothing to amend.
   // Trimmed, because a description of two spaces is no description.
   const notes = routeDescription?.trim() ?? '';
   const unwrittenTour = notes === '';

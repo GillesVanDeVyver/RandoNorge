@@ -1136,9 +1136,6 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
       <header className="briefingHeader">
         <div>
           <h1 className="briefingTitle">{routeName}</h1>
-          {routeDescription && (
-            <p className="briefingSubtitle">{routeDescription}</p>
-          )}
         </div>
         <div className="briefingBrand">
           <div className="briefingBrandName">Fjellrute</div>
@@ -1707,14 +1704,27 @@ export function BriefingSheet({ data }: { data: BriefingData }) {
         </section>
       )}
 
-      {/* Deliberate blank space: the briefing is a working document, and the
-          decisions that matter (turnaround time, plan B, who carries what)
-          are the ones made by the party, not by us. */}
+      {/* What the guide typed into the tour's own Notes field, printed under a
+          heading that says Notes — which is where a reader looks for it, and
+          the reason the switch above turns itself off on a tour saved without
+          any. It used to reach the page only as a subtitle under the title,
+          clamped to two lines, while this box printed as bare ruled paper; a
+          plan typed at the kitchen table was silently cut off at the top of the
+          sheet and the section named after it came out blank.
+
+          The ruled line survives underneath it, because the briefing is a
+          working document and the decisions that matter (turnaround time, plan
+          B, who carries what) are often made in the car park, after the sheet
+          was printed. One line rather than two: the typed note now carries what
+          the party knew in advance, so the writing space is for what changes. */}
       {options.notes && (
         <section className="briefingNotes briefingSection">
           <h2 className="briefingH2">
             {t('Notater', 'Notes')}
           </h2>
+          {routeDescription && (
+            <p className="briefingNotesText">{routeDescription}</p>
+          )}
           <div className="briefingNoteLines" aria-hidden />
         </section>
       )}

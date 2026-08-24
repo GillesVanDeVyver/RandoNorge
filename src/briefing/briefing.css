@@ -14,12 +14,27 @@
  * including the default with every section switched on. Roughly, with all of
  * them on (sheet mm; multiply by 0.75 for paper):
  *
- *     header                14      map + key facts       68
+ *     header                 9      map + key facts       68
  *     danger banner         24      avalanche problems    17
  *     profile + steepness   46      snow                  31
  *     weather table         53      parking               40
- *     notes                 17      footer + gaps         33
- *                                          total     ~ 343 mm
+ *     notes                 21      footer + gaps         33
+ *                                          total     ~ 342 mm
+ *
+ * The header is 9 mm because it is the tour's name and a rule, nothing else.
+ * It was 14 while the route description printed under the title as a subtitle,
+ * and that description now prints in the notes box, where the heading already
+ * said it would be — see .briefingNotesText. The two figures moved together:
+ * the notes box is 21 mm rather than the 17 this table used to claim, and it
+ * was 21 before the description arrived in it too, because the typed note took
+ * the place of a ruled line rather than being added on top of two. So the swap
+ * is 5 mm off the sheet on a one-line note, and every fixture in
+ * verify-briefing.mjs measures exactly 5 mm shorter than it did.
+ *
+ * Its ceiling is 33 mm, on a note long enough to hit the four-line clamp. That
+ * is the one figure here that can be reached by typing, which is why the clamp
+ * exists; a subtitle clamped at two lines used to hold the same line, 4 mm
+ * lower and in the wrong place on the page.
  *
  * The weather table is at most six rows — 06 to midnight in three-hour periods,
  * built in BriefingSheet.tsx — so it cannot grow with the forecast. That matters:
@@ -73,7 +88,7 @@
  * That leaves roughly 26 sheet mm (20 mm of paper) of headroom, which is what
  * absorbs the blocks holding text of unknown length — a wordy Varsom bulletin,
  * a long route description. Those are clamped as well rather than trusted, at
- * .briefingSubtitle and .briefingDangerText, because headroom is the thing that
+ * .briefingNotesText and .briefingDangerText, because headroom is the thing that
  * gets spent first and the clamps are what stop one verbose region from
  * costing a second sheet.
  *
@@ -522,7 +537,7 @@
    *
    * It is done here, once, rather than by editing the forty-odd type sizes and
    * millimetre figures further down. Those figures are how the layout was
-   * reasoned about — an 11 mm notes box is two ruled lines, the map frame is
+   * reasoned about — a 5.5 mm ruled field is one writing line, the map frame is
    * 128 mm wide because that is what is left beside a 58 mm facts panel — and
    * rewriting them all as 0.75 of themselves would destroy that reasoning and
    * quietly drift out of proportion the first time one was touched. So the
@@ -576,20 +591,11 @@
   letter-spacing: -0.01em;
 }
 
-/* The route description, typed by whoever saved the route, so its length is
- * anyone's guess — two lines here, and the rest stays in the planner. A
- * description long enough to need more than two lines is a plan, and the plan
- * has its own ruled box at the foot of the sheet. */
-.briefingSubtitle {
-  margin: 1mm 0 0;
-  font-size: 8.4pt;
-  color: var(--briefing-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
+/* The header is the tour's name and nothing else. The description that used to
+ * sit here as a subtitle is the guide's own notes, and it prints in the Notes
+ * box at the foot of the sheet — see .briefingNotesText. Two lines under the
+ * title was the wrong home for it twice over: it truncated the plan, and it
+ * left the section actually headed Notes printing as blank ruled paper. */
 
 .briefingBrand {
   text-align: right;
@@ -1605,9 +1611,26 @@
   padding: 2mm 2.5mm;
 }
 
+/* The tour's saved notes, typed by whoever saved the route, so the length is
+ * anyone's guess. Clamped at four lines: enough for the conditions-and-plan-B
+ * paragraph the save dialog asks for, and a hard stop on a guide who pasted an
+ * essay, since the sheet's vertical budget cannot absorb one. What is cut here
+ * is still in the planner, and the reader can see there was more. */
+.briefingNotesText {
+  margin: 1.5mm 0 0;
+  font-size: 8.4pt;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .briefingNoteLines {
   margin-top: 1.5mm;
-  /* Ruled writing space for hand-written plan/turnaround notes. */
+  /* Ruled writing space for what is decided after the sheet was printed. */
   background-image: repeating-linear-gradient(
     to bottom,
     transparent,
@@ -1615,10 +1638,11 @@
     var(--briefing-rule) 5.4mm,
     var(--briefing-rule) 5.5mm
   );
-  /* Two ruled lines. Three was generous for what is written here in practice —
-   * a turnaround time and a bail-out — and the third line was being paid for
-   * out of the same 277 mm as the forecast. */
-  height: 11mm;
+  /* One ruled line. It was two while this box was the only place a plan could
+   * go; now the typed note is printed above it, the writing space is for the
+   * amendment made in the car park, and the second line was being paid for out
+   * of the same 277 mm as the forecast. */
+  height: 5.5mm;
 }
 
 .briefingFooter {
