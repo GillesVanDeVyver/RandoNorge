@@ -20,8 +20,13 @@
 # is not in Expo Go, and Expo Go tracks one SDK chosen by the app stores — the
 # same ceiling that cost an evening in spikes/webview-3d/setup.sh. Either:
 #
-#   npx eas build --profile development --platform android   # cloud, no local SDK
-#   npx expo run:android                                     # local Android SDK
+#   npx eas-cli@latest build --profile development --platform android   # cloud
+#   npx expo run:android                                                # local SDK
+#
+# `eas-cli`, with the suffix. `npx eas` asks npm for a package called `eas`,
+# which is not this CLI and has no executable, so npm fails with "could not
+# determine executable to run" — a message that says nothing about the cause.
+# The binary it installs IS called `eas`; only the package name differs.
 #
 # and then `pnpm start` to serve JS to the installed development build.
 
@@ -71,8 +76,8 @@ npx expo install --fix
 
 echo
 echo "Done. Next, build a development build once:"
-echo "  npx eas build --profile development --platform android    # cloud"
-echo "  npx expo run:android                                      # local Android SDK"
+echo "  npx eas-cli@latest build --profile development --platform android   # cloud"
+echo "  npx expo run:android                                                # local SDK"
 echo
 echo "Then serve JS to it with:  pnpm start"
 echo

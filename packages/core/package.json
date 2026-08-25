@@ -45,5 +45,10 @@
   "//peerDependencies": "React is a peer, not a dependency: the hooks here must close over the SAME React instance as the app rendering them, and two copies in one tree is the classic 'Invalid hook call' failure. React itself is platform-free — it is React DOM and React Native that are not — so hooks that only fetch and cache data belong here.",
   "peerDependencies": {
     "react": ">=19"
+  },
+
+  "//devDependencies": "@types/react is declared here because this package is type-checked as its own tsc project and useSnow/useWeather/useAvalanche import react. It was absent for a long time and the build still passed, which was luck rather than design: pnpm had hoisted a copy somewhere the compiler's node_modules/@types walk happened to reach. A later install put @types/react only under apps/web and apps/mobile, and `pnpm build` began failing with 24 TS7016/TS7006 errors in files nobody had edited — a symptom that points at core's source and is caused by an install. A package that needs a type in order to check itself should say so. The range is deliberately looser than either app's so this declaration can never be the reason a version gets duplicated.",
+  "devDependencies": {
+    "@types/react": ">=19.2.2"
   }
 }

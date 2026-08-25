@@ -34,12 +34,25 @@ pnpm install                 # from the repository root
 apps/mobile/setup.sh         # installs the Expo-managed and native deps
 ```
 
+`setup.sh` ends by running `npx expo install --fix`, which may leave `app.json`
+modified: it re-serializes the file and appends config plugins it finds
+installed. Read that diff rather than reverting it — it is Expo telling you what
+the native build needs.
+
 Then build the binary. Cloud, no local Android SDK needed:
 
 ```sh
 cd apps/mobile
-npx eas build --profile development --platform android
+npx eas-cli@latest build --profile development --platform android
 ```
+
+`eas-cli`, with the suffix, and it matters: `npx eas` asks npm for a package
+named `eas`, which is not this CLI and ships no executable, so npm fails with
+"could not determine executable to run" — a message that names nothing useful.
+The binary is called `eas`; only the package name differs. `npm install -g
+eas-cli` and then plain `eas build …` works too, and is worth it if you build
+often; `@latest` is here because EAS declines builds from a stale CLI, which a
+global install eventually becomes.
 
 EAS prints a URL when it finishes; open it on the phone and install the APK.
 This step is needed again only when a native dependency is added or removed.
@@ -121,14 +134,36 @@ that were read rather than remembered, and it type-checks. What a compiler still
 cannot tell us is whether the tiles arrive, whether the route is where it should
 be on the ground, or whether the position marker points the right way.
 
-Two smaller things to expect rather than be alarmed by:
+Two smaller things to expect rather than be alarmed by.
 
-`pnpm install` prints an unmet peer warning — `react-dom 19.2.7` wants
-`react@^19.2.7` and finds `19.2.3`. `react-dom` is an optional peer of `expo`
-(via `@expo/dom-webview`) hoisted from `apps/web`; nothing in this app renders
-to the DOM. The React and React Native versions here were read off a working
-SDK 57 scaffold, and `expo install --fix` reports them up to date, so the
-scaffold's pins are the authority and the warning is noise.
+`setup.sh` ends with three unmet-peer warnings, and all three are about packages
+this app never loads. The test that settles it is the same for each: look for the
+package in `apps/mobile/node_modules`, and look for an import of it in `app/` or
+`src/`. None of the three is present in either place — every path to them in
+`pnpm why` is a `peer` edge, meaning some dependency *declared* a version it
+would like if the package were used, not that anything here uses it.
+
+  - `react-native-worklets 0.12.1` against `^0.7.4 || ^0.8.0 || ^0.9.0 ||
+    ^0.10.0`. The narrow range is `expo-modules-core`'s, and it is declared
+    optional; the `0.12.1` that got resolved is what `react-native-reanimated
+    4.6.0` asks for (`0.12.x`), and that one is satisfied. So the two consumers
+    disagree, the unsatisfied one has said it can do without, and neither
+    reanimated nor worklets is installed here — they arrive as peer edges under
+    `expo-router` and `@expo/ui`.
+  - `@react-native/metro-config 0.87.0` against `0.86.2`. Both sides of this are
+    packages this app does not call: `metro.config.js` uses
+    `expo/metro-config`, and the complaint comes from
+    `@react-native/community-cli-plugin`, which also marks the peer optional.
+  - `react-dom 19.2.7` wants `react@^19.2.7` and finds the `19.2.3` this app
+    pins. `react-dom` reaches the graph as a peer of `better-auth` and of
+    `@expo/metro-runtime` (Expo Router's web target), and resolves to
+    `apps/web`'s copy. Nothing here renders to the DOM. The React and React
+    Native versions were read off a working SDK 57 scaffold and `expo install
+    --fix` reports them up to date, so the scaffold's pins are the authority.
+
+If a future warning names a package that *is* in `apps/mobile/node_modules` or
+*is* imported by this app, it is not in this category and should not be filed
+under it.
 
 The map screen builds its own style document instead of loading one from a URL,
 so MapLibre's built-in attribution control has nothing to read and is turned

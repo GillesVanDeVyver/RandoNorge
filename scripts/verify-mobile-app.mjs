@@ -514,6 +514,62 @@ check(
     '        nonsense that would only be discovered on a phone.',
 );
 
+// ---------------------------------------------------------------------------
+// 7. The build command we tell a human to type.
+//
+// `npx eas build` is wrong and looks right. npm resolves `eas` to a package of
+// that name which is not Expo's CLI and ships no executable, so it fails with
+// "could not determine executable to run" — a message that names neither the
+// package nor the mistake. The CLI is `eas-cli`; the binary inside it IS called
+// `eas`, which is exactly why the wrong form reads as correct.
+//
+// This is checked rather than merely fixed because it has now been written
+// wrongly twice, in two different sessions, in two different directories, and
+// the only thing that catches it is a person hitting it on their own machine
+// after a five-minute install. Documented commands are as much a part of this
+// app as its code, and nothing else in the repository reads them.
+//
+// spikes/ is in scope despite this being the mobile harness: it is the same
+// command, the same trap, and it was wrong there first.
+// ---------------------------------------------------------------------------
+
+const commandDocs = [
+  join(MOBILE, 'README.md'),
+  join(MOBILE, 'setup.sh'),
+  join(REPO, 'spikes/webview-3d/README.md'),
+  join(REPO, 'spikes/webview-3d/setup.sh'),
+];
+
+const badEasInvocations = [];
+for (const file of commandDocs) {
+  let text;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    // A spike can be deleted; a missing file is not a failure here.
+    continue;
+  }
+  text.split('\n').forEach((line, i) => {
+    // `eas` not followed by the `-cli` that makes it real, AND followed by an
+    // actual subcommand. That second half is what keeps this from flagging the
+    // prose in these very files, which has to quote the wrong form in order to
+    // warn about it — a check that cannot survive its own explanation is a
+    // check nobody keeps.
+    if (/\bnpx\s+eas(?!-cli)\s+(build|submit|update|login|whoami|device)\b/.test(line)) {
+      badEasInvocations.push(`${relative(REPO, file)}:${i + 1}: ${line.trim()}`);
+    }
+  });
+}
+
+check(
+  'no documented command says `npx eas` instead of `npx eas-cli`',
+  badEasInvocations.length === 0,
+  badEasInvocations.map((line) => `        ${line}`).join('\n') +
+    '\n        npm resolves `eas` to an unrelated package with no executable\n' +
+    '        and fails with "could not determine executable to run", which\n' +
+    '        names nothing. The package is eas-cli; its binary is `eas`.',
+);
+
 check(
   'the map screen does not derive tile templates on its own',
   !/replace\(String\(/.test(read(MOBILE, 'app/route/[id].tsx')),

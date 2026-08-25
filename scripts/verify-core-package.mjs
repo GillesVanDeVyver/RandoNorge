@@ -374,6 +374,42 @@ check(
     'from declaring `process` and `Buffer` here',
 );
 
+// ---------------------------------------------------------------------------
+// 4. The package declares the types it needs to check itself.
+//
+// `types: []` above stops @types/* from being included AUTOMATICALLY; it does
+// nothing about a type reached by an ordinary `import from 'react'`, which the
+// hooks here do. That type has to be resolvable from this directory, and for a
+// long time it was resolvable only by accident — pnpm had hoisted a copy where
+// the compiler's node_modules/@types walk happened to find it. An install that
+// placed @types/react under apps/web and apps/mobile only turned `pnpm build`
+// into 24 TS7016/TS7006 errors inside files nobody had edited, which is a bad
+// way to learn that a manifest was incomplete.
+//
+// This asserts the declaration rather than the resolution, deliberately. The
+// build already fails when resolution breaks; what it cannot tell you is that
+// the cause is a missing line in package.json, three directories away from the
+// errors it prints.
+// ---------------------------------------------------------------------------
+console.log('\n[manifest] the package asks for the types it needs');
+
+const declared = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+// Anything imported by name from a hook here and typed by a separate @types
+// package. Derived from the source rather than hard-coded to 'react', so a
+// second such import is covered without editing this list.
+const typeImports = new Set();
+for (const file of files) {
+  const src = readFileSync(file, 'utf8');
+  for (const m of src.matchAll(/\bfrom\s+'(react)'/g)) typeImports.add(m[1]);
+}
+check(
+  'every bare import that needs an @types package has one declared',
+  [...typeImports].every((name) => `@types/${name}` in declared),
+  `        imports ${[...typeImports].join(', ') || '(none)'} but declares ` +
+    `${Object.keys(declared).join(', ') || 'nothing'} — without @types/<name> ` +
+    'in this package.json the build depends on where pnpm happened to hoist it',
+);
+
 console.log(
   failures === 0
     ? '\nALL CHECKS PASSED — @fjellrute/core is still platform-free'

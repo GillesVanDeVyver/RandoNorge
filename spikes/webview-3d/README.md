@@ -28,7 +28,9 @@ either side ships. A development build compiles the SDK in and has no such
 ceiling; `setup.sh` explains the whole detour at the top.
 
 To measure several phones without plugging in each one, build a shareable APK:
-`npx eas build --profile development --platform android`.
+`npx eas-cli@latest build --profile development --platform android`
+(`eas-cli`, with the suffix — `npx eas` resolves to an unrelated package with no
+executable and fails without saying why).
 
 Three presets are wired into the app: the production planner (needs a login,
 which the WebView will keep for the session), a public share URL, and a LAN

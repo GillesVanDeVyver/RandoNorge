@@ -33,7 +33,10 @@
 # nothing about the audience — build a shareable APK once instead of plugging in
 # each handset:
 #
-#   npx eas build --profile development --platform android
+#   npx eas-cli@latest build --profile development --platform android
+#
+# `eas-cli`, with the suffix: `npx eas` asks npm for an unrelated package that
+# ships no executable, and npm's error names nothing useful.
 #
 # For iOS, `eas build --profile development --platform ios` works without a Mac
 # but needs the paid Apple developer programme, so Android first is cheaper.
