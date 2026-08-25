@@ -60,10 +60,16 @@ const check = (label, ok, detail) => {
 const read = (...parts) => readFileSync(join(...parts), 'utf8');
 
 /**
- * app.json and eas.json carry `//`-prefixed comment keys — the project's way of
- * keeping rationale next to configuration in a format with no comments. They
- * are ordinary string members, so JSON.parse handles them and they are simply
+ * app.json carries `//`-prefixed comment keys — the project's way of keeping
+ * rationale next to configuration in a format with no comments. They are
+ * ordinary string members, so JSON.parse handles them and they are simply
  * ignored here.
+ *
+ * eas.json must NOT, and section 8 enforces that. EAS validates it against a
+ * closed schema before a build starts and rejects unknown keys outright, so the
+ * same convention that documents app.json aborts the build here with
+ * `"cli.//appVersionSource" is not allowed`. That documentation lives in
+ * README.md instead.
  */
 const appJson = JSON.parse(read(MOBILE, 'app.json'));
 const easJson = JSON.parse(read(MOBILE, 'eas.json'));
@@ -576,6 +582,39 @@ check(
   '        Found a local copy of the sentinel-substitution trick. It belongs in\n' +
     '        packages/core/src/offline/layers.ts beside the descriptors, so the\n' +
     '        web app and the phone cannot disagree about a tile URL.',
+);
+
+// ---------------------------------------------------------------------------
+// 8. eas.json carries no comment keys.
+//
+// app.json tolerates them: `expo config` resolves the file and passes unknown
+// members through untouched, which is verifiable by running it. eas.json does
+// not. EAS validates it against a closed schema BEFORE the build starts and
+// rejects every unknown key, so `"//appVersionSource"` next to
+// `"appVersionSource"` aborts with seven `is not allowed` lines and no build.
+//
+// The lesson worth encoding is not "//-keys are bad" — they document app.json
+// well. It is that the convention is per-file, and eas.json is the file where
+// it costs a round trip to a build server to find out. This check makes the
+// cost a local test run instead. The prose it displaces lives in README.md,
+// under "What is in eas.json".
+// ---------------------------------------------------------------------------
+const commentKeys = [];
+(function walk(node, path) {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+  for (const key of Object.keys(node)) {
+    if (key.startsWith('//')) commentKeys.push(path + key);
+    walk(node[key], `${path}${key}.`);
+  }
+})(easJson, '');
+
+check(
+  'eas.json has no `//` comment keys, which EAS rejects outright',
+  commentKeys.length === 0,
+  commentKeys.map((key) => `        ${key}`).join('\n') +
+    '\n        EAS schema-validates eas.json before building and refuses unknown\n' +
+    '        keys: "cli.//appVersionSource is not allowed". Unlike app.json,\n' +
+    '        which passes them through. Document eas.json in README.md instead.',
 );
 
 console.log(

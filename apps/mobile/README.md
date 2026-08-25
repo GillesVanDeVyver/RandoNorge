@@ -54,8 +54,51 @@ eas-cli` and then plain `eas build …` works too, and is worth it if you build
 often; `@latest` is here because EAS declines builds from a stale CLI, which a
 global install eventually becomes.
 
+EAS will ask you to log in (an Expo account, free, separate from any account in
+this app) and then to create the project on its servers. Say yes to the latter:
+it writes a project ID into `app.json`, and that ID is how subsequent builds
+find the same project.
+
 EAS prints a URL when it finishes; open it on the phone and install the APK.
 This step is needed again only when a native dependency is added or removed.
+
+## What is in eas.json, and why the file has no comments in it
+
+`eas.json` is validated against a closed schema before a build starts, and
+unknown keys are rejected rather than ignored. The `"//key": "…"` convention
+used in `app.json` is therefore fatal here — it fails with `"cli.//appVersionSource"
+is not allowed` and six more like it, before any build happens. So the
+explanations live here instead, which is the trade this file forces: prose one
+directory away from the setting it describes.
+
+Profile names are the one thing not schema-checked, which is why `base` can
+exist at all. It holds what every profile shares. `node` is pinned because EAS
+otherwise picks its own default, and a Node that disagrees with this workspace
+resolves dependencies differently. `corepack: true` is what makes EAS honour the
+`packageManager` field in the root `package.json` and use pnpm 10 rather than
+npm — without it the workspace links are never created and `@fjellrute/core`
+resolves to nothing.
+
+`development` is the only profile that matters right now. `developmentClient:
+true` is its whole point: the binary embeds `expo-dev-client` and loads JS from a
+Metro server instead of shipping a frozen bundle, which is what replaces Expo Go
+and its SDK ceiling. `android.buildType: "apk"` overrides the default app
+bundle, because an `.aab` can only be installed through Play while an `.apk` can
+be downloaded from the EAS build page and sideloaded — which is what testing on
+your own phone means. `ios.simulator: false` signs for a real device and needs an
+Apple Developer account with the device's UDID registered; Android is the
+shorter path and is what the instructions above assume.
+
+`preview` is the same build without the development client: self-contained, JS
+bundled in, for handing to someone who should not have to run Metro. Nothing
+needs it yet. It is kept because the delta from `development` is exactly one
+flag, and that is worth recording. `production` is store-bound and untouched;
+the default app-bundle output is the right one for Play.
+
+`cli.appVersionSource: "local"` keeps the version in `app.json` authoritative
+instead of letting EAS bump a counter on its servers. The app is at 0.1.0 and
+nothing is in a store, so a remote source would only mean more state living
+outside the repository.
 
 ## Every run after that
 
@@ -118,10 +161,18 @@ React Native's types in and the boundary would stop meaning anything.
 
 ## What has not been verified by running it
 
-No part of this app has been run as an app. There has been no Metro server, no
-EAS build and no device. What it has been through is `pnpm -C apps/mobile
-typecheck` against the real installed typings, `pnpm test` (which includes
-`test:mobile`), `pnpm lint`, and `setup.sh` actually executing.
+No part of this app has been run as an app. There has been no Metro server and
+no device. What it has been through is `pnpm -C apps/mobile typecheck` against
+the real installed typings, `pnpm test` (which includes `test:mobile`), `pnpm
+lint`, `expo config --type public` resolving `app.json`, and `setup.sh` actually
+executing.
+
+One thing beyond that has now been tested by the real service, by failing: an
+EAS build was started and rejected `eas.json` outright for carrying the `//`
+comment keys that `app.json` tolerates. That file is fixed and `test:mobile`
+guards it, but the corrected version has not yet been past EAS's validator
+itself — the next build attempt is the first real check of it, and of everything
+after it.
 
 That distinction matters most for the map. An earlier draft of this file warned
 that the MapLibre prop names were taken from the library's v10 API and were the
