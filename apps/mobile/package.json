@@ -1,0 +1,40 @@
+{
+  "name": "@fjellrute/mobile",
+  "private": true,
+  "version": "0.0.0",
+  "main": "expo-router/entry",
+  "//": "Phases 2 and 3 of Fjellrute-Mobile-Build-Plan.docx: the Expo app. It shares packages/core with apps/web — geometry, the saved-routes client, the i18n store, the Kartverket and NVE layer descriptors — so there is exactly one definition of each and no drift between phone and laptop.",
+  "//versions": "The four pinned versions below are not guesses: they were read off a working SDK 57 scaffold produced by create-expo-app on 2026-08-25 (spikes/webview-3d/app). Everything Expo manages on top of them — expo-router, expo-secure-store, expo-location, the MapLibre native module — is installed by ./setup.sh through `expo install`, which resolves the version each package must have for THIS SDK. That indirection is deliberate. Hand-written version ranges for native modules are how you get a build that compiles and then crashes on the device, and this project has already lost an evening to an Expo version that was inferred rather than read.",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "//web": "There is deliberately no `web` script. `expo start --web` cannot run this app: MapLibre React Native has no web renderer, and expo-secure-store has no web implementation, so there is nowhere for the session to live. A script that is guaranteed to fail is worse than no script — it reads as a supported path.",
+    "//typecheck": "Not wired into the root `pnpm build`. That runs `tsc -b` over the project references in the root tsconfig.json, where packages/core is compiled with `types: []` to keep it platform-free; adding this app there would put React Native's types into the same solution and the boundary harness would lose its meaning. Run it from here instead.",
+    "typecheck": "tsc --noEmit",
+    "fix-versions": "expo install --fix"
+  },
+  "dependencies": {
+    "@better-auth/expo": "1.6.23",
+    "@fjellrute/core": "workspace:*",
+    "@maplibre/maplibre-react-native": "^11.3.7",
+    "better-auth": "1.6.23",
+    "expo": "~57.0.16",
+    "expo-constants": "~57.0.14",
+    "expo-dev-client": "~57.0.15",
+    "expo-linking": "~57.0.7",
+    "expo-location": "~57.0.13",
+    "expo-network": "~57.0.1",
+    "expo-router": "~57.0.16",
+    "expo-secure-store": "~57.0.1",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}

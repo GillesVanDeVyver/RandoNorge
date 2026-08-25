@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Fjellrute",
+    "slug": "fjellrute",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+
+    "//scheme": "The deep-link scheme, and the value Better Auth's Expo client sends as its origin. It must equal MOBILE_SCHEME in worker/auth.js, which lists it in trustedOrigins; a mismatch fails the CSRF check and surfaces as a login that rejects correct credentials. scripts/verify-mobile-app.mjs asserts this file, worker/auth.js and src/auth/client.ts all agree.",
+    "scheme": "fjellrute",
+
+    "android": {
+      "package": "no.fjellrute.app",
+      "//permissions": "Foreground location only, for the position marker in Phase 3. Background location (ACCESS_BACKGROUND_LOCATION and the foreground-service declarations) is Phase 4 and deliberately absent: asking for it before anything records a track means a permission prompt the user cannot connect to a feature, and Google Play requires a justification video for it.",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+    },
+
+    "ios": {
+      "bundleIdentifier": "no.fjellrute.app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Fjellrute viser posisjonen din på kartet mens du planlegger og følger en tur."
+      }
+    },
+
+    "//plugins": "expo-router provides the file-based navigation in app/. The MapLibre plugin is required rather than optional: it is not part of the Expo SDK, and on iOS it is what adds $MLRN.post_install(installer) to the Podfile — without it the native build fails at pod install rather than at runtime.",
+    "plugins": ["expo-router", "@maplibre/maplibre-react-native"],
+
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

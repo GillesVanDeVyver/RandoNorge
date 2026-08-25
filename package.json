@@ -32,12 +32,16 @@
     "test:viewswitch": "node scripts/verify-view-switch.mjs",
     "test:parking": "node scripts/verify-parking-signs.mjs",
     "test:core": "node scripts/verify-core-package.mjs",
+    "//test:mobile": "Runs immediately after test:core, because it checks the same seam from the other side: test:core proves the shared package could load on a phone, this proves the phone app only asks it for things it exports, and that the phone's scheme, host and permissions agree with the Worker's. It reads files only — no Expo, no device — so it belongs in the ordinary suite rather than behind a flag.",
+    "test:mobile": "node scripts/verify-mobile-app.mjs",
     "test:gdpr": "pnpm test:deletion && pnpm test:privacy && pnpm test:policies",
     "//test": "test:core runs FIRST. Everything after it imports modules out of packages/core, so if that package has stopped being platform-free the rest of the suite is running against a package that would not load on a phone — and it would still pass, because Node has most of what a browser has. Failing early names the actual problem.",
-    "test": "pnpm test:core && pnpm test:gdpr && pnpm test:landing && pnpm test:appbase && pnpm test:notfound && pnpm test:ratelimit && pnpm test:password && pnpm test:briefing && pnpm test:viewswitch && pnpm test:parking"
+    "test": "pnpm test:core && pnpm test:mobile && pnpm test:gdpr && pnpm test:landing && pnpm test:appbase && pnpm test:notfound && pnpm test:ratelimit && pnpm test:password && pnpm test:briefing && pnpm test:viewswitch && pnpm test:parking"
   },
+  "//dependencies": "@better-auth/expo is the SERVER half of Better Auth's Expo support, imported by worker/auth.js as `expo()`. It lives in this manifest rather than apps/mobile because the Worker is deployed from this level and is deliberately not a workspace package (see pnpm-workspace.yaml); the mobile app depends on the client half, @better-auth/expo/client, from its own manifest. It and better-auth are pinned EXACTLY, and identically, because they are one library published as two packages: they share internals and are released together, so a skew fails at runtime rather than at install. This is not hypothetical — writing both as `^1.6.23` resolved better-auth to 1.6.23 (already in the lockfile) and the plugin to 1.7.1, and pnpm reported the unmet peer rather than the mismatch. scripts/verify-mobile-app.mjs now asserts the two strings are equal, which only means something while they are exact. Raise them together. NOTE ALSO that a `//`-prefixed comment key does NOT work inside `dependencies`: pnpm treats it as a package name and tries to install it. Hence this key, at the top level.",
   "dependencies": {
-    "better-auth": "^1.6.23",
+    "@better-auth/expo": "1.6.23",
+    "better-auth": "1.6.23",
     "kysely": "^0.29.3",
     "kysely-d1": "^0.4.0"
   },

@@ -37,3 +37,8 @@ export const WEB = join(REPO, 'apps/web');
 /** The platform-free package both apps compile: geometry, parsers, tile maths,
  *  the API clients, i18n, types and the terms and privacy text. */
 export const CORE = join(REPO, 'packages/core');
+
+/** The Expo app: its app/ (file-based routes) and src/. The mirror of WEB — a
+ *  path belongs here for exactly the reason one belongs there, and anything the
+ *  two apps must agree on is CORE or REPO instead. */
+export const MOBILE = join(REPO, 'apps/mobile');

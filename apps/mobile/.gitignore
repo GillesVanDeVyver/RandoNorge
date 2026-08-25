@@ -1,0 +1,23 @@
+# Expo's own caches and generated types.
+.expo/
+expo-env.d.ts
+
+# Native projects. `expo prebuild` (and `expo run:android`) generate these from
+# app.json and the config plugins. They are outputs, not sources: checking them
+# in means every plugin change produces a diff in generated Gradle and Podfile
+# code, and the next prebuild silently overwrites any hand edit made in them.
+# If a native change is ever needed that a plugin cannot express, that is the
+# point to commit these deliberately — not before.
+/android/
+/ios/
+
+# Build artefacts.
+*.apk
+*.aab
+*.ipa
+dist/
+web-build/
+
+# EAS local state. Contains the project id EAS assigns on first build, which is
+# account-specific.
+.easignore

@@ -217,6 +217,78 @@ export function effectiveDownloadZoom(
   return Math.min(requestedZoom, layer.maxDownloadZoom ?? layer.maxNativeZoom);
 }
 
+/**
+ * Sentinel coordinates used to recover a URL template from a `tileUrl`
+ * function. Large distinct primes, not 0/1/2, for a reason that is easy to miss:
+ * at z=0 the only valid x and y are 0, so a URL containing three zeroes cannot
+ * be taken apart again, and small numbers risk matching a digit that is part of
+ * a path segment or a layer name containing a year (`Bratthet_med_utlop_2024`).
+ * These three appear in none of the descriptor URLs, so each substitution below
+ * is unambiguous.
+ */
+const TEMPLATE_Z = 7919;
+const TEMPLATE_X = 104729;
+const TEMPLATE_Y = 1299709;
+
+/**
+ * A layer's tile URL as an XYZ template with `{z}`, `{x}`, `{y}` placeholders.
+ *
+ * WHY THIS EXISTS. The descriptors above expose `tileUrl` as a FUNCTION, which
+ * is what the offline downloader needs: it enumerates concrete tiles and wants a
+ * concrete URL for each. Map libraries want the opposite — a template string
+ * they fill in themselves as the user pans. There is no way to ask a function
+ * for its shape, so it is called once with sentinel coordinates and those are
+ * substituted back out.
+ *
+ * It lives here, next to the descriptors, for the reason the whole module
+ * exists: one statement of each tile URL. A template written by hand in a map
+ * component is a second copy, and it drifts the first time Kartverket changes a
+ * path — invisibly, until tiles stop loading.
+ *
+ * NOT VALID FOR EVERY LAYER, and it says so rather than guessing. `snowdepth`
+ * encodes a computed bounding box instead of tile indices, so no template can
+ * describe it; for that layer this throws, which is the correct answer to "give
+ * me a template for something that has none". The check is on the OUTPUT rather
+ * than on the layer's id, so a future descriptor that stops being a plain path
+ * substitution is caught the same way instead of being quietly wrong.
+ *
+ * The placeholders come out in whatever order the source uses: Kartverket and
+ * NVE both serve `{z}/{y}/{x}`, row before column. That is not a mistake to be
+ * normalised — it is the sources' own layout, and preserving it is the entire
+ * point of deriving the template instead of writing one.
+ */
+export function tileUrlTemplate(layer: OfflineLayer): string {
+  const template = layer
+    .tileUrl(TEMPLATE_Z, TEMPLATE_X, TEMPLATE_Y)
+    .replace(String(TEMPLATE_Z), '{z}')
+    .replace(String(TEMPLATE_X), '{x}')
+    .replace(String(TEMPLATE_Y), '{y}');
+
+  // Counting the placeholders is not enough, and it took a deliberately broken
+  // sentinel to notice: with TEMPLATE_X = 0 the topo URL comes back with `{x}`
+  // planted in the middle of its `/1.0.0/` version segment and the real x left
+  // untouched. That template has exactly one of each placeholder, is still an
+  // absolute https URL, and is completely wrong.
+  //
+  // So the check is an equivalence instead of a shape. Fill the template in with
+  // coordinates the sentinels cannot be confused with and compare against what
+  // the function itself produces for those same coordinates. If the two agree,
+  // the template IS the function — which is the only property any caller wants
+  // — and no argument about where the placeholders landed is needed.
+  const [z, x, y] = [13, 4271, 2318];
+  const filled = template
+    .replace('{z}', String(z))
+    .replace('{x}', String(x))
+    .replace('{y}', String(y));
+  if (filled !== layer.tileUrl(z, x, y)) {
+    throw new Error(
+      `Layer '${layer.id}' has no XYZ tile template. Derived ${template}, ` +
+        `which expands to ${filled} where tileUrl gives ${layer.tileUrl(z, x, y)}.`,
+    );
+  }
+  return template;
+}
+
 export const OFFLINE_LAYERS: Record<OfflineLayerId, OfflineLayer> = {
   topo,
   steepness,

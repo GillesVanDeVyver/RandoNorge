@@ -282,9 +282,20 @@ check(
   noThrow !== authCode && !/onAPIError\s*:\s*\{[^}]*throw\s*:\s*true/.test(noThrow),
 );
 
+// A pattern rather than the exact line this used to name. That literal was
+// `return runAuthHandler(env, url, request);`, and it stopped existing the day
+// the auth route was wrapped for CORS — `return withCors(await
+// runAuthHandler(...), …)`. The mutation then became a no-op, so this control
+// failed, which is the harness working: it refused to certify a check it could
+// no longer exercise. It is written this way so the next reshuffle of that line
+// does not do it again.
+//
+// `await|return` is required in front so the match cannot land on
+// runAuthHandler's own declaration, and the first match wins because the regex
+// is not global.
 const bypassed = indexCode.replace(
-  'return runAuthHandler(env, url, request);',
-  'return getAuth(env, url.origin).handler(request);',
+  /\b(await|return)\s+runAuthHandler\([^()]*\)/,
+  '$1 getAuth(env, url.origin).handler(request)',
 );
 check(
   'a route going straight to the handler again is caught',

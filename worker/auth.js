@@ -14,6 +14,7 @@
 
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
+import { expo } from '@better-auth/expo';
 import { D1Dialect } from 'kysely-d1';
 import { hashPassword, verifyPassword } from './password.js';
 import { sendEmail, emailTemplate } from './email.js';
@@ -24,6 +25,42 @@ import {
 } from './usernameRules.js';
 import { TERMS_VERSION, PRIVACY_VERSION } from './policyVersions.js';
 import { betterAuthRateLimitStorage } from './rateLimit.js';
+
+/**
+ * The mobile app's deep-link scheme, without the '://'.
+ *
+ * Kept here as a named constant rather than inlined because two things must
+ * agree with it: `scheme` in apps/mobile/app.json, and the `scheme` passed to
+ * expoClient() in apps/mobile/src/auth/client.ts. A drift between them presents
+ * as a login that fails with a CSRF error, so scripts/verify-mobile-app.mjs
+ * checks all three against each other.
+ */
+export const MOBILE_SCHEME = 'fjellrute';
+
+/**
+ * Whether this origin is a development server, and therefore whether Expo's
+ * development-client scheme should be trusted.
+ *
+ * Conservative on purpose: it recognises localhost and the three private IPv4
+ * ranges — the addresses `wrangler dev --host` actually serves on — and treats
+ * everything else, including anything it does not recognise, as production. The
+ * failure mode of being wrong in that direction is "cannot log in from Expo Go
+ * on my laptop"; the other direction is trusting any Expo client that can reach
+ * the production Worker.
+ */
+function isDevOrigin(origin) {
+  let host;
+  try {
+    host = new URL(origin).hostname;
+  } catch {
+    return false;
+  }
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return true;
+  // 10.0.0.0/8, 192.168.0.0/16, and 172.16.0.0/12.
+  if (/^10\./.test(host) || /^192\.168\./.test(host)) return true;
+  const m = /^172\.(\d+)\./.exec(host);
+  return m !== null && Number(m[1]) >= 16 && Number(m[1]) <= 31;
+}
 
 // One instance per isolate+origin is enough; the D1 binding is stable for
 // the isolate's lifetime.
@@ -37,7 +74,27 @@ export function getAuth(env, origin) {
     baseURL: origin,
     basePath: '/api/auth',
     secret: env.BETTER_AUTH_SECRET,
-    trustedOrigins: [origin],
+    // The web app's own origin, plus the mobile app's custom scheme.
+    //
+    // MOBILE_SCHEME is the app's deep-link scheme, declared in
+    // apps/mobile/app.json. It must match exactly — the value the Expo client
+    // sends is derived from that manifest, and a mismatch fails as a CSRF
+    // rejection, which reads like bad credentials rather than a misconfigured
+    // origin. scripts/verify-mobile-app.mjs asserts the two agree so the pair
+    // cannot drift apart silently.
+    //
+    // The exp:// entries are Expo's own development-client scheme, and they are
+    // added only when this Worker is serving a development origin. In production
+    // they would be a real hole: exp://** trusts any Expo client on any network,
+    // which is fine for `wrangler dev` on a laptop and not fine for the origin
+    // holding real accounts. isDevOrigin() below is deliberately conservative —
+    // it names localhost and the private IPv4 ranges rather than trying to
+    // detect "not production".
+    trustedOrigins: [
+      origin,
+      `${MOBILE_SCHEME}://`,
+      ...(isDevOrigin(origin) ? ['exp://', 'exp://**'] : []),
+    ],
 
     database: {
       dialect: new D1Dialect({ database: env.DB }),
@@ -251,6 +308,19 @@ export function getAuth(env, origin) {
         '/reset-password': { window: 3600, max: 10 },
       },
     },
+
+    // The Expo app (apps/mobile) is a second client of this same auth server,
+    // and it needs this plugin rather than only a CORS header, which is the one
+    // thing about mobile auth that is easy to get backwards: CORS is enforced by
+    // browsers, and React Native's fetch is not a browser, so a native build
+    // never consults an Access-Control-Allow-Origin header at all. What would
+    // reject the phone is `trustedOrigins` below — Better Auth's CSRF check —
+    // and what makes a session survive the app being killed is this plugin
+    // cooperating with the client's SecureStore.
+    //
+    // It is safe on the web: the plugin adds routes and cookie handling used by
+    // the Expo client and changes nothing about the existing browser flow.
+    plugins: [expo()],
   });
 
   cached = { origin, auth };

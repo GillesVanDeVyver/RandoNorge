@@ -37,6 +37,7 @@ import { handleTerrainTile } from './terrain.js';
 import { resolveDocument } from './knownPaths.js';
 import { withSecurityHeaders } from './securityHeaders.js';
 import { rateLimit, clientIp } from './rateLimit.js';
+import { handlePreflight, withCors } from './cors.js';
 
 const ROUTES = [
   // `allow` pins each proxy to the exact upstream path prefix the app uses,
@@ -121,6 +122,17 @@ async function handleRequest(request, env, ctx) {
       });
     }
 
+    // CORS preflight, answered before anything that authenticates. A preflight
+    // carries no cookies by design, so any auth check would reject it and the
+    // browser would report the *real* request as blocked — with the preflight,
+    // the actual cause, invisible. Only /api/* is in scope; nothing else here is
+    // called cross-origin. See worker/cors.js for who is allowed and why this
+    // is not what makes the native mobile app work.
+    if (pathname.startsWith('/api/')) {
+      const preflight = handlePreflight(request, url);
+      if (preflight) return preflight;
+    }
+
     // Closed-alpha gate: email/password sign-up must carry a valid invite
     // code (migration 0006, worker/invite.js). We check the code here and
     // only forward the request to Better Auth's real sign-up flow when it
@@ -129,13 +141,21 @@ async function handleRequest(request, env, ctx) {
     // verification, reset) is untouched. Delete this block to open public
     // sign-ups.
     if (pathname === '/api/auth/sign-up/email' && request.method === 'POST') {
-      return gatedEmailSignUp(request, env, url, ctx);
+      return withCors(
+        await gatedEmailSignUp(request, env, url, ctx),
+        request,
+        url,
+      );
     }
 
     // Authentication (Better Auth): sign-up, sign-in, sign-out, session,
     // email verification and password reset all live under /api/auth/*.
     if (pathname === '/api/auth' || pathname.startsWith('/api/auth/')) {
-      return runAuthHandler(env, url, request);
+      // withCors adds nothing unless the Origin is on the allowlist, so this is
+      // a no-op for every same-origin browser request the web app makes. It is
+      // awaited rather than returned because the headers have to be merged onto
+      // a Response that exists.
+      return withCors(await runAuthHandler(env, url, request), request, url);
     }
 
     // Tells the login form whether an account exists for an email address,
@@ -164,7 +184,7 @@ async function handleRequest(request, env, ctx) {
     // Saved routes: authenticated CRUD against the "route" table
     // (worker/routes.js).
     if (pathname === '/api/routes' || pathname.startsWith('/api/routes/')) {
-      return handleRoutesApi(request, env, url);
+      return withCors(await handleRoutesApi(request, env, url), request, url);
     }
 
     // Recorded tracks ("actual routes" from navigation mode): authenticated

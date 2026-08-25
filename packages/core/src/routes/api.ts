@@ -1,6 +1,10 @@
-// Client for the saved-routes API (worker/routes.js). All calls are
-// same-origin (/api/routes…) and authenticated by the Better Auth session
-// cookie, so there is nothing to configure here.
+// Client for the saved-routes API (worker/routes.js).
+//
+// On the web the calls are same-origin (/api/routes…) and authenticated by the
+// Better Auth session cookie, so there is nothing to configure. On a phone
+// neither holds — there is no origin for a path to resolve against, and the
+// session lives in SecureStore — so both are supplied through the adapters in
+// ../net/base.ts, which default to exactly the web's behaviour.
 //
 // Storage format: the in-memory `Route` (segments of [lat, lng]) is
 // serialized as a GeoJSON Feature with a MultiLineString geometry — one
@@ -11,6 +15,7 @@
 import type { LatLng, Route } from '../types';
 import { parseSnapshot, type ForecastSnapshot } from '../forecast/snapshot';
 import { translate } from '../i18n/locale.ts';
+import { apiUrl, authHeaders, usesCookieCredentials } from '../net/base.ts';
 
 /** What the API stores in the `geometry` column. */
 interface RouteFeature {
@@ -126,9 +131,21 @@ function parseRow(row: ApiRouteRow): SavedRoute {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  // apiUrl() and authHeaders() are both identity operations until something
+  // installs them (see ../net/base.ts), so on the web this is the same request
+  // it always was: a path-only URL and no extra headers. The phone installs both
+  // at startup, because React Native's fetch cannot resolve '/api/routes' and
+  // its session is in SecureStore rather than a cookie jar.
+  const res = await fetch(apiUrl(path), {
     ...init,
-    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...authHeaders(),
+    },
+    // Only named when a Cookie header is being set by hand: 'omit' stops fetch's
+    // own cookie handling from competing with it. Left undefined on the web so
+    // the default ('same-origin', which sends our session cookie) is untouched.
+    ...(usesCookieCredentials() ? {} : { credentials: 'omit' as const }),
   });
   if (!res.ok) {
     let message = translate(
@@ -149,6 +166,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export async function listRoutes(): Promise<SavedRoute[]> {
   const data = await request<{ routes: ApiRouteRow[] }>('/api/routes');
   return data.routes.map(parseRow);
+}
+
+/**
+ * One route by id (owner only). `GET /api/routes/:id` has existed in
+ * worker/routes.js since the beginning; the web app never needed it because it
+ * already has the whole list in memory by the time a route is opened. The phone
+ * does not: its route screen can be reached from a cold start via a deep link,
+ * with no list ever having been fetched, so it must be able to ask for one.
+ */
+export async function getRoute(id: string): Promise<SavedRoute> {
+  const row = await request<ApiRouteRow>(
+    `/api/routes/${encodeURIComponent(id)}`,
+  );
+  return parseRow(row);
 }
 
 export async function createRoute(input: {

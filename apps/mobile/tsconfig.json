@@ -1,0 +1,35 @@
+{
+  "//": "Standalone, not a project reference from the root tsconfig.json. The root solution exists to enforce the boundary in packages/core, which compiles with `types: []` so that a stray `document` or `process` fails there. Pulling React Native's types into that solution would defeat it. So this app type-checks on its own: `pnpm -C apps/mobile typecheck`.",
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    // @fjellrute/core resolves through its exports map at runtime (Metro) and
+    // needs no path mapping here, because pnpm links it into node_modules.
+    // Named explicitly anyway so an editor resolves the subpaths without a
+    // Metro server running. NOTE that a "//key" comment key does not work
+    // inside compilerOptions — tsc reports TS5025 Unknown compiler option —
+    // whereas this form does, because tsconfig.json is parsed as JSONC.
+    "paths": {
+      "@fjellrute/core/*": ["../../packages/core/src/*"]
+    },
+    // noUncheckedIndexedAccess is deliberately NOT set. The `paths` mapping
+    // above compiles packages/core FROM SOURCE as part of this program, and
+    // core is not written for that flag (its own tsconfig does not set it): it
+    // indexes arrays it has already length-checked, which this flag cannot see.
+    // Turning it on here produced ~40 errors inside core and none in this app.
+    // The flag belongs in packages/core/tsconfig.json or nowhere.
+    "verbatimModuleSyntax": true,
+    // Both of these are here for the same reason as the note above: this
+    // program includes packages/core's SOURCE, and some of core's internal
+    // imports carry an explicit `.ts` extension. packages/core/tsconfig.json
+    // and apps/web/tsconfig.app.json both allow that, so this app has to as
+    // well or it fails with TS5097 on files it does not own. `noEmit` is not
+    // optional alongside it — TypeScript refuses allowImportingTsExtensions
+    // unless emit is off — and it is the truth regardless: Metro and Babel
+    // transpile this app, tsc is only ever a checker here.
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "android", "ios"]
+}

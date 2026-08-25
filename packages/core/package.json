@@ -15,6 +15,7 @@
     "./terms/privacy": "./src/terms/privacy.ts",
     "./forecast/snapshot": "./src/forecast/snapshot.ts",
     "./search/geocode": "./src/search/geocode.ts",
+    "./net/base": "./src/net/base.ts",
     "./routes/api": "./src/routes/api.ts",
     "./routes/errors": "./src/routes/errors.ts",
     "./routes/fit": "./src/routes/fit.ts",
