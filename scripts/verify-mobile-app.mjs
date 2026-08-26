@@ -739,6 +739,63 @@ if (pins === null) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// 10. No manifest carries a `//` comment key inside a dependency map.
+//
+// Section 8's lesson, one file over, learned the hard way a second time. The
+// `//key` convention is per-FILE, and it is also per-LOCATION: pnpm reads the
+// keys of `dependencies`, `devDependencies`, `peerDependencies` and
+// `optionalDependencies` as package names. A `"//react-native-gesture-handler"`
+// sitting above the entry it documents is not a comment, it is a request to
+// install a package called `//react-native-gesture-handler`, and pnpm aborts
+// the ENTIRE workspace install with ERR_PNPM_INVALID_PACKAGE_NAME — not just
+// that package, not just that project.
+//
+// The root manifest has carried a written warning about exactly this since the
+// better-auth pinning work, in `//dependencies`. apps/mobile/package.json broke
+// it anyway, in a commit whose whole purpose was to pin native modules, and the
+// failure surfaced on the user's machine rather than here. A rule that is
+// written down but not enforced is a rule that gets broken by whoever is
+// concentrating on something else, which is everyone eventually. Hence a test.
+//
+// Comments about dependencies belong at the top level of the manifest, where
+// npm and pnpm both ignore unknown members: `//nativeModules`, `//dependencies`.
+// ---------------------------------------------------------------------------
+const DEPENDENCY_MAPS = [
+  'dependencies',
+  'devDependencies',
+  'peerDependencies',
+  'optionalDependencies',
+];
+
+const manifests = [
+  ['package.json', rootPkg],
+  ['apps/mobile/package.json', mobilePkg],
+];
+for (const rel of ['apps/web/package.json', 'packages/core/package.json']) {
+  const file = join(REPO, rel);
+  if (existsSync(file)) manifests.push([rel, JSON.parse(readFileSync(file, 'utf8'))]);
+}
+
+const commentedDeps = [];
+for (const [rel, manifest] of manifests) {
+  for (const map of DEPENDENCY_MAPS) {
+    for (const name of Object.keys(manifest[map] ?? {})) {
+      if (name.startsWith('//')) commentedDeps.push(`${rel} → ${map}.${name}`);
+    }
+  }
+}
+
+check(
+  `no manifest has a \`//\` key inside a dependency map (${manifests.length} checked)`,
+  commentedDeps.length === 0,
+  commentedDeps.map((line) => `        ${line}`).join('\n') +
+    '\n        pnpm reads these as package names and fails the whole workspace\n' +
+    '        install with ERR_PNPM_INVALID_PACKAGE_NAME. Move the comment to a\n' +
+    '        top-level key such as "//dependencies", which both npm and pnpm\n' +
+    '        ignore.',
+);
+
 console.log(
   failures === 0
     ? '\nAll mobile app checks passed.\n'
