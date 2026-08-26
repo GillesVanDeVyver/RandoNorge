@@ -280,7 +280,15 @@
 			//   npx wrangler d1 create fjellrute-db-dev-eu --jurisdiction eu
 			//   npx wrangler d1 info fjellrute-db-dev-eu     # must report: eu
 			// then paste the printed database_id below and apply the schema:
-			//   npx wrangler d1 migrations apply fjellrute-db-dev-eu --remote
+			//   npx wrangler d1 migrations apply fjellrute-db-dev-eu --remote --env dev
+			//
+			// The `--env dev` on that last one is load-bearing, and is the reason
+			// it differs from the production command in deploy_instructions.md.
+			// Wrangler resolves a database NAME through the bindings of whichever
+			// environment is selected; the top-level config does not list this
+			// database, so without the flag it looks in the wrong place and reports
+			// the database as not found. `d1 create` and `d1 info` need no flag —
+			// they talk to the account, not to a binding.
 			//
 			// The placeholder below is not a valid uuid, deliberately: a deploy
 			// attempted before that happens fails on this line, rather than
@@ -290,7 +298,12 @@
 			// on one (worker/invite.js, migration 0006). Mint one into THIS
 			// database before trying to create an account:
 			//   node scripts/invite/create-invite.mjs > /tmp/codes.sql
-			//   npx wrangler d1 execute fjellrute-db-dev-eu --remote --file /tmp/codes.sql
+			//   npx wrangler d1 execute fjellrute-db-dev-eu --remote --env dev --file /tmp/codes.sql
+			//
+			// Then create the account in a BROWSER, at
+			// https://fjellrute-dev.<subdomain>.workers.dev/alpha/ — the phone has
+			// a login screen and no sign-up screen, deliberately, and "/" on this
+			// Worker serves the same "Kommer snart" holding page as production.
 			"d1_databases": [
 				{
 					"binding": "DB",
