@@ -6,12 +6,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-
-    "//formatting": "Expo owns this file as much as we do: `npx expo install --fix`, which setup.sh runs, re-serializes it and appends config plugins it finds installed. Expect a dirty app.json after setup.sh and read the diff rather than reverting it — that is how expo-status-bar and expo-secure-store got into `plugins` below. The blank lines here are re-added by hand because they are what keeps the long '//' comment keys legible; losing them again costs nothing.",
-
+    "//formatting": "Expo owns this file as much as we do. `expo install --fix` and `expo run:android` both re-serialize it, append config plugins they find installed, and write their own keys — that is where the plugins list below and extra.eas.projectId came from. So expect a dirty app.json after any Expo command, and read the diff rather than reverting it. Blank lines separating these comment keys were added by hand once for legibility and stripped by the next Expo command; they are not being re-added, because losing an argument with a code generator twice is enough.",
     "//scheme": "The deep-link scheme, and the value Better Auth's Expo client sends as its origin. It must equal MOBILE_SCHEME in worker/auth.js, which lists it in trustedOrigins; a mismatch fails the CSRF check and surfaces as a login that rejects correct credentials. scripts/verify-mobile-app.mjs asserts this file, worker/auth.js and src/auth/client.ts all agree.",
     "scheme": "fjellrute",
-
     "android": {
       "package": "no.fjellrute.app",
       "//permissions": "Foreground location only, for the position marker in Phase 3. Background location (ACCESS_BACKGROUND_LOCATION and the foreground-service declarations) is Phase 4 and deliberately absent: asking for it before anything records a track means a permission prompt the user cannot connect to a feature, and Google Play requires a justification video for it.",
@@ -20,7 +17,6 @@
         "ACCESS_COARSE_LOCATION"
       ]
     },
-
     "ios": {
       "bundleIdentifier": "no.fjellrute.app",
       "supportsTablet": true,
@@ -28,7 +24,6 @@
         "NSLocationWhenInUseUsageDescription": "Fjellrute viser posisjonen din på kartet mens du planlegger og følger en tur."
       }
     },
-
     "//plugins": "expo-router provides the file-based navigation in app/. The MapLibre plugin is required rather than optional: it is not part of the Expo SDK, and on iOS it is what adds $MLRN.post_install(installer) to the Podfile — without it the native build fails at pod install rather than at runtime. expo-status-bar and expo-secure-store were added by `expo install --fix`; every name in this list must resolve to an app.plugin.js in node_modules or prebuild fails on it, and all four do.",
     "plugins": [
       "expo-router",
@@ -36,9 +31,14 @@
       "expo-status-bar",
       "expo-secure-store"
     ],
-
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6c6a6134-b3a1-4fbb-8b11-f90a86733df1"
+      }
     }
   }
 }

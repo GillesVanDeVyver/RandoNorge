@@ -57,5 +57,14 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "wrangler": "^4.110.0"
+  },
+
+  "//pnpm": "Three React Native native modules, forced to the versions in expo/bundledNativeModules.json. They are peer dependencies of expo-router and @expo/ui that pnpm installs automatically, and it resolves each to the newest version satisfying the PEER's range rather than the one Expo pinned for SDK 57 — which put react-native-worklets 0.12.1 in the tree against Expo's 0.10.1 and failed the Android build in the C++ compiler, because expo-modules-core calls a WorkletRuntime::executeSync that 0.12 had removed. apps/mobile/package.json declares all three explicitly as well; this override is the other half, and it is needed because Expo's native autolinking scans the whole store, so one declared copy does not stop a second copy reaching the native build. Overriding at the root is safe because all three are React Native only — apps/web and the Worker never resolve them. react and react-dom are deliberately NOT overridden: apps/web legitimately runs a newer React than the phone, and forcing them together would break the web app in order to tidy a warning.",
+  "pnpm": {
+    "overrides": {
+      "react-native-gesture-handler": "~2.32.0",
+      "react-native-reanimated": "4.5.1",
+      "react-native-worklets": "0.10.1"
+    }
   }
 }

@@ -30,8 +30,12 @@
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.2",
+    "//react-native-gesture-handler": "These next three are here despite nothing in app/ or src/ importing them. expo-router and @expo/ui declare them as PEER dependencies, and pnpm installs missing peers automatically — resolving each to the newest version satisfying the peer's own range, which is not the version Expo pinned for this SDK. Undeclared, they were invisible to `expo install --fix`, which audits package.json and therefore reported everything up to date while the tree held worklets 0.12.1 against Expo's 0.10.1. Native autolinking does not care that no JavaScript imports them: expo-modules-core compiles C++ against react-native-worklets' headers, and 0.12.1 had dropped the WorkletRuntime::executeSync that it calls, so the Android build failed in the C++ compiler. Declaring them at the versions in expo/bundledNativeModules.json is what makes the resolution explicit rather than emergent; the root package.json also overrides them so a second copy cannot exist for autolinking to find. Change these only to match bundledNativeModules.json — scripts/verify-mobile-app.mjs compares the two.",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "~4.26.2"
+    "react-native-screens": "~4.26.2",
+    "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

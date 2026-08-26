@@ -42,7 +42,7 @@
 // Run with:  node scripts/verify-mobile-app.mjs   (needs Node >= 22)
 // Wired into `pnpm test:mobile`.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { MOBILE, CORE, REPO } from './lib/tree.mjs';
 
@@ -616,6 +616,128 @@ check(
     '        keys: "cli.//appVersionSource is not allowed". Unlike app.json,\n' +
     '        which passes them through. Document eas.json in README.md instead.',
 );
+
+// ---------------------------------------------------------------------------
+// 9. Every native module in the tree is at the version Expo pinned for this SDK.
+//
+// The expensive one, and the reason this section exists at all. Expo ships
+// expo/bundledNativeModules.json: the exact version of each native module that
+// SDK 57 was built and tested against. Nothing enforces it. `expo install` uses
+// it for packages you ask for, and `expo install --fix` re-checks the ones in
+// package.json — so a module that arrives WITHOUT being declared is audited by
+// nobody, and `--fix` will report the project up to date while the tree holds a
+// version Expo never shipped.
+//
+// That is not a corner case here, it is the default: pnpm auto-installs missing
+// peer dependencies, expo-router and @expo/ui declare several native modules as
+// peers, and pnpm resolves each to the newest version satisfying the PEER's
+// range — not Expo's pin. That put react-native-worklets 0.12.1 in the tree
+// against Expo's 0.10.1.
+//
+// It cost a full debugging cycle to learn what makes this worth a test. The
+// mismatch produced only an "unmet peer" warning at install, and the obvious way
+// to decide whether such a warning matters — is the package installed in
+// apps/mobile, does any file import it — said no on both counts, so it was
+// written off as inert. Both questions were the wrong ones. Native autolinking
+// scans the whole store regardless of what JavaScript imports, and
+// expo-modules-core compiles C++ against react-native-worklets' headers. 0.12
+// had removed the WorkletRuntime::executeSync it calls. The symptom was a C++
+// compiler error inside a package nobody had touched, five minutes into a Gradle
+// build, naming a method rather than a version.
+//
+// So: read Expo's own file, walk the store, compare. The scan takes about a
+// second and finds every mismatch at once instead of one per build.
+//
+// react and react-dom are excluded deliberately. apps/web runs a newer React
+// than the phone, legitimately, and its copy is not what Metro bundles.
+// ---------------------------------------------------------------------------
+const EXCLUDED_FROM_PIN_CHECK = new Set(['react', 'react-dom']);
+const PNPM_STORE = join(REPO, 'node_modules/.pnpm');
+
+/** Expo's pin list, found via the installed expo package rather than a path. */
+function bundledNativeModules() {
+  if (!existsSync(PNPM_STORE)) return null;
+  for (const dir of readdirSync(PNPM_STORE)) {
+    if (!dir.startsWith('expo@')) continue;
+    const file = join(PNPM_STORE, dir, 'node_modules/expo/bundledNativeModules.json');
+    if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'));
+  }
+  return null;
+}
+
+/** Does `version` satisfy Expo's pin? Only ~, ^ and exact appear in that file. */
+function satisfiesPin(version, pin) {
+  const want = pin.replace(/^[~^]/, '').split('.');
+  const got = version.split('.');
+  if (pin.startsWith('~')) return got[0] === want[0] && got[1] === want[1];
+  if (pin.startsWith('^')) return got[0] === want[0];
+  return version === pin;
+}
+
+const pins = bundledNativeModules();
+if (pins === null) {
+  check(
+    'every native module matches expo/bundledNativeModules.json',
+    false,
+    '        Could not find expo/bundledNativeModules.json under\n' +
+      '        node_modules/.pnpm. Run pnpm install. This check is skipped by\n' +
+      '        nobody: a missing pin list means the tree is unverifiable, not fine.',
+  );
+} else {
+  // Every version of every pinned package anywhere in the store. Read from each
+  // package.json rather than parsed out of the directory name, because a pnpm
+  // store directory embeds its peers' names and versions too and splitting it
+  // textually attributes the wrong version to the wrong package.
+  const found = new Map();
+  const consider = (dir) => {
+    const manifest = join(dir, 'package.json');
+    if (!existsSync(manifest)) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(readFileSync(manifest, 'utf8'));
+    } catch {
+      return;
+    }
+    const { name, version } = parsed;
+    if (!name || !version) return;
+    if (!(name in pins) || EXCLUDED_FROM_PIN_CHECK.has(name)) return;
+    if (!found.has(name)) found.set(name, new Set());
+    found.get(name).add(version);
+  };
+
+  for (const dir of readdirSync(PNPM_STORE)) {
+    const modules = join(PNPM_STORE, dir, 'node_modules');
+    if (!existsSync(modules)) continue;
+    for (const entry of readdirSync(modules)) {
+      if (entry.startsWith('@')) {
+        for (const scoped of readdirSync(join(modules, entry))) {
+          consider(join(modules, entry, scoped));
+        }
+      } else {
+        consider(join(modules, entry));
+      }
+    }
+  }
+
+  const wrong = [];
+  for (const [name, versions] of [...found].sort()) {
+    const bad = [...versions].filter((v) => !satisfiesPin(v, pins[name]));
+    if (bad.length > 0) {
+      wrong.push(`${name}: Expo pins ${pins[name]}, tree has ${[...versions].sort().join(', ')}`);
+    }
+  }
+
+  check(
+    `every native module matches expo/bundledNativeModules.json (${found.size} checked)`,
+    wrong.length === 0,
+    wrong.map((line) => `        ${line}`).join('\n') +
+      '\n        These reach the native build through autolinking whether or not\n' +
+      '        any JavaScript imports them, so a version Expo did not ship can\n' +
+      '        fail in the C++ compiler. Declare the package in\n' +
+      '        apps/mobile/package.json at the pinned version and add a\n' +
+      '        pnpm.overrides entry at the root, then pnpm install.',
+  );
+}
 
 console.log(
   failures === 0
