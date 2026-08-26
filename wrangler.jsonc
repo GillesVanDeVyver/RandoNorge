@@ -282,6 +282,26 @@
 			// then paste the printed database_id below and apply the schema:
 			//   npx wrangler d1 migrations apply fjellrute-db-dev-eu --remote --env dev
 			//
+			// ANSWER **NO** TO "Would you like Wrangler to add it on your behalf?"
+			// AND PASTE THE ID YOURSELF. Wrangler's offer is not wrong so much as
+			// unaware of environments: it appends a NEW entry to the TOP-LEVEL
+			// d1_databases — production's — with the binding named after the
+			// resource (`fjellrute_db_dev_eu`) and `"remote": true`, and it leaves
+			// the line below untouched. The deploy then fails on the placeholder
+			// here, which reads as "the id did not take", while the id that did
+			// arrive is sitting in the wrong array binding the dev database into
+			// production. Nothing in worker/ reads that binding, so it is silent
+			// until a production deploy carries it and `wrangler dev` starts
+			// reaching a remote database over the network.
+			//
+			// This is the same prompt, with the same consequence, as the one the
+			// R2 comment above warns about — it stopped step 7 of
+			// docs/D1-EU-JURISDICTION-MIGRATION.md, and then it happened again here
+			// on 2026-08-26 despite being documented. So it is no longer only
+			// documented: scripts/verify-mobile-app.mjs section 12 now fails if the
+			// top-level array has more than one entry, or if any D1 binding
+			// anywhere in this file sets "remote": true.
+			//
 			// The `--env dev` on that last one is load-bearing, and is the reason
 			// it differs from the production command in deploy_instructions.md.
 			// Wrangler resolves a database NAME through the bindings of whichever
@@ -290,9 +310,13 @@
 			// the database as not found. `d1 create` and `d1 info` need no flag —
 			// they talk to the account, not to a binding.
 			//
-			// The placeholder below is not a valid uuid, deliberately: a deploy
-			// attempted before that happens fails on this line, rather than
-			// publishing a Worker whose every request 500s inside D1.
+			// Until that id is real the line below holds a placeholder that is not
+			// a valid uuid, deliberately: a deploy attempted first fails on it
+			// ("binding DB of type d1 must have a valid `database_id` specified",
+			// error 10021) rather than publishing a Worker whose every request 500s
+			// inside D1. Note that it fails AFTER uploading the assets, so the
+			// error arrives about six seconds in and looks like a real deploy going
+			// wrong. It isn't; it is this line.
 			//
 			// It starts EMPTY, so it holds no invite codes — and sign-up is gated
 			// on one (worker/invite.js, migration 0006). Mint one into THIS
@@ -308,7 +332,7 @@
 				{
 					"binding": "DB",
 					"database_name": "fjellrute-db-dev-eu",
-					"database_id": "PASTE-THE-ID-FROM-d1-create-HERE",
+					"database_id": "5f950226-ee42-46fd-acce-1fe888de9443",
 					"migrations_dir": "migrations"
 				}
 			],

@@ -1146,6 +1146,58 @@ if (wrangler !== null) {
         '        different binding name deploys fine and 500s on first query.',
     );
 
+    // THE `d1 create` PROMPT. "Would you like Wrangler to add it on your
+    // behalf?" appends a binding to the TOP-LEVEL d1_databases — production's —
+    // named after the resource and carrying "remote": true, regardless of which
+    // environment the database was meant for. The two checks below are the two
+    // fingerprints it leaves.
+    //
+    // Both were already documented in wrangler.jsonc, twice, in comments sitting
+    // directly above the arrays involved. The prompt was answered "yes" anyway,
+    // on 2026-08-26, having previously stopped step 7 of
+    // docs/D1-EU-JURISDICTION-MIGRATION.md. A hazard that has been written down
+    // and then hit again is not a documentation problem, so it is a test now.
+    //
+    // The failure is silent in the meantime, which is the reason to spend two
+    // checks on it: nothing in worker/ reads a binding it did not ask for, so an
+    // extra one changes no behaviour until a production deploy carries it, or
+    // until `wrangler dev` follows "remote": true out to a real database and
+    // writes to it.
+    const allD1 = [
+      ...(wrangler.d1_databases ?? []).map((db) => ({ where: 'top level', db })),
+      ...Object.entries(wrangler.env ?? {}).flatMap(([name, env]) =>
+        (env.d1_databases ?? []).map((db) => ({ where: `env.${name}`, db })),
+      ),
+    ];
+
+    const extraTopLevel = (wrangler.d1_databases ?? []).slice(1);
+    check(
+      'production binds exactly one D1 database',
+      extraTopLevel.length === 0,
+      `        Extra top-level bindings: ${extraTopLevel
+        .map((db) => `${db.binding} -> ${db.database_name}`)
+        .join(', ')}\n` +
+        '        `wrangler d1 create` offers to add the binding for you and does\n' +
+        '        not know about environments: it appends to THIS array whichever\n' +
+        '        environment the database was for. Answer no to that prompt and\n' +
+        '        paste the id where it belongs. A second binding here is the dev\n' +
+        '        database wired into production.',
+    );
+
+    const remoteBindings = allD1.filter(({ db }) => db.remote === true);
+    check(
+      'no D1 binding is marked "remote": true',
+      remoteBindings.length === 0,
+      `        ${remoteBindings
+        .map(({ where, db }) => `${where}: ${db.binding} (${db.database_name})`)
+        .join('\n        ')}\n` +
+        '        The same prompt sets this. `wrangler dev` then sends every query\n' +
+        '        to the real database over wrangler\u2019s remote-dev proxy, which\n' +
+        '        fronts D1 with a single serializing object — one stalled query\n' +
+        '        wedges every later request. Local development is supposed to use\n' +
+        '        a local copy: `d1 migrations apply <db> --local`.',
+    );
+
     check(
       'env.dev runs no cron',
       Array.isArray(devEnv.triggers?.crons) && devEnv.triggers.crons.length === 0,
