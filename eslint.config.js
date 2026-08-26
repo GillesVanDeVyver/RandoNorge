@@ -18,7 +18,15 @@ export default defineConfig([
   // are also outside the pnpm workspace and have no node_modules until
   // `spikes/*/setup.sh` runs, which would otherwise make `pnpm lint` — and so
   // the pre-push gate — depend on whether a spike happened to be scaffolded.
-  globalIgnores(['dist', '.wrangler', 'spikes']),
+  //
+  // `**/.expo` is Expo's scratch directory. It is gitignored, but ESLint does
+  // not read .gitignore, so it only appears once someone has actually run the
+  // app — `expo export` or `expo run:android` writes .expo/types/router.d.ts,
+  // a generated route map carrying its own eslint-disable header, and linting
+  // it reported "Unused eslint-disable directive" in a file no edit here owns.
+  // That made `pnpm lint`, and so the pre-push gate, depend on whether the
+  // developer had run the mobile app yet. Same reasoning as .wrangler above.
+  globalIgnores(['dist', '.wrangler', 'spikes', '**/.expo']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

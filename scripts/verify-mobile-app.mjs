@@ -39,12 +39,28 @@
 // prompt the user cannot connect to a feature, and Play requires a
 // justification video for it.
 //
+// Most of what follows reads text. Two sections do not, and deliberately:
+// section 9 shells out to `expo-modules-autolinking` to learn which native
+// module versions Gradle would really link, and section 11 require()s
+// apps/mobile/metro.config.js to read the resolved bundler config rather than
+// grep its source. Both were textual first and both were wrong that way — the
+// history is in the comment on each. Neither needs a device or an emulator, but
+// both need node_modules installed, and both FAIL rather than skip when they
+// cannot run.
+//
 // Run with:  node scripts/verify-mobile-app.mjs   (needs Node >= 22)
 // Wired into `pnpm test:mobile`.
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { createRequire } from 'node:module';
+import { join, relative, resolve } from 'node:path';
 import { MOBILE, CORE, REPO } from './lib/tree.mjs';
+
+// metro.config.js is CommonJS and is the file Metro itself loads. Section 11
+// requires it and reads the values back, so that what is asserted is the
+// config Metro would actually use rather than what the source text looks like.
+const require = createRequire(import.meta.url);
 
 let failures = 0;
 const check = (label, ok, detail) => {
@@ -618,9 +634,9 @@ check(
 );
 
 // ---------------------------------------------------------------------------
-// 9. Every native module in the tree is at the version Expo pinned for this SDK.
+// 9. Every native module the build will link is at the version Expo pinned.
 //
-// The expensive one, and the reason this section exists at all. Expo ships
+// The expensive one, and the reason this section exists. Expo ships
 // expo/bundledNativeModules.json: the exact version of each native module that
 // SDK 57 was built and tested against. Nothing enforces it. `expo install` uses
 // it for packages you ask for, and `expo install --fix` re-checks the ones in
@@ -632,24 +648,47 @@ check(
 // peer dependencies, expo-router and @expo/ui declare several native modules as
 // peers, and pnpm resolves each to the newest version satisfying the PEER's
 // range — not Expo's pin. That put react-native-worklets 0.12.1 in the tree
-// against Expo's 0.10.1.
+// against Expo's 0.10.1, and the symptom was a C++ compiler error inside a
+// package nobody had touched, five minutes into a Gradle build, naming a method
+// (WorkletRuntime::executeSync) rather than a version.
 //
-// It cost a full debugging cycle to learn what makes this worth a test. The
-// mismatch produced only an "unmet peer" warning at install, and the obvious way
-// to decide whether such a warning matters — is the package installed in
-// apps/mobile, does any file import it — said no on both counts, so it was
-// written off as inert. Both questions were the wrong ones. Native autolinking
-// scans the whole store regardless of what JavaScript imports, and
-// expo-modules-core compiles C++ against react-native-worklets' headers. 0.12
-// had removed the WorkletRuntime::executeSync it calls. The symptom was a C++
-// compiler error inside a package nobody had touched, five minutes into a Gradle
-// build, naming a method rather than a version.
+// HOW THIS ASKS, AND THE TWO WRONG ANSWERS IT GAVE FIRST. The question "which
+// versions are in the tree" has no single answer under pnpm, and guessing at it
+// produced a false positive and a false negative in the same afternoon:
 //
-// So: read Expo's own file, walk the store, compare. The scan takes about a
-// second and finds every mismatch at once instead of one per build.
+//   - Scanning every directory under node_modules/.pnpm over-reports. pnpm
+//     materialises one directory per PEER COMBINATION, so four expo-router
+//     variants exist while only one is reachable, and the unreachable ones hold
+//     versions no build loads. This reported gesture-handler 3.2.1 as a failure
+//     on a tree whose native build had just succeeded.
+//   - Walking the resolved graph from apps/mobile under-reported, then
+//     over-reported. It first dead-ended, because under pnpm a package's
+//     dependencies are its SIBLINGS rather than its children, so a deliberately
+//     corrupted nested link went unnoticed and the check passed while claiming
+//     28 packages verified. Fixing the traversal then made it reach
+//     react-native-drawer-layout through @expo/cli — dev-server tooling that is
+//     neither bundled nor compiled — and fail on versions that cannot affect a
+//     build either.
+//
+// So it stops guessing and asks the resolvers that actually decide. Two of them
+// run, because there are two autolinking systems and only one of them owns the
+// packages that broke the build:
+//
+//   `expo-modules-autolinking resolve`             Expo modules (expo-location,
+//                                                  expo-router, @expo/ui, ...)
+//   `expo-modules-autolinking react-native-config` React Native community
+//                                                  modules — gesture-handler,
+//                                                  reanimated, worklets,
+//                                                  screens, safe-area-context,
+//                                                  MapLibre
+//
+// Their output is what Gradle compiles, so a version reported here is a version
+// that really gets built, and one they omit cannot be. Together they take under
+// two seconds. Note that this means the section shells out — it is the one part
+// of this file that needs node_modules installed rather than only reading text.
 //
 // react and react-dom are excluded deliberately. apps/web runs a newer React
-// than the phone, legitimately, and its copy is not what Metro bundles.
+// than the phone, legitimately, and neither autolinker reports them anyway.
 // ---------------------------------------------------------------------------
 const EXCLUDED_FROM_PIN_CHECK = new Set(['react', 'react-dom']);
 const PNPM_STORE = join(REPO, 'node_modules/.pnpm');
@@ -674,68 +713,87 @@ function satisfiesPin(version, pin) {
   return version === pin;
 }
 
+/** Run an autolinking subcommand in apps/mobile and parse its JSON. */
+function autolinking(subcommand) {
+  try {
+    const stdout = execFileSync(
+      'npx',
+      ['expo-modules-autolinking', subcommand, '--platform', 'android', '--json'],
+      { cwd: MOBILE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 120_000 },
+    );
+    return { ok: true, data: JSON.parse(stdout) };
+  } catch (error) {
+    return { ok: false, error: error?.message ?? String(error) };
+  }
+}
+
 const pins = bundledNativeModules();
+const expoModules = pins === null ? null : autolinking('resolve');
+const rnModules = pins === null ? null : autolinking('react-native-config');
+
 if (pins === null) {
   check(
-    'every native module matches expo/bundledNativeModules.json',
+    'every native module the build links matches expo/bundledNativeModules.json',
     false,
     '        Could not find expo/bundledNativeModules.json under\n' +
       '        node_modules/.pnpm. Run pnpm install. This check is skipped by\n' +
       '        nobody: a missing pin list means the tree is unverifiable, not fine.',
   );
-} else {
-  // Every version of every pinned package anywhere in the store. Read from each
-  // package.json rather than parsed out of the directory name, because a pnpm
-  // store directory embeds its peers' names and versions too and splitting it
-  // textually attributes the wrong version to the wrong package.
-  const found = new Map();
-  const consider = (dir) => {
-    const manifest = join(dir, 'package.json');
-    if (!existsSync(manifest)) return;
-    let parsed;
-    try {
-      parsed = JSON.parse(readFileSync(manifest, 'utf8'));
-    } catch {
-      return;
-    }
-    const { name, version } = parsed;
-    if (!name || !version) return;
-    if (!(name in pins) || EXCLUDED_FROM_PIN_CHECK.has(name)) return;
-    if (!found.has(name)) found.set(name, new Set());
-    found.get(name).add(version);
-  };
-
-  for (const dir of readdirSync(PNPM_STORE)) {
-    const modules = join(PNPM_STORE, dir, 'node_modules');
-    if (!existsSync(modules)) continue;
-    for (const entry of readdirSync(modules)) {
-      if (entry.startsWith('@')) {
-        for (const scoped of readdirSync(join(modules, entry))) {
-          consider(join(modules, entry, scoped));
-        }
-      } else {
-        consider(join(modules, entry));
-      }
-    }
-  }
-
-  const wrong = [];
-  for (const [name, versions] of [...found].sort()) {
-    const bad = [...versions].filter((v) => !satisfiesPin(v, pins[name]));
-    if (bad.length > 0) {
-      wrong.push(`${name}: Expo pins ${pins[name]}, tree has ${[...versions].sort().join(', ')}`);
-    }
-  }
-
+} else if (!expoModules.ok || !rnModules.ok) {
   check(
-    `every native module matches expo/bundledNativeModules.json (${found.size} checked)`,
-    wrong.length === 0,
-    wrong.map((line) => `        ${line}`).join('\n') +
-      '\n        These reach the native build through autolinking whether or not\n' +
-      '        any JavaScript imports them, so a version Expo did not ship can\n' +
-      '        fail in the C++ compiler. Declare the package in\n' +
-      '        apps/mobile/package.json at the pinned version and add a\n' +
-      '        pnpm.overrides entry at the root, then pnpm install.',
+    'every native module the build links matches expo/bundledNativeModules.json',
+    false,
+    '        Could not ask the autolinkers what they resolve:\n' +
+      `        resolve:             ${expoModules.ok ? 'ok' : expoModules.error}\n` +
+      `        react-native-config: ${rnModules.ok ? 'ok' : rnModules.error}\n` +
+      '        Both run in apps/mobile and need node_modules installed. An\n' +
+      '        unanswerable question is not a passing check.',
+  );
+} else {
+  // name -> { version, source }. Both autolinkers report `expo` itself, and
+  // they agree on it, so last-write-wins is harmless; a real disagreement would
+  // surface as a mismatch against the pin rather than being hidden.
+  const linked = new Map();
+
+  for (const module of expoModules.data.modules ?? []) {
+    const { packageName: name, packageVersion: version } = module;
+    if (!name || !version) continue;
+    linked.set(name, { version, source: 'expo autolinking' });
+  }
+
+  for (const [name, entry] of Object.entries(rnModules.data.dependencies ?? {})) {
+    const manifest = join(entry.root ?? '', 'package.json');
+    if (!existsSync(manifest)) continue;
+    const { version } = JSON.parse(readFileSync(manifest, 'utf8'));
+    if (!version) continue;
+    linked.set(name, { version, source: 'react-native autolinking' });
+  }
+
+  const checked = [...linked].filter(
+    ([name]) => name in pins && !EXCLUDED_FROM_PIN_CHECK.has(name),
+  );
+  const wrong = checked
+    .filter(([name, { version }]) => !satisfiesPin(version, pins[name]))
+    .map(
+      ([name, { version, source }]) =>
+        `${name}: Expo pins ${pins[name]}, ${source} resolved ${version}`,
+    );
+
+  // An empty list would mean the autolinkers answered but named nothing this
+  // file pins, which is not a clean tree — it is a query that stopped working.
+  check(
+    `every native module the build links matches expo/bundledNativeModules.json (${checked.length} linked)`,
+    wrong.length === 0 && checked.length > 0,
+    (checked.length === 0
+      ? '        The autolinkers reported no package that appears in\n' +
+        '        bundledNativeModules.json. That is not a clean tree, it is a\n' +
+        '        broken query — check the --json output shape has not changed.'
+      : wrong.map((line) => `        ${line}`).join('\n') +
+        '\n        These are what Gradle will compile, so a version Expo did not\n' +
+        '        ship can fail in the C++ compiler regardless of what any\n' +
+        '        JavaScript imports. Declare the package in\n' +
+        '        apps/mobile/package.json at the pinned version and add a\n' +
+        '        pnpm.overrides entry at the root, then pnpm install.'),
   );
 }
 
@@ -795,6 +853,81 @@ check(
     '        top-level key such as "//dependencies", which both npm and pnpm\n' +
     '        ignore.',
 );
+
+// ---------------------------------------------------------------------------
+// 11. Metro still resolves the way pnpm expects.
+//
+// This app is bundled by Metro out of a pnpm workspace, and the two disagree
+// about where packages live unless metro.config.js says otherwise. The settings
+// that matter are asserted here against the RESOLVED config — the file is
+// require()d and the values read back — rather than by grepping the source, so
+// a setting reintroduced through a spread, a helper or an Expo default is
+// caught just the same.
+//
+// disableHierarchicalLookup is the one that has actually broken a build.
+// Expo's monorepo documentation recommends it, which makes it look blessed, but
+// that documentation assumes npm or yarn, where hoisting leaves the root
+// node_modules flat and complete. pnpm instead gives every resolved package its
+// own directory under node_modules/.pnpm holding exactly the dependencies that
+// package should see. Turning off the upward walk makes those directories
+// unreachable, so any module a DEPENDENCY imports — as opposed to one this app
+// declares — fails to resolve. expo-router importing `@expo/metro-runtime`
+// returned HTTP 500 from the dev server on a device, after a nine-minute native
+// build, with the file present and correctly linked the whole time.
+//
+// watchFolders must include the workspace root or edits in packages/core do not
+// reload, and nodeModulesPaths must name the app's own directory before the
+// root's so a version this app pins beats a hoisted one.
+// ---------------------------------------------------------------------------
+let metroConfig = null;
+let metroError = null;
+try {
+  metroConfig = require(join(MOBILE, 'metro.config.js'));
+} catch (error) {
+  metroError = error;
+}
+
+check(
+  'metro.config.js loads',
+  metroConfig !== null,
+  `        require() threw: ${metroError?.message ?? 'unknown'}\n` +
+    '        Metro reads this file on every bundle, so a config that does not\n' +
+    '        load is a dev server that does not start.',
+);
+
+if (metroConfig !== null) {
+  check(
+    'Metro does not disable hierarchical lookup, which pnpm needs',
+    metroConfig.resolver?.disableHierarchicalLookup !== true,
+    '        config.resolver.disableHierarchicalLookup === true.\n' +
+      '        Expo documents this for monorepos, but it assumes a hoisting\n' +
+      '        package manager. Under pnpm it makes node_modules/.pnpm/<pkg>/\n' +
+      '        unreachable, so anything a dependency imports rather than this\n' +
+      '        app declaring it fails to resolve — expo-router importing\n' +
+      '        @expo/metro-runtime returned a 500 from the dev server.\n' +
+      '        See the comment in metro.config.js before changing this.',
+  );
+
+  const watched = (metroConfig.watchFolders ?? []).map((dir) => resolve(dir));
+  check(
+    'Metro watches the workspace root, so packages/core hot-reloads',
+    watched.includes(resolve(REPO)),
+    `        watchFolders: ${JSON.stringify(watched)}\n` +
+      '        packages/core lives outside this app. Without the workspace root\n' +
+      '        here, an edit there does not reload on the phone and a cold start\n' +
+      "        reports the package missing.",
+  );
+
+  const modulePaths = (metroConfig.resolver?.nodeModulesPaths ?? []).map((dir) => resolve(dir));
+  check(
+    "Metro prefers this app's node_modules over the workspace root's",
+    modulePaths.indexOf(resolve(MOBILE, 'node_modules')) === 0 &&
+      modulePaths.includes(resolve(REPO, 'node_modules')),
+    `        nodeModulesPaths: ${JSON.stringify(modulePaths)}\n` +
+      "        Both must be present, app first: a version this app pins has to\n" +
+      '        win over a hoisted one.',
+  );
+}
 
 console.log(
   failures === 0
