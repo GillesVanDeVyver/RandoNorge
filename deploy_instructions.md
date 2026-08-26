@@ -8,10 +8,22 @@ npx wrangler whoami
 pnpm build
 npx wrangler d1 migrations apply fjellrute-db-eu --local
 npx wrangler d1 migrations apply fjellrute-db-eu --remote
-npx wrangler deploy
+npx wrangler deploy --env=""
 ```
 
 Notes:
+
+- `--env=""` means "the top-level environment", i.e. production — the Worker
+  `fjellrute` on `fjellrute.no`. It became necessary on 2026-08-26, when
+  wrangler.jsonc gained a second environment (`env.dev`, the `fjellrute-dev`
+  Worker the phone talks to). A bare `npx wrangler deploy` still deploys
+  production, but it now prints a warning that no target environment was
+  specified, and a deploy command that warns is one somebody eventually
+  "fixes" by adding the wrong flag. Passing it explicitly says which of the two
+  Workers is being replaced. To deploy the other one:
+  `pnpm build && npx wrangler deploy --env dev` — see the `env.dev` comment in
+  wrangler.jsonc for what that Worker is and what it does not share with this
+  one.
 
 - The repository lives at `~/PrivateProjects/RandoNorge`. This file previously
   named `~/Projects/PrivateProjects/RandoNorge/RandoNorge`, which no longer

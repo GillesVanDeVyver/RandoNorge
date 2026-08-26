@@ -256,16 +256,45 @@ const declared = new Set([
   'expo',
 ]);
 
+/**
+ * Source with comments removed, for the rules that are about what the app DOES.
+ *
+ * Every rule below searches for string literals in a specific syntactic
+ * position — after `from`, inside `require(`, and so on — and a comment can
+ * contain those shapes without meaning them. This codebase explains itself at
+ * unusual length, which makes that likelihood high rather than theoretical: the
+ * doc comment on `Resolved` in src/config/api.ts contains the words
+ * `from "on this Wi-Fi"`, and section 2 duly reported a missing dependency
+ * called `on this Wi-Fi`. Rewording the sentence would have fixed that one
+ * instance and left the trap for the next person writing a comment about where
+ * something comes from.
+ *
+ * TWO RULES, AND THE SECOND ONE IS NARROW ON PURPOSE. Block comments go
+ * wholesale. Line comments are removed only when they occupy a WHOLE line,
+ * never as a trailing comment, because 'https://…' contains a '//' and a
+ * trailing-comment rule would truncate at it — cutting the literals section 4
+ * exists to find out of the text before it looks. The cost of the narrow rule
+ * is that a trailing comment can still produce a phantom match; the cost of the
+ * wide one is a false PASS, so the narrow rule is the right way round.
+ *
+ * Removing comments can only ever remove matches, never add them, so nothing
+ * this makes invisible could have been a real import: those live in code.
+ */
+function withoutComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 /** Bare specifiers only: './x' and '../x' are the app's own files. */
 function importsIn(source) {
   const specifiers = new Set();
+  const code = withoutComments(source);
   const patterns = [
     /\bfrom\s+['"]([^'"]+)['"]/g,
     /\brequire\(\s*['"]([^'"]+)['"]\s*\)/g,
     /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g,
   ];
   for (const pattern of patterns) {
-    for (const [, spec] of source.matchAll(pattern)) {
+    for (const [, spec] of code.matchAll(pattern)) {
       if (spec.startsWith('.') || spec.startsWith('/')) continue;
       specifiers.add(spec);
     }
@@ -349,19 +378,12 @@ const strayHosts = [];
 const strayApiPaths = [];
 for (const file of files) {
   const source = readFileSync(file, 'utf8');
-  // Strip comments before searching. Both kinds, because the two rules below
-  // are about what the app REQUESTS, and this codebase explains itself at
-  // length — a doc comment that says which endpoint a header is for would
-  // otherwise read as a second copy of that endpoint.
-  //
-  // Whole-line `//` only, never a trailing one: 'https://…' contains a '//'
-  // and a trailing-comment rule would truncate the very literals rule 4 exists
-  // to find. Block comments are removed wholesale; nothing in this app has a
-  // string containing '/*', and if one ever does, the failure is a false PASS
-  // on the following lines, so keep this in mind rather than relying on it.
-  const code = source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
+  // Comments out, for the reasons given on withoutComments() above — the rules
+  // below are about what the app REQUESTS, and a doc comment naming an endpoint
+  // is not a second copy of it. This used to be an inline copy of that logic,
+  // which meant the identical hazard existed in section 2 and was not handled
+  // there; hoisting it is what fixed section 2.
+  const code = withoutComments(source);
   if (file !== CONFIG) {
     for (const [match] of code.matchAll(HOST_LITERAL)) {
       strayHosts.push(`${match}  (${rel(file)})`);
@@ -927,6 +949,230 @@ if (metroConfig !== null) {
       "        Both must be present, app first: a version this app pins has to\n" +
       '        win over a hoisted one.',
   );
+}
+
+// ---------------------------------------------------------------------------
+// 12. The phone and the dev Worker describe the same backend.
+// ---------------------------------------------------------------------------
+//
+// The phone's default backend is the deployed dev Worker — `env.dev` in
+// wrangler.jsonc, published as `fjellrute-dev`. Two files have to agree about
+// it, in a way neither language can enforce: src/config/api.ts holds the URL as
+// a string literal (nothing in a React Native bundle can read wrangler.jsonc),
+// and wrangler.jsonc decides the Worker's name, which IS the first label of
+// that URL. Rename the Worker and the phone keeps asking for a hostname that
+// stopped resolving — presenting as the app's ordinary "could not reach the
+// backend", i.e. as the failure it always shows when anything is wrong.
+//
+// The rest of this section is about the environment being a COMPLETE
+// description rather than a partial one. Wrangler splits config into
+// inheritable keys and non-inheritable ones, and an environment that omits a
+// non-inheritable key gets nothing rather than the top-level value. Wrangler
+// warns for `vars` specifically; it says nothing about a missing `assets`,
+// `r2_buckets` or `d1_databases`. Those deploy in silence and fail at runtime —
+// a Worker serving no static files at all, or with no database bound. Every one
+// of them was written out by hand here, so every one of them can be forgotten
+// by hand later, which is what this checks.
+
+/** wrangler.jsonc, as an object. */
+function parseJsonc(source) {
+  // A real JSONC parser is a dependency this repo does not have, and wrangler's
+  // own is not exposed. So: drop comments, drop trailing commas, JSON.parse.
+  // The scanner is string-aware because it has to be — every https:// URL in
+  // that file contains a '//', and a naive comment strip truncates the config
+  // at the first one.
+  let out = '';
+  let i = 0;
+  let inString = false;
+  while (i < source.length) {
+    const c = source[i];
+    if (inString) {
+      out += c;
+      if (c === '\\') {
+        out += source[i + 1] ?? '';
+        i += 2;
+        continue;
+      }
+      if (c === '"') inString = false;
+      i += 1;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      out += c;
+      i += 1;
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '/') {
+      while (i < source.length && source[i] !== '\n') i += 1;
+      continue;
+    }
+    if (c === '/' && source[i + 1] === '*') {
+      i += 2;
+      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i += 1;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i += 1;
+  }
+  return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
+}
+
+let wrangler = null;
+let wranglerError = null;
+try {
+  wrangler = parseJsonc(read(REPO, 'wrangler.jsonc'));
+} catch (error) {
+  wranglerError = error?.message ?? String(error);
+}
+
+check(
+  'wrangler.jsonc parses',
+  wrangler !== null,
+  `        ${wranglerError}\n` +
+    '        Everything below reads this file. Note that the parser here is\n' +
+    '        this harness\u2019s own comment-stripper, so a failure means either\n' +
+    '        the config is genuinely malformed or the stripper met syntax it\n' +
+    '        does not handle. `npx wrangler deploy --dry-run --env dev` is the\n' +
+    '        authority on which.',
+);
+
+if (wrangler !== null) {
+  const devEnv = wrangler.env?.dev ?? null;
+
+  check(
+    'wrangler.jsonc defines the `dev` environment the phone points at',
+    devEnv !== null,
+    '        Expected env.dev — the `fjellrute-dev` Worker. src/config/api.ts\n' +
+      '        defaults DEVELOPMENT_TARGET to \u2019dev-worker\u2019, so without this\n' +
+      '        environment there is nothing to deploy and the app has no backend.',
+  );
+
+  if (devEnv !== null) {
+    const apiSource = read(MOBILE, 'src/config/api.ts');
+    const declared = /const DEV_WORKER_API = '([^']+)'/.exec(apiSource);
+    let devHost = null;
+    try {
+      devHost = declared === null ? null : new URL(declared[1]).hostname;
+    } catch {
+      devHost = null;
+    }
+
+    check(
+      'src/config/api.ts declares DEV_WORKER_API as a parseable https URL',
+      devHost !== null && declared[1].startsWith('https://'),
+      `        Found: ${declared === null ? '(no DEV_WORKER_API)' : declared[1]}\n` +
+        '        Expected a single-quoted absolute https URL. This is read by\n' +
+        '        regex because the file imports React Native modules and cannot\n' +
+        '        be require()d from Node, so the literal has to stay literal.',
+    );
+
+    if (devHost !== null) {
+      check(
+        `DEV_WORKER_API's hostname starts with the Worker's name (${devEnv.name})`,
+        typeof devEnv.name === 'string' && devHost.startsWith(`${devEnv.name}.`),
+        `        api.ts host: ${devHost}\n` +
+          `        env.dev.name: ${devEnv.name}\n` +
+          '        A workers.dev hostname is "<worker name>.<subdomain>". These\n' +
+          '        two drifting apart is not a build error and not a lint error:\n' +
+          '        the phone simply cannot resolve the host, which it reports as\n' +
+          '        the same "could not reach the backend" it shows for every\n' +
+          '        other cause.',
+      );
+
+      check(
+        'DEV_WORKER_API is a workers.dev host, not the production domain',
+        devHost.endsWith('.workers.dev'),
+        `        api.ts host: ${devHost}\n` +
+          '        env.dev has no custom domain (workers_dev: true is what gives\n' +
+          '        it an address). A production hostname here would point the\n' +
+          '        phone at the database holding real accounts, which is the one\n' +
+          '        thing this environment exists to prevent.',
+      );
+    }
+
+    // Non-inheritable keys, by name. `vars` is compared key by key rather than
+    // wholesale because the VALUES are legitimately allowed to differ between
+    // environments — that is what environments are for — while a var present in
+    // one and absent from the other is almost always an oversight.
+    const missingKeys = ['vars', 'd1_databases', 'r2_buckets', 'assets'].filter(
+      (key) => wrangler[key] !== undefined && devEnv[key] === undefined,
+    );
+    check(
+      'env.dev repeats every non-inheritable key the top level defines',
+      missingKeys.length === 0,
+      `        Missing from env.dev: ${missingKeys.join(', ')}\n` +
+        '        These are NOT inherited. An environment that omits one gets\n' +
+        '        nothing, not the top-level value — a Worker with no database\n' +
+        '        bound, or one that serves no static files while answering\n' +
+        '        /api/* perfectly. Wrangler warns about `vars` and is silent\n' +
+        '        about the other three.',
+    );
+
+    const missingVars = Object.keys(wrangler.vars ?? {}).filter(
+      (name) => !(name in (devEnv.vars ?? {})),
+    );
+    check(
+      'env.dev.vars names every var production names',
+      missingVars.length === 0,
+      `        Missing from env.dev.vars: ${missingVars.join(', ')}\n` +
+        '        Values may differ between environments; presence should not.\n' +
+        '        If one is deliberately unset, say so in a comment there — and\n' +
+        '        prefer withholding the matching SECRET, which does not make\n' +
+        '        `wrangler deploy` print a warning on every run.',
+    );
+
+    const prodDb = wrangler.d1_databases?.[0] ?? {};
+    const devDb = devEnv.d1_databases?.[0] ?? {};
+    check(
+      'env.dev binds a DIFFERENT D1 database from production',
+      typeof devDb.database_name === 'string' &&
+        devDb.database_name !== prodDb.database_name &&
+        devDb.database_id !== prodDb.database_id,
+      `        production: ${prodDb.database_name} (${prodDb.database_id})\n` +
+        `        dev:        ${devDb.database_name} (${devDb.database_id})\n` +
+        '        The separate database IS the reason this environment exists\n' +
+        '        rather than the phone being pointed at fjellrute.no. Sharing\n' +
+        '        it would put throwaway signups next to real accounts and GPS\n' +
+        '        tracks, and there is no way to tell them apart afterwards.',
+    );
+
+    check(
+      'env.dev binds D1 under the same name the Worker reads (DB)',
+      devDb.binding === 'DB',
+      `        env.dev binding: ${devDb.binding}\n` +
+        '        worker/ reaches the database through env.DB throughout. A\n' +
+        '        different binding name deploys fine and 500s on first query.',
+    );
+
+    check(
+      'env.dev runs no cron',
+      Array.isArray(devEnv.triggers?.crons) && devEnv.triggers.crons.length === 0,
+      `        env.dev.triggers.crons: ${JSON.stringify(devEnv.triggers?.crons)}\n` +
+        '        Must be an EMPTY array, not absent: `triggers` is inheritable,\n' +
+        "        so omitting it gives this Worker production's 03:47 retention\n" +
+        '        sweep. It would only ever touch its own database, so this is\n' +
+        '        about a daily scheduled run against a database nobody watches\n' +
+        '        looking like activity in the logs.',
+    );
+
+    // Not a failure. The id is a value only Cloudflare can produce, so the
+    // committed state of this file is necessarily a placeholder, and a check
+    // that failed on it would make `pnpm test` red for a step that has to be
+    // done by hand with credentials this harness does not have. Saying so out
+    // loud is the compromise — a placeholder that is never mentioned is one
+    // that gets discovered by a deploy.
+    if (typeof devDb.database_id === 'string' && !/^[0-9a-f-]{36}$/.test(devDb.database_id)) {
+      console.log(
+        `  note   env.dev's database_id is still a placeholder (${devDb.database_id}).\n` +
+          '         The dev Worker cannot be deployed until it is real:\n' +
+          '           npx wrangler d1 create fjellrute-db-dev-eu --jurisdiction eu\n' +
+          '         then paste the printed id into wrangler.jsonc. Not a failure —\n' +
+          '         only Cloudflare can produce that value.',
+      );
+    }
+  }
 }
 
 console.log(

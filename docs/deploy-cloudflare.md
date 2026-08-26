@@ -25,16 +25,44 @@ What the free tier gives you (commercial use explicitly allowed):
 
 ## Deploying
 
+There are now **two** Workers built from this one repository, and every deploy
+command has to say which:
+
+| Worker | Environment flag | Where it answers | Database |
+| --- | --- | --- | --- |
+| `fjellrute` | `--env=""` | `fjellrute.no` | `fjellrute-db-eu` — real accounts |
+| `fjellrute-dev` | `--env dev` | `fjellrute-dev.<subdomain>.workers.dev` | `fjellrute-db-dev-eu` — throwaway |
+
+`fjellrute-dev` exists so the phone app has a backend on the internet rather
+than one on a laptop's Wi-Fi; the full rationale, and what the two Workers do
+and do not share, is in the `env.dev` comment in `wrangler.jsonc`.
+
 Via the connected Git integration (Workers Builds), every push deploys with:
 
 - Build command: `pnpm run build` (or `npm run build`)
-- Deploy command: `npx wrangler deploy`
+- Deploy command: `npx wrangler deploy --env=""`
+
+> The `--env=""` in that dashboard field is worth checking after reading this.
+> Workers Builds stores the deploy command in Cloudflare's UI, not in this
+> repository, so editing this document does not change it. A bare
+> `npx wrangler deploy` there still deploys production correctly — it warns
+> rather than guessing — but the setting should be explicit for the same reason
+> the local command is.
 
 Or from the command line:
 
 ```sh
 npm run build
-npx wrangler deploy
+npx wrangler deploy --env=""
+```
+
+and for the dev Worker (first-time setup — creating its database, applying
+migrations, setting its secrets — is in the `env.dev` comment in
+`wrangler.jsonc`):
+
+```sh
+pnpm build
+npx wrangler deploy --env dev
 ```
 
 Preview a production-like build locally (Worker + assets together) with:

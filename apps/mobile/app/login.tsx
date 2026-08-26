@@ -32,7 +32,7 @@ import {
 } from 'react-native';
 import { useT } from '@fjellrute/core/i18n';
 import { authClient } from '../src/auth/client';
-import { API_BASE, IS_LOCAL_API } from '../src/config/api';
+import { API_BASE, IS_PRODUCTION_API } from '../src/config/api';
 import { LanguageSwitcher } from '../src/ui/LanguageSwitcher';
 import { colors, radius, spacing, TOUCH_TARGET } from '../src/ui/theme';
 
@@ -181,9 +181,13 @@ export default function LoginScreen() {
           )}
         </Text>
 
-        {IS_LOCAL_API && (
-          // Only in a development build pointed at a laptop. Without this, an
-          // empty route list is ambiguous: it could be the wrong backend.
+        {!IS_PRODUCTION_API && (
+          // Any backend that is not production, which now means a laptop OR the
+          // deployed dev Worker. Without this, an empty route list is ambiguous:
+          // it could be the wrong backend. Deliberately NOT IS_LOCAL_API — that
+          // is narrower now, and gating on it would hide the host in exactly the
+          // case where it is least guessable, since a workers.dev URL is not
+          // something you can infer from the phone's own network.
           <Text style={styles.devNote}>{`dev → ${API_BASE}`}</Text>
         )}
       </ScrollView>

@@ -391,7 +391,12 @@ symbol rules, very common passwords rejected, with a strength hint in the form.
    recorded only so that the age of the TXT record is knowable; the record
    itself must stay in place permanently.
 
-6. **Deploy** as usual: `npm run build && npx wrangler deploy`.
+6. **Deploy** as usual: `npm run build && npx wrangler deploy --env=""`.
+   (`--env=""` names the production Worker explicitly. There is a second
+   environment now — see `docs/deploy-cloudflare.md`. Google sign-in is
+   deliberately off on that one: its callback URL is not among the authorised
+   redirect URIs of the client configured above, so the provider is left
+   unregistered rather than present and broken.)
 
 ## Local development
 

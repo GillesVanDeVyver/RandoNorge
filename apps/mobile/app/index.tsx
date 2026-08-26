@@ -28,7 +28,7 @@ import {
   formatDistance,
 } from '@fjellrute/core/routes/format';
 import { authClient } from '../src/auth/client';
-import { API_BASE, IS_LOCAL_API } from '../src/config/api';
+import { API_BASE, IS_LOCAL_API, IS_PRODUCTION_API } from '../src/config/api';
 import { LanguageSwitcher } from '../src/ui/LanguageSwitcher';
 import { colors, radius, spacing, TOUCH_TARGET } from '../src/ui/theme';
 
@@ -67,14 +67,28 @@ export default function RoutesScreen() {
       // (see setAuthHeaders in src/auth/client.ts), while a thrown network
       // error means nothing answered at all.
       const detail = cause instanceof Error ? cause.message : String(cause);
+      // The useful advice depends on WHICH backend this build points at, and
+      // there are three of those, so there are three answers. Telling someone to
+      // go start wrangler while the app is aimed at a deployed Worker sends them
+      // to a laptop that has nothing to do with the failure — IS_LOCAL_API was
+      // briefly defined as "not production" and had to be narrowed back for
+      // exactly this line. Wrong advice on an error screen is worse than none,
+      // because it gets followed.
+      let hint: string | null = null;
+      if (IS_LOCAL_API) {
+        hint = t(
+          `Sjekk at wrangler kjører på ${API_BASE} og lytter på 0.0.0.0.`,
+          `Check that wrangler is running at ${API_BASE} and listening on 0.0.0.0.`,
+        );
+      } else if (!IS_PRODUCTION_API) {
+        hint = t(
+          'Sjekk at dev-workeren er publisert: pnpm build && npx wrangler deploy --env dev',
+          'Check that the dev Worker has been deployed: pnpm build && npx wrangler deploy --env dev',
+        );
+      }
       return {
         status: 'error',
-        message: IS_LOCAL_API
-          ? t(
-              `${detail}\n\nSjekk at wrangler kjører på ${API_BASE} og lytter på 0.0.0.0.`,
-              `${detail}\n\nCheck that wrangler is running at ${API_BASE} and listening on 0.0.0.0.`,
-            )
-          : detail,
+        message: hint === null ? detail : `${detail}\n\n${hint}`,
       };
     }
   }, [t]);

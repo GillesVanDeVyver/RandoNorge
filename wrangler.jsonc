@@ -207,5 +207,152 @@
 		"crons": [
 			"47 3 * * *"
 		]
+	},
+	// A SECOND DEPLOYMENT OF THE SAME CODE, FOR THE PHONE.
+	//
+	// `npx wrangler deploy --env dev` publishes worker/index.js a second time as
+	// the Worker `fjellrute-dev`, reachable at
+	// fjellrute-dev.<your-subdomain>.workers.dev. It exists because a phone
+	// cannot reach `wrangler dev` on a laptop unless both are on the same Wi-Fi,
+	// and the app needs a backend that is simply on the internet.
+	//
+	// It is NOT a second copy of production. Two things are deliberately
+	// different, and both are the point:
+	//
+	//   THE DATABASE. Its own D1, so a throwaway signup from the phone never
+	//   lands in the database holding real accounts and GPS tracks. That
+	//   separation is the whole reason this environment exists rather than the
+	//   phone being pointed at fjellrute.no. It must be created in the EU
+	//   jurisdiction like the real one — not because test data needs GDPR
+	//   protection, but because a dev database that differs in jurisdiction
+	//   cannot reproduce a jurisdiction-related bug. See
+	//   docs/D1-EU-JURISDICTION-MIGRATION.md; the flag works only at creation.
+	//
+	//   NO CRON. `crons: []`, not the inherited 03:47 job. Two Workers running
+	//   the same retention sweep is not harmful — each only ever touches its own
+	//   DB — but a scheduled handler firing daily against a database nobody is
+	//   watching produces log noise that reads as activity. Emptying the array is
+	//   required, not cosmetic: see the inheritance note below.
+	//
+	// WHAT IS SHARED, AND WHY THAT IS SAFE. The R2 terrain bucket. Its binding is
+	// repeated below rather than a second bucket created, because worker/
+	// terrain.js only ever calls env.TERRAIN.get() — there is no .put and no
+	// .delete anywhere in worker/ — so the dev Worker is a reader of tiles it
+	// cannot damage. Uploading a second copy of the Kartverket DTM tiles to guard
+	// against writes that do not exist would be the more expensive mistake.
+	//
+	// EVERY KEY HERE IS REPEATED ON PURPOSE. Wrangler splits configuration into
+	// inheritable keys (main, compatibility_date, account_id — an environment
+	// gets these for free) and NON-inheritable ones, where an environment that
+	// does not name a key gets NOTHING rather than the top-level value. vars,
+	// d1_databases, r2_buckets and assets are all in the second group. A `vars`
+	// block omitted here would not fall back to the one above; it would deploy a
+	// Worker with no EMAIL_FROM, and the first verification email would fail at
+	// runtime. So this section looks redundant and is not. When you change a
+	// binding or a var above, change it here too.
+	//
+	// SECRETS ARE PER-WORKER AND ARE NOT IN THIS FILE. `fjellrute-dev` starts
+	// with none, and each needs `--env dev`:
+	//   npx wrangler secret put BETTER_AUTH_SECRET --env dev
+	//   npx wrangler secret put RESEND_API_KEY --env dev
+	// Use a FRESH BETTER_AUTH_SECRET, not a copy of production's. It signs
+	// session cookies, so two Workers sharing it means a session minted by the
+	// dev Worker is one production would also accept — which quietly undoes the
+	// database separation this environment exists for. RESEND_API_KEY can be the
+	// same key: it is outbound email, and without it worker/email.js logs the
+	// message instead of sending it, so the address-verification link needed to
+	// finish a signup would only ever appear in `wrangler tail --env dev`.
+	"env": {
+		"dev": {
+			// Explicit, though `fjellrute-dev` is also what wrangler derives from
+			// "<top-level name>-<env name>". Written out so the name in the deploy
+			// output, the workers.dev hostname, and the value
+			// apps/mobile/src/config/api.ts points at can be matched to each other
+			// by reading, rather than by knowing wrangler's naming rule.
+			"name": "fjellrute-dev",
+			// The workers.dev hostname IS the address the phone uses; this
+			// environment has no custom domain. Stated rather than left to the
+			// default, because the default is what adding a route later would
+			// silently turn off.
+			"workers_dev": true,
+			// A DIFFERENT DATABASE FROM PRODUCTION. Create it once, keeping the
+			// jurisdiction:
+			//   npx wrangler d1 create fjellrute-db-dev-eu --jurisdiction eu
+			//   npx wrangler d1 info fjellrute-db-dev-eu     # must report: eu
+			// then paste the printed database_id below and apply the schema:
+			//   npx wrangler d1 migrations apply fjellrute-db-dev-eu --remote
+			//
+			// The placeholder below is not a valid uuid, deliberately: a deploy
+			// attempted before that happens fails on this line, rather than
+			// publishing a Worker whose every request 500s inside D1.
+			//
+			// It starts EMPTY, so it holds no invite codes — and sign-up is gated
+			// on one (worker/invite.js, migration 0006). Mint one into THIS
+			// database before trying to create an account:
+			//   node scripts/invite/create-invite.mjs > /tmp/codes.sql
+			//   npx wrangler d1 execute fjellrute-db-dev-eu --remote --file /tmp/codes.sql
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "fjellrute-db-dev-eu",
+					"database_id": "PASTE-THE-ID-FROM-d1-create-HERE",
+					"migrations_dir": "migrations"
+				}
+			],
+			// Shared with production, read-only — see the note above.
+			"r2_buckets": [
+				{
+					"binding": "TERRAIN",
+					"bucket_name": "fjellrute-terrain"
+				}
+			],
+			// All three of production's vars, including GOOGLE_CLIENT_ID, which is
+			// here despite Google sign-in being OFF on this Worker. What actually
+			// disables it is the missing GOOGLE_CLIENT_SECRET: worker/auth.js
+			// registers the provider only when the id AND the secret are present,
+			// so simply not running `wrangler secret put GOOGLE_CLIENT_SECRET
+			// --env dev` is enough, and email/password — what the phone uses —
+			// keeps working. The id was omitted here first, which also worked, but
+			// made `wrangler deploy` print "The following vars exist at the top
+			// level, but not on env.dev.vars … this is probably not what you want"
+			// on every single deploy. A warning that is a false alarm every time is
+			// how people learn to skip reading warnings, so the deliberate gap is
+			// the secret, where it is invisible and cannot be mistaken for drift.
+			//
+			// TO TURN GOOGLE SIGN-IN ON HERE you must first add this Worker's
+			// callback URL — https://fjellrute-dev.<subdomain>.workers.dev/api/
+			// auth/callback/google — to the authorised redirect URIs of the
+			// "fjellrute" client in the Google Cloud console. Setting the secret
+			// without that gives redirect_uri_mismatch, i.e. a button that looks
+			// supported and is not.
+			"vars": {
+				"EMAIL_FROM": "Fjellrute <no-reply@fjellrute.no>",
+				"FEEDBACK_TO": "contact@fjellrute.no",
+				"GOOGLE_CLIENT_ID": "14850983815-qtutomkpjvf92rribcm9d7e9rv0foflt.apps.googleusercontent.com"
+			},
+			"observability": {
+				"enabled": true
+			},
+			// Identical to production's, and it has to be spelled out: `assets` is
+			// non-inheritable, so an environment without it serves no static files
+			// at all. The Worker would answer /api/* correctly while every page —
+			// including the /alpha/ app needed to create the first account on this
+			// database — returned nothing.
+			"assets": {
+				"directory": "dist",
+				"binding": "ASSETS",
+				"not_found_handling": "single-page-application",
+				"run_worker_first": [
+					"/*",
+					"!/weather-icons/*",
+					"!/login-*.jpg",
+					"!/overview-*.jpg"
+				]
+			},
+			// Empty, not inherited. See "NO CRON" above.
+			"triggers": {
+				"crons": []
+			}
+		}
 	}
 }
