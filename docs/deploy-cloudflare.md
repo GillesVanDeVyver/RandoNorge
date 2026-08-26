@@ -37,6 +37,34 @@ command has to say which:
 than one on a laptop's Wi-Fi; the full rationale, and what the two Workers do
 and do not share, is in the `env.dev` comment in `wrangler.jsonc`.
 
+### How to tell whether a Worker is actually live
+
+Not by fetching `/`. During the closed alpha `/` deliberately serves the static
+"Kommer snart" page (`public/coming-soon.html`) on **both** Workers, and the app
+itself lives under `/alpha/` — so a deployed, fully working backend looks exactly
+like an undeployed domain parked behind a placeholder. Nor by fetching
+`/api/auth/session`, which correctly 404s because it is not an endpoint: Better
+Auth's is `get-session`.
+
+Those two facts were combined into the wrong conclusion on 2026-08-26 — recorded
+in commit `5447dc3`'s message, which claims the Worker "has never been deployed
+anywhere the app could use". That was false when written; `fjellrute.no` was
+serving the app and answering auth. Nothing in the tree repeats the claim, and
+the reason for a separate dev Worker never rested on it — keeping throwaway
+signups out of the database holding real accounts stands on its own — but the
+commit message cannot be edited, so the correction lives here.
+
+The cheap check that means something:
+
+```sh
+curl -s https://fjellrute.no/api/auth/get-session                        # -> null
+curl -s https://fjellrute-dev.<subdomain>.workers.dev/api/auth/get-session   # -> null
+```
+
+A bare `null` is Better Auth saying "no session", which requires the Worker to be
+running, its D1 binding to resolve and `BETTER_AUTH_SECRET` to be set. An HTML
+body, a 404, or a 500 each mean something different and specific.
+
 Via the connected Git integration (Workers Builds), every push deploys with:
 
 - Build command: `pnpm run build` (or `npm run build`)
