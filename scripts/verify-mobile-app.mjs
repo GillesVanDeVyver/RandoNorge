@@ -1503,6 +1503,192 @@ check(
     '        reason about the value.',
 );
 
+// ---------------------------------------------------------------------------
+// 14. The shell: the phone's routes against the web's views, and every link
+//     that crosses between them.
+//
+// SAME LESSON AS SECTION 13, one level up. The palette drifted because a
+// comment claimed the divergence was deliberate and nothing could tell that
+// claim apart from a stale one. The information architecture drifted the same
+// way and worse: the phone's root WAS the saved list while the web's root was a
+// hub, so the two clients disagreed about what a signed-in session opens onto,
+// and nobody noticed because each app was internally consistent. The plan calls
+// this out and says to match the view set "from the outset instead of being
+// retrofitted" — which only stays true if adding a view on the web makes
+// something here fail.
+//
+// The direction that matters is web-to-phone. A new `SignedInView` is one word
+// in a union in apps/web/src/Root.tsx, cheap to add and invisible from
+// apps/mobile; a phone route with no web counterpart would be the phone
+// inventing product, which is a design conversation rather than drift. So the
+// second check below fails on an unmapped web view and says what to do about
+// it, and VIEW_PARITY carries the two deliberate gaps with their reasons.
+//
+// THE LINK CHECK IS THE OTHER HALF, and it guards a hole this phase opened. The
+// hub passes its card destinations as `href={href as never}`, because
+// expo-router's generated `Href` union does not contain a route until its file
+// exists and a shared card component cannot be typed against it. That cast is
+// the reason `/planner` and `/completed` could be written as strings at all —
+// and it means a typo in one of them type-checks, builds, and fails as a silent
+// no-op on tap. Nothing but this catches it.
+// ---------------------------------------------------------------------------
+
+const rootTsx = stripComments(read(WEB, 'src/Root.tsx'));
+
+/** The members of the `SignedInView` union in apps/web/src/Root.tsx. */
+const webViews = (() => {
+  const union = /type SignedInView\s*=([\s\S]*?);/.exec(rootTsx)?.[1] ?? '';
+  return [...union.matchAll(/'([a-z]+)'/g)].map(([, name]) => name);
+})();
+
+check(
+  "the web's SignedInView union was parsed",
+  webViews.length >= 5,
+  `        Found ${webViews.length} views: ${webViews.join(', ') || '(none)'}\n` +
+    '        Expected six. The union is matched up to the first semicolon, so\n' +
+    '        reformatting it onto one line is fine but moving it behind a type\n' +
+    '        alias is not. Everything below would pass vacuously.',
+);
+
+/**
+ * Every expo-router route in apps/mobile/app, named the way expo-router names
+ * it: the path relative to `app/` without its extension, so `route/[id].tsx`
+ * is `route/[id]`. `_layout` is the router itself rather than a destination.
+ */
+const mobileRoutes = sourceFiles(join(MOBILE, 'app'))
+  .map((file) =>
+    relative(join(MOBILE, 'app'), file)
+      .split('\\')
+      .join('/')
+      .replace(/\.tsx?$/, ''),
+  )
+  .filter((route) => !route.split('/').includes('_layout'));
+
+/** A route name as the URL a `<Link href>` has to use to reach it. */
+const routeToHref = (route) => (route === 'index' ? '/' : `/${route}`);
+
+/**
+ * The web's views, mapped to the phone route that answers each one, or to
+ * `null` with the reason there is none.
+ *
+ * Written out rather than derived from the names, because two of the six pairs
+ * are decisions: the web's `overview` is served by the phone's `index` (that
+ * rename IS this phase), and its `track` is a nested `/completed/:id` rather
+ * than a view of its own. A generated mapping would have to be told both.
+ *
+ * A `null` here is a promise that the gap is known, not that it is acceptable.
+ * Both of them are the same shape — a screen with nothing to read — and both
+ * are blocked on the same thing: the data client lives in apps/web, so the
+ * phone importing it would break the plan's one rule. Filling either means
+ * moving that client into packages/core and switching apps/web to it in the
+ * same commit.
+ */
+const VIEW_PARITY = new Map([
+  ['overview', 'index'],
+  ['planner', 'planner'],
+  ['saved', 'saved'],
+  ['completed', 'completed'],
+  // `/completed/:id` on the web: one recorded tour, planned versus actual.
+  // Pointless before `completed` can list anything to open, and it needs
+  // listTracks/getTrack out of apps/web/src/tracking/api.ts either way.
+  ['track', null],
+  // The offline maps view reports `useOfflineRegions().length`. There is no
+  // offline store on the phone at all — Phase 5 builds one on SQLite and the
+  // filesystem where the web uses IndexedDB — so this is not a missing screen,
+  // it is a missing subsystem.
+  ['offline', null],
+]);
+
+const unmapped = webViews.filter((view) => !VIEW_PARITY.has(view));
+
+check(
+  `every one of the web's ${webViews.length} signed-in views is accounted for on the phone`,
+  unmapped.length === 0,
+  `        Not in VIEW_PARITY: ${unmapped.join(', ')}\n` +
+    '        A view was added to SignedInView in apps/web/src/Root.tsx and the\n' +
+    '        phone has not been told. Add it to VIEW_PARITY in this file —\n' +
+    '        either pointing at a route under apps/mobile/app, or at null with\n' +
+    '        the reason there cannot be one yet. Deciding is the point; a view\n' +
+    '        nobody decided about is how the two clients came apart before.',
+);
+
+const missingRoutes = [...VIEW_PARITY]
+  .filter(([, route]) => route !== null && !mobileRoutes.includes(route))
+  .map(([view, route]) => `${view} → apps/mobile/app/${route}.tsx (absent)`);
+
+check(
+  'every mapped view has its route file under apps/mobile/app',
+  missingRoutes.length === 0,
+  `        ${missingRoutes.join('\n        ')}\n` +
+    '        VIEW_PARITY claims a route that expo-router will not create. Either\n' +
+    '        add the file — a stub is fine, and /planner and /completed are\n' +
+    '        exactly that — or map the view to null with a reason.',
+);
+
+// Registration in _layout.tsx, which is not the same thing as the file
+// existing. expo-router routes an unregistered file perfectly well; what it
+// cannot do is give it a title, so it falls back to the FILENAME in the stack
+// header. That is a real failure mode for these screens specifically: the
+// toolbar that used to name the saved list moved to the hub with the account
+// actions, so the header is now the only label a pushed screen has, and
+// "completed" in lower case is what a user would read instead of "Fullførte
+// ruter". Checked in both directions — a registration with no file is a rename
+// that only got halfway.
+const layoutTsx = stripComments(read(MOBILE, 'app/_layout.tsx'));
+const registered = [...layoutTsx.matchAll(/<Stack\.Screen\s+name="([^"]+)"/g)].map(
+  ([, name]) => name,
+);
+
+const unregistered = mobileRoutes.filter((route) => !registered.includes(route));
+const phantom = registered.filter((name) => !mobileRoutes.includes(name));
+
+check(
+  `every route under apps/mobile/app is registered in _layout.tsx (${mobileRoutes.length})`,
+  unregistered.length === 0 && phantom.length === 0,
+  `        ${[
+    ...unregistered.map((r) => `${r}: file exists, no <Stack.Screen>`),
+    ...phantom.map((n) => `${n}: <Stack.Screen> exists, no file`),
+  ].join('\n        ')}\n` +
+    '        An unregistered route still navigates, so this never throws — it\n' +
+    '        just shows the filename as the screen title.',
+);
+
+// Every in-app destination written as a string. Three spellings reach the
+// router and all three bypass the generated route types once a cast or an
+// object is involved, so all three are collected: a `<Link href>`, the
+// `pathname` of an href object (how apps/mobile/app/saved.tsx opens a route),
+// and an imperative `router.replace`/`push`/`navigate` (how _layout.tsx's
+// session gate moves between / and /login).
+//
+// Only paths starting with `/` are considered. A relative href is legal in
+// expo-router but nothing here writes one, and resolving them properly would
+// mean knowing each file's own position in the tree — a parser's job, not this
+// script's. If one ever appears it is simply not checked, which is why this
+// check is worth having and not worth trusting alone.
+const linkPattern =
+  /href=["'](\/[^"'{}]*)["']|pathname:\s*['"](\/[^'"]*)['"]|router\.(?:replace|push|navigate)\(\s*['"](\/[^'"]*)['"]/g;
+
+const validHrefs = new Set(mobileRoutes.map(routeToHref));
+const deadLinks = [];
+for (const file of files) {
+  const source = stripComments(readFileSync(file, 'utf8'));
+  for (const [, a, b, c] of source.matchAll(linkPattern)) {
+    const href = a ?? b ?? c;
+    if (!validHrefs.has(href)) deadLinks.push(`${rel(file)}: ${href}`);
+  }
+}
+
+check(
+  'every in-app link points at a route that exists',
+  deadLinks.length === 0,
+  `        ${deadLinks.join('\n        ')}\n` +
+    `        Routes available: ${[...validHrefs].sort().join(', ')}\n` +
+    '        A dynamic segment must be written as the FILE is named, so the\n' +
+    '        literal is `/route/[id]` with the id passed as a param — not an\n' +
+    '        interpolated `/route/${id}`, which this cannot resolve and which\n' +
+    '        expo-router matches only by accident.',
+);
+
 console.log(
   failures === 0
     ? '\nAll mobile app checks passed.\n'

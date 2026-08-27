@@ -83,7 +83,33 @@ function SessionGate() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
+      {/* THE SIGNED-IN ROUTE SET, in the order the hub lists it, and it is
+          meant to be read against the `SignedInView` union in
+          apps/web/src/Root.tsx: overview, planner, saved, completed, track,
+          offline. Four of those six are below. The two that are not — `track`
+          (`/completed/:id`) and `offline` — are absent because neither has
+          anything to read: the tracking client is not in packages/core and
+          there is no offline store on the phone at all. An empty screen is
+          worth registering; a screen with no way to fill it is not.
+
+          The titles are translated, unlike `index`'s, because they are words
+          rather than the product's name. They also do real work here: the
+          toolbar that used to name the saved list moved to the hub with the
+          account actions, so the stack header is now the only thing on these
+          screens that says which one you are on. */}
       <Stack.Screen name="index" options={{ title: 'Fjellrute' }} />
+      <Stack.Screen
+        name="planner"
+        options={{ title: t('Planlegg', 'Plan') }}
+      />
+      <Stack.Screen
+        name="saved"
+        options={{ title: t('Lagrede ruter', 'Saved routes') }}
+      />
+      <Stack.Screen
+        name="completed"
+        options={{ title: t('Fullførte ruter', 'Completed routes') }}
+      />
       {/* No header on login: it is the whole screen and has its own title. */}
       <Stack.Screen name="login" options={{ headerShown: false }} />
       {/* Title comes from the route's own name once it is loaded. */}
