@@ -23,7 +23,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -63,7 +62,14 @@ import { getRoute, routeToFeature, type SavedRoute } from '@fjellrute/core/route
 import { formatAscent, formatDistance } from '@fjellrute/core/routes/format';
 import { OFFLINE_LAYERS, tileUrlTemplate } from '@fjellrute/core/offline/layers';
 import type { Route } from '@fjellrute/core/types';
-import { colors, radius, spacing, TOUCH_TARGET } from '../../src/ui/theme';
+import {
+  colors,
+  fontSize,
+  radius,
+  shadow,
+  space,
+  TOUCH_TARGET,
+} from '../../src/ui/theme';
 
 /**
  * An empty but valid MapLibre style. Every source and layer is contributed by
@@ -350,7 +356,19 @@ export default function RouteScreen() {
             {/* Two layers, drawn in order: a wide light casing under a narrow
                 coloured line. Without the casing the route disappears wherever
                 it crosses steepness shading of a similar tone, which is
-                precisely where you most need to see it. */}
+                precisely where you most need to see it.
+
+                THE FOUR NUMBERS HERE ARE apps/web/src/routeStyle.ts's, and they
+                have to be: a route drawn 3.5 wide on the phone and 4 wide on the
+                laptop is the same route looking like two different lines, which
+                is exactly the drift the shared package exists to prevent. Three
+                of them already agreed by luck — HALO_COLOR '#ffffff',
+                HALO_WEIGHT (ROUTE_WEIGHT + 3 = 7) and HALO_OPACITY 0.9 — and
+                ROUTE_WEIGHT did not, so the line below was 3.5 against the web's
+                4. They are still literals rather than imports because
+                routeStyle.ts lives in apps/web and this file may not reach into
+                another app; moving it into packages/core is the correct fix and
+                is Phase 2's, where the profile needs those constants anyway. */}
             <Layer
               id="route-casing"
               type="line"
@@ -366,7 +384,9 @@ export default function RouteScreen() {
               id="route-line"
               type="line"
               source="route"
-              paint={{ 'line-color': colors.accent, 'line-width': 3.5 }}
+              // `colors.route`, not `colors.accent`. The same value today, and
+              // the name says which of the two this call site means.
+              paint={{ 'line-color': colors.route, 'line-width': 4 }}
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
             />
           </GeoJSONSource>
@@ -426,63 +446,69 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.lg,
-    gap: spacing.md,
+    padding: space.s6,
+    gap: space.s4,
     backgroundColor: colors.background,
   },
-  errorText: { color: colors.danger, fontSize: 14, textAlign: 'center' },
+  errorText: {
+    color: colors.danger,
+    fontSize: fontSize.sm,
+    textAlign: 'center',
+  },
   retry: {
     minHeight: TOUCH_TARGET,
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: space.s6,
     backgroundColor: colors.accent,
     borderRadius: radius.md,
   },
   retryPressed: { backgroundColor: colors.accentPressed },
-  retryText: { color: colors.accentText, fontSize: 16, fontWeight: '600' },
+  retryText: {
+    color: colors.accentContrast,
+    fontSize: fontSize.base,
+    fontWeight: '600',
+  },
 
   topControls: {
     position: 'absolute',
-    top: spacing.md,
-    left: spacing.md,
+    top: space.s4,
+    left: space.s4,
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: space.s2,
   },
   toggle: {
     minHeight: TOUCH_TARGET - 8,
     justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.overlay,
+    paddingHorizontal: space.s4,
+    backgroundColor: colors.glass,
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: colors.hairline,
     // Without a shadow the pill vanishes against pale snow on the topo map.
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 1 },
-      },
-      android: { elevation: 3 },
-      default: {},
-    }),
+    // `shadow.level2` rather than the hand-rolled quartet that was here: it is
+    // the web's --shadow-2, and this pill is the same kind of floating chrome
+    // that token was tuned for. The Platform.select moved into theme.ts with it.
+    ...shadow.level2,
   },
   togglePressed: { opacity: 0.8 },
   toggleOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  toggleText: { fontSize: 14, fontWeight: '600', color: colors.text },
-  toggleTextOn: { color: colors.accentText },
+  toggleText: {
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  toggleTextOn: { color: colors.accentContrast },
 
   bottomBar: {
     position: 'absolute',
-    left: spacing.md,
-    right: spacing.md,
-    bottom: spacing.md,
-    padding: spacing.sm,
+    left: space.s4,
+    right: space.s4,
+    bottom: space.s4,
+    padding: space.s2,
     borderRadius: radius.md,
-    backgroundColor: colors.overlay,
+    backgroundColor: colors.glass,
     gap: 2,
   },
-  stats: { fontSize: 14, fontWeight: '600', color: colors.text },
-  attribution: { fontSize: 11, color: colors.textMuted },
+  stats: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
+  attribution: { fontSize: fontSize.xs, color: colors.textMuted },
 });

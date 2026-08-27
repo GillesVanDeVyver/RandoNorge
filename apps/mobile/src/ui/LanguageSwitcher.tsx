@@ -20,7 +20,7 @@ import {
   useLocale,
   useT,
 } from '@fjellrute/core/i18n';
-import { colors, radius, spacing, TOUCH_TARGET } from './theme';
+import { colors, fontSize, radius, space, TOUCH_TARGET } from './theme';
 
 type Props = {
   /** Render for sitting on top of the map: translucent backing, tighter. */
@@ -73,34 +73,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignSelf: 'flex-start',
     backgroundColor: colors.surface,
-    borderColor: colors.border,
+    borderColor: colors.hairline,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.pill,
     padding: 2,
   },
   groupOnMap: {
-    backgroundColor: colors.overlay,
+    backgroundColor: colors.glass,
   },
   option: {
     minWidth: TOUCH_TARGET,
     minHeight: TOUCH_TARGET - 8,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: space.s4,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
   },
   optionPressed: {
-    backgroundColor: colors.background,
+    // The wash the web uses over glass, rather than the page colour. The old
+    // value was `colors.background`, which was invisible while the group sat on
+    // the cream page and wrong while it sat on the map.
+    backgroundColor: colors.surfaceActive,
   },
   optionActive: {
     backgroundColor: colors.accent,
   },
   label: {
-    fontSize: 14,
+    fontSize: fontSize.sm,
     fontWeight: '600',
     color: colors.textMuted,
   },
   labelActive: {
-    color: colors.accentText,
+    color: colors.accentContrast,
   },
 });

@@ -30,7 +30,13 @@ import {
 import { authClient } from '../src/auth/client';
 import { API_BASE, IS_LOCAL_API, IS_PRODUCTION_API } from '../src/config/api';
 import { LanguageSwitcher } from '../src/ui/LanguageSwitcher';
-import { colors, radius, spacing, TOUCH_TARGET } from '../src/ui/theme';
+import {
+  colors,
+  fontSize,
+  radius,
+  space,
+  TOUCH_TARGET,
+} from '../src/ui/theme';
 
 type LoadState =
   | { status: 'loading' }
@@ -256,60 +262,80 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.md,
+    paddingHorizontal: space.s4,
+    paddingVertical: space.s2,
+    gap: space.s4,
   },
   signOut: {
     minHeight: TOUCH_TARGET - 8,
     justifyContent: 'center',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: space.s4,
     borderRadius: radius.pill,
   },
-  signOutPressed: { backgroundColor: colors.border },
-  signOutText: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
+  signOutPressed: { backgroundColor: colors.surfaceActive },
+  signOutText: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+  },
 
-  list: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
+  list: { padding: space.s4, gap: space.s3, flexGrow: 1 },
   card: {
     backgroundColor: colors.surface,
-    borderColor: colors.border,
+    borderColor: colors.hairline,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.xs,
+    borderRadius: radius.lg,
+    padding: space.s4,
+    gap: space.s1,
   },
   cardDisabled: { opacity: 0.6 },
-  cardTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
-  cardDescription: { fontSize: 14, color: colors.textMuted },
-  cardMeta: { fontSize: 13, color: colors.textMuted, marginTop: spacing.xs },
-  cardWarning: { fontSize: 12, color: colors.danger },
+  cardTitle: { fontSize: fontSize.base, fontWeight: '600', color: colors.text },
+  cardDescription: { fontSize: fontSize.sm, color: colors.textMuted },
+  cardMeta: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    marginTop: space.s1,
+  },
+  cardWarning: { fontSize: fontSize.xs, color: colors.danger },
 
   centered: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.lg,
-    gap: spacing.md,
+    padding: space.s6,
+    gap: space.s4,
   },
-  emptyTitle: { fontSize: 17, fontWeight: '600', color: colors.text },
-  emptyText: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.text },
+  emptyText: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
 
   errorBox: {
     backgroundColor: colors.dangerSurface,
     borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.xs,
+    padding: space.s4,
+    gap: space.s1,
     alignSelf: 'stretch',
   },
-  errorTitle: { fontSize: 15, fontWeight: '600', color: colors.danger },
-  errorText: { fontSize: 13, color: colors.danger, lineHeight: 19 },
+  errorTitle: {
+    fontSize: fontSize.base,
+    fontWeight: '600',
+    color: colors.danger,
+  },
+  errorText: { fontSize: fontSize.sm, color: colors.danger, lineHeight: 19 },
   retry: {
     minHeight: TOUCH_TARGET,
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: space.s6,
     backgroundColor: colors.accent,
     borderRadius: radius.md,
   },
   retryPressed: { backgroundColor: colors.accentPressed },
-  retryText: { color: colors.accentText, fontSize: 16, fontWeight: '600' },
+  retryText: {
+    color: colors.accentContrast,
+    fontSize: fontSize.base,
+    fontWeight: '600',
+  },
 });

@@ -34,7 +34,13 @@ import { useT } from '@fjellrute/core/i18n';
 import { authClient } from '../src/auth/client';
 import { API_BASE, IS_PRODUCTION_API } from '../src/config/api';
 import { LanguageSwitcher } from '../src/ui/LanguageSwitcher';
-import { colors, radius, spacing, TOUCH_TARGET } from '../src/ui/theme';
+import {
+  colors,
+  fontSize,
+  radius,
+  space,
+  TOUCH_TARGET,
+} from '../src/ui/theme';
 
 export default function LoginScreen() {
   const t = useT();
@@ -168,7 +174,7 @@ export default function LoginScreen() {
           accessibilityState={{ disabled: !canSubmit, busy }}
         >
           {busy ? (
-            <ActivityIndicator color={colors.accentText} />
+            <ActivityIndicator color={colors.accentContrast} />
           ) : (
             <Text style={styles.buttonText}>{t('Logg inn', 'Sign in')}</Text>
           )}
@@ -198,74 +204,80 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   page: {
-    padding: spacing.lg,
-    paddingTop: spacing.xl * 2,
-    gap: spacing.md,
+    padding: space.s6,
+    paddingTop: space.s8 * 2,
+    gap: space.s4,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.md,
+    gap: space.s4,
   },
   title: {
-    fontSize: 30,
+    fontSize: fontSize.xl,
     fontWeight: '700',
     color: colors.text,
     letterSpacing: -0.5,
   },
   lede: {
-    fontSize: 16,
+    fontSize: fontSize.base,
     color: colors.textMuted,
-    marginBottom: spacing.sm,
+    marginBottom: space.s2,
   },
-  field: { gap: spacing.xs },
+  field: { gap: space.s1 },
   label: {
-    fontSize: 13,
+    fontSize: fontSize.sm,
     fontWeight: '600',
     color: colors.textMuted,
   },
   input: {
     minHeight: TOUCH_TARGET + 4,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: space.s4,
     backgroundColor: colors.surface,
-    borderColor: colors.border,
+    borderColor: colors.hairline,
     borderWidth: 1,
     borderRadius: radius.md,
+    // The one deliberate step off the scale in this file. 16 is iOS's threshold
+    // for auto-zooming a focused field; `fontSize.base` is 15, and a login form
+    // that zooms the page the moment the email field is tapped is a worse
+    // failure than a 1px inconsistency. Text INSIDE an input is also the one
+    // place the scale is not really setting type — it is setting a control's
+    // size, which is what TOUCH_TARGET is doing on the line above.
     fontSize: 16,
     color: colors.text,
   },
   errorBox: {
     backgroundColor: colors.dangerSurface,
     borderRadius: radius.sm,
-    padding: spacing.md,
+    padding: space.s4,
   },
-  errorText: { color: colors.danger, fontSize: 14 },
+  errorText: { color: colors.danger, fontSize: fontSize.sm },
   button: {
     minHeight: TOUCH_TARGET + 4,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accent,
     borderRadius: radius.md,
-    marginTop: spacing.sm,
+    marginTop: space.s2,
   },
   buttonPressed: { backgroundColor: colors.accentPressed },
   buttonDisabled: { opacity: 0.5 },
   buttonText: {
-    color: colors.accentText,
-    fontSize: 17,
+    color: colors.accentContrast,
+    fontSize: fontSize.base,
     fontWeight: '600',
   },
   footnote: {
-    fontSize: 13,
+    fontSize: fontSize.sm,
     lineHeight: 19,
     color: colors.textMuted,
-    marginTop: spacing.sm,
+    marginTop: space.s2,
   },
   devNote: {
-    fontSize: 11,
+    fontSize: fontSize.xs,
     color: colors.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    marginTop: spacing.lg,
+    marginTop: space.s6,
   },
 });

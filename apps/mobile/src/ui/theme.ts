@@ -1,48 +1,302 @@
-// Shared visual constants, so screens do not each invent their own greys.
+// The Fjellrute design tokens, as React Native values.
 //
-// Deliberately not a port of apps/web's CSS custom properties. Those live in
-// stylesheets the phone cannot read, and half of them describe things React
-// Native has no equivalent for (backdrop-filter, the glass tokens the map
-// chrome uses). What is copied is the palette's intent: a cool near-black for
-// text, one accent that reads against both snow and forest, and generous
-// spacing because everything here is touched rather than clicked.
+// THIS FILE USED TO SAY THE DIVERGENCE WAS DELIBERATE. It said the web's custom
+// properties "live in stylesheets the phone cannot read, and half of them
+// describe things React Native has no equivalent for", and then defined its own
+// palette. The first half of that is true and the second half is true of about
+// four tokens — `backdrop-filter`, the two glass surfaces that depend on it, and
+// the CSS shadow strings. It was applied to all of them, and the accent went
+// from the product's teal to a stock blue on the strength of an argument that
+// only ever covered the blur. The phone did not look like Fjellrute, and the
+// reason was this comment.
+//
+// So: every value below is the value in apps/web/src/index.css, and the names
+// mirror the custom property names (`--space-4` → `space.s4`, `--text-base` →
+// fontSize.base) so the mapping is checkable rather than a matter of taste.
+// scripts/verify-mobile-app.mjs section 13 parses that stylesheet and fails if
+// the two disagree. The tokens drifted silently once; that check is what stops
+// it happening twice.
+//
+// WHERE THE PLATFORMS GENUINELY PART, which is now the short list it always
+// should have been:
+//
+//   - blur. `--glass-blur` has no React Native equivalent without expo-blur,
+//     which is not a dependency and is a native module — adding one means a new
+//     dev client build. `glass` below is therefore the web's `--surface-2`
+//     (0.96 alpha, nearly opaque) rather than `--surface-1` (0.85, which only
+//     reads correctly when something is blurring what is behind it). Swap in a
+//     BlurView and `surface1` becomes the right value to hand it.
+//   - shadows. A CSS shadow string cannot cross over, and `--shadow-2` is two
+//     layered shadows that RN cannot express at all. See `shadow` below.
+//   - the font. See FONT_FAMILY — the one row of the plan's table left open.
+//
+// Not ported, on purpose: `--ease` and the three `--dur-*` values. Nothing on
+// the phone animates yet, and a token nobody consumes is indistinguishable from
+// a token that is wrong. They come over with the first transition that needs
+// them, which is Phase 2's bottom sheet.
+
+import { Platform, type ViewStyle } from 'react-native';
 
 export const colors = {
-  /** Page background. Not pure white: a full-brightness phone screen against a map is fatiguing. */
-  background: '#f7f8fa',
+  /**
+   * The page canvas: `#f4f2ec`, warm cream.
+   *
+   * The one token here that is NOT a custom property. index.css sets it as a
+   * literal on `html, body, #root` (lines 106 and 139) rather than declaring
+   * `--page-bg`, so there is nothing named to point at — the parity check
+   * matches the literal instead. Worth knowing before hunting for a variable
+   * that does not exist.
+   *
+   * It replaces `#f7f8fa`, a cool grey. The old comment justified that as "not
+   * pure white: a full-brightness phone screen against a map is fatiguing",
+   * which is a good reason for not being white and no reason at all for being
+   * the opposite temperature to the rest of the product.
+   */
+  background: '#f4f2ec',
+
+  /** Opaque white: cards, inputs, the navigation header. */
   surface: '#ffffff',
-  border: '#e2e5ea',
-  text: '#14181f',
-  textMuted: '#5b6472',
-  /** The accent, used for primary actions and the drawn route line. */
-  accent: '#1d6fa5',
-  accentPressed: '#17587f',
-  accentText: '#ffffff',
-  danger: '#b3261e',
-  dangerSurface: '#fdecea',
-  /** Backdrop for controls that sit on top of the map. */
-  overlay: 'rgba(255, 255, 255, 0.92)',
+
+  /**
+   * `--surface-1`. The web's primary glass panel. Only correct behind a blur —
+   * at 0.85 alpha with nothing blurring the map underneath it, map detail reads
+   * straight through the text. Exported unused so that whoever adds expo-blur
+   * has the right number waiting rather than reaching for `glass`.
+   */
+  surface1: 'rgba(255, 255, 255, 0.85)',
+
+  /**
+   * `--surface-2`, and what map chrome actually uses here. See the blur note at
+   * the top of the file. Also the honest name for what the old `overlay` token
+   * was approximating at 0.92.
+   */
+  glass: 'rgba(255, 255, 255, 0.96)',
+
+  /** `--surface-3`. Deepest raised element. */
+  surface3: 'rgba(245, 247, 250, 0.98)',
+
+  /** `--surface-hover` / `--surface-active`, the washes over glass. On the phone
+   *  there is no hover, so only the second has a use: it is the pressed state
+   *  for anything sitting on the map. */
+  surfaceActive: 'rgba(0, 0, 0, 0.1)',
+
+  /**
+   * `--hairline`. Replaces the old opaque `#e2e5ea` border.
+   *
+   * Opacity is the point, not a detail: these borders sit on chrome floating
+   * over a map, and an opaque grey line reads as a seam where a translucent one
+   * disappears into whatever is behind it.
+   */
+  hairline: 'rgba(0, 0, 0, 0.12)',
+  hairlineStrong: 'rgba(0, 0, 0, 0.22)',
+
+  /** `--text-1` / `--text-2` / `--text-3`. Alpha over the cream, not opaque
+   *  greys, so text sits in the page rather than on it. */
+  text: 'rgba(20, 28, 38, 0.92)',
+  textMuted: 'rgba(20, 28, 38, 0.58)',
+  textFaint: 'rgba(20, 28, 38, 0.38)',
+
+  /** `--accent`: alpine/glacier teal. The product's colour, and the reason this
+   *  file was rewritten. */
+  accent: '#2dd4bf',
+
+  /**
+   * `--accent-hover`. Used here for the PRESSED state, which means pressing
+   * lightens rather than darkens.
+   *
+   * That is the web's own behaviour and the reason not to invent a darker
+   * value: the old `accentPressed: '#17587f'` was a shade of a blue that no
+   * longer exists, and a hand-mixed dark teal would be a token with no
+   * counterpart for the parity check to check.
+   */
+  accentPressed: '#4ee0cd',
+
+  /**
+   * `--accent-contrast`: near-black teal for text and icons on accent fills.
+   *
+   * Renamed from `accentText` to match the custom property. The old value was
+   * `#ffffff`, which was legible on the old blue and is not on this teal —
+   * white on `#2dd4bf` is about 1.9:1. This is the single highest-impact line
+   * in the port, because it is what every primary button's label uses.
+   */
+  accentContrast: '#04241f',
+
+  /** `--accent-ring`. The focus ring. No keyboard focus on the phone yet, but
+   *  it is what a pressed-and-held control's halo should be when one appears. */
+  accentRing: 'rgba(45, 212, 191, 0.55)',
+
+  /**
+   * `--ascent` / `--descent` and their `-strong` variants for text on white.
+   *
+   * The plan is blunt about why these matter: nothing on the phone can render
+   * an elevation profile in the house style without them, and the profile is
+   * the highest-value item in the whole plan. They arrive one phase early so
+   * that Phase 2 is rendering work only.
+   */
+  ascent: '#34c759',
+  ascentStrong: '#1f9e48',
+  descent: '#ff6b5e',
+  descentStrong: '#dd4a3c',
+
+  /** `--snow`. Snow-depth figures and the snow overlay. */
+  snow: '#7fb4e6',
+
+  /** `--route`. The drawn route line, everywhere it is drawn.
+   *
+   *  Identical to `accent` on both platforms — kept as its own name because
+   *  apps/web keeps it as its own name (ROUTE_COLOR in routeStyle.ts), and the
+   *  day the route stops being the accent colour is a day nobody wants to spend
+   *  finding out which of the two a given call site meant. */
+  route: '#2dd4bf',
+
+  /** `--danger`. Destructive actions and failed requests. `#b3261e`, the old
+   *  value, is Material's red: correct for Android and foreign here. This is
+   *  the palette's own red, the same value as `descentStrong`, so an error
+   *  message speaks with the descent figures rather than against them. */
+  danger: '#dd4a3c',
+
+  /**
+   * Tinted background for an error block.
+   *
+   * MOBILE-ONLY, and the only colour below with no counterpart in index.css:
+   * the web builds its error blocks from a glass surface plus a coloured
+   * border, which needs the blur to work. Derived from `danger` rather than
+   * picked, so it cannot drift away from it — this is what `#fdecea`, a tint of
+   * the Material red, was doing before.
+   */
+  dangerSurface: 'rgba(221, 74, 60, 0.1)',
+
+  /** `--warning` and its block: a data gap, a degraded offline tile. Distinct
+   *  from `danger` — nothing is being destroyed, but the data cannot be fully
+   *  trusted, which on a backcountry tool is its own signal. Unused today;
+   *  ported because Phase 3's three data panels are entirely about data that
+   *  may not have arrived. */
+  warning: '#b45309',
+  warningSurface: '#fffbeb',
+  warningBorder: '#fcd34d',
 } as const;
 
-export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
+/**
+ * `--space-1` … `--space-8`, the web's 4px scale.
+ *
+ * NAMED FOR THE MULTIPLE, not semantically (`sm`/`md`/`lg`), and the rename is
+ * worth the churn it cost. The old scale was 4 / 8 / 16 / 24 / 32 — the web's
+ * with 12 quietly missing, because there was no name free between `sm` and
+ * `md`. A missing step does not announce itself; it turns into an 8 that looks
+ * mean or a 16 that looks loose, once per screen. Numbering them the way the
+ * stylesheet numbers them means a gap is a hole in a sequence, and it lets the
+ * parity check map `--space-3` to `space.s3` without a translation table.
+ */
+export const space = {
+  s1: 4,
+  s2: 8,
+  s3: 12,
+  s4: 16,
+  s6: 24,
+  s8: 32,
 } as const;
 
+/** `--radius-*`. `lg` (16) was the other silent omission: it is the corner
+ *  radius of every large panel on the web, including the bottom sheet Phase 2
+ *  needs, so the phone had no way to round a panel correctly. */
 export const radius = {
   sm: 8,
   md: 12,
+  lg: 16,
   /** Pill. Any value past half the height rounds fully. */
   pill: 999,
 } as const;
+
+/**
+ * `--text-xs` … `--text-xl`.
+ *
+ * The row of the plan's table that read "font sizes | 11 / 13 / 15 / 20 / 26 |
+ * none — inline per screen". Five screens had invented 11, 12, 13, 14, 15, 16,
+ * 17 and 30 between them, which is not a scale, it is eight decisions taken
+ * separately. Sizes that were between steps round to the nearer step; `30` on
+ * the login title becomes `xl` (26), which is the size the web sets its own
+ * page titles at.
+ */
+export const fontSize = {
+  xs: 11,
+  sm: 13,
+  base: 15,
+  lg: 20,
+  xl: 26,
+} as const;
+
+/**
+ * The typeface, or rather the absence of one.
+ *
+ * `undefined` means React Native's platform default (San Francisco, Roboto),
+ * and this is the one row of the plan's Phase 0 table left open. It is NOT
+ * blocked on a dependency, which is the assumption worth heading off:
+ * expo-font@57.0.1 is already in pnpm-lock.yaml, pulled in by expo-router, so
+ * nothing needs installing.
+ *
+ * It is blocked on the font files. `--font-sans` is Inter, self-hosted from
+ * @fontsource/inter (apps/web/src/main.tsx), and that package ships .woff and
+ * .woff2 only — neither of which expo-font can load on native, which wants
+ * .ttf or .otf. Closing this row therefore means committing four Inter .ttf
+ * binaries (400/500/600/700) to the repository and calling useFonts before the
+ * first frame, and "add some binaries" is a decision to take on purpose rather
+ * than a side effect of porting colours.
+ *
+ * Typed as `string | undefined` so that assigning a family name later is a
+ * one-line change here and no change anywhere else.
+ */
+export const FONT_FAMILY: string | undefined = undefined;
+
+/**
+ * `--shadow-1`, `--shadow-2`, `--shadow-float`.
+ *
+ * The one place a value cannot simply be copied. A CSS shadow string does not
+ * cross over, and the two platforms do not agree with each other either: iOS
+ * takes the offset/radius/opacity quartet, Android takes a single `elevation`
+ * and derives the rest. `--shadow-2` is worse than that — it is two layered
+ * shadows, and RN can express one, so the wider of the pair is kept and the
+ * tight 1px layer under it is lost. That is a real, if small, difference from
+ * the web and is the reason these are approximations rather than ports.
+ *
+ * Spread as `...shadow.float` into a StyleSheet entry.
+ */
+export const shadow: Record<'level1' | 'level2' | 'float', ViewStyle> = {
+  level1: Platform.select({
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowRadius: 2,
+      shadowOpacity: 0.08,
+    },
+    default: { elevation: 1 },
+  }),
+  level2: Platform.select({
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowRadius: 10,
+      shadowOpacity: 0.12,
+    },
+    default: { elevation: 3 },
+  }),
+  float: Platform.select({
+    ios: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowRadius: 28,
+      shadowOpacity: 0.18,
+    },
+    default: { elevation: 8 },
+  }),
+};
 
 /**
  * The minimum tappable size, in points. Both platforms' guidelines land within
  * a point or two of this (44 on iOS, 48dp on Android); 44 is the safe floor and
  * is used as a minHeight rather than a fixed height so text can still grow when
  * the user has enlarged their system font.
+ *
+ * No web counterpart, and there should not be one: a pointer is precise and a
+ * finger is not. The one token here the parity check deliberately ignores.
  */
 export const TOUCH_TARGET = 44;

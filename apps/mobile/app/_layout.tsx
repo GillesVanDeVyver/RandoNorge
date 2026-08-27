@@ -24,7 +24,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useT } from '@fjellrute/core/i18n';
 import { authClient, installCoreNetworking } from '../src/auth/client';
 import { installLocaleStorage } from '../src/i18n/install';
-import { colors, spacing } from '../src/ui/theme';
+import { colors, fontSize, space } from '../src/ui/theme';
 
 installCoreNetworking();
 installLocaleStorage();
@@ -71,7 +71,13 @@ function SessionGate() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
+        // The header takes the PAGE colour, not `surface`. White-on-cream put a
+        // hard horizontal seam across the top of every screen, and the web has
+        // no such bar to justify it — its chrome floats over the content. Same
+        // colour plus no shadow is the closest a native stack header gets to
+        // that, and it makes the cream read as one continuous canvas.
+        headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
         headerTintColor: colors.text,
         headerTitleStyle: { fontWeight: '600' },
         contentStyle: { backgroundColor: colors.background },
@@ -100,11 +106,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.md,
+    gap: space.s4,
     backgroundColor: colors.background,
   },
   loadingText: {
     color: colors.textMuted,
-    fontSize: 15,
+    fontSize: fontSize.base,
   },
 });

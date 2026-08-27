@@ -55,7 +55,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, relative, resolve } from 'node:path';
-import { MOBILE, CORE, REPO } from './lib/tree.mjs';
+import { MOBILE, CORE, REPO, WEB } from './lib/tree.mjs';
 
 // metro.config.js is CommonJS and is the file Metro itself loads. Section 11
 // requires it and reads the values back, so that what is asserted is the
@@ -1226,6 +1226,282 @@ if (wrangler !== null) {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// 13. The design tokens still say what the stylesheet says.
+//
+// WHY THIS ONE EXISTS AT ALL, since it is the only check here that guards
+// something you can see. Every other failure in this file is invisible until a
+// device runs the app; this one is visible immediately and was shipped anyway,
+// for months, because "the phone looks a bit off" is not a bug report anyone
+// files and nothing was watching. apps/mobile/src/ui/theme.ts opened by arguing
+// that diverging from the web tokens was deliberate — an argument that was
+// sound for `backdrop-filter` and the glass surfaces, and that had quietly been
+// stretched to cover the product's accent colour turning from teal to a stock
+// blue. A comment asserting that a divergence is intentional is indistinguishable
+// from a comment left over from when it was; only a test can tell them apart.
+//
+// It reads TEXT rather than importing theme.ts, and that is a limitation worth
+// naming rather than a shortcut: theme.ts imports react-native (for
+// Platform.select), so bare Node cannot load it, and bundling it the way
+// section 6 bundles core would mean bundling React Native itself. The values
+// checked below are therefore string literals in a source file, which is what
+// they are — and any token computed at runtime would be invisible here. Keep
+// them literal.
+//
+// COMMENTS ARE STRIPPED FROM BOTH SIDES FIRST, and this is not tidiness. Both
+// files discuss colours in prose: index.css names the three reds that `--danger`
+// replaced (#c0392b, #dc2626, #e5484d), and theme.ts names every value this
+// port removed. Scanning either with the comments in place picks up a
+// superseded value as if it were current — the check would fail against
+// history, and the fix would be to delete the explanation.
+// ---------------------------------------------------------------------------
+
+/** Drop /* … *\/ and // … comments. Deliberately naive: it does not understand
+ *  strings containing comment markers. Neither file has one, and a real parser
+ *  for two known files is the wrong trade. */
+const stripComments = (text) =>
+  text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+const indexCss = stripComments(read(WEB, 'src/index.css'));
+const themeTs = stripComments(read(MOBILE, 'src/ui/theme.ts'));
+
+/**
+ * `--name: value;` inside index.css's `:root` block, as a Map.
+ *
+ * Scoped to `:root` rather than the whole file, because index.css redefines
+ * some of these inside media queries and component scopes further down. The
+ * phone has one theme, so the top-level declaration is the one it must match —
+ * matching the last occurrence in the file would silently start tracking a
+ * print stylesheet.
+ */
+const cssTokens = (() => {
+  const root = /:root\s*\{([\s\S]*?)\}/.exec(indexCss)?.[1] ?? '';
+  const out = new Map();
+  for (const [, name, value] of root.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi)) {
+    out.set(name, value.trim());
+  }
+  return out;
+})();
+
+check(
+  "index.css's :root block was parsed",
+  cssTokens.size > 20,
+  `        Found ${cssTokens.size} custom properties, expected upwards of 40.\n` +
+    '        The `:root { … }` match is non-greedy and stops at the first `}`,\n' +
+    '        so a nested block inside :root would truncate it. Everything below\n' +
+    '        would then pass or fail for the wrong reason.',
+);
+
+/**
+ * The `key: value,` members of a named `export const <name> = { … }` in
+ * theme.ts, as a Map of strings.
+ *
+ * Quoted values and bare numbers both matter — colours are the former, spacing
+ * and radii the latter — so there are two alternatives in the pattern and the
+ * one that matched is the value. Numbers are kept as their source text rather
+ * than parsed, because normalizeToken has to compare them against `16px` from
+ * the stylesheet anyway and a round-trip through Number would turn a typo'd
+ * `1 6` into a silent NaN.
+ *
+ * Members are matched at exactly two spaces of indentation, which pins them to
+ * the top level of the object. Without that, a nested `shadowOffset: { width:
+ * 0, … }` inside `shadow` would contribute a `width` token, and the day someone
+ * nests a group here is the day this quietly starts reading the wrong things.
+ */
+function themeGroup(name) {
+  const block = new RegExp(
+    `export const ${name}[^=]*=\\s*\\{([\\s\\S]*?)\\n\\}`,
+  ).exec(themeTs)?.[1];
+  const out = new Map();
+  if (block === undefined) return out;
+  for (const [, key, quoted, bare] of block.matchAll(
+    /^ {2}([A-Za-z][A-Za-z0-9]*)\s*:\s*(?:'([^']*)'|([0-9.]+))\s*,/gm,
+  )) {
+    out.set(key, quoted !== undefined ? quoted : bare);
+  }
+  return out;
+}
+
+const themeTokens = {
+  colors: themeGroup('colors'),
+  space: themeGroup('space'),
+  radius: themeGroup('radius'),
+  fontSize: themeGroup('fontSize'),
+};
+
+/**
+ * Comparable form of a token value: whitespace collapsed, hex lowercased, a
+ * `px` suffix dropped.
+ *
+ * `px` is the interesting one. Every length on the web carries the unit and no
+ * length in React Native may — RN numbers ARE density-independent pixels — so
+ * the two spellings of "16" are both correct and must compare equal. Anything
+ * with a unit React Native cannot express (`rem`, `%`, `vh`) survives
+ * normalisation and fails loudly, which is right: those cannot be ported by
+ * copying, and Phase 2's `min(62vh, 560px)` sheet height is exactly that case.
+ */
+const normalizeToken = (value) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/,\s*/g, ', ')
+    .replace(/^([0-9.]+)px$/, '$1');
+
+/**
+ * Which mobile token carries which custom property.
+ *
+ * WRITTEN OUT RATHER THAN DERIVED, and that is the point of the naming
+ * convention rather than a failure of it: `--space-4` → `space.s4` is
+ * mechanical, but `--surface-2` → `colors.glass` is a decision (the phone has
+ * no blur, so it uses the nearly-opaque surface where the web uses the
+ * translucent one) and `--accent-hover` → `colors.accentPressed` is another
+ * (there is no hover on a touchscreen). A table makes each of those a line
+ * somebody chose. Deriving the pairs would hide the two that matter among the
+ * thirty that don't.
+ *
+ * A token in index.css that is absent here is NOT a failure — index.css
+ * describes a browser and some of it has no phone meaning (`--glass-blur`,
+ * `--ease`, the durations, `--surface-hover`). A token here that is absent from
+ * index.css IS a failure, because it means the phone is claiming parity with a
+ * property that no longer exists.
+ */
+const TOKEN_PARITY = [
+  ['--accent', 'colors', 'accent'],
+  ['--accent-hover', 'colors', 'accentPressed'],
+  ['--accent-contrast', 'colors', 'accentContrast'],
+  ['--accent-ring', 'colors', 'accentRing'],
+  ['--surface-1', 'colors', 'surface1'],
+  ['--surface-2', 'colors', 'glass'],
+  ['--surface-3', 'colors', 'surface3'],
+  ['--surface-active', 'colors', 'surfaceActive'],
+  ['--hairline', 'colors', 'hairline'],
+  ['--hairline-strong', 'colors', 'hairlineStrong'],
+  ['--text-1', 'colors', 'text'],
+  ['--text-2', 'colors', 'textMuted'],
+  ['--text-3', 'colors', 'textFaint'],
+  ['--ascent', 'colors', 'ascent'],
+  ['--ascent-strong', 'colors', 'ascentStrong'],
+  ['--descent', 'colors', 'descent'],
+  ['--descent-strong', 'colors', 'descentStrong'],
+  ['--snow', 'colors', 'snow'],
+  ['--route', 'colors', 'route'],
+  ['--danger', 'colors', 'danger'],
+  ['--warning', 'colors', 'warning'],
+  ['--warning-surface', 'colors', 'warningSurface'],
+  ['--warning-border', 'colors', 'warningBorder'],
+  ['--space-1', 'space', 's1'],
+  ['--space-2', 'space', 's2'],
+  ['--space-3', 'space', 's3'],
+  ['--space-4', 'space', 's4'],
+  ['--space-6', 'space', 's6'],
+  ['--space-8', 'space', 's8'],
+  ['--radius-sm', 'radius', 'sm'],
+  ['--radius-md', 'radius', 'md'],
+  ['--radius-lg', 'radius', 'lg'],
+  ['--radius-pill', 'radius', 'pill'],
+  ['--text-xs', 'fontSize', 'xs'],
+  ['--text-sm', 'fontSize', 'sm'],
+  ['--text-base', 'fontSize', 'base'],
+  ['--text-lg', 'fontSize', 'lg'],
+  ['--text-xl', 'fontSize', 'xl'],
+];
+
+const drifted = [];
+for (const [property, group, key] of TOKEN_PARITY) {
+  const web = cssTokens.get(property);
+  const mobile = themeTokens[group].get(key);
+  if (web === undefined) {
+    drifted.push(`${property} is not declared in index.css:root (${group}.${key})`);
+  } else if (mobile === undefined) {
+    drifted.push(`${group}.${key} is missing from theme.ts (${property} = ${web})`);
+  } else if (normalizeToken(web) !== normalizeToken(mobile)) {
+    drifted.push(`${property}: web ${web} / ${group}.${key} ${mobile}`);
+  }
+}
+
+check(
+  `all ${TOKEN_PARITY.length} ported design tokens match apps/web/src/index.css`,
+  drifted.length === 0,
+  `        ${drifted.join('\n        ')}\n` +
+    '        theme.ts is a copy of those values, so a change on the web is only\n' +
+    '        half done until it is a change here too. If a divergence is\n' +
+    '        genuinely wanted, remove the pair from TOKEN_PARITY in this file\n' +
+    '        and say why there — a divergence nobody chose is what this checks.',
+);
+
+// The page colour, which is the one token with nothing to point at: index.css
+// sets it as a literal on `html, body, #root` rather than declaring a custom
+// property. Checked separately, and by the same literal, because it is also the
+// single largest area of colour on any screen — it was `#f7f8fa`, a cool grey,
+// against the web's warm cream, and that one value is most of why the two
+// clients did not look related.
+const pageBackground =
+  /(?:^|\})[^{}]*\bbody\b[^{}]*\{[^}]*background:\s*(#[0-9a-f]{3,8})/im.exec(
+    indexCss,
+  )?.[1] ?? null;
+
+check(
+  "the page background matches index.css's canvas colour",
+  pageBackground !== null &&
+    normalizeToken(pageBackground) ===
+      normalizeToken(themeTokens.colors.get('background') ?? ''),
+  `        index.css body background: ${pageBackground}\n` +
+    `        theme.ts colors.background: ${themeTokens.colors.get('background')}\n` +
+    '        Not a custom property on either side — index.css sets it directly\n' +
+    '        on html/body — so this is a literal compared against a literal.',
+);
+
+// ---------------------------------------------------------------------------
+// And the mechanism by which the tokens drift in the first place: a colour
+// written at the point of use. Every value section 13 checks was correct on the
+// day it was written; what makes a token file worth having is that no screen
+// can quietly opt out of it, and a hex code in a StyleSheet is exactly that
+// opting out. This is the check the accent needed and did not have.
+// ---------------------------------------------------------------------------
+
+/**
+ * Colour literals that are allowed to appear outside theme.ts.
+ *
+ * Each needs a reason that is about the VALUE, not about convenience. There is
+ * one, and it is a genuine exception: the route casing is not a theme colour at
+ * all, it is a constant of how a route is drawn, and its authority is
+ * apps/web/src/routeStyle.ts (HALO_COLOR). Putting it in theme.ts would claim
+ * index.css defines it, which section 13 would then look for and not find.
+ *
+ * The right fix is to move routeStyle.ts into packages/core so both apps import
+ * it — Phase 2 needs those constants for the elevation profile anyway. Until
+ * then this entry is the honest description of a duplicated literal, rather
+ * than a silent one.
+ */
+const COLOUR_LITERAL_ALLOWLIST = [
+  { file: 'apps/mobile/app/route/[id].tsx', value: '#ffffff' },
+];
+
+const strayColours = [];
+for (const file of files) {
+  if (file === join(MOBILE, 'src/ui/theme.ts')) continue;
+  const source = stripComments(readFileSync(file, 'utf8'));
+  for (const [literal] of source.matchAll(/#[0-9a-fA-F]{3,8}\b|\brgba?\([^)]*\)/g)) {
+    const allowed = COLOUR_LITERAL_ALLOWLIST.some(
+      (entry) =>
+        entry.file === rel(file).split('\\').join('/') &&
+        entry.value.toLowerCase() === literal.toLowerCase(),
+    );
+    if (!allowed) strayColours.push(`${rel(file)}: ${literal}`);
+  }
+}
+
+check(
+  'no colour is written outside src/ui/theme.ts',
+  strayColours.length === 0,
+  `        ${strayColours.join('\n        ')}\n` +
+    '        A hex code in a StyleSheet is how the palette drifted: it is\n' +
+    '        correct when written and invisible when the token changes. Add it\n' +
+    '        to theme.ts, or to COLOUR_LITERAL_ALLOWLIST in this file with a\n' +
+    '        reason about the value.',
+);
 
 console.log(
   failures === 0
