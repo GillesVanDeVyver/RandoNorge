@@ -577,8 +577,12 @@ check(
 // command, the same trap, and it was wrong there first.
 // ---------------------------------------------------------------------------
 
+// Every file that tells a human what to type. RUNNING.md is the one most likely
+// to be copied from, being nothing but commands, which makes it the most
+// valuable entry here rather than the least.
 const commandDocs = [
   join(MOBILE, 'README.md'),
+  join(MOBILE, 'RUNNING.md'),
   join(MOBILE, 'setup.sh'),
   join(REPO, 'spikes/webview-3d/README.md'),
   join(REPO, 'spikes/webview-3d/setup.sh'),

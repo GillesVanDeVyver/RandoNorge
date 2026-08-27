@@ -7,6 +7,9 @@ the NVE steepness overlay and your live position.
 There is no drawing, no recording and no offline caching. Those are Phases 4 and
 later, and each needs a decision this phase does not have to make.
 
+For just the commands, with none of the reasoning, see `RUNNING.md`. This file
+is the authority if the two ever disagree.
+
 ## What is shared with the web app, and what isn't
 
 Everything with behaviour comes from `@fjellrute/core` and is the same code the
