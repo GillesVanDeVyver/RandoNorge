@@ -4,9 +4,13 @@ import type { AvalancheWarning } from '@fjellrute/core/avalanche/api';
 import { todayLocalYMD, useAvalanche } from '@fjellrute/core/avalanche/useAvalanche';
 import { DANGER_LEVELS, dangerLevelLabel } from '@fjellrute/core/avalanche/dangerScale';
 import { ForecastContext } from '@fjellrute/core/forecast/snapshot';
+// The chip labels and the day arithmetic are core's since Phase 3 of
+// docs/mobile-web-parity-plan.md, because the phone's avalanche card wears the
+// same chips and a second implementation of "Today / Tomorrow / Yesterday"
+// would eventually disagree with this one where nobody could see both.
+import { dayDate, dayLabel, shiftYMD } from '@fjellrute/core/time/calendar';
 import { DatePopover } from './DatePopover';
 import { AvalancheProblems } from './AvalancheProblems';
-import { translate } from '@fjellrute/core/i18n/locale';
 import { useT } from '@fjellrute/core/i18n';
 import styles from './AvalancheRisk.module.css';
 
@@ -18,35 +22,6 @@ interface Props {
 // before through two days after. Varsom forecasts only reach two days ahead
 // (a nowcast plus the next two days), so a third day would never be assessed.
 const WINDOW_OFFSETS = [-2, -1, 0, 1, 2];
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-const toYMD = (d: Date) =>
-  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-function shiftYMD(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const date = new Date(y, m - 1, d + days);
-  return toYMD(date);
-}
-
-const DOW_SHORT_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const DOW_SHORT_NO = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'];
-const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTHS_NO = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
-
-// "Yesterday" / "Today" / "Tomorrow" for the immediate neighbours of the
-// real calendar day, otherwise the short weekday name.
-function dayLabel(ymd: string, todayYMD: string): string {
-  if (ymd === todayYMD) return translate('I dag', 'Today');
-  if (ymd === shiftYMD(todayYMD, 1)) return translate('I morgen', 'Tomorrow');
-  if (ymd === shiftYMD(todayYMD, -1)) return translate('I går', 'Yesterday');
-  const [y, m, d] = ymd.split('-').map(Number);
-  const dow = new Date(y, m - 1, d).getDay();
-  return translate(DOW_SHORT_NO[dow], DOW_SHORT_EN[dow]);
-}
-function dayDate(ymd: string): string {
-  const [, m, d] = ymd.split('-').map(Number);
-  return translate(`${d}. ${MONTHS_NO[m - 1]}`, `${MONTHS_EN[m - 1]} ${d}`);
-}
 
 // The EAWS / Varsom danger colours and level names live in
 // avalanche/dangerScale.ts, shared with the printable tour briefing.

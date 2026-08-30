@@ -50,21 +50,29 @@ and `importGpxFile` take a structural interface (`name`, `text()`,
 `arrayBuffer()`) that a browser `File` already satisfies, so the web call sites
 are unchanged and there is no wrapper to keep in step.
 
-## The one thing left undecided
+## Where the requests go
 
-Four places name a same-origin URL and let the platform resolve it:
-`weather/api.ts` (`/metno-api/…`), `snow/api.ts` (`/gts-api/…`),
-`routes/api.ts` (`/api/routes`) and the terrain entry in `offline/layers.ts`,
-which reads `location.origin` off `globalThis` for the same reason. In a browser
-all four resolve against the page. On a phone none of them do, because React
-Native's `fetch` requires an absolute URL.
+Four places used to name a same-origin URL and let the platform resolve it —
+which works in a browser, where a path resolves against the page, and fails on a
+phone, where React Native's `fetch` requires a host. That is one decision, not
+four, so it is made once in `src/net/base.ts`: `setApiBase()` installs an origin
+and `apiUrl()` resolves every path against it. Both default to the browser's
+behaviour, so a call site that is never configured emits precisely the URL it
+always did.
 
-That is deliberately not solved here. It is one decision — which host the phone
-app talks to, and how it is configured per environment — and making it four
-times in four files is how the two clients end up pointed at different
-deployments. Phase 2 makes it once. Until then `location.origin` is exempted by
-name in `scripts/verify-core-package.mjs`, so the gate stays honest about it
-instead of being widened to allow browser globals generally.
+Three of the four now go through it: `routes/api.ts` (`/api/routes`, Phase 1),
+and `weather/api.ts` (`/metno-api/…`), `snow/api.ts` (`/gts-api/…`) and
+`avalanche/api.ts` (`/varsom-api/…`) as of Phase 3. Only `routes/api.ts` also
+sends `authHeaders()`; the other three reach open proxies, and a session cookie
+sent somewhere it is not needed is a session cookie in one more log.
+
+The one still outstanding is the terrain entry in `offline/layers.ts`, which
+reads `location.origin` off `globalThis` rather than naming a path, because it
+builds a tile-URL template for a map renderer instead of making a request. It
+waits for Phase 5, which is when the phone gets an offline store to point it at.
+Until then `location.origin` is exempted by name in
+`scripts/verify-core-package.mjs`, so the gate stays honest about it instead of
+being widened to allow browser globals generally.
 
 ## Consuming it
 

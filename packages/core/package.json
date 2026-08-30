@@ -26,6 +26,7 @@
     "./routes/tcx": "./src/routes/tcx.ts",
     "./routes/xml": "./src/routes/xml.ts",
     "./chart/axis": "./src/chart/axis.ts",
+    "./time/calendar": "./src/time/calendar.ts",
     "./elevation/api": "./src/elevation/api.ts",
     "./elevation/pointSample": "./src/elevation/pointSample.ts",
     "./elevation/profile": "./src/elevation/profile.ts",
@@ -42,8 +43,10 @@
     "./avalanche/problemText": "./src/avalanche/problemText.ts",
     "./avalanche/useAvalanche": "./src/avalanche/useAvalanche.ts",
     "./weather/api": "./src/weather/api.ts",
+    "./weather/format": "./src/weather/format.ts",
     "./weather/useWeather": "./src/weather/useWeather.ts",
     "./snow/api": "./src/snow/api.ts",
+    "./snow/summary": "./src/snow/summary.ts",
     "./snow/useSnow": "./src/snow/useSnow.ts"
   },
   "//peerDependencies": "React is a peer, not a dependency: the hooks here must close over the SAME React instance as the app rendering them, and two copies in one tree is the classic 'Invalid hook call' failure. React itself is platform-free — it is React DOM and React Native that are not — so hooks that only fetch and cache data belong here.",

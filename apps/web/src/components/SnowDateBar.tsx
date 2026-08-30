@@ -10,6 +10,7 @@ import {
   SnowflakeIcon,
 } from './icons';
 import { useT } from '@fjellrute/core/i18n';
+import { parseYMD, shiftYMD, toYMD } from '@fjellrute/core/time/calendar';
 import styles from './SnowDateBar.module.css';
 
 interface Props {
@@ -17,22 +18,11 @@ interface Props {
   onDateChange: (date: string) => void;
 }
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-const toYMD = (d: Date) =>
-  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-const fromYMD = (s: string) => {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-};
-
-function shiftDays(date: string, days: number): string {
-  const d = fromYMD(date);
-  d.setDate(d.getDate() + days);
-  return toYMD(d);
-}
-
+// Days are core's `shiftYMD`. Years stay here: stepping a year is only ever
+// this bar's business, and setFullYear's own clamping is what gives 29 February
+// a defined answer.
 function shiftYears(date: string, years: number): string {
-  const d = fromYMD(date);
+  const d = parseYMD(date);
   d.setFullYear(d.getFullYear() + years);
   return toYMD(d);
 }
@@ -59,7 +49,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
       <NavButton
         label={t('Uke', 'Week')}
         title={t('Forrige uke', 'Previous week')}
-        onClick={() => set(shiftDays(date, -7))}
+        onClick={() => set(shiftYMD(date, -7))}
         secondary
       >
         <ChevronsLeftIcon />
@@ -67,7 +57,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
       <NavButton
         label={t('Dag', 'Day')}
         title={t('Forrige dag', 'Previous day')}
-        onClick={() => set(shiftDays(date, -1))}
+        onClick={() => set(shiftYMD(date, -1))}
       >
         <ChevronLeftIcon />
       </NavButton>
@@ -83,7 +73,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
       <NavButton
         label={t('Dag', 'Day')}
         title={t('Neste dag', 'Next day')}
-        onClick={() => set(shiftDays(date, 1))}
+        onClick={() => set(shiftYMD(date, 1))}
         disabled={isToday}
       >
         <ChevronRightIcon />
@@ -91,7 +81,7 @@ export function SnowDateBar({ date, onDateChange }: Props) {
       <NavButton
         label={t('Uke', 'Week')}
         title={t('Neste uke', 'Next week')}
-        onClick={() => set(shiftDays(date, 7))}
+        onClick={() => set(shiftYMD(date, 7))}
         disabled={isToday}
         secondary
       >

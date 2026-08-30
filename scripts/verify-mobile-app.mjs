@@ -372,10 +372,38 @@ check(
 
 const HOST_LITERAL = /['"`]https?:\/\/[^'"`]+['"`]/g;
 const API_PATH_LITERAL = /['"`]\/api\/[^'"`]*['"`]/g;
+const FETCHED_HOST = /fetch\(\s*['"`]https?:\/\//g;
 const CONFIG = join(MOBILE, 'src/config/api.ts');
+
+// THE RULE IS ABOUT BACKENDS, NOT ABOUT THE LETTERS "https". It used to be the
+// blunter "no host literal anywhere but api.ts", and Phase 3 was where that bit
+// the wrong thing: AvalancheCard links out to the region's full bulletin on
+// varsom.no, exactly as the web's AvalancheRisk does, and a link the user taps
+// to leave the app is not a decision about which backend this build talks to.
+//
+// Deleting the rule was not an option — it is the one that catches a screen
+// left pointing at production after a host switch. So it is narrowed on the
+// distinction that actually matters, in two parts:
+//
+//   An outward link is legitimate only if apps/web writes the SAME literal.
+//   That is what makes it an outward link rather than an endpoint: the web
+//   reaches its own backend through relative paths and never names a host, so
+//   a Worker origin pasted into a screen has nothing to match against and is
+//   still caught. Sharing the literal is also the property worth having —
+//   the two clients should send people to the same bulletin.
+//
+//   And nothing may be fetched from a literal host, in api.ts or out of it.
+//   apiUrl() exists so that one value decides where a request goes; a fetch
+//   with the origin written into its argument bypasses it whatever file it
+//   is in, which the first part alone would not notice if apps/web happened
+//   to contain the same string.
+const webSource = sourceFiles(join(WEB, 'src'))
+  .map((file) => readFileSync(file, 'utf8'))
+  .join('\n');
 
 const strayHosts = [];
 const strayApiPaths = [];
+const fetchedHosts = [];
 for (const file of files) {
   const source = readFileSync(file, 'utf8');
   // Comments out, for the reasons given on withoutComments() above — the rules
@@ -386,11 +414,15 @@ for (const file of files) {
   const code = withoutComments(source);
   if (file !== CONFIG) {
     for (const [match] of code.matchAll(HOST_LITERAL)) {
+      if (webSource.includes(match.slice(1, -1))) continue;
       strayHosts.push(`${match}  (${rel(file)})`);
     }
   }
   for (const [match] of code.matchAll(API_PATH_LITERAL)) {
     strayApiPaths.push(`${match}  (${rel(file)})`);
+  }
+  for (const [match] of code.matchAll(FETCHED_HOST)) {
+    fetchedHosts.push(`${match}…  (${rel(file)})`);
   }
 }
 
@@ -400,7 +432,18 @@ check(
   strayHosts.map((line) => `        ${line}`).join('\n') +
     '\n        src/config/api.ts is the single decision about which backend this\n' +
     '        build talks to. A second literal is how one screen keeps pointing\n' +
-    '        at production after the switch.',
+    '        at production after the switch. A host apps/web also writes is\n' +
+    '        allowed, as a link out that both clients share; this one is not\n' +
+    '        in apps/web/src.',
+);
+
+check(
+  'nothing fetches from a literal host',
+  fetchedHosts.length === 0,
+  fetchedHosts.map((line) => `        ${line}`).join('\n') +
+    '\n        Requests go through core\'s apiUrl(), which puts the origin from\n' +
+    '        src/config/api.ts in front of a path. An origin written into the\n' +
+    '        fetch call itself is not switched by changing that one value.',
 );
 
 check(
@@ -1847,6 +1890,233 @@ check(
     '        were held back through Phase 0 and 1 on the grounds that a token\n' +
     '        nobody consumes cannot be told apart from a token that is wrong;\n' +
     '        this is the consumer that earned them.',
+);
+
+// ---------------------------------------------------------------------------
+// 16. The data panels are core's data, not a second copy of it.
+//
+// Phase 3 added weather, snow depth and avalanche danger to the phone, and the
+// plan's description of the work was "genuinely zero new logic". This section
+// is what makes that claim checkable a year from now, when somebody adds a
+// column to the forecast table at ten to six and the shortest path is a
+// two-line helper at the top of the file.
+//
+// EVERY CHECK HERE IS A LICENCE OR A SAFETY OBLIGATION, or the rule that keeps
+// the two clients telling the same story:
+//
+//   - A second implementation of a formatter is how the same date came to read
+//     "Thursday" on one panel and "Yesterday" on another INSIDE THE WEB APP,
+//     which is the bug that made time/calendar.ts exist. Nothing announced it.
+//     The forbidden-pattern list below is that bug, written down.
+//
+//   - MET, NVE and Varsom all publish under NLOD, which requires the credit to
+//     travel with the data. A card that quietly loses its attribution line is a
+//     licence breach that renders perfectly.
+//
+//   - The EAWS danger colours are the one palette in this product that is not
+//     ours to choose. A "3" has to be the same orange here, on the web, in the
+//     printed briefing and on senorge.no, because people carry that colour in
+//     their heads between all four.
+//
+// WHAT IS NOT CHECKED: that any of it fetches successfully. That needs a device
+// and a network, and the failure it would catch (a proxy path changing) already
+// fails loudly on the web.
+// ---------------------------------------------------------------------------
+
+const CARDS = [
+  {
+    file: 'src/ui/WeatherCard.tsx',
+    hook: 'useWeather',
+    subpath: '@fjellrute/core/weather/useWeather',
+    // The credit MET asks for, and the licence it is given under. Matched as
+    // two independent strings so reformatting the sentence is fine and dropping
+    // half of it is not.
+    attribution: [/MET Norway/, /NLOD/],
+  },
+  {
+    file: 'src/ui/SnowCard.tsx',
+    hook: 'useSnow',
+    subpath: '@fjellrute/core/snow/useSnow',
+    attribution: [/seNorge/, /NVE/, /NLOD/],
+  },
+  {
+    file: 'src/ui/AvalancheCard.tsx',
+    hook: 'useAvalanche',
+    subpath: '@fjellrute/core/avalanche/useAvalanche',
+    attribution: [/Varsom/, /NVE/, /NLOD/],
+  },
+];
+
+const cardSources = new Map(
+  CARDS.map(({ file }) => [file, stripComments(read(MOBILE, file))]),
+);
+
+const missingHooks = [];
+for (const { file, hook, subpath } of CARDS) {
+  const source = cardSources.get(file);
+  // `hook(` and not just `hook`, because the import line alone satisfies the
+  // bare name: a card that imports useSnow and then fetches for itself passed
+  // this check while doing exactly what it forbids. Found by mutation — the
+  // rewrite that broke it was one call site renamed and the import left.
+  if (!new RegExp(`\\b${hook}\\s*\\(`).test(source)) {
+    missingHooks.push(`${file} does not call ${hook}`);
+  } else if (!source.includes(subpath)) {
+    missingHooks.push(`${file} calls ${hook} but does not import it from ${subpath}`);
+  }
+}
+
+check(
+  `the ${CARDS.length} data cards each render a core hook`,
+  missingHooks.length === 0,
+  `        ${missingHooks.join('\n        ')}\n` +
+    '        Phase 3 is useWeather / useSnow / useAvalanche plus a React\n' +
+    '        Native view. A card that fetches for itself is a second client of\n' +
+    '        the same upstream, with its own caching and its own idea of what\n' +
+    '        a failure looks like.',
+);
+
+const missingAttribution = [];
+for (const { file, attribution } of CARDS) {
+  const source = cardSources.get(file);
+  const absent = attribution.filter((re) => !re.test(source));
+  if (absent.length > 0) {
+    missingAttribution.push(
+      `${file} never mentions ${absent.map((re) => re.source).join(', ')}`,
+    );
+  }
+}
+
+check(
+  'every data card credits its source and its licence',
+  missingAttribution.length === 0,
+  `        ${missingAttribution.join('\n        ')}\n` +
+    '        NLOD requires the credit wherever the data is shown, and a phone\n' +
+    '        screen is where it is shown. docs/DATA_LICENSES.md has the terms.',
+);
+
+/**
+ * Patterns that mean a formatter has been rewritten locally rather than
+ * imported. Each one is a thing that already exists in packages/core, named so
+ * the failure message can say where to import it from.
+ *
+ * Scanned across ALL of apps/mobile rather than the three cards, because the
+ * copy that matters is the one somebody makes in a fourth file next year. Every
+ * entry is checked against the current tree below, so a pattern that is already
+ * violated cannot be added silently.
+ */
+const FORBIDDEN_LOCAL_LOGIC = [
+  {
+    pattern: /padStart\(\s*2\s*,/,
+    instead: "pad2 from '@fjellrute/core/time/calendar'",
+  },
+  {
+    pattern: /getFullYear\(\)/,
+    instead: "toYMD / parseYMD from '@fjellrute/core/time/calendar'",
+  },
+  {
+    // Adding a day's worth of milliseconds. Wrong twice a year in Norway: the
+    // DST boundaries make one day 23 hours long and another 25.
+    pattern: /86[_]?400[_]?000/,
+    instead: "shiftYMD from '@fjellrute/core/time/calendar'",
+  },
+  {
+    pattern: /precip(Min|Max)Mm|precipHours/,
+    instead: "fmtPrecip from '@fjellrute/core/weather/format'",
+  },
+  {
+    // The arrow points where the wind is GOING; MET says where it comes FROM.
+    // Reading the raw field anywhere but inside that call is the start of a
+    // second answer to which way round it is.
+    pattern: /windFromDeg(?!\s*\))/,
+    instead: "windArrowRotation from '@fjellrute/core/weather/format'",
+    // `windArrowRotation(h.windFromDeg)` is the legitimate use, and the field
+    // name is followed by `)` there. Anything else is arithmetic.
+  },
+  {
+    // The EAWS badge colours, as they appear in dangerScale.ts. Any of them
+    // typed here is a fork of a scale that is not ours.
+    pattern: /#6dbe45|#f4d63f|#f0922f|#e23c34|#3a464e/i,
+    instead: "DANGER_LEVELS from '@fjellrute/core/avalanche/dangerScale'",
+  },
+];
+
+const localLogic = [];
+for (const file of files) {
+  const source = stripComments(readFileSync(file, 'utf8'));
+  for (const { pattern, instead } of FORBIDDEN_LOCAL_LOGIC) {
+    if (pattern.test(source)) {
+      localLogic.push(`${rel(file)} matches ${pattern} — use ${instead}`);
+    }
+  }
+}
+
+check(
+  'no data formatting is reimplemented inside apps/mobile',
+  localLogic.length === 0,
+  `        ${localLogic.join('\n        ')}\n` +
+    '        The parity plan has one rule: nothing non-visual gets written\n' +
+    '        inside apps/mobile. These are the specific duplications Phase 3\n' +
+    '        removed from apps/web on the way in — a day label that knew about\n' +
+    '        "yesterday" on one panel and not the next, and six copies of a\n' +
+    '        two-digit pad. Reintroducing one on the phone puts the divergence\n' +
+    '        somewhere nobody can see both halves at once.',
+);
+
+// The avalanche window. Varsom publishes a nowcast plus two days, so the size
+// of this window is a property of the upstream service and not a layout choice
+// either client gets to make on its own.
+const webWindow = /WINDOW_OFFSETS\s*=\s*\[([^\]]*)\]/.exec(
+  stripComments(read(WEB, 'src/components/AvalancheRisk.tsx')),
+)?.[1];
+const phoneWindow = /WINDOW_OFFSETS\s*=\s*\[([^\]]*)\]/.exec(
+  cardSources.get('src/ui/AvalancheCard.tsx'),
+)?.[1];
+const normaliseWindow = (text) =>
+  text === undefined
+    ? null
+    : text
+        .split(',')
+        .map((n) => n.trim())
+        .filter((n) => n !== '')
+        .join(',');
+
+check(
+  'the avalanche day window is the same on both clients',
+  webWindow !== undefined &&
+    normaliseWindow(webWindow) === normaliseWindow(phoneWindow),
+  `        web ${normaliseWindow(webWindow) ?? '(not found)'}, ` +
+    `phone ${normaliseWindow(phoneWindow) ?? '(not found)'}\n` +
+    '        Varsom forecasts reach two days ahead — a nowcast plus the next\n' +
+    '        two — so a wider window offers days that are never assessed and a\n' +
+    '        narrower one hides a day that is. Either way the two clients would\n' +
+    '        be answering the same question differently.',
+);
+
+// The sky symbols. The phone has no bundled copy and fetches them from the
+// Worker, which serves apps/web/public — so the URL this builds and the
+// directory those files sit in are two halves of one path, written in two
+// repositories' worth of distance from each other.
+const iconsTsx = stripComments(read(MOBILE, 'src/ui/WeatherIcons.tsx'));
+const iconPath = /apiUrl\(`(\/[a-z-]+)\/\$\{code\}\.svg`\)/.exec(iconsTsx)?.[1];
+const iconDir = iconPath === undefined ? null : join(WEB, 'public', iconPath);
+
+check(
+  'the sky symbols are fetched from a directory that exists',
+  iconPath !== undefined && iconDir !== null && existsSync(iconDir),
+  `        WeatherIcons.tsx asks for ${iconPath ?? '(no apiUrl(...) call found)'}` +
+    '/<code>.svg\n' +
+    '        and apps/web/public has no such directory. The phone would show\n' +
+    '        an empty sky column on every row, silently — the component falls\n' +
+    "        back to a blank box of the right size, so nothing looks broken,\n" +
+    '        it just stops saying whether it is snowing.',
+);
+
+check(
+  'the sky symbols go through apiUrl rather than a bare path',
+  /apiUrl\(/.test(iconsTsx) && !/fetch\(\s*[`'"]\//.test(iconsTsx),
+  '        A root-relative URL is what the web uses and what React Native\n' +
+    '        rejects: its fetch needs a host. src/config/api.ts decides the\n' +
+    "        host once and core's apiUrl applies it — see section 4.",
 );
 
 console.log(

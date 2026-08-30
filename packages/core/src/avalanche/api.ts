@@ -1,3 +1,5 @@
+import { apiUrl } from '../net/base.ts';
+
 // Avalanche danger ("snøskredvarsel") from NVE's Varsom warning service —
 // the same forecast shown on senorge.no. The AvalancheWarningByCoordinates
 // endpoint resolves a (lat, lon) to the avalanche forecast region it falls in
@@ -9,9 +11,10 @@
 // level and the avalanche-problem breakdown (type, weak layer, likelihood,
 // trigger sensitivity, size, distribution, exposed aspects/elevations).
 //
-// Varsom's host does not send CORS headers, so in the browser we go through
-// the Vite dev proxy (see vite.config.ts) which rewrites the `/varsom-api`
-// prefix to https://api01.nve.no.
+// Varsom's host does not send CORS headers, so the request goes through the
+// Vite dev proxy (see vite.config.ts) in development and the Worker in
+// production; both rewrite the `/varsom-api` prefix to https://api01.nve.no.
+// The phone resolves the same path against the Worker's origin via `apiUrl`.
 
 // langKey 2 → English text / names.
 const ENDPOINT =
@@ -117,7 +120,11 @@ export async function fetchAvalancheWarning(
     return cached.value;
   }
 
-  const url = `${ENDPOINT}/${lat.toFixed(4)}/${lon.toFixed(4)}/2/${date}/${date}`;
+  // Same-origin on the web, absolute against the Worker on the phone. See
+  // snow/api.ts's fetchCell for why this carries no auth headers.
+  const url = apiUrl(
+    `${ENDPOINT}/${lat.toFixed(4)}/${lon.toFixed(4)}/2/${date}/${date}`,
+  );
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Avalanche API ${res.status}`);
   const data = (await res.json()) as VarsomWarning[];

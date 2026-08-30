@@ -2,11 +2,13 @@ import { startTransition, useEffect, useMemo, useState } from 'react';
 import type { ProfileData } from '../elevation/profile';
 import { fetchAvalancheWarning, type AvalancheWarning } from './api';
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-export function todayLocalYMD(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
+// Re-exported rather than moved outright. `todayLocalYMD` was defined here and
+// is imported from here by both of its callers; its home is now
+// ../time/calendar.ts, alongside every other local-calendar operation, because
+// Phase 3 gave it a third and fourth caller that have nothing to do with
+// avalanches. Keeping the name reachable at the old path makes the move
+// invisible to consumers, which is the only reason a re-export earns its place.
+export { todayLocalYMD } from '../time/calendar.ts';
 
 export interface AvalancheState {
   // Highest danger level among the regions the route passes through. 0 means

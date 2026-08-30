@@ -7,9 +7,18 @@
 // seNorge is an interpolated 1 km grid model, not a measurement at your feet.
 // Everything here therefore reports a range along the route and how much of it
 // the grid actually answered for, rather than one confident headline number.
+//
+// IT LIVED IN apps/web/src/briefing/ until Phase 3 of
+// docs/mobile-web-parity-plan.md. Nothing about it was ever web-specific — it
+// is arithmetic over two core types — and the phone's snow card needs exactly
+// these six numbers, because there is no room on a phone for the chart the
+// briefing draws beside them and the summary is therefore the whole of what it
+// can show. The alternative was a second mean-and-range implementation inside
+// apps/mobile, which is precisely the "temporary copy of a formatter" the
+// plan's one rule names.
 
-import type { ProfileData } from '@fjellrute/core/elevation/profile';
-import type { SnowData } from '@fjellrute/core/snow/useSnow';
+import type { ProfileData } from '../elevation/profile.ts';
+import type { SnowData } from './useSnow.ts';
 
 export interface SnowSummary {
   minCm: number;

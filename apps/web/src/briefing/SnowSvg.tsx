@@ -6,12 +6,13 @@
 // not the shape of the day — and shares the profile's x-axis conventions so
 // the two charts stacked on the page line up at the same distances.
 //
-// The numbers that go beside it live in snowSummary.ts, which the sheet also
-// reads for its key-facts panel.
+// The numbers that go beside it live in @fjellrute/core/snow/summary, which
+// the sheet also reads for its key-facts panel and the phone's snow card shows
+// on its own.
 
 import type { ProfileData } from '@fjellrute/core/elevation/profile';
 import type { SnowData } from '@fjellrute/core/snow/useSnow';
-import { snowSamples, type SnowSample } from './snowSummary';
+import { snowSamples, type SnowSample } from '@fjellrute/core/snow/summary';
 import { ticks } from '@fjellrute/core/chart/axis';
 import { translate } from '@fjellrute/core/i18n/locale';
 

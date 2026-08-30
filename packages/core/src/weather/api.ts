@@ -1,13 +1,22 @@
+import { apiUrl } from '../net/base.ts';
+
 // Hourly weather forecast from MET Norway's Locationforecast service
 // (the data behind yr.no). Single request per (lat, lon, altitude) returns
 // ~10 days of hourly data; we cache it client-side keyed on the quantized
 // coordinates so route panning around the same area doesn't re-fetch.
 //
-// The endpoint requires an identifying User-Agent header. Browsers don't let
-// fetch() set User-Agent, so we go through the Vite dev proxy (see
-// vite.config.ts), which rewrites /metno-api → https://api.met.no and stamps
-// the header server-side.
-
+// The endpoint requires an identifying User-Agent header, and MET's terms make
+// it a condition of use rather than a nicety. Browsers don't let fetch() set
+// User-Agent, so the request goes through the Vite dev proxy (see
+// vite.config.ts) in development and the Worker in production; both rewrite
+// /metno-api → https://api.met.no and stamp the header server-side.
+//
+// React Native's fetch WOULD let the app set User-Agent itself, but the phone
+// goes through the same proxy anyway. The identifying string is a deployment
+// fact, not an app fact — it has to change when the contact address does — and
+// the Worker also carries the edge cache MET asks callers to keep. A phone
+// calling api.met.no directly would be a second, unnamed, uncached client of a
+// service that logs who its callers are.
 const ENDPOINT = '/metno-api/weatherapi/locationforecast/2.0/compact';
 
 export interface WeatherHour {
@@ -103,7 +112,10 @@ export async function fetchForecast(
     return { hours: cached.hours, fetchedAt: cached.at };
   }
 
-  const url = `${ENDPOINT}?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`;
+  // Same-origin on the web (apiUrl is the identity until setApiBase runs),
+  // absolute against the Worker on the phone. See snow/api.ts's fetchCell for
+  // why this carries no auth headers.
+  const url = apiUrl(`${ENDPOINT}?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}`);
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Weather API ${res.status}`);
   const data = (await res.json()) as MetNoResponse;

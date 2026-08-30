@@ -140,8 +140,12 @@ ok(
 // 2. Reading a gridded model
 // ---------------------------------------------------------------------------
 
+// packages/core rather than apps/web/src/briefing, since Phase 3: the phone's
+// snow card needs the same mean-and-range, and the plan's one rule sends shared
+// logic to core instead of copying it into apps/mobile. Nothing below changed
+// with the import, which is the evidence that the move was a move.
 const { summariseSnow, hasSnowOnRoute } = await import(
-  pathToFileURL(join(ROOT, 'src/briefing/snowSummary.ts')).href
+  pathToFileURL(join(CORE, 'src/snow/summary.ts')).href
 );
 
 section('Snow summary');

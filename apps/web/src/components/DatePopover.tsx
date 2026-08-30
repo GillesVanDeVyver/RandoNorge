@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { translate } from '@fjellrute/core/i18n/locale';
 import { useT } from '@fjellrute/core/i18n';
+import { pad2 } from '@fjellrute/core/time/calendar';
 import styles from './DatePopover.module.css';
 
 // Custom date picker shared by the snow-depth and avalanche-risk panels.
@@ -11,7 +12,6 @@ import styles from './DatePopover.module.css';
 // user has actually selected a day. This minimal popover gives us explicit
 // control: month chevrons only mutate the local view-month state, and
 // onChange is fired exclusively when the user clicks a day cell.
-const pad2 = (n: number) => String(n).padStart(2, '0');
 const fmtYMD = (y: number, m: number, d: number) => `${y}-${pad2(m)}-${pad2(d)}`;
 // Norwegian shows day-first (DD.MM.YYYY); English keeps MM/DD/YYYY.
 const fmtDisplayDate = (s: string) => {

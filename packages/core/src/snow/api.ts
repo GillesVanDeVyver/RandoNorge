@@ -1,4 +1,5 @@
 import type { LatLng } from '../types';
+import { apiUrl } from '../net/base.ts';
 
 // Snow depth lookups against NVE's seNorge GridTimeSeries service. The grid
 // is 1×1 km in UTM zone 33N, so route points are first projected to UTM33N
@@ -6,9 +7,11 @@ import type { LatLng } from '../types';
 // of ~20 km typically reduces to a few dozen unique cells, which we fetch in
 // parallel and cache for the (cell, date) pair.
 
-// NVE's GTS endpoint does not send CORS headers, so in the browser we go
-// through the Vite dev proxy (see vite.config.ts). The proxy rewrites the
-// `/gts-api` prefix to `https://gts.nve.no/api`.
+// NVE's GTS endpoint does not send CORS headers, so neither client talks to it
+// directly. In the browser the request goes through the Vite dev proxy (see
+// vite.config.ts) in development and the Worker in production; both rewrite the
+// `/gts-api` prefix to `https://gts.nve.no/api`. On the phone the same path is
+// resolved against the Worker's origin by `apiUrl` — see fetchCell.
 const ENDPOINT = '/gts-api/GridTimeSeries';
 const CELL_SIZE_M = 1000;
 
@@ -92,7 +95,13 @@ async function fetchCell(
   date: string,
   signal?: AbortSignal,
 ): Promise<number> {
-  const url = `${ENDPOINT}/${x}/${y}/${date}/${date}/sd.json`;
+  // apiUrl() is the identity until setApiBase() is called, so on the web this
+  // is byte-for-byte the path-only URL it always was. The phone installs the
+  // Worker's origin at startup, because React Native's fetch rejects a URL with
+  // no host. No auth headers here, unlike routes/api.ts: the three upstream
+  // proxies are open, and sending a session cookie to them would be sending it
+  // somewhere it is not needed.
+  const url = apiUrl(`${ENDPOINT}/${x}/${y}/${date}/${date}/sd.json`);
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Snow API ${res.status}`);
   const data = (await res.json()) as GtsResponse;

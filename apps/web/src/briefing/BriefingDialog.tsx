@@ -83,7 +83,7 @@ import { PARKING_DEFAULT_RADIUS_M, useParking } from '../parking/useParking';
 import { recallParkingRadius } from '../parking/radius';
 import type { WeatherHour } from '@fjellrute/core/weather/api';
 import { BriefingSheet, type BriefingData } from './BriefingSheet';
-import { hasSnowOnRoute, summariseSnow } from './snowSummary';
+import { hasSnowOnRoute, summariseSnow } from '@fjellrute/core/snow/summary';
 import { briefingFileName } from './fileName';
 import {
   loadOptions,
@@ -94,6 +94,7 @@ import {
 } from './options';
 import { recallProfileScale } from '../profileScale';
 import { useT } from '@fjellrute/core/i18n';
+import { toYMD } from '@fjellrute/core/time/calendar';
 // A plain stylesheet, not a CSS module: the print rules have to reach the
 // document root and hide the rest of the app, which needs stable, unhashed
 // selectors. See briefing.css.
@@ -139,10 +140,6 @@ type SelfDeciding = (typeof SELF_DECIDING)[number];
 const isSelfDeciding = (key: keyof BriefingOptions): key is SelfDeciding =>
   (SELF_DECIDING as readonly string[]).includes(key);
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-const toYMDLocal = (d: Date) =>
-  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-
 /** Hours of the forecast that fall on the given date, in local time — the same
  *  local-day grouping the weather panel uses, so the printed table and the
  *  on-screen chart agree about which hours belong to the day. Every hour that
@@ -151,7 +148,7 @@ const toYMDLocal = (d: Date) =>
  *  was given rather than deciding for the reader which hours matter. */
 function hoursOnDate(hours: WeatherHour[] | null, ymd: string): WeatherHour[] {
   if (!hours) return [];
-  return hours.filter((h) => toYMDLocal(new Date(h.time)) === ymd);
+  return hours.filter((h) => toYMD(new Date(h.time)) === ymd);
 }
 
 /** Load every sky icon the day could ask for, resolving once they have all

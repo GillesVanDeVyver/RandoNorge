@@ -42,7 +42,7 @@ import {
 import { summariseTerrain, runoutLevelLabel } from './terrain';
 import { ProfileSvg } from './ProfileSvg';
 import { SnowSvg } from './SnowSvg';
-import { summariseSnow } from './snowSummary';
+import { summariseSnow } from '@fjellrute/core/snow/summary';
 import { WeatherSymbol, WindArrowIcon } from '../components/WeatherIcons';
 import { renderStaticMap } from './staticMap';
 import { TerrainPicture } from './TerrainPicture';
@@ -60,6 +60,8 @@ import { TERRAIN_BEARING } from '../terrainView';
 import type { BriefingOptions } from './options';
 import { useT, type Translate } from '@fjellrute/core/i18n';
 import { translate } from '@fjellrute/core/i18n/locale';
+import { pad2 } from '@fjellrute/core/time/calendar';
+import { windArrowRotation } from '@fjellrute/core/weather/format';
 
 /** Which of the planner's two maps the sheet prints. Flat and north-up reads
  *  as a map and can be navigated from; the terrain view reads as a mountain and
@@ -442,8 +444,6 @@ function blockReading(hours: WeatherHour[]): WeatherHour | null {
   };
 }
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
 /** The hour a period ends at, as it is written on the row. Midnight is 24 at
  *  the end of the day — "21–24" closes the day, where "21–00" reads like a typo
  *  — but a period that genuinely runs into the next day wraps, because MET's
@@ -565,10 +565,7 @@ function weatherRows(low: BriefingAnchor, high: BriefingAnchor): WeatherRow[] {
  *  column at a glance. Letters cannot be misread; an arrow on its own can. */
 function WindCell({ h }: { h: WeatherHour | null }) {
   if (!h) return <>–</>;
-  // The panel's own rotation: the icon points east at rest, MET's angle is the
-  // direction the wind blows FROM, so add 180° to reverse it and subtract 90° to
-  // bring the icon's own zero onto north.
-  const rot = h.windFromDeg + 180 - 90;
+  const rot = windArrowRotation(h.windFromDeg);
   return (
     <>
       {compass(h.windFromDeg)} {Math.round(h.windSpeed)}

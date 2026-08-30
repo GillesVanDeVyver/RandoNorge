@@ -95,6 +95,14 @@ import {
 import type { Route } from '@fjellrute/core/types';
 import { ElevationProfile } from '../../src/ui/ElevationProfile';
 import { SheetCard, SHEET_PEEK, SummarySheet } from '../../src/ui/SummarySheet';
+// Phase 3's three data cards. Each is a core hook plus a React Native view —
+// see their own headers — and each takes the computed profile, which is why
+// none of them can appear before the elevation pass has finished: the forecast
+// is anchored to the route's lowest and highest points, the snow depths are
+// fetched per profile point, and the avalanche regions are sampled along it.
+import { WeatherCard } from '../../src/ui/WeatherCard';
+import { SnowCard } from '../../src/ui/SnowCard';
+import { AvalancheCard } from '../../src/ui/AvalancheCard';
 import {
   colors,
   fontSize,
@@ -571,6 +579,37 @@ export default function RouteScreen() {
             value={stats ? `${stats.minElevation} m` : '—'}
           />
         </SheetCard>
+
+        {/* THE THREE DATA CARDS, and the condition in front of them is load
+            bearing rather than defensive. All three need `elevation.profile`:
+            the forecast is taken at the route's lowest and highest points, the
+            snow depths are one seNorge lookup per profile point, and the
+            avalanche regions are sampled along it. Rendering them against a
+            null profile would not merely show empty cards — it would start no
+            requests and then start all three at once the moment the profile
+            landed, which is the flash of three spinners the web avoids by
+            gating its own panels the same way.
+
+            THE ORDER IS THE WEB'S, top to bottom: weather, then snow, then
+            avalanche. It is also the order in which a tour is decided — is it
+            worth going, is there anything to ski, is it safe — and it puts the
+            card with the highest stakes at the end, where it is what the user
+            was last reading. */}
+        {elevation.profile && (
+          <>
+            <SheetCard title={t('Værvarsel', 'Weather forecast')}>
+              <WeatherCard profile={elevation.profile} />
+            </SheetCard>
+
+            <SheetCard title={t('Snødybde', 'Snow depth')}>
+              <SnowCard profile={elevation.profile} />
+            </SheetCard>
+
+            <SheetCard title={t('Skredfare', 'Avalanche danger')}>
+              <AvalancheCard profile={elevation.profile} />
+            </SheetCard>
+          </>
+        )}
       </SummarySheet>
     </View>
   );
