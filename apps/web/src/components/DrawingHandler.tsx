@@ -25,7 +25,7 @@ import {
   CONNECTOR_COLOR,
   connectorWeight,
   connectorDash,
-} from '../routeStyle';
+} from '@fjellrute/core/routes/style';
 import { useT } from '@fjellrute/core/i18n';
 import styles from './DrawingHandler.module.css';
 

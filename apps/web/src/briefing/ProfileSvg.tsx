@@ -21,9 +21,11 @@
 // label change between them; nothing about the drawing itself does.
 
 import type { ProfileData } from '@fjellrute/core/elevation/profile';
-import { RUNOUT_UNKNOWN } from '@fjellrute/core/elevation/runout';
-import { GRAY, RUNOUT_COLORS, steepnessColor } from '@fjellrute/core/elevation/steepness';
-import { ticks } from './axis';
+import {
+  elevationExtent,
+  segmentStyle,
+} from '@fjellrute/core/elevation/profileChart';
+import { ticks } from '@fjellrute/core/chart/axis';
 import { translate } from '@fjellrute/core/i18n/locale';
 
 // Viewport units. The SVG is scaled to the page by CSS, so these are just the
@@ -145,24 +147,13 @@ export function ProfileSvg({
   }
 
   const maxD = profile.stats.distance || 1;
-  let minE = Infinity;
-  let maxE = -Infinity;
-  for (const seg of segs) {
-    for (const p of seg) {
-      if (p.e < minE) minE = p.e;
-      if (p.e > maxE) maxE = p.e;
-    }
-  }
-  // Give a flat route a sane vertical span instead of dividing by zero.
-  if (maxE - minE < 20) {
-    const mid = (maxE + minE) / 2;
-    minE = mid - 10;
-    maxE = mid + 10;
-  }
-  // Breathing room above the summit so the line never touches the frame.
-  const headroom = (maxE - minE) * 0.08;
-  const yMin = minE - headroom;
-  const yMax = maxE + headroom;
+  // A flat route widened to a sane vertical span instead of dividing by zero,
+  // then breathing room above the summit so the line never touches the frame.
+  // Core's, because the phone's profile sizes its plot the same way and a
+  // second opinion about how tall a flat tour looks is a second app.
+  const { min: yMin, max: yMax } = elevationExtent(
+    segs.flatMap((seg) => seg.map((p) => p.e)),
+  );
 
   // At true scale the height of the plot is not a design decision but a
   // measurement: the vertical span drawn in the same units per metre as the
@@ -203,27 +194,22 @@ export function ProfileSvg({
   // Colour for the stretch between two points: steepness band, with NVE's
   // runout blue overriding terrain that is otherwise flat enough to read as
   // benign. Unknown runout is left gray — never recoloured as "safe".
-  const strokeFor = (a: Pt, b: Pt): string => {
-    if (!steepness) return PLAIN_COLOR;
-    const aS = Number.isFinite(a.slope) ? a.slope : NaN;
-    const bS = Number.isFinite(b.slope) ? b.slope : NaN;
-    const slope = Number.isNaN(aS)
-      ? bS
-      : Number.isNaN(bS)
-        ? aS
-        : (aS + bS) / 2;
-    let color = Number.isFinite(slope) ? steepnessColor(slope) : GRAY;
-    if (
-      runout &&
-      color === GRAY &&
-      a.runout !== RUNOUT_UNKNOWN &&
-      b.runout !== RUNOUT_UNKNOWN
-    ) {
-      const lvl = Math.min(a.runout, b.runout);
-      if (lvl > 0) color = RUNOUT_COLORS[lvl];
-    }
-    return color;
-  };
+  //
+  // The rule is core's, shared with the planner's chart and the phone's. It
+  // returns a `dashed` flag as well, which this renderer drops: a printed page
+  // has no hover and no legend beside the line, so a dashed stretch would be an
+  // unexplained one. What the flag would have said is said in words instead —
+  // the sheet prints a "data unavailable" note whenever the profile contains
+  // unknown slope or unknown runout. Adopting the shared rule did change one
+  // case on paper: a stretch with unknown slope inside a known runout zone used
+  // to print solid blue and now prints grey, because an unknown slope stays
+  // unknown however much else is known about the ground.
+  const strokeFor = (a: Pt, b: Pt): string =>
+    segmentStyle(
+      { slopeDeg: a.slope, runoutLevel: a.runout },
+      { slopeDeg: b.slope, runoutLevel: b.runout },
+      { steepness, runout, plainColor: PLAIN_COLOR },
+    ).color;
 
   return (
     <svg

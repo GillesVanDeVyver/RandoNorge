@@ -40,7 +40,7 @@ import {
   CONNECTOR_COLOR,
   connectorWeight,
   connectorDash,
-} from '../routeStyle';
+} from '@fjellrute/core/routes/style';
 
 const TILE_SIZE = 256;
 const MIN_ZOOM = 3;

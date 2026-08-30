@@ -31,7 +31,7 @@ import {
   CONNECTOR_COLOR,
   CONNECTOR_DASH_RATIO,
   connectorWeight,
-} from './routeStyle';
+} from '@fjellrute/core/routes/style';
 
 /** Vertical exaggeration of the terrain mesh. 1.0 is true-to-life; a small
  *  bump makes ridgelines and couloirs read more clearly without looking fake. */

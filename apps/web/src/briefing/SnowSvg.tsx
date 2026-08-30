@@ -12,7 +12,7 @@
 import type { ProfileData } from '@fjellrute/core/elevation/profile';
 import type { SnowData } from '@fjellrute/core/snow/useSnow';
 import { snowSamples, type SnowSample } from './snowSummary';
-import { ticks } from './axis';
+import { ticks } from '@fjellrute/core/chart/axis';
 import { translate } from '@fjellrute/core/i18n/locale';
 
 const W = 1000;

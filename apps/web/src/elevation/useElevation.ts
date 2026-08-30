@@ -1,12 +1,13 @@
 import { startTransition, useEffect, useRef, useState } from 'react';
 import type { Route } from '@fjellrute/core/types';
 import type { ProfileData } from '@fjellrute/core/elevation/profile';
-
-interface ElevationState {
-  profile: ProfileData | null;
-  loading: boolean;
-  error: string | null;
-}
+// The shape returned below is core's `ProfileState`, not a local interface, and
+// it is imported rather than restated so the two platforms cannot drift on what
+// a profile consumer is handed. Core's own `useProfile` — which the phone uses,
+// because Metro has no `new Worker(new URL(...))` — returns the same thing by
+// running computeProfile in place. The contract is shared; the implementation
+// deliberately is not, and useProfile's header says why.
+import type { ProfileState } from '@fjellrute/core/elevation/useProfile';
 
 type WorkerResponse =
   | { id: number; ok: true; profile: ProfileData }
@@ -19,8 +20,8 @@ type WorkerResponse =
 // also tag every request with a monotonically increasing id and ignore
 // any reply whose id is no longer the most recent (defensive against
 // races during rapid route edits).
-export function useElevation(route: Route): ElevationState {
-  const [state, setState] = useState<ElevationState>({
+export function useElevation(route: Route): ProfileState {
+  const [state, setState] = useState<ProfileState>({
     profile: null,
     loading: false,
     error: null,

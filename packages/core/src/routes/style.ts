@@ -1,21 +1,33 @@
 // How a route looks, wherever it is drawn.
 //
-// The route is painted by three unrelated renderers — Leaflet polylines in the
-// planner (DrawingHandler), a 2D canvas for the printable briefing and the
-// library thumbnails (briefing/staticMap), and a MapLibre line layer in the 3D
-// view. Each used to carry its own copy of the colour and the widths, with a
-// comment asking the next person to keep them in step, and they drifted anyway:
-// the briefing printed a line more than twice the planner's relative weight, so
-// the exported map read as a different, blunter drawing of the same tour.
+// The route is painted by four unrelated renderers — Leaflet polylines in the
+// web planner (DrawingHandler), a 2D canvas for the printable briefing and the
+// library thumbnails (briefing/staticMap), a MapLibre line layer in the 3D
+// view, and MapLibre again on the phone (apps/mobile's route screen). Each used
+// to carry its own copy of the colour and the widths, with a comment asking the
+// next person to keep them in step, and they drifted anyway: the briefing
+// printed a line more than twice the planner's relative weight, so the exported
+// map read as a different, blunter drawing of the same tour.
 //
 // So the numbers live here once. The weights are in CSS/logical pixels against
 // a map roughly the width of the planner's own; the static renderer works in
 // logical pixels too and is handed these directly, which is what makes the
-// printed map a miniature of the screen rather than a redrawing of it.
+// printed map a miniature of the screen rather than a redrawing of it. React
+// Native's density-independent pixels are the same idea under another name, so
+// the phone takes them directly as well.
 //
 // The thumbnails deliberately do NOT use these: a 4 px line on a 160 px tile
 // would vanish, so RouteThumbnail passes its own heavier weights. Proportion,
 // not the number, is what carries across sizes.
+//
+// THIS FILE WAS apps/web/src/routeStyle.ts until Phase 2 of
+// docs/mobile-web-parity-plan.md. The phone could not import it there — one app
+// may not reach into another — so apps/mobile/app/route/[id].tsx spelled the
+// four numbers out as literals under a comment naming this file as the fix, and
+// scripts/verify-mobile-app.mjs carried an allowlist entry excusing the
+// duplicated white. Moving it here is what that comment asked for, and it is
+// the parity plan's one rule applied: anything not purely visual lives in
+// packages/core and both apps import it.
 
 /** The app's accent teal (--accent), the route's colour everywhere. */
 export const ROUTE_COLOR = '#2dd4bf';

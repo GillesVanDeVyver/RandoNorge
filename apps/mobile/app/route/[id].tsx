@@ -1,5 +1,20 @@
-// Phase 3: one saved route, drawn on the Kartverket topo map, with the NVE
-// steepness overlay and the live position marker.
+// One saved route as a full-screen planner: the Kartverket topo map edge to
+// edge, the NVE steepness overlay, the live position marker, and everything the
+// map cannot say in a bottom sheet over it.
+//
+// PHASE 2 OF docs/mobile-web-parity-plan.md turned this from a map with a
+// caption into the phone's half of the web planner. The plan's words were
+// "MapLibre full-bleed, floating chrome over it in the web's positions
+// (toolbar top-left, summary as a bottom sheet)", and that is the layout now:
+// the steepness pill is top-left where the web's layer toolbar is, the
+// attribution floats just clear of the sheet exactly as App.module.css keeps
+// the web's map chrome clear of `--sheet-peek`, and the old fixed stats bar has
+// become the sheet's peek line.
+//
+// WHAT STAYED THE SAME ON PURPOSE: the navigation header. A planner with no
+// header would be more full-bleed and would also be a screen with no way back
+// and no route name on it. The web has its own header above the map for the
+// same two jobs.
 //
 // WHY A HAND-BUILT STYLE INSTEAD OF A STYLE URL. MapLibre normally loads a
 // style document from a URL, and that document names the sources. Here the
@@ -18,7 +33,9 @@
 // WHAT IS DELIBERATELY ABSENT: drawing, editing, recording, offline caching.
 // This screen reads. The plan puts all four in later phases, and each of them
 // needs a decision this phase does not have to make (a gesture model, a
-// background task, a tile store).
+// background task, a tile store). Phase 4's drawing is the one that was waiting
+// on this phase — the plan says not to start it "before Phase 2's sheet exists;
+// it has nowhere to put its controls otherwise" — and the sheet now exists.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -28,6 +45,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 // The installed library is @maplibre/maplibre-react-native v11, whose component
 // surface differs from the v10 API most examples online still show. The four
@@ -60,8 +78,23 @@ import * as Location from 'expo-location';
 import { useT } from '@fjellrute/core/i18n';
 import { getRoute, routeToFeature, type SavedRoute } from '@fjellrute/core/routes/api';
 import { formatAscent, formatDistance } from '@fjellrute/core/routes/format';
+import { useProfile } from '@fjellrute/core/elevation/useProfile';
 import { OFFLINE_LAYERS, tileUrlTemplate } from '@fjellrute/core/offline/layers';
+// The route's colour and the two line widths, from core rather than from four
+// literals in this file. They were literals until Phase 2, under a comment
+// asking for exactly this move; the file they now come from is the one apps/web
+// draws its own route with, so a route is the same line on both clients by
+// construction rather than by everyone remembering.
+import {
+  HALO_COLOR,
+  HALO_OPACITY,
+  HALO_WEIGHT,
+  ROUTE_COLOR,
+  ROUTE_WEIGHT,
+} from '@fjellrute/core/routes/style';
 import type { Route } from '@fjellrute/core/types';
+import { ElevationProfile } from '../../src/ui/ElevationProfile';
+import { SheetCard, SHEET_PEEK, SummarySheet } from '../../src/ui/SummarySheet';
 import {
   colors,
   fontSize,
@@ -105,17 +138,34 @@ const STEEPNESS_TEMPLATE = tileUrlTemplate(STEEPNESS);
  * Required credit, not decoration: Kartverket's topo cache and NVE's steepness
  * cache are both used under terms that require attribution.
  *
- * Declared once and used twice — on the source, and in the bar at the bottom of
- * the screen. Two uses because they answer different questions. The bar is what
- * a user actually sees, since MapLibre's own attribution control is disabled
- * (it reads a style document, and this map has none). The `attribution` prop on
- * the source is metadata that travels with the source, so anything that later
- * enumerates the map's credits — the built-in control if it is ever turned on,
- * a static-map export — finds them already attached rather than needing this
- * list restated. Not localized: an organisation's name is its name.
+ * Declared once and used twice — on the source, and in the floating line above
+ * the sheet. Two uses because they answer different questions. The floating
+ * line is what a user actually sees, since MapLibre's own attribution control
+ * is disabled (it reads a style document, and this map has none). The
+ * `attribution` prop on the source is metadata that travels with the source, so
+ * anything that later enumerates the map's credits — the built-in control if it
+ * is ever turned on, a static-map export — finds them already attached rather
+ * than needing this list restated. Not localized: an organisation's name is its
+ * name.
  */
 const TOPO_ATTRIBUTION = '© Kartverket';
 const STEEPNESS_ATTRIBUTION = '© NVE';
+
+/**
+ * Camera padding, so a route that reaches the edge of its own bounding box is
+ * not framed underneath the chrome that floats over it.
+ *
+ * The bottom number is `SHEET_PEEK` plus a gap rather than the 88 that used to
+ * be typed here. Identical today, and it stops being identical the moment the
+ * sheet's height changes — which is precisely the kind of second copy the web
+ * avoids by having App.module.css read the same `--sheet-peek` the panel sets.
+ */
+const CAMERA_PADDING = {
+  top: 64,
+  right: 32,
+  bottom: SHEET_PEEK + space.s6,
+  left: 32,
+};
 
 type LoadState =
   | { status: 'loading' }
@@ -150,6 +200,7 @@ function boundsOf(route: Route): [number, number, number, number] | null {
 export default function RouteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const t = useT();
 
   const [state, setState] = useState<LoadState>({ status: 'loading' });
@@ -243,8 +294,22 @@ export default function RouteScreen() {
     [state],
   );
 
-  // After every hook, never before: an early return above them would change the
-  // number of hooks this component calls between renders.
+  // The drawn geometry, as a reference that only changes when the route does.
+  // `useProfile` re-runs on identity, and identity here means several hundred
+  // Kartverket requests, so handing it `state.route.route` straight out of a
+  // freshly-built object on every render would be an expensive mistake.
+  const routeGeometry = useMemo(
+    () => (state.status === 'ready' ? state.route.route : null),
+    [state],
+  );
+
+  // Core's hook, running the same `computeProfile` the web runs — see
+  // useProfile's header for why the phone runs it in place while the web pushes
+  // it into a worker. Called unconditionally, above the early returns, because
+  // the number of hooks a component calls may not change between renders.
+  const elevation = useProfile(routeGeometry);
+
+  // After every hook, never before.
   if (!id) {
     return (
       <View style={styles.centered}>
@@ -278,6 +343,31 @@ export default function RouteScreen() {
     );
   }
 
+  const stats = elevation.profile?.stats ?? null;
+
+  // The one line a shut sheet shows, in the web's own order — distance, then
+  // ascent, then descent (App.tsx's `sheetPeek`).
+  //
+  // With one addition the web does not need: the saved figures as a fallback
+  // while the profile computes. The web is a planner, where a route being drawn
+  // has no saved statistics to fall back on and the honest line really is
+  // "calculating"; here the route came from the API with `distanceM` and
+  // `ascentM` already on it, so a strip that said "calculating" would be
+  // withholding numbers it is holding. They are replaced, not corrected, when
+  // the profile lands — same quantities, measured at 20 m resampling instead of
+  // at save time.
+  const peek = stats
+    ? `${formatDistance(stats.distance)}  ·  ${formatAscent(stats.ascent)} ${t('stigning', 'ascent')}  ·  ${formatAscent(stats.descent)} ${t('fall', 'descent')}`
+    : [
+        formatDistance(state.route.distanceM),
+        formatAscent(state.route.ascentM),
+      ]
+        .filter((part) => part !== '—')
+        .join('  ·  ') ||
+      (elevation.loading
+        ? t('Beregner rutestatistikk …', 'Calculating route stats…')
+        : t('Rutedetaljer', 'Route details'));
+
   return (
     <View style={styles.flex}>
       <MapLibreMap
@@ -294,16 +384,15 @@ export default function RouteScreen() {
           // initialViewState, not the controlled `bounds` prop: this frames the
           // route once, when the map first loads, and then leaves the camera
           // alone. The controlled form would snap the view back to the whole
-          // route on every re-render — including a locale change or the
-          // steepness toggle — undoing whatever the user had panned to.
+          // route on every re-render — including a locale change, the steepness
+          // toggle, or the profile arriving — undoing whatever the user had
+          // panned to.
           <Camera
             initialViewState={{
               bounds,
-              // Room for the toggle pill at the top and the stats bar at the
-              // bottom, so a route that reaches the edge of its own bounding
-              // box does not sit underneath them. ViewPadding is the CSS-ish
-              // {top,right,bottom,left}, not React Native's paddingTop names.
-              padding: { top: 64, right: 32, bottom: 88, left: 32 },
+              // ViewPadding is the CSS-ish {top,right,bottom,left}, not React
+              // Native's paddingTop names.
+              padding: CAMERA_PADDING,
             }}
           />
         )}
@@ -356,27 +445,16 @@ export default function RouteScreen() {
             {/* Two layers, drawn in order: a wide light casing under a narrow
                 coloured line. Without the casing the route disappears wherever
                 it crosses steepness shading of a similar tone, which is
-                precisely where you most need to see it.
-
-                THE FOUR NUMBERS HERE ARE apps/web/src/routeStyle.ts's, and they
-                have to be: a route drawn 3.5 wide on the phone and 4 wide on the
-                laptop is the same route looking like two different lines, which
-                is exactly the drift the shared package exists to prevent. Three
-                of them already agreed by luck — HALO_COLOR '#ffffff',
-                HALO_WEIGHT (ROUTE_WEIGHT + 3 = 7) and HALO_OPACITY 0.9 — and
-                ROUTE_WEIGHT did not, so the line below was 3.5 against the web's
-                4. They are still literals rather than imports because
-                routeStyle.ts lives in apps/web and this file may not reach into
-                another app; moving it into packages/core is the correct fix and
-                is Phase 2's, where the profile needs those constants anyway. */}
+                precisely where you most need to see it. Every number is core's
+                — see the import. */}
             <Layer
               id="route-casing"
               type="line"
               source="route"
               paint={{
-                'line-color': '#ffffff',
-                'line-width': 7,
-                'line-opacity': 0.9,
+                'line-color': HALO_COLOR,
+                'line-width': HALO_WEIGHT,
+                'line-opacity': HALO_OPACITY,
               }}
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
             />
@@ -384,9 +462,7 @@ export default function RouteScreen() {
               id="route-line"
               type="line"
               source="route"
-              // `colors.route`, not `colors.accent`. The same value today, and
-              // the name says which of the two this call site means.
-              paint={{ 'line-color': colors.route, 'line-width': 4 }}
+              paint={{ 'line-color': ROUTE_COLOR, 'line-width': ROUTE_WEIGHT }}
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
             />
           </GeoJSONSource>
@@ -421,12 +497,18 @@ export default function RouteScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.bottomBar} pointerEvents="none">
-        <Text style={styles.stats}>
-          {[formatDistance(state.route.distanceM), formatAscent(state.route.ascentM)]
-            .filter((part) => part !== '—')
-            .join('  ·  ')}
-        </Text>
+      {/* Attribution, parked just above the sheet's peek strip — the position
+          App.module.css gives the web's map chrome by reading the same
+          `--sheet-peek` the sheet sets. It does not rise with the sheet: the
+          credit belongs to the map, and a credit that slides up over its own
+          map to sit on a panel is crediting the panel. */}
+      <View
+        style={[
+          styles.attributionBar,
+          { bottom: SHEET_PEEK + insets.bottom + space.s1 },
+        ]}
+        pointerEvents="none"
+      >
         <Text style={styles.attribution}>
           {/* The NVE half only appears while its layer is on — crediting a
               source whose tiles are not on screen is noise, and the point of
@@ -436,6 +518,71 @@ export default function RouteScreen() {
             : TOPO_ATTRIBUTION}
         </Text>
       </View>
+
+      <SummarySheet peek={peek}>
+        <SheetCard
+          title={t('Høydeprofil', 'Elevation profile')}
+          // The chart draws its own axis labels flush to its own edges, so a
+          // card padding under it would be a second, uneven margin.
+          padded={false}
+        >
+          <View style={styles.profileBox}>
+            {elevation.profile ? (
+              <ElevationProfile
+                profile={elevation.profile}
+                // The map's toggle, not a second one. See ElevationProfile's
+                // `steepness` prop for why the phone has one switch where the
+                // web has two.
+                steepness={showSteepness}
+              />
+            ) : elevation.loading ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : (
+              <Text style={styles.cardNote}>
+                {elevation.error ??
+                  t(
+                    'Høydeprofil utilgjengelig for denne ruta.',
+                    'Elevation profile unavailable for this route.',
+                  )}
+              </Text>
+            )}
+          </View>
+        </SheetCard>
+
+        <SheetCard title={t('Rutedetaljer', 'Route details')}>
+          <Stat
+            label={t('Lengde', 'Distance')}
+            value={formatDistance(stats ? stats.distance : state.route.distanceM)}
+          />
+          <Stat
+            label={t('Stigning', 'Ascent')}
+            value={formatAscent(stats ? stats.ascent : state.route.ascentM)}
+          />
+          <Stat
+            label={t('Fall', 'Descent')}
+            value={formatAscent(stats ? stats.descent : null)}
+          />
+          <Stat
+            label={t('Høyeste punkt', 'Highest point')}
+            value={stats ? `${stats.maxElevation} m` : '—'}
+          />
+          <Stat
+            label={t('Laveste punkt', 'Lowest point')}
+            value={stats ? `${stats.minElevation} m` : '—'}
+          />
+        </SheetCard>
+      </SummarySheet>
+    </View>
+  );
+}
+
+/** One label-and-figure row. The figure is tabular so a column of them lines
+ *  up on the decimal point rather than wandering with the digit widths. */
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statRow}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
     </View>
   );
 }
@@ -499,16 +646,41 @@ const styles = StyleSheet.create({
   },
   toggleTextOn: { color: colors.accentContrast },
 
-  bottomBar: {
+  attributionBar: {
     position: 'absolute',
-    left: space.s4,
-    right: space.s4,
-    bottom: space.s4,
-    padding: space.s2,
-    borderRadius: radius.md,
-    backgroundColor: colors.glass,
-    gap: 2,
+    right: space.s2,
+    // `bottom` is supplied at the call site, because it depends on the safe
+    // area inset and StyleSheet.create cannot see a hook.
   },
-  stats: { fontSize: fontSize.sm, fontWeight: '600', color: colors.text },
-  attribution: { fontSize: fontSize.xs, color: colors.textMuted },
+  attribution: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    backgroundColor: colors.glass,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.s1,
+    // Text over a map is unreadable without something behind it. The pill is
+    // the smallest thing that fixes it and the smallest thing that hides map.
+    overflow: 'hidden',
+  },
+
+  profileBox: {
+    padding: space.s3,
+    minHeight: 120,
+    justifyContent: 'center',
+  },
+  cardNote: { fontSize: fontSize.sm, color: colors.textMuted },
+
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingVertical: 3,
+  },
+  statLabel: { fontSize: fontSize.sm, color: colors.textMuted },
+  statValue: {
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
+  },
 });

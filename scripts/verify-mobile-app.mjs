@@ -1468,20 +1468,22 @@ check(
 /**
  * Colour literals that are allowed to appear outside theme.ts.
  *
- * Each needs a reason that is about the VALUE, not about convenience. There is
- * one, and it is a genuine exception: the route casing is not a theme colour at
- * all, it is a constant of how a route is drawn, and its authority is
- * apps/web/src/routeStyle.ts (HALO_COLOR). Putting it in theme.ts would claim
- * index.css defines it, which section 13 would then look for and not find.
+ * Each would need a reason that is about the VALUE, not about convenience, and
+ * as of Phase 2 there are none. There used to be one: `#ffffff` in
+ * `app/route/[id].tsx`, the route's white casing, which is not a theme colour
+ * at all but a constant of how a route is drawn — putting it in theme.ts would
+ * have claimed index.css defines it, which section 13 would then have looked
+ * for and not found. That entry carried its own fix in its comment ("move
+ * routeStyle.ts into packages/core so both apps import it"), and Phase 2 made
+ * the move, so the screen now imports HALO_COLOR from
+ * @fjellrute/core/routes/style and the literal is gone.
  *
- * The right fix is to move routeStyle.ts into packages/core so both apps import
- * it — Phase 2 needs those constants for the elevation profile anyway. Until
- * then this entry is the honest description of a duplicated literal, rather
- * than a silent one.
+ * Kept as an empty array rather than deleted, because the shape of the
+ * exception is the useful part: a colour that belongs to neither app's theme
+ * has somewhere to be declared, and declaring it here costs a sentence about
+ * why. Anything that can instead be imported from core should be.
  */
-const COLOUR_LITERAL_ALLOWLIST = [
-  { file: 'apps/mobile/app/route/[id].tsx', value: '#ffffff' },
-];
+const COLOUR_LITERAL_ALLOWLIST = [];
 
 const strayColours = [];
 for (const file of files) {
@@ -1691,6 +1693,160 @@ check(
     '        literal is `/route/[id]` with the id passed as a param — not an\n' +
     '        interpolated `/route/${id}`, which this cannot resolve and which\n' +
     '        expo-router matches only by accident.',
+);
+
+// ---------------------------------------------------------------------------
+// 15. The bottom sheet is the web's bottom sheet, at the web's size.
+//
+// The parity plan asked for this by name — "Match the sheet's real dimensions
+// from SummaryPanel.module.css:19-42 — peek 64px, expanded min(62vh, 560px),
+// rounded top corners" — and it is worth a check for the same reason section 13
+// is. Nothing about a sheet that peeks 56 points instead of 64 will ever be
+// reported. A user who plans on a laptop and walks with a phone is looking at
+// one product twice, and the difference registers as the phone version feeling
+// slightly wrong without anyone being able to say why. That is precisely the
+// failure mode that let the accent colour drift for months.
+//
+// This is also the section that will catch the OTHER copy of 64. The peek
+// height is consumed three times on the phone — the grabber's own height, the
+// camera's bottom padding, and the attribution's offset — and on the web the
+// equivalent three read `var(--sheet-peek)` rather than the number. Here they
+// read `SHEET_PEEK`, and the check below insists the constant exists rather
+// than merely that some 64 appears somewhere, so re-typing the number is what
+// fails.
+//
+// WHAT IS NOT CHECKED, and cannot be: `min(62dvh, 560px)`. React Native has no
+// viewport unit, so the phone measures its container and multiplies. The two
+// constants that come out of that (`SHEET_MAX_FRACTION`, `SHEET_MAX_HEIGHT`)
+// are checked against the CSS's own two numbers, but that the measurement is a
+// faithful stand-in for `dvh` is an argument, not an assertion — see
+// SummarySheet's comment on it.
+// ---------------------------------------------------------------------------
+
+const sheetCss = stripComments(read(WEB, 'src/components/SummaryPanel.module.css'));
+const appCss = stripComments(read(WEB, 'src/App.module.css'));
+const sheetTsx = stripComments(read(MOBILE, 'src/ui/SummarySheet.tsx'));
+
+/** `--sheet-peek: 64px;` — declared in App.module.css, because the map chrome
+ *  that has to clear the sheet is App's and the sheet is not. */
+const webPeek = /--sheet-peek:\s*(\d+)px/.exec(appCss)?.[1];
+
+check(
+  "App.module.css still declares --sheet-peek",
+  webPeek !== undefined,
+  '        The custom property the sheet and the map chrome share is gone or\n' +
+    '        renamed. Everything below compares against it, so this is the\n' +
+    '        guard that stops the rest passing vacuously.',
+);
+
+/** `height: min(62dvh, 560px)` on `.sheetOpen`. The rule is written twice in
+ *  the stylesheet — a `vh` line then a `dvh` line, so a browser without `dvh`
+ *  keeps the older behaviour — and the second one wins, which is the one the
+ *  phone is imitating. */
+const webOpen = /min\(\s*(\d+)dvh\s*,\s*(\d+)px\s*\)/.exec(sheetCss);
+
+check(
+  "SummaryPanel.module.css still sizes the open sheet with min(Ndvh, Npx)",
+  webOpen !== null,
+  '        The open height is what the phone measures its container to\n' +
+    '        reproduce. If this rule changed shape, the two constants in\n' +
+    '        SummarySheet.tsx are now imitating something that is not there.',
+);
+
+/** A `const NAME = <number>;` in SummarySheet.tsx. Text, not an import, for
+ *  section 13's reason: the file imports react-native and bare Node cannot
+ *  load it. Any dimension computed at runtime would be invisible here — keep
+ *  them literal. */
+const sheetConst = (name) => {
+  const found = new RegExp(`\\b${name}\\s*=\\s*([0-9.]+)`).exec(sheetTsx);
+  return found ? Number(found[1]) : null;
+};
+
+const SHEET_DIMENSIONS = [
+  {
+    name: 'SHEET_PEEK',
+    web: webPeek === undefined ? null : Number(webPeek),
+    source: '--sheet-peek in App.module.css',
+  },
+  {
+    name: 'SHEET_MAX_FRACTION',
+    // 62dvh as the fraction React Native can express.
+    web: webOpen === null ? null : Number(webOpen[1]) / 100,
+    source: 'the dvh half of min(62dvh, 560px)',
+  },
+  {
+    name: 'SHEET_MAX_HEIGHT',
+    web: webOpen === null ? null : Number(webOpen[2]),
+    source: 'the px cap in min(62dvh, 560px)',
+  },
+  {
+    name: 'SWIPE_THRESHOLD',
+    // The web's is a bare literal in an event handler rather than a custom
+    // property, so it is matched where it lives. Both platforms tell a tap
+    // from a swipe by the same distance or they disagree about what a user
+    // just did with their thumb.
+    web: Number(
+      /Math\.abs\(delta\)\s*<\s*(\d+)/.exec(
+        stripComments(read(WEB, 'src/components/SummaryPanel.tsx')),
+      )?.[1] ?? NaN,
+    ),
+    source: "SummaryPanel.tsx's tap-versus-swipe test",
+  },
+];
+
+const sheetMismatches = [];
+for (const { name, web, source } of SHEET_DIMENSIONS) {
+  const mine = sheetConst(name);
+  if (mine === null) {
+    sheetMismatches.push(`${name} is not declared as a literal in SummarySheet.tsx`);
+  } else if (web === null || Number.isNaN(web)) {
+    sheetMismatches.push(`${name}: could not read ${source}`);
+  } else if (mine !== web) {
+    sheetMismatches.push(`${name}: phone ${mine}, web ${web} (${source})`);
+  }
+}
+
+check(
+  `the bottom sheet's ${SHEET_DIMENSIONS.length} dimensions match the web's`,
+  sheetMismatches.length === 0,
+  `        ${sheetMismatches.join('\n        ')}\n` +
+    '        The plan asked for these specifically. A sheet that peeks a\n' +
+    '        different height, opens to a different fraction, or disagrees\n' +
+    '        about how far a thumb has to travel is the same product feeling\n' +
+    '        subtly wrong on one of the two clients.',
+);
+
+// The rounded top corners, the third thing the plan named. Checked as "the
+// sheet uses the large radius token" rather than as "16", because the number is
+// section 13's business and this section's business is that the sheet asks for
+// the same token the stylesheet asks for.
+check(
+  'the sheet rounds its top corners with the large radius token',
+  /border-radius:\s*var\(--radius-lg\)\s+var\(--radius-lg\)\s+0\s+0/.test(sheetCss) &&
+    /borderTopLeftRadius:\s*radius\.lg/.test(sheetTsx) &&
+    /borderTopRightRadius:\s*radius\.lg/.test(sheetTsx),
+  '        SummaryPanel.module.css rounds the sheet `--radius-lg --radius-lg 0\n' +
+    '        0` and SummarySheet.tsx must round the same two corners with\n' +
+    '        radius.lg. A sheet rounded on all four floats; rounded on none it\n' +
+    '        is a page. Only the top two read as a sheet rising off the map.',
+);
+
+// The transition. The web animates `height` over --dur-slow on --ease, and the
+// phone has no CSS transition to copy — it has Animated.timing, which takes the
+// same two values as a number and a Bézier. Both tokens exist in theme.ts and
+// are checked by section 13; what this asserts is that the sheet USES them
+// rather than a hand-picked 300 and a stock ease-out, which is what every
+// example on the internet would have put here.
+check(
+  'the sheet animates on the shared duration and easing tokens',
+  /transition:\s*height\s+var\(--dur-slow\)\s+var\(--ease\)/.test(sheetCss) &&
+    /duration:\s*duration\.slow/.test(sheetTsx) &&
+    /Easing\.bezier\(\.\.\.EASE_BEZIER\)/.test(sheetTsx),
+  '        The sheet must open over `duration.slow` on `Easing.bezier(...\n' +
+    '        EASE_BEZIER)`, which are --dur-slow and --ease. Those two tokens\n' +
+    '        were held back through Phase 0 and 1 on the grounds that a token\n' +
+    '        nobody consumes cannot be told apart from a token that is wrong;\n' +
+    '        this is the consumer that earned them.',
 );
 
 console.log(

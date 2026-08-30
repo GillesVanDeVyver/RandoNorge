@@ -58,6 +58,15 @@ npx expo install expo-secure-store expo-network
 # native module with an Expo config plugin, already declared in app.json.
 npx expo install @maplibre/maplibre-react-native expo-location
 
+# The renderer for the elevation profile, and later for the snow chart beneath
+# it. Also native, which is the part that surprises people: adding it changes
+# what has to be in the binary, so an existing development build on a device
+# will redbox on RNSVGSvgView until it is rebuilt once. Nothing about the
+# JavaScript is unusual — apps/web draws the same chart with the same elements
+# for the printed briefing, and the shape rules both of them follow live in
+# packages/core.
+npx expo install react-native-svg
+
 # Better Auth's client half. Not an Expo package, so a plain add — but the
 # version must match the `better-auth` and `@better-auth/expo` in the ROOT
 # package.json, which is where the Worker's server half lives.

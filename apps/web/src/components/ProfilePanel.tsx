@@ -12,7 +12,11 @@ import {
 } from 'recharts';
 import type { ProfileData } from '@fjellrute/core/elevation/profile';
 import { RUNOUT_UNKNOWN } from '@fjellrute/core/elevation/runout';
-import { GRAY, RUNOUT_COLORS, steepnessColor } from '@fjellrute/core/elevation/steepness';
+import {
+  ELEV_FILL_STOPS,
+  segmentSlope,
+  segmentStyle,
+} from '@fjellrute/core/elevation/profileChart';
 import type { SnowData } from '@fjellrute/core/snow/useSnow';
 import { setHoverPoint } from '../hoverStore';
 import {
@@ -176,19 +180,6 @@ type ChartPoint = {
   runoutLevel: number;
   snow: number | null;
 };
-
-// Mean terrain slope of the segment between two chart points (used to pick
-// a color). Falls back to whichever endpoint has a finite slope; if both
-// are NaN, returns NaN ("slope unknown") — callers must render that as
-// unverified data, never as flat terrain.
-function segmentSlope(a: ChartPoint, b: ChartPoint): number {
-  const aS = Number.isFinite(a.slopeDeg) ? a.slopeDeg : NaN;
-  const bS = Number.isFinite(b.slopeDeg) ? b.slopeDeg : NaN;
-  if (Number.isFinite(aS) && Number.isFinite(bS)) return (aS + bS) / 2;
-  if (Number.isFinite(aS)) return aS;
-  if (Number.isFinite(bS)) return bS;
-  return NaN;
-}
 
 type ProgressPoint = ChartPoint & { done: number | null };
 
@@ -520,30 +511,11 @@ export function ElevationPanel({
         cur = null;
         continue;
       }
-      const slope = segmentSlope(a, b);
-      // Unknown slope (neighbor elevation fetch failed) is drawn as a
-      // dashed gray segment — "unverified", visually distinct from the
-      // solid gray that means "verified flat terrain".
-      let color = Number.isFinite(slope) ? steepnessColor(slope) : GRAY;
-      let dashed = !Number.isFinite(slope);
-      // Override the "flat terrain" gray with NVE's runout-zone blue when
-      // both endpoints fall inside a modeled snow-avalanche runout polygon.
-      // Colored (steep) segments keep their steepness color. Picking the
-      // lower severity of the two endpoints (lighter blue) keeps the chart
-      // visually conservative at boundaries. If the runout lookup failed
-      // (RUNOUT_UNKNOWN), the segment is drawn dashed instead of solid so
-      // "no data" never looks identical to "verified outside all zones".
-      if (color === GRAY) {
-        if (
-          a.runoutLevel === RUNOUT_UNKNOWN ||
-          b.runoutLevel === RUNOUT_UNKNOWN
-        ) {
-          dashed = true;
-        } else if (!dashed) {
-          const lvl = Math.min(a.runoutLevel, b.runoutLevel);
-          if (lvl > 0) color = RUNOUT_COLORS[lvl];
-        }
-      }
+      // The colour rule — slope band, runout blue over otherwise-flat grey,
+      // dashed wherever something is unknown rather than known — is core's, so
+      // that this chart, the printed sheet and the phone all make the same
+      // claim about the same metre of snow. See elevation/profileChart.ts.
+      const { color, dashed } = segmentStyle(a, b);
       if (cur && cur.color === color && cur.dashed === dashed) {
         cur.points.push(b.distance, b.elevation);
       } else {
@@ -788,12 +760,22 @@ export function ElevationPanel({
                     {/* Rock-like fill: weathered tan at the ridge, darker
                         granite/basalt tones at depth. Stops are tuned to
                         keep the colored steepness ReferenceLines on top
-                        clearly visible. */}
+                        clearly visible.
+
+                        The ramp itself is core's, because the phone draws the
+                        same ground under the same line and this is most of
+                        what makes the picture recognisably Fjellrute's. The
+                        desaturated twin below stays here: it belongs to
+                        navigation progress, which is a planner idea. */}
                     <linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#a89072" stopOpacity={0.55} />
-                      <stop offset="35%" stopColor="#7a624a" stopOpacity={0.7} />
-                      <stop offset="70%" stopColor="#544334" stopOpacity={0.85} />
-                      <stop offset="100%" stopColor="#332821" stopOpacity={0.95} />
+                      {ELEV_FILL_STOPS.map((s) => (
+                        <stop
+                          key={s.at}
+                          offset={`${s.at * 100}%`}
+                          stopColor={s.color}
+                          stopOpacity={s.opacity}
+                        />
+                      ))}
                     </linearGradient>
                     {/* Desaturated twin of elevFill for the travelled part
                         of the terrain — same lightness ramp, cool grays

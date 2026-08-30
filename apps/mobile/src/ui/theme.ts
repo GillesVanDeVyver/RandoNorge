@@ -30,10 +30,10 @@
 //     layered shadows that RN cannot express at all. See `shadow` below.
 //   - the font. See FONT_FAMILY — the one row of the plan's table left open.
 //
-// Not ported, on purpose: `--ease` and the three `--dur-*` values. Nothing on
-// the phone animates yet, and a token nobody consumes is indistinguishable from
-// a token that is wrong. They come over with the first transition that needs
-// them, which is Phase 2's bottom sheet.
+// `--ease` and the three `--dur-*` values were held back for exactly one phase,
+// on the grounds that a token nobody consumes is indistinguishable from a token
+// that is wrong. Phase 2's bottom sheet is the transition that needed them, so
+// they are here now — see `duration` and `EASE_BEZIER` at the foot of the file.
 
 import { Platform, type ViewStyle } from 'react-native';
 
@@ -289,6 +289,39 @@ export const shadow: Record<'level1' | 'level2' | 'float', ViewStyle> = {
     default: { elevation: 8 },
   }),
 };
+
+/**
+ * `--dur-fast`, `--dur`, `--dur-slow`, in milliseconds.
+ *
+ * The web writes them with the unit (`320ms`) because CSS requires it and React
+ * Native forbids it — `Animated.timing` takes a bare number of milliseconds —
+ * so these are the same three values with the `ms` dropped, exactly as the
+ * lengths are the same values with the `px` dropped. The parity check strips
+ * both suffixes for the comparison.
+ *
+ * `base` rather than `dur` for the middle one: the web's is the unsuffixed
+ * `--dur`, and a key literally called `dur` on an object called `duration` reads
+ * as a stutter at every call site.
+ */
+export const duration = {
+  fast: 120,
+  base: 200,
+  slow: 320,
+} as const;
+
+/**
+ * `--ease`, as the four control points of its cubic Bézier rather than a string.
+ *
+ * `cubic-bezier(0.2, 0, 0, 1)` is a decelerate curve: it leaves fast and settles
+ * slowly, which is what makes a sheet feel like it was thrown rather than
+ * dragged by a motor. React Native cannot parse the CSS spelling, so the numbers
+ * are kept as numbers and handed to `Easing.bezier(...EASE_BEZIER)` at the point
+ * of use. Spread rather than pre-built because `Easing` comes from react-native
+ * and this module is imported by files that only want colours.
+ */
+export const EASE_BEZIER: readonly [number, number, number, number] = [
+  0.2, 0, 0, 1,
+];
 
 /**
  * The minimum tappable size, in points. Both platforms' guidelines land within

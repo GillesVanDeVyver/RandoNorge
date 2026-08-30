@@ -1711,8 +1711,11 @@ section('The exported map and its file name');
 const { briefingFileName } = await import(
   pathToFileURL(join(ROOT, 'src/briefing/fileName.ts')).href
 );
+// In packages/core since Phase 2 of docs/mobile-web-parity-plan.md, because the
+// phone's map is a fifth renderer of the same line and could not reach into
+// apps/web for the numbers. Nothing about what is checked here changed with it.
 const routeStyle = await import(
-  pathToFileURL(join(ROOT, 'src/routeStyle.ts')).href
+  pathToFileURL(join(CORE, 'src/routes/style.ts')).href
 );
 const sheetSrc = readFileSync(join(ROOT, 'src/briefing/BriefingSheet.tsx'), 'utf8');
 const staticSrc = readFileSync(join(ROOT, 'src/briefing/staticMap.ts'), 'utf8');
@@ -1731,7 +1734,7 @@ ok(
   'the renderer falls back to the shared weights rather than numbers of its own',
 );
 ok(
-  /from '\.\.\/routeStyle'/.test(plannerSrc) &&
+  /from '@fjellrute\/core\/routes\/style'/.test(plannerSrc) &&
     !/^const ROUTE_WEIGHT =/m.test(plannerSrc),
   'the planner reads the same widths rather than keeping a second copy',
 );
@@ -1823,7 +1826,7 @@ ok(
 ok(
   terrainViewSrc.includes('START_COLOR') &&
     terrainViewSrc.includes('FINISH_COLOR') &&
-    /from '\.\/routeStyle'/.test(terrainViewSrc),
+    /from '@fjellrute\/core\/routes\/style'/.test(terrainViewSrc),
   'those colours are the shared pair, not a third opinion about green and red',
 );
 
