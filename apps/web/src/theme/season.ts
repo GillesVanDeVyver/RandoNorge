@@ -6,26 +6,30 @@
 // handy for previewing a theme out of season.
 // =========================================================================
 
+// `Season`, `SEASONS` and `seasonFromDate` moved to
+// @fjellrute/core/theme/season when apps/mobile's account overview grew the
+// same seasonal photo: which season it is, is a date calculation, and two
+// clients showing a different photo on the same afternoon is precisely the
+// drift packages/core exists to prevent. They are re-exported here so every
+// call site in this app keeps importing them from './theme/season' — this
+// module is still the web's whole answer to seasonal theming, it just no longer
+// owns the calendar. What stays below is the part that is a browser: the
+// sessionStorage override and the URL it is set from.
+import {
+  SEASONS,
+  seasonFromDate,
+  OVERVIEW_CREDITS,
+  type Season,
+} from '@fjellrute/core/theme/season';
 import { appPath, stripAppBase } from '../appBase.ts';
 
-export type Season = 'spring' | 'summer' | 'fall' | 'winter';
-
-const SEASONS: readonly Season[] = ['spring', 'summer', 'fall', 'winter'];
+export { SEASONS, seasonFromDate };
+export type { Season };
 
 /** sessionStorage key for the sticky URL override ("/summer" etc.).
  *  Session-scoped on purpose: a new tab/window falls back to the
  *  date-based season, but reloads and in-app navigation keep it. */
 const OVERRIDE_KEY = 'fjellrute:season-override';
-
-/** Meteorological seasons (northern hemisphere): Mar–May spring,
- *  Jun–Aug summer, Sep–Nov fall, Dec–Feb winter. */
-export function seasonFromDate(date: Date = new Date()): Season {
-  const month = date.getMonth(); // 0-based
-  if (month >= 2 && month <= 4) return 'spring';
-  if (month >= 5 && month <= 7) return 'summer';
-  if (month >= 8 && month <= 10) return 'fall';
-  return 'winter';
-}
 
 /**
  * URL theme override: if the path starts with a season segment
@@ -119,28 +123,21 @@ export const LOGIN_PHOTOS: Record<Season, SeasonPhoto> = {
   },
 };
 
-/** Account overview: mountain scenery without people — the signed-in
- *  hub reads as its own place, same as before. All four lean "cloudy
- *  mystic": peaks and ridges in fog, matching the winter original. */
+/**
+ * Account overview: mountain scenery without people — the signed-in hub reads
+ * as its own place, same as before. All four lean "cloudy mystic": peaks and
+ * ridges in fog, matching the winter original.
+ *
+ * The href/credit half comes from core's `OVERVIEW_CREDITS`, because
+ * apps/mobile now shows these same four photographs and the two clients must
+ * not be able to credit different photographers for the same image. Only `src`
+ * is written here: it is a path under public/, which is meaningful to Vite and
+ * meaningless to Metro, so each client supplies its own — see the note at the
+ * top of packages/core/src/theme/season.ts.
+ */
 export const OVERVIEW_PHOTOS: Record<Season, SeasonPhoto> = {
-  spring: {
-    src: '/overview-spring.jpg',
-    href: 'https://www.pexels.com/photo/clouds-in-mountains-8722318/',
-    credit: 'Gutjahr Aleksandr',
-  },
-  summer: {
-    src: '/overview-summer.jpg',
-    href: 'https://www.pexels.com/photo/a-mountain-covered-in-fog-4762987/',
-    credit: 'Michael Wernet',
-  },
-  fall: {
-    src: '/overview-fall.jpg',
-    href: 'https://www.pexels.com/photo/photo-of-mountains-under-cloudy-sky-3181457/',
-    credit: 'Tom Verdoot',
-  },
-  winter: {
-    src: '/overview-peaks.jpg',
-    href: 'https://www.pexels.com/photo/landscape-photography-of-mountains-covered-in-snow-691668/',
-    credit: 'eberhard grossgasteiger',
-  },
+  spring: { src: '/overview-spring.jpg', ...OVERVIEW_CREDITS.spring },
+  summer: { src: '/overview-summer.jpg', ...OVERVIEW_CREDITS.summer },
+  fall: { src: '/overview-fall.jpg', ...OVERVIEW_CREDITS.fall },
+  winter: { src: '/overview-peaks.jpg', ...OVERVIEW_CREDITS.winter },
 };

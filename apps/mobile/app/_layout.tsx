@@ -92,12 +92,19 @@ function SessionGate() {
           there is no offline store on the phone at all. An empty screen is
           worth registering; a screen with no way to fill it is not.
 
-          The titles are translated, unlike `index`'s, because they are words
+          The titles are translated, unlike login's, because they are words
           rather than the product's name. They also do real work here: the
           toolbar that used to name the saved list moved to the hub with the
           account actions, so the stack header is now the only thing on these
           screens that says which one you are on. */}
-      <Stack.Screen name="index" options={{ title: 'Fjellrute' }} />
+      {/* NO HEADER ON THE HUB. It used to carry a native header titled
+          "Fjellrute", which was the right call while the screen was a cream
+          page with nothing of its own at the top. It is now the web's
+          full-bleed photo page, and it draws the brand mark and wordmark
+          itself, one row below the status bar — exactly where the web's
+          `.brand` sits. A stack header above that would be a cream bar across
+          the top of a photograph, saying the word the screen already says. */}
+      <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen
         name="planner"
         options={{ title: t('Planlegg', 'Plan') }}

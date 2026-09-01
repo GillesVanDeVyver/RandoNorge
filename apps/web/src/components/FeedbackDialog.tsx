@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { MAX_FEEDBACK_LENGTH, sendFeedback } from '../feedback/api.ts';
+import {
+  MAX_FEEDBACK_LENGTH,
+  sendFeedback,
+} from '@fjellrute/core/feedback/api';
 import { useT } from '@fjellrute/core/i18n';
 import styles from './FeedbackDialog.module.css';
 

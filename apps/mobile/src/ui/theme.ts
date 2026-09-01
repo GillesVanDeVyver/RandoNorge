@@ -35,7 +35,7 @@
 // that is wrong. Phase 2's bottom sheet is the transition that needed them, so
 // they are here now — see `duration` and `EASE_BEZIER` at the foot of the file.
 
-import { Platform, type ViewStyle } from 'react-native';
+import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
 export const colors = {
   /**
@@ -174,7 +174,85 @@ export const colors = {
   warning: '#b45309',
   warningSurface: '#fffbeb',
   warningBorder: '#fcd34d',
+
+  // -------------------------------------------------------------------------
+  // THE PHOTO PAGES. Everything above is a custom property in index.css; the
+  // eight below are colours apps/web writes as LITERALS, in
+  // AccountOverview.module.css and the dialogs, because they belong to one
+  // composition rather than to the palette. They are here for the reason
+  // `dangerSurface` is here: section 13's parity table only covers the pairs it
+  // lists, and a value with no `--custom-property` to point at still must not
+  // be typed into a StyleSheet — that is what section 14 checks, and it is the
+  // same argument. The comment on each says which rule it came from.
+  // -------------------------------------------------------------------------
+
+  /** `.brandName` / `.greeting`: `#fff`. Not `surface` — that is the colour of
+   *  a card, and this is ink, on a photograph, where the two happening to be
+   *  the same value is a coincidence rather than a relationship. */
+  onPhoto: '#ffffff',
+  /** `.subtitle`: white stepped back so it sits under the headline. The web has
+   *  no `--text-2` equivalent for type on a photo, so it writes this. */
+  onPhotoMuted: 'rgba(255, 255, 255, 0.86)',
+
+  /** The ink both scrims are made of: `rgba(8, 18, 28, …)`, a very dark blue.
+   *  Stated once because it appears at five opacities between the backdrop
+   *  gradient, the text shadows and the account popover, and a colour retyped
+   *  five times is a colour that can drift a channel without anyone noticing. */
+  scrimInk: '#08121c',
+  /** `.page::before`'s fallback, shown while the photograph decodes so the
+   *  first frame is a plausible pale sky rather than a black rectangle. */
+  photoFallback: '#dfe7ee',
+
+  /** `.cardPrimary`'s teal wash, layered over `glass`. The web ramps it from
+   *  0.2 to 0.05 across the card; see the note at its use in app/index.tsx for
+   *  why the phone's is flat. */
+  accentWash: 'rgba(45, 212, 191, 0.1)',
+  /** `.cardIcon` / `.feedbackIcon`: the square tile an icon sits in. `--text-1`
+   *  ink at 0.06 — dark enough to read as a container on white, light enough
+   *  to disappear against the glass it is on. */
+  iconTile: 'rgba(20, 28, 38, 0.06)',
+
+  /** What a modal dialog dims the app with — the web's `.backdrop`, shared by
+   *  FeedbackDialog, DisclaimerModal and TermsDialog. */
+  backdrop: 'rgba(0, 0, 0, 0.45)',
+  /** And what a POPOVER dims it with, which is deliberately much less. The
+   *  web's account popover has no backdrop at all: it is an absolutely
+   *  positioned div over a page that stays fully live. The phone needs a
+   *  full-screen layer to catch the tap that closes it (see AccountChip), so
+   *  the layer exists — barely tinted, so one tap does not feel like leaving
+   *  the screen. Built from `scrimInk` rather than black, so it warms the
+   *  photograph the same way the scrim above it does. */
+  popoverBackdrop: 'rgba(8, 18, 28, 0.28)',
 } as const;
+
+/**
+ * The halo the web puts behind white text on a photograph.
+ *
+ * `text-shadow: 0 <offsetY>px <blur>px rgba(8, 18, 28, <opacity>)` maps onto
+ * React Native's three Text props one-for-one, so this is a spelling change
+ * rather than an approximation — unlike `shadow` below, which cannot be one.
+ * It is a function rather than three named tokens because AccountOverview.module
+ * .css uses four different combinations across `.brandName`, `.eyebrow`,
+ * `.greeting` and `.subtitle`, and naming four one-use shadows would say they
+ * were a scale when they are four judgement calls about how bright the fog is
+ * behind each line.
+ *
+ * It lives HERE, next to `scrimInk`, so the rgba() string is built in the one
+ * file allowed to contain colour — a screen that assembled it inline would be
+ * writing a colour literal, which is exactly what section 14 of
+ * scripts/verify-mobile-app.mjs exists to stop.
+ */
+export function onPhotoShadow(
+  blur: number,
+  opacity: number,
+  offsetY = 1,
+): TextStyle {
+  return {
+    textShadowColor: `rgba(8, 18, 28, ${opacity})`,
+    textShadowOffset: { width: 0, height: offsetY },
+    textShadowRadius: blur,
+  };
+}
 
 /**
  * `--space-1` … `--space-8`, the web's 4px scale.
