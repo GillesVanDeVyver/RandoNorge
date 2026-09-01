@@ -8,6 +8,8 @@
   "exports": {
     "./types": "./src/types/index.ts",
     "./geometry": "./src/geometry/index.ts",
+    "./geometry/viewport": "./src/geometry/viewport.ts",
+    "./draw/tools": "./src/draw/tools.ts",
     "./i18n": "./src/i18n/index.ts",
     "./i18n/locale": "./src/i18n/locale.ts",
     "./i18n/environment": "./src/i18n/environment.ts",

@@ -3,6 +3,14 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { LatLng, Mode, Overlay, Route, Segment } from '@fjellrute/core/types';
 import { simplify } from '@fjellrute/core/geometry';
+// Drawing tolerances and the eraser, shared with the 2D DrawingHandler and the
+// phone's planner so freehand edits behave identically wherever they are made.
+import {
+  ERASER_RADIUS_PX,
+  MIN_DRAW_PX2,
+  RDP_EPSILON_M,
+  eraseDisk,
+} from '@fjellrute/core/draw/tools';
 import {
   AreaIcon,
   CompassIcon,
@@ -92,13 +100,6 @@ registerOfflineMapProtocol();
 // guide had just been looking at. Everything specific to *interacting* with the
 // map — drawing, erasing, the region overlay — stays here.
 
-// Drawing/erasing constants — mirror the 2D DrawingHandler so freehand edits
-// behave identically in 3D.
-const RDP_EPSILON_M = 8;
-// Eraser "effect radius" in screen pixels — constant on-screen size, so
-// the ground-distance reach scales proportionally as the user zooms out.
-// Keep in sync with DrawingHandler.tsx.
-const ERASER_RADIUS_PX = 32;
 // Travelled-track styling, mirroring the 2D NavigationLayer: a warm orange
 // line over a white halo so the recorded tour reads clearly against the teal
 // plan and the terrain drape when reviewing a completed route in 3D.
@@ -110,11 +111,6 @@ const TRACK_HALO_OPACITY = 0.9;
 // Amber for the downloaded-region boundaries — the same colour the 2D
 // RegionBoundaryLayer uses so offline coverage reads identically in both views.
 const REGION_COLOR = '#f5a623';
-// Minimum pixel distance between accepted points while drawing — caps point
-// count by stroke length rather than duration.
-const MIN_DRAW_PX = 3;
-const MIN_DRAW_PX2 = MIN_DRAW_PX * MIN_DRAW_PX;
-
 // Pink tilted eraser block matching the toolbar icon, used as the cursor
 // while in erase mode (identical to the 2D handler).
 const ERASER_CURSOR_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'>
@@ -635,100 +631,24 @@ export function Map3DView({
 
     // --- Eraser ------------------------------------------------------------
     // Erase every part of the route inside a disk of ERASER_RADIUS_PX around
-    // the cursor, working in screen-pixel space for fast planar geometry —
-    // the same algorithm as the 2D handler, using MapLibre project/unproject
-    // so the disk follows the terrain surface.
+    // the cursor. The algorithm is core's, shared with the 2D handler and the
+    // phone; what this view contributes is MapLibre's own project/unproject,
+    // which account for the camera pitch — so the disk lies on the terrain
+    // surface here for free, without the shared code knowing about terrain.
     const eraseAt = (cursor: LatLng) => {
       const source = eraseRouteRef.current ?? routeRef.current;
-      const cursorPx = map.project([cursor[1], cursor[0]]);
-      const R = ERASER_RADIUS_PX;
-      const R2 = R * R;
-
-      const toLL = (x: number, y: number): LatLng => {
-        const ll = map.unproject([x, y]);
-        return [ll.lat, ll.lng];
-      };
-
-      const next: Route = [];
-      let changed = false;
-
-      for (const seg of source) {
-        if (seg.length === 0) continue;
-        const pxs = seg.map((p) => map.project([p[1], p[0]]));
-        const inside = pxs.map((pt) => {
-          const dx = pt.x - cursorPx.x;
-          const dy = pt.y - cursorPx.y;
-          return dx * dx + dy * dy <= R2;
-        });
-
-        let current: Segment = [];
-        if (!inside[0]) current.push(seg[0]);
-        else changed = true;
-
-        for (let i = 1; i < seg.length; i++) {
-          const a = pxs[i - 1];
-          const b = pxs[i];
-          const aIn = inside[i - 1];
-          const bIn = inside[i];
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const fx = a.x - cursorPx.x;
-          const fy = a.y - cursorPx.y;
-          const qa = dx * dx + dy * dy;
-          const qb = 2 * (fx * dx + fy * dy);
-          const qc = fx * fx + fy * fy - R2;
-
-          if (aIn && bIn) {
-            changed = true;
-          } else if (aIn && !bIn) {
-            if (qa > 0) {
-              const disc = qb * qb - 4 * qa * qc;
-              if (disc >= 0) {
-                const sq = Math.sqrt(disc);
-                const t = (-qb + sq) / (2 * qa);
-                if (t > 0 && t < 1) current.push(toLL(a.x + t * dx, a.y + t * dy));
-              }
-            }
-            current.push(seg[i]);
-            changed = true;
-          } else if (!aIn && bIn) {
-            if (qa > 0) {
-              const disc = qb * qb - 4 * qa * qc;
-              if (disc >= 0) {
-                const sq = Math.sqrt(disc);
-                const t = (-qb - sq) / (2 * qa);
-                if (t > 0 && t < 1) current.push(toLL(a.x + t * dx, a.y + t * dy));
-              }
-            }
-            if (current.length >= 2) next.push(current);
-            current = [];
-            changed = true;
-          } else {
-            let split = false;
-            if (qa > 0) {
-              const disc = qb * qb - 4 * qa * qc;
-              if (disc > 0) {
-                const sq = Math.sqrt(disc);
-                const t1 = (-qb - sq) / (2 * qa);
-                const t2 = (-qb + sq) / (2 * qa);
-                if (t1 > 0 && t2 < 1 && t1 < t2) {
-                  current.push(toLL(a.x + t1 * dx, a.y + t1 * dy));
-                  if (current.length >= 2) next.push(current);
-                  current = [toLL(a.x + t2 * dx, a.y + t2 * dy), seg[i]];
-                  changed = true;
-                  split = true;
-                }
-              }
-            }
-            if (!split) current.push(seg[i]);
-          }
-        }
-
-        if (current.length >= 2) next.push(current);
-        else if (current.length > 0) changed = true;
-      }
-
-      if (changed) {
+      const next = eraseDisk(
+        source,
+        cursor,
+        (ll) => map.project([ll[1], ll[0]]),
+        (x, y) => {
+          const ll = map.unproject([x, y]);
+          return [ll.lat, ll.lng];
+        },
+        ERASER_RADIUS_PX,
+      );
+      // null means the disk touched nothing — skip the repaint entirely.
+      if (next) {
         eraseRouteRef.current = next;
         renderRoute();
       }

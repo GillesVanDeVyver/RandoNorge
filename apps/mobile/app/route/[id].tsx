@@ -30,16 +30,33 @@
 // the map, which is why the route line is last rather than grouped with the
 // rasters.
 //
-// WHAT IS DELIBERATELY ABSENT: drawing, editing, recording, offline caching.
-// This screen reads. The plan puts all four in later phases, and each of them
-// needs a decision this phase does not have to make (a gesture model, a
-// background task, a tile store). Phase 4's drawing is the one that was waiting
-// on this phase — the plan says not to start it "before Phase 2's sheet exists;
-// it has nowhere to put its controls otherwise" — and the sheet now exists.
+// PHASE 4 THEN MADE IT WRITEABLE. The plan held drawing back until "Phase 2's
+// sheet exists; it has nowhere to put its controls otherwise", and the sheet
+// does, so the pencil and the eraser arrive here rather than in a new screen:
+// this is already the phone's planner, and a second one would be a second copy
+// of the map, the layers and the profile.
+//
+// THE THREE PIECES PHASE 4 ADDED, and why each is where it is. The gestures are
+// in src/ui/DrawingSurface — a transparent overlay, because MapLibre's own press
+// events fire on tap and drawing needs the whole drag. The maths is in
+// @fjellrute/core/draw/tools, shared with both of the web's maps, because the
+// plan's warning is that "the same drag produces different routes on the two
+// clients" otherwise. And the projection is core's too
+// (@fjellrute/core/geometry/viewport), because MapLibre React Native's own
+// project/unproject return Promises and a stroke cannot wait for the bridge.
+//
+// WHAT IS STILL DELIBERATELY ABSENT: straight-line drawing with draggable
+// vertices, recording, offline caching, import/export, the printed briefing.
+// The first is its own gesture problem; the rest are Phase 5 and beyond, each
+// needing a decision this screen does not have to make (a background task, a
+// tile store, a native file picker, a native PDF).
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  type LayoutChangeEvent,
+  type NativeSyntheticEvent,
   Pressable,
   StyleSheet,
   Text,
@@ -73,10 +90,17 @@ import {
   Map as MapLibreMap,
   RasterSource,
   UserLocation,
+  type MapRef,
+  type ViewStateChangeEvent,
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { useT } from '@fjellrute/core/i18n';
-import { getRoute, routeToFeature, type SavedRoute } from '@fjellrute/core/routes/api';
+import {
+  getRoute,
+  routeToFeature,
+  updateRoute,
+  type SavedRoute,
+} from '@fjellrute/core/routes/api';
 import { formatAscent, formatDistance } from '@fjellrute/core/routes/format';
 import { useProfile } from '@fjellrute/core/elevation/useProfile';
 import { OFFLINE_LAYERS, tileUrlTemplate } from '@fjellrute/core/offline/layers';
@@ -92,7 +116,18 @@ import {
   ROUTE_COLOR,
   ROUTE_WEIGHT,
 } from '@fjellrute/core/routes/style';
-import type { Route } from '@fjellrute/core/types';
+// Phase 4's shared halves. `eraseDisk` and ERASER_RADIUS_PX are the same
+// eraser apps/web runs — see the module header for why one copy rather than
+// three — and `createViewport` is the synchronous projection it needs, which on
+// this platform has to be computed rather than asked for.
+import { ERASER_RADIUS_PX, eraseDisk } from '@fjellrute/core/draw/tools';
+import {
+  createViewport,
+  type Viewport,
+} from '@fjellrute/core/geometry/viewport';
+import type { LatLng, Mode, Route, Segment } from '@fjellrute/core/types';
+import { DrawingSurface } from '../../src/ui/DrawingSurface';
+import { EditToolbar } from '../../src/ui/EditToolbar';
 import { ElevationProfile } from '../../src/ui/ElevationProfile';
 import { SheetCard, SHEET_PEEK, SummarySheet } from '../../src/ui/SummarySheet';
 // Phase 3's three data cards. Each is a core hook plus a React Native view —
@@ -175,10 +210,65 @@ const CAMERA_PADDING = {
   left: 32,
 };
 
+/**
+ * Height of the steepness pill, so the edit toolbar can be parked underneath it
+ * rather than on top of it. Named because it is used twice — in the pill's own
+ * style and in the toolbar's offset — and two 36s would come apart the first
+ * time one of them was tuned.
+ */
+const PILL_HEIGHT = TOUCH_TARGET - 8;
+
+/**
+ * The in-progress stroke, drawn at 70% while the finger is still down.
+ *
+ * The same 0.7 apps/web uses for its live line (LIVE_LINE_STYLE in
+ * DrawingHandler.tsx). It is not decoration: the translucency is what says this
+ * line is not yet part of the route, which matters most at the moment it
+ * crosses a line that is.
+ */
+const LIVE_OPACITY = 0.7;
+
 type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; route: SavedRoute }
   | { status: 'error'; message: string };
+
+/**
+ * An editing session: a working copy of one route, and the loaded array it was
+ * derived from.
+ *
+ * `source` is what makes the session self-invalidating. It is the array the
+ * loader produced, so `source === state.route.route` is the question "does this
+ * session still belong to what is on screen", answered by identity rather than
+ * by an effect that clears things.
+ */
+interface EditSession {
+  /** The array the loader produced, and therefore what the server holds. */
+  source: Route;
+  /** The working copy: the geometry the map, the profile and the save all read. */
+  route: Route;
+  /** The route before each finished gesture, oldest first. One entry per drag,
+   *  not per touch sample, which is what makes undo a step a user recognises. */
+  history: Route[];
+}
+
+/** Which tool is in hand, and whether the toolbar row is showing — tagged with
+ *  the route id they were chosen for. See the state's declaration. */
+interface ToolState {
+  id: string;
+  mode: Mode;
+  open: boolean;
+}
+
+/**
+ * The empty undo stack, as one shared array.
+ *
+ * A fresh `[]` per render would be a new identity every time, and `history` is
+ * read by `EditToolbar` — a memo-friendly component being handed a new array
+ * sixty times during a pan is the kind of thing that only shows up as a dropped
+ * frame much later.
+ */
+const NO_HISTORY: Route[] = [];
 
 /**
  * The route's bounding box as MapLibre's LngLatBounds.
@@ -214,6 +304,61 @@ export default function RouteScreen() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [showSteepness, setShowSteepness] = useState(false);
   const [locationGranted, setLocationGranted] = useState(false);
+
+  // ---- Editing state (Phase 4) ---------------------------------------------
+  //
+  // ONE OBJECT, CARRYING THE ARRAY IT WAS DERIVED FROM. The obvious shape is a
+  // working copy in its own useState, seeded from the loader by an effect — and
+  // that effect has to call setState synchronously in its body, which is a
+  // cascading render (react-hooks/set-state-in-effect flags it, and it is right
+  // to; src/ui/WeatherIcons.tsx has the same note). Pairing the working copy
+  // with the loaded array it started from means a session belonging to an
+  // earlier load is simply not selected below: nothing has to be reset, and the
+  // seeding is a reference comparison instead of a render pass.
+  //
+  // It is also what makes "are there unsaved changes" exact rather than
+  // approximate. `history` holds the previous arrays themselves, so undoing
+  // every edit restores the very object `source` points at and `dirty` then
+  // correctly says no.
+  const [session, setSession] = useState<EditSession | null>(null);
+  // The eraser mid-drag, separate from the session for one reason: `useProfile`
+  // re-runs on a new route identity, and one run is several hundred Kartverket
+  // requests. An eraser that wrote straight into the session would start — and
+  // abort — one of those per touch sample. The preview is what the map draws;
+  // the session only moves when the finger lifts.
+  const [preview, setPreview] = useState<Route | null>(null);
+  const [live, setLive] = useState<Segment | null>(null);
+  // The tool in hand, keyed on the route id for the same reason and by the same
+  // means as the session above: a pencil still in hand after the screen is
+  // pointed at a different route is a map that does not pan and no longer says
+  // why, and keying the state resets it without an effect. Mode and openness
+  // share one object because they are set together as often as separately.
+  const [tool, setTool] = useState<ToolState>({
+    id,
+    mode: 'idle',
+    open: false,
+  });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // The map's camera, kept current from its own region events, and the view's
+  // pixel size, which the map does not report and onLayout does. Refs rather
+  // than state: these change on every frame of a pan and nothing renders from
+  // them — the only reader is the drawing surface, at the instant a finger
+  // lands. Putting them in state would re-render the whole screen sixty times
+  // a second for a value nothing is showing.
+  const mapRef = useRef<MapRef>(null);
+  const cameraRef = useRef<{
+    center: LatLng;
+    zoom: number;
+    bearing: number;
+  } | null>(null);
+  const sizeRef = useRef<{ width: number; height: number } | null>(null);
+  // The eraser accumulates here across a drag, for the same reason the web's
+  // handler keeps an eraseRouteRef: each sample cuts the result of the last
+  // one, and reading it back out of React state would cut a copy one render
+  // behind the finger.
+  const previewRef = useRef<Route | null>(null);
 
   // RETURNS the next state rather than setting it — same shape as the list
   // screen, and for the same two reasons: the effect and the retry button want
@@ -261,6 +406,181 @@ export default function RouteScreen() {
     });
   };
 
+  // ---- What the rest of the screen reads -----------------------------------
+  //
+  // The loaded geometry, and then the session applied over it if the session
+  // still belongs to it. A session from an earlier load is dropped rather than
+  // migrated: its history steps back through arrays the server no longer holds,
+  // and an undo stack that reaches into a route that has since been replaced is
+  // worse than no undo stack.
+  //
+  // A SAVE PASSES THROUGH HERE AND COSTS NOTHING. It re-states the load with
+  // the very array the user is holding, so `loaded` becomes that array,
+  // `session.source` no longer matches, the session is dropped — and `route`
+  // lands back on the identical object. Nothing downstream sees a change, so
+  // the profile does not recompute for a route that did not move.
+  const loaded = state.status === 'ready' ? state.route.route : null;
+  const active = session && session.source === loaded ? session : null;
+  const route = active?.route ?? loaded;
+  const history = active?.history ?? NO_HISTORY;
+  const mode = tool.id === id ? tool.mode : 'idle';
+  const toolbarOpen = tool.id === id ? tool.open : false;
+
+  // UPDATER FORM, and it has to be. `EditToolbar` picks a tool and folds the
+  // row down in the same handler — two calls, one render — and a setter that
+  // reassembled the object out of this render's `mode` and `toolbarOpen` would
+  // have the second call write back the tool the first one just replaced. The
+  // `current.id === id` guard inside each is the same reset the derivation
+  // above performs, applied to the value being carried through rather than to
+  // the one being set.
+  const setMode = (next: Mode) =>
+    setTool((current) => ({
+      id,
+      mode: next,
+      open: current.id === id && current.open,
+    }));
+  const setToolbarOpen = (open: boolean) =>
+    setTool((current) => ({
+      id,
+      mode: current.id === id ? current.mode : 'idle',
+      open,
+    }));
+
+  // ---- The camera, as a synchronous projection -----------------------------
+  //
+  // Fed from three places, because no one of them is enough. The region events
+  // report every pan, zoom and rotate but say nothing until the map first
+  // moves; `getViewState()` answers at any time but only when asked, and only
+  // eventually; and neither knows how large the view is on screen.
+  const rememberCamera = useCallback(
+    (event: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+      const { center, zoom, bearing } = event.nativeEvent;
+      // MapLibre speaks [lng, lat]; core stores [lat, lng] everywhere.
+      // Transposed once, here, on the way in.
+      cameraRef.current = { center: [center[1], center[0]], zoom, bearing };
+    },
+    [],
+  );
+
+  // The view's size, measured on the SCREEN ROOT rather than on the map. The
+  // map, the drawing surface and this container are three views stacked at
+  // exactly the same rectangle — the map is the root's only flex child and
+  // everything else over it is absolutely positioned — so one measurement
+  // describes all three. Measuring the map itself would be the same number by
+  // a longer route: v11's `Map` renders a wrapper View that already owns its
+  // own `onLayout`, and a second one would have to be handed to the native
+  // child through the props spread.
+  const onMapLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    sizeRef.current = { width, height };
+  }, []);
+
+  // Ask the map where it is, once it has one. Covers the case the region events
+  // cannot: a route opened, framed by the initial camera, and drawn on before
+  // the user has panned anything.
+  const seedCamera = useCallback(() => {
+    void mapRef.current?.getViewState().then((view) => {
+      cameraRef.current = {
+        center: [view.center[1], view.center[0]],
+        zoom: view.zoom,
+        bearing: view.bearing,
+      };
+    });
+  }, []);
+
+  /** The projection to draw against, as of right now, or null if the map has
+   *  not said where it is yet. Rebuilt per gesture rather than cached: it is a
+   *  handful of trigonometry, and a cached one would be a second place for the
+   *  camera to be stale. */
+  const getViewport = useCallback((): Viewport | null => {
+    const camera = cameraRef.current;
+    const size = sizeRef.current;
+    if (!camera || !size) return null;
+    return createViewport({ ...camera, ...size });
+  }, []);
+
+  // ---- Edits ---------------------------------------------------------------
+  //
+  // PLAIN FUNCTIONS, NOT useCallback. Every one of them reads `route`,
+  // `history` and `loaded` straight out of this render — the values the control
+  // the user just touched was drawn from — so there is nothing stale to guard
+  // against and no ref to mirror. The gesture surface can afford it: it holds
+  // its props behind a ref of its own (see DrawingSurface's header) precisely so
+  // that new callback identities on every render do not rebuild the responder
+  // mid-stroke.
+
+  /** Replace the working copy, remembering what it replaced.
+   *
+   *  One `history` entry per call, and a call is one finished gesture rather
+   *  than one touch sample — which is what makes undo a step a user
+   *  recognises. */
+  const applyEdit = (next: Route) => {
+    if (!loaded) return;
+    setSession({
+      source: loaded,
+      route: next,
+      // `[loaded]` when there was no session: the first edit's undo target is
+      // the route as it arrived, which is the one step the user most wants back.
+      history: active ? [...active.history, active.route] : [loaded],
+    });
+  };
+
+  /** A finished stroke becomes one more segment, appended in travel order.
+   *
+   *  Appended rather than merged into the last segment, even when it starts
+   *  where that one ended: core's `routeConnectors` reads consecutive segments
+   *  as legs of one tour and bridges any gap between them, so keeping strokes
+   *  separate loses nothing and keeps each drag undoable on its own. */
+  const handleDrawCommit = (stroke: Segment) => {
+    applyEdit([...(route ?? []), stroke]);
+  };
+
+  /** One eraser sample. Cuts the accumulated result, not the committed route,
+   *  so a single drag through a switchback removes both crossings. */
+  const handleErase = (cursor: LatLng, viewport: Viewport) => {
+    const source = previewRef.current ?? route;
+    if (!source) return;
+    const next = eraseDisk(
+      source,
+      cursor,
+      viewport.project,
+      viewport.unproject,
+      ERASER_RADIUS_PX,
+    );
+    // null means the disk touched nothing. Skipping the state update here is
+    // what keeps a drag across empty ground free.
+    if (next) {
+      previewRef.current = next;
+      setPreview(next);
+    }
+  };
+
+  /** The eraser has been lifted. Whatever it accumulated becomes the edit —
+   *  one undo step for the whole drag, and one profile recompute. */
+  const handleEraseCommit = () => {
+    const pending = previewRef.current;
+    previewRef.current = null;
+    setPreview(null);
+    if (pending) applyEdit(pending);
+  };
+
+  const undo = () => {
+    if (!active || active.history.length === 0) return;
+    setSession({
+      source: active.source,
+      route: active.history[active.history.length - 1],
+      history: active.history.slice(0, -1),
+    });
+  };
+
+  const clearAll = () => {
+    // Not confirmed, because it is undoable — and a confirmation dialog in
+    // front of a reversible action trains people to dismiss dialogs. Erase and
+    // clear both step back through the same history.
+    applyEdit([]);
+    setMode('idle');
+  };
+
   // The header title is the route's name, so it can only be set once the route
   // has loaded. Set here rather than via Stack.Screen options so there is no
   // flash of the id.
@@ -289,14 +609,36 @@ export default function RouteScreen() {
     };
   }, []);
 
+  // WHAT THE MAP DRAWS: the eraser's preview if a finger is cutting, otherwise
+  // the working copy. `preview ?? route`, in that order, is the whole of the
+  // mid-drag illusion — the line disappears under the eraser in real time while
+  // `route`, and therefore the profile and the cards, stay on the last
+  // committed geometry until the finger lifts.
+  const shown = preview ?? route;
+
   const geojson = useMemo(() => {
-    if (state.status !== 'ready') return null;
+    if (!shown) return null;
     // Exactly the shape the API stores and the web app draws: one
     // MultiLineString whose members are the drawn segments, so eraser gaps stay
     // gaps instead of being joined by a straight line across the mountain.
-    return routeToFeature(state.route.route, null);
-  }, [state]);
+    return routeToFeature(shown, null);
+  }, [shown]);
 
+  /** The stroke under the finger, as its own one-segment feature.
+   *
+   *  A separate source rather than an extra member of the one above, because
+   *  the two are redrawn at completely different rates: this one changes on
+   *  every animation frame of a drag, and appending it to the route's feature
+   *  would hand MapLibre the entire route to re-parse sixty times a second. */
+  const liveGeojson = useMemo(
+    () => (live && live.length >= 2 ? routeToFeature([live], null) : null),
+    [live],
+  );
+
+  // Framing only, and only once — so this deliberately reads the LOADED route
+  // rather than the working copy. Recomputing it from `route` would hand the
+  // camera a new bounding box after every stroke; `initialViewState` ignores
+  // later values, but the memo would still churn for nothing.
   const bounds = useMemo(
     () => (state.status === 'ready' ? boundsOf(state.route.route) : null),
     [state],
@@ -304,18 +646,100 @@ export default function RouteScreen() {
 
   // The drawn geometry, as a reference that only changes when the route does.
   // `useProfile` re-runs on identity, and identity here means several hundred
-  // Kartverket requests, so handing it `state.route.route` straight out of a
-  // freshly-built object on every render would be an expensive mistake.
-  const routeGeometry = useMemo(
-    () => (state.status === 'ready' ? state.route.route : null),
-    [state],
-  );
+  // Kartverket requests, so this is the committed `route` and never `shown`:
+  // the eraser's preview changes per touch sample, and feeding it here would
+  // start and abort a profile pass per sample.
+  const routeGeometry = route;
 
   // Core's hook, running the same `computeProfile` the web runs — see
   // useProfile's header for why the phone runs it in place while the web pushes
   // it into a worker. Called unconditionally, above the early returns, because
   // the number of hooks a component calls may not change between renders.
   const elevation = useProfile(routeGeometry);
+
+  // ---- Saving --------------------------------------------------------------
+  //
+  // Unsaved work is the reference comparison described above: `history` may be
+  // deep and the route still be exactly what the server has, if the user undid
+  // everything they did.
+  const dirty = active !== null && active.route !== loaded;
+
+  const save = async () => {
+    const current = route;
+    if (!id || !current || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const stats = elevation.profile?.stats ?? null;
+      const saved = await updateRoute(id, {
+        route: current,
+        // The freshly measured figures. Null only when the profile failed
+        // outright — the save control is held back while it is still computing,
+        // precisely so this is not the ordinary path. Writing nulls is still
+        // the right answer for a failure: the alternative is keeping the
+        // numbers the route arrived with, and those describe the line the user
+        // just changed.
+        stats: stats
+          ? {
+              distanceM: stats.distance,
+              ascentM: stats.ascent,
+              descentM: stats.descent,
+            }
+          : null,
+        // THE FROZEN FORECAST IS CLEARED, not rewritten. A snapshot is anchored
+        // to the geometry it was taken over — its weather is read at the
+        // route's lowest and highest points, its avalanche regions are the ones
+        // the line crossed — and after an edit some of that ground is no longer
+        // on the route. Keeping it would show numbers for a tour that no longer
+        // exists, which is worse than showing none: the cards fall back to live
+        // data, which is what an unsaved route shows anyway. Capturing a fresh
+        // snapshot is the right end state and needs the web's ForecastContext
+        // plumbing, which this phase did not bring over.
+        forecast: null,
+      });
+      // Re-state the load with the array the user is holding, not the one the
+      // server just echoed back. Same geometry either way, but a new array
+      // identity would send `useProfile` off to recompute several hundred
+      // elevation samples for a route that did not change.
+      setState({ status: 'ready', route: { ...saved, route: current } });
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Leaving with unsaved edits. `beforeRemove` fires for the header's back
+  // button, the Android hardware back and an iOS swipe alike, which is why the
+  // guard is here rather than on the button: a drawn route is minutes of work
+  // and every one of those three loses it silently otherwise.
+  useEffect(() => {
+    if (!dirty) return;
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      event.preventDefault();
+      Alert.alert(
+        t('Ulagrede endringer', 'Unsaved changes'),
+        t(
+          'Endringene i ruta er ikke lagret. Vil du forkaste dem?',
+          'Your changes to this route have not been saved. Discard them?',
+        ),
+        [
+          { text: t('Bli her', 'Stay'), style: 'cancel' },
+          {
+            text: t('Forkast', 'Discard'),
+            style: 'destructive',
+            // Re-dispatching the action the guard just blocked is how React
+            // Navigation's documented escape hatch works — the listener is
+            // still attached, but `dirty` is what it keys on and the screen is
+            // going away regardless.
+            onPress: () => navigation.dispatch(event.data.action),
+          },
+        ],
+      );
+    });
+    return unsubscribe;
+  }, [navigation, dirty, t]);
+
 
   // After every hook, never before.
   if (!id) {
@@ -376,9 +800,16 @@ export default function RouteScreen() {
         ? t('Beregner rutestatistikk …', 'Calculating route stats…')
         : t('Rutedetaljer', 'Route details'));
 
+  // Both tools need something to act on, and undo needs somewhere to step back
+  // to. Computed from the working copy rather than the loaded one, so clearing
+  // a route dims erase and clear immediately instead of after a save.
+  const hasRoute = (route?.length ?? 0) > 0;
+  const editing = mode !== 'idle';
+
   return (
-    <View style={styles.flex}>
+    <View style={styles.flex} onLayout={onMapLayout}>
       <MapLibreMap
+        ref={mapRef}
         style={styles.flex}
         mapStyle={EMPTY_STYLE}
         // Our own attribution is rendered below, because the layers come from
@@ -387,6 +818,30 @@ export default function RouteScreen() {
         attribution={false}
         logo={false}
         compass
+        // THE MAP'S OWN ONE-FINGER PAN GOES OFF WHILE A TOOL IS IN HAND. The
+        // drawing surface claims single-finger touches before the map sees
+        // them, so this is belt and braces — but it is the braces that make
+        // DrawingSurface's frozen-camera assumption true: with pan disabled,
+        // one finger cannot move the view mid-stroke, so the projection a
+        // stroke started against is still the projection it ends against.
+        // Two-finger zoom and rotate stay on deliberately; the eraser's radius
+        // is measured in screen pixels, so zooming is how its size is chosen.
+        dragPan={!editing}
+        // Pitch is off always, not just while editing. core's viewport is a
+        // plain Web Mercator projection with no camera model behind it — see
+        // its header — so a tilted map would place every drawn point somewhere
+        // the user did not touch. Better to not offer the tilt than to draw
+        // wrong lines on it.
+        touchPitch={false}
+        // Three feeds into one camera ref, because none of them is sufficient
+        // alone: `isChanging` tracks a gesture in flight, `didChange` catches
+        // the settled value after an animation, and the load callbacks are the
+        // only way to learn where `initialViewState` actually put the camera on
+        // a route that is drawn on before it is ever panned.
+        onRegionIsChanging={rememberCamera}
+        onRegionDidChange={rememberCamera}
+        onDidFinishLoadingMap={seedCamera}
+        onDidFinishRenderingMapFully={seedCamera}
       >
         {bounds && (
           // initialViewState, not the controlled `bounds` prop: this frames the
@@ -476,6 +931,28 @@ export default function RouteScreen() {
           </GeoJSONSource>
         )}
 
+        {liveGeojson && (
+          // The stroke under the finger, above the saved line so it is visible
+          // where it crosses one. No casing: the halo exists to lift the route
+          // off the steepness shading, and this line is only on screen for the
+          // second or two the finger is down — a translucent line with an
+          // opaque halo around it would also read as more permanent than it is,
+          // which is the opposite of what the translucency is saying.
+          <GeoJSONSource id="live" data={liveGeojson}>
+            <Layer
+              id="live-line"
+              type="line"
+              source="live"
+              paint={{
+                'line-color': ROUTE_COLOR,
+                'line-width': ROUTE_WEIGHT,
+                'line-opacity': LIVE_OPACITY,
+              }}
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            />
+          </GeoJSONSource>
+        )}
+
         {/* v11 has no `visible` prop — rendering the component IS the visible
             state, which is why this is behind the permission flag rather than
             always present. `accuracy` draws the uncertainty circle and
@@ -484,6 +961,41 @@ export default function RouteScreen() {
             "on the cornice". */}
         {locationGranted && <UserLocation animated accuracy heading />}
       </MapLibreMap>
+
+      {/* THE GESTURE OVERLAY, and the condition in front of it is the whole
+          safety argument. An invisible view that swallows every touch is
+          exactly how a map stops panning for no visible reason, so it exists
+          only while a tool is in hand — and while one is, the toolbar's
+          collapsed button wears that tool's icon, so there is always something
+          on screen saying why the map behaves differently.
+
+          It sits above the map and below the chrome, so a tap on the toolbar
+          or the sheet still reaches them. */}
+      {editing && (
+        <DrawingSurface
+          mode={mode === 'erase' ? 'erase' : 'draw'}
+          getViewport={getViewport}
+          onDrawLive={setLive}
+          onDrawCommit={handleDrawCommit}
+          onErase={handleErase}
+          onEraseCommit={handleEraseCommit}
+        />
+      )}
+
+      <EditToolbar
+        mode={mode}
+        onModeChange={setMode}
+        hasRoute={hasRoute}
+        canUndo={history.length > 0}
+        onUndo={undo}
+        onClear={clearAll}
+        open={toolbarOpen}
+        onOpenChange={setToolbarOpen}
+        // Under the steepness pill, not beside it: the web stacks its toolbar
+        // vertically at the top-left and this is the same column, one row down
+        // so the two do not overlap.
+        style={{ top: space.s4 + PILL_HEIGHT + space.s2 }}
+      />
 
       <View style={styles.topControls} pointerEvents="box-none">
         <Pressable
@@ -526,6 +1038,63 @@ export default function RouteScreen() {
             : TOPO_ATTRIBUTION}
         </Text>
       </View>
+
+      {/* THE SAVE CONTROL EXISTS ONLY WHILE THERE IS SOMETHING TO SAVE. A
+          permanently visible Save that is disabled nine times out of ten is a
+          worse answer here than on the web: this button floats over the map it
+          is asking about, so an inert one costs ground for nothing. `dirty` is
+          a reference comparison, so undoing every edit makes it disappear
+          again rather than leaving a button that would write back what the
+          server already has.
+
+          Bottom-LEFT, opposite the attribution and clear of the compass the
+          map draws top-right, and lifted over the sheet's peek strip by the
+          same sum the attribution uses. */}
+      {dirty && (
+        <View
+          style={[
+            styles.saveBar,
+            { bottom: SHEET_PEEK + insets.bottom + space.s4 },
+          ]}
+          pointerEvents="box-none"
+        >
+          {saveError && (
+            // The failure sits above the button rather than in an Alert: a
+            // dialog would have to be dismissed before the user could press
+            // Save again, and pressing Save again is the entire remedy for the
+            // usual cause, which is a mountain with no signal.
+            <Text style={styles.saveError} numberOfLines={2}>
+              {saveError}
+            </Text>
+          )}
+          <Pressable
+            onPress={() => void save()}
+            // Held back while the profile computes, because the save writes
+            // the profile's own figures — see `save`. A moment's wait puts
+            // measured statistics on the route; not waiting would write nulls
+            // and quietly blank the distance on the list screen.
+            disabled={saving || elevation.loading}
+            style={({ pressed }) => [
+              styles.save,
+              pressed && styles.savePressed,
+              (saving || elevation.loading) && styles.saveDisabled,
+            ]}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: saving || elevation.loading }}
+            accessibilityLabel={t('Lagre endringer', 'Save changes')}
+          >
+            {saving ? (
+              <ActivityIndicator color={colors.accentContrast} size="small" />
+            ) : (
+              <Text style={styles.saveText}>
+                {elevation.loading
+                  ? t('Beregner …', 'Calculating…')
+                  : t('Lagre', 'Save')}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+      )}
 
       <SummarySheet peek={peek}>
         <SheetCard
@@ -699,6 +1268,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.s1,
     // Text over a map is unreadable without something behind it. The pill is
     // the smallest thing that fixes it and the smallest thing that hides map.
+    overflow: 'hidden',
+  },
+
+  saveBar: {
+    position: 'absolute',
+    left: space.s4,
+    // A cap rather than a width: the error line under the button can be a
+    // sentence from a fetch failure, and without this it would stretch the
+    // whole way across the map.
+    maxWidth: '70%',
+    alignItems: 'flex-start',
+    gap: space.s1,
+    // `bottom` is supplied at the call site — it depends on the safe area
+    // inset, and StyleSheet.create cannot see a hook.
+  },
+  save: {
+    minHeight: TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: space.s6,
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    // Filled and shadowed, unlike the glass pills around it. This is the one
+    // control on the screen that changes what the server holds, and it should
+    // not look like the steepness toggle.
+    ...shadow.level2,
+  },
+  savePressed: { backgroundColor: colors.accentPressed },
+  saveDisabled: { opacity: 0.6 },
+  saveText: {
+    color: colors.accentContrast,
+    fontSize: fontSize.base,
+    fontWeight: '600',
+  },
+  saveError: {
+    fontSize: fontSize.xs,
+    color: colors.danger,
+    backgroundColor: colors.glass,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.s2,
+    paddingVertical: 2,
     overflow: 'hidden',
   },
 

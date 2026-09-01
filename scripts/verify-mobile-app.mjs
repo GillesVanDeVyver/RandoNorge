@@ -2119,6 +2119,438 @@ check(
     "        host once and core's apiUrl applies it — see section 4.",
 );
 
+// ---------------------------------------------------------------------------
+// 17. Phase 4: one drawing tool, three maps.
+//
+// SAME LESSON AS SECTIONS 13 AND 16, and this time the plan says it out loud.
+// Phase 4's entry in docs/mobile-web-parity-plan.md carries the warning "keep
+// both identical to the web or the same drag produces different routes on the
+// two clients" — "both" being the RDP tolerance and the eraser radius. That
+// warning was already half-true before the phone existed: the eraser was
+// written out twice inside apps/web, in DrawingHandler.tsx for Leaflet and in
+// Map3DView.tsx for MapLibre GL JS, character for character identical apart
+// from which project/unproject pair each called. Two copies that agree are
+// luck. A phone client would have made three, and three do not stay in step.
+//
+// So Phase 4 moved the tolerances and the eraser into
+// @fjellrute/core/draw/tools and pointed all three maps at it. What follows is
+// what stops that being undone one convenient literal at a time — because the
+// failure has no symptom on either client alone. Nothing crashes and nothing is
+// logged; a route drawn on a phone and reopened on a laptop is simply a
+// slightly different line, and the only way to notice is to have both devices
+// out and be looking for it.
+//
+// The section ends by RUNNING core's two new modules rather than reading them,
+// for the same reason section 6 runs `tileUrlTemplate`. `createViewport` is Web
+// Mercator arithmetic whose failure mode is a line placed near — but not under
+// — the finger, and `eraseDisk`'s mid-edge cut is a quadratic solve whose
+// failure mode is a long straight leg that refuses to be erased. Neither is
+// visible in the text, and both are cheap to demonstrate.
+// ---------------------------------------------------------------------------
+
+/** The Phase 4 call sites, labelled by the role each plays, so a failure names
+ *  the map rather than the path. */
+const DRAW_CALL_SITES = [
+  {
+    label: "the web's 2D planner",
+    path: join(WEB, 'src/components/DrawingHandler.tsx'),
+  },
+  {
+    label: "the web's 3D view",
+    path: join(WEB, 'src/components/Map3DView.tsx'),
+  },
+  {
+    label: "the phone's drawing surface",
+    path: join(MOBILE, 'src/ui/DrawingSurface.tsx'),
+  },
+];
+
+const drawSources = new Map();
+for (const site of DRAW_CALL_SITES) {
+  drawSources.set(
+    site.label,
+    existsSync(site.path)
+      ? stripComments(readFileSync(site.path, 'utf8'))
+      : null,
+  );
+}
+
+check(
+  'all three drawing call sites still exist',
+  [...drawSources.values()].every((source) => source !== null),
+  `        Missing: ${DRAW_CALL_SITES.filter((s) => !drawSources.get(s.label))
+    .map((s) => relative(REPO, s.path))
+    .join(', ')}\n` +
+    '        Every check below reads these three files. A renamed one would\n' +
+    '        make the rest of this section pass by reading nothing.',
+);
+
+/** Every .ts/.tsx in both apps — the two places a tolerance could be restated
+ *  and the eraser could be copied back out. */
+const clientFiles = [...files, ...sourceFiles(join(WEB, 'src'))];
+
+// A. The tolerances are declared once, in core, and imported everywhere else.
+//
+// Matched as DECLARATIONS (`const NAME =`) rather than as bare occurrences,
+// because correct code mentions all three names constantly — that is what
+// importing them looks like. What must not exist is a second statement of a
+// value.
+const TOLERANCES = ['RDP_EPSILON_M', 'ERASER_RADIUS_PX', 'MIN_DRAW_PX'];
+const redeclared = [];
+for (const file of clientFiles) {
+  const source = stripComments(readFileSync(file, 'utf8'));
+  for (const name of TOLERANCES) {
+    if (new RegExp(`\\b(?:const|let|var)\\s+${name}\\s*=`).test(source)) {
+      redeclared.push(`${relative(REPO, file)} declares ${name}`);
+    }
+  }
+}
+
+check(
+  'the drawing tolerances are declared only in core',
+  redeclared.length === 0,
+  `        ${redeclared.join('\n        ')}\n` +
+    '        RDP_EPSILON_M, ERASER_RADIUS_PX and MIN_DRAW_PX decide what a drag\n' +
+    '        becomes. A second declaration is a client that simplifies a stroke\n' +
+    '        to a different shape, or an eraser that reaches further on one\n' +
+    '        device than on another, and neither reports anything. Import them\n' +
+    "        from '@fjellrute/core/draw/tools'.",
+);
+
+// B. And the eraser itself is not copied back out. The quadratic discriminant
+// is the fingerprint: `qb * qb - 4 * qa * qc` is the line that solves where an
+// edge crosses the disk, it appears three times inside eraseDisk, and it is not
+// a shape a file arrives at by accident.
+const copiedEraser = [];
+for (const file of clientFiles) {
+  const source = stripComments(readFileSync(file, 'utf8'));
+  if (/-\s*4\s*\*\s*\w+\s*\*\s*\w+/.test(source) && /Math\.sqrt/.test(source)) {
+    copiedEraser.push(relative(REPO, file));
+  }
+}
+
+check(
+  'the disk eraser has one implementation',
+  copiedEraser.length === 0,
+  `        ${copiedEraser.join('\n        ')}\n` +
+    '        A quadratic discriminant next to a Math.sqrt is what eraseDisk\n' +
+    '        looks like. This is the duplication Phase 4 removed — two copies\n' +
+    '        in apps/web that a phone client would have made three of. Call\n' +
+    "        eraseDisk from '@fjellrute/core/draw/tools' instead.",
+);
+
+// C. Every map that draws goes through core, and the phone's surface reaches
+// core's simplifier at core's tolerance — which is the actual mechanism by
+// which "the same drag becomes the same route" holds.
+for (const { label } of DRAW_CALL_SITES) {
+  check(
+    `${label} draws through @fjellrute/core/draw/tools`,
+    /from '@fjellrute\/core\/draw\/tools'/.test(drawSources.get(label) ?? ''),
+    "        The tolerances and the eraser are core's. A map that does not\n" +
+      '        import them has its own, whether or not it says so.',
+  );
+}
+
+check(
+  "the phone simplifies a finished stroke at core's tolerance",
+  /simplify\(\s*\w+\s*,\s*RDP_EPSILON_M\s*\)/.test(
+    drawSources.get("the phone's drawing surface") ?? '',
+  ),
+  '        DrawingSurface must commit through simplify(stroke, RDP_EPSILON_M).\n' +
+    '        A stroke committed raw is one point per touch event — a route whose\n' +
+    '        vertex count follows how long the finger was moving rather than how\n' +
+    '        far, and several hundred elevation samples to match. The same drag\n' +
+    '        on a laptop would land on a fraction of the points.',
+);
+
+// D. The two new core subpaths are in the exports map. Section 3 already
+// enforces this for everything apps/mobile imports; this names the pair
+// explicitly because apps/web resolves through Vite's alias instead, so the web
+// would go on working with an unexported subpath right up until Metro tried to
+// bundle the phone.
+for (const subpath of ['./draw/tools', './geometry/viewport']) {
+  check(
+    `packages/core exports ${subpath}`,
+    Object.prototype.hasOwnProperty.call(corePkg.exports ?? {}, subpath),
+    '        The exports map is hand-written with no wildcard, so a file that\n' +
+      '        exists but is not listed resolves in an editor and in Vite and\n' +
+      '        fails in Metro. See section 3 and verify-core-package.mjs.',
+  );
+}
+
+// E. The two assumptions core's viewport makes about the map it projects for.
+// Both are enforced by props on the route screen, and both fail silently: a
+// tilted map draws the line increasingly far from the finger up the screen, and
+// a map that still pans on one finger moves the camera out from under a stroke
+// that has already started.
+const plannerSource = stripComments(read(MOBILE, 'app/route/[id].tsx'));
+
+check(
+  'the phone map cannot be pitched',
+  /touchPitch=\{false\}/.test(plannerSource),
+  '        core/geometry/viewport is a flat Web Mercator projection with no\n' +
+    '        camera model — its header says so, and says the planner is what\n' +
+    '        enforces it. On a tilted map the pixel scale varies down the\n' +
+    '        screen, so every drawn point lands somewhere other than under the\n' +
+    '        finger, gradually worse toward the horizon. Nothing errors.',
+);
+
+check(
+  "the map's own pan is off while a drawing tool is in hand",
+  /dragPan=\{!\s*editing\s*\}|dragPan=\{mode === 'idle'\}/.test(plannerSource),
+  '        DrawingSurface freezes the camera when a gesture begins, because a\n' +
+    '        stroke has to be cut out of one map: if the view moved mid-drag the\n' +
+    '        earlier points were placed against the earlier camera. Leaving the\n' +
+    '        map pannable makes that freeze a hope rather than a guarantee.',
+);
+
+check(
+  'the drawing surface never waits for the native bridge',
+  !/\bawait\b|\.then\(/.test(
+    drawSources.get("the phone's drawing surface") ?? '',
+  ),
+  "        MapLibre React Native's project/unproject return Promises, which is\n" +
+    '        the entire reason core/geometry/viewport exists. A promise per\n' +
+    '        vertex per touch sample is not a projection, and the eraser would\n' +
+    "        be resolving last frame's answers into this frame's geometry.",
+);
+
+// F. The controls say what the web's controls say. A user who plans on a laptop
+// and skis with a phone should not have to learn two vocabularies for one tool,
+// and a label is exactly the sort of thing that gets improved on one client.
+const webToolbar = stripComments(read(WEB, 'src/components/Toolbar.tsx'));
+const phoneToolbar = stripComments(read(MOBILE, 'src/ui/EditToolbar.tsx'));
+const squash = (text) => text.replace(/\s+/g, '');
+const divergentLabels = [];
+for (const pair of [
+  "t('Tegn', 'Draw')",
+  "t('Tegn rute (frihånd)', 'Draw route (freehand)')",
+  "t('Slett', 'Erase')",
+  "t('Slett deler av ruta', 'Erase parts of the route')",
+  "t('Fjern alt', 'Clear all')",
+  "t('Fjern hele ruta', 'Clear the entire route')",
+]) {
+  if (!squash(webToolbar).includes(squash(pair))) {
+    divergentLabels.push(`${pair} is no longer in the web's Toolbar.tsx`);
+  } else if (!squash(phoneToolbar).includes(squash(pair))) {
+    divergentLabels.push(`${pair} is missing from the phone's EditToolbar.tsx`);
+  }
+}
+
+check(
+  "the edit toolbar's labels are the web's labels",
+  divergentLabels.length === 0,
+  `        ${divergentLabels.join('\n        ')}\n` +
+    '        The web\'s tooltips became the phone\'s accessibility labels — the\n' +
+    '        same string doing the same job through a different sense — so the\n' +
+    '        wording is shared even though the markup is not. Reword on one\n' +
+    '        client and a screen reader and a mouse hover now describe the same\n' +
+    '        tool differently.',
+);
+
+check(
+  'the in-progress stroke is drawn at the same opacity on both clients',
+  /opacity:\s*0\.7\b/.test(drawSources.get("the web's 2D planner") ?? '') &&
+    /LIVE_OPACITY = 0\.7\b/.test(plannerSource),
+  '        The translucency is what says a line is not yet part of the route,\n' +
+    '        which matters most where it crosses one that is. A different value\n' +
+    '        on each client is two different statements about the same moment.',
+);
+
+// G. And now the arithmetic, run rather than read. Bundled with esbuild for the
+// reason given in section 6: core's internal imports are a mix of extensionless
+// and `.ts`, which Metro and Vite both resolve and bare Node does not.
+const bundleCore = async (entry, name) => {
+  const { build } = await import('esbuild');
+  const outfile = join(REPO, `node_modules/.tmp/verify-mobile-${name}.mjs`);
+  await build({
+    entryPoints: [join(CORE, entry)],
+    outfile,
+    bundle: true,
+    format: 'esm',
+    platform: 'neutral',
+    logLevel: 'silent',
+  });
+  return import(`${outfile}?v=${Date.now()}`);
+};
+
+const { createViewport, MAX_MERCATOR_LAT } = await bundleCore(
+  'src/geometry/viewport.ts',
+  'viewport',
+);
+const { eraseDisk: liveErase, ERASER_RADIUS_PX: liveRadius } = await bundleCore(
+  'src/draw/tools.ts',
+  'draw',
+);
+
+// A camera over Jotunheimen at a planning zoom, on a phone-shaped view.
+const VIEW = { width: 390, height: 780 };
+const CENTRE = [61.6365, 8.3126];
+
+check(
+  'the map centre projects to the middle of the view',
+  (() => {
+    for (const bearing of [0, 37, 180, 313]) {
+      const vp = createViewport({ center: CENTRE, zoom: 13, bearing, ...VIEW });
+      const p = vp.project(CENTRE);
+      if (
+        Math.abs(p.x - VIEW.width / 2) > 1e-6 ||
+        Math.abs(p.y - VIEW.height / 2) > 1e-6
+      ) {
+        return false;
+      }
+    }
+    return true;
+  })(),
+  '        Whatever the projection does elsewhere, the centre of the camera is\n' +
+    '        the centre of the view at every bearing. Getting this wrong offsets\n' +
+    '        every drawn point by a constant, which reads as a map that is\n' +
+    '        slightly mis-registered rather than as a drawing bug.',
+);
+
+check(
+  'project and unproject are inverses, at every bearing',
+  (() => {
+    let worst = 0;
+    for (const zoom of [8, 11.5, 14, 17]) {
+      for (const bearing of [0, 37, 90, 180, 313]) {
+        const vp = createViewport({ center: CENTRE, zoom, bearing, ...VIEW });
+        for (const [x, y] of [
+          [0, 0],
+          [VIEW.width, VIEW.height],
+          [17, 623],
+          [301, 44],
+        ]) {
+          const back = vp.project(vp.unproject(x, y));
+          worst = Math.max(worst, Math.abs(back.x - x), Math.abs(back.y - y));
+        }
+      }
+    }
+    // A thousandth of a pixel. The transform is exact, so anything above
+    // floating-point noise means the two halves disagree.
+    return worst < 1e-3;
+  })(),
+  '        The eraser projects the route to find what the disk covers and\n' +
+    '        unprojects the cut points back. If the two are not inverses the\n' +
+    '        route creeps every time it is erased — a little further each\n' +
+    '        stroke, never far enough in one go to look like a bug.',
+);
+
+check(
+  'bearing rotates the world the way the compass says',
+  (() => {
+    // Due north of centre, on a map rotated so that east is up, must appear to
+    // the LEFT of centre. This is the sign convention the y row of the rotation
+    // encodes, and getting it backwards mirrors every stroke on a rotated map.
+    const vp = createViewport({
+      center: CENTRE,
+      zoom: 13,
+      bearing: 90,
+      ...VIEW,
+    });
+    const north = vp.project([CENTRE[0] + 0.02, CENTRE[1]]);
+    return (
+      north.x < VIEW.width / 2 - 1 && Math.abs(north.y - VIEW.height / 2) < 1
+    );
+  })(),
+  '        A mirrored rotation still round-trips, so the inverse check above\n' +
+    '        cannot catch it. What it produces is a stroke drawn back-to-front,\n' +
+    '        the moment the user turns the map with two fingers.',
+);
+
+check(
+  'latitude beyond the Mercator limit is clamped, not turned into NaN',
+  (() => {
+    const vp = createViewport({ center: CENTRE, zoom: 13, ...VIEW });
+    const p = vp.project([89.9, 8.3]);
+    const limit = vp.project([MAX_MERCATOR_LAT, 8.3]);
+    return Number.isFinite(p.x) && Number.isFinite(p.y) && p.y === limit.y;
+  })(),
+  '        Beyond ±85.051129° the projection runs to infinity. A NaN pixel\n' +
+    '        propagates into the GeoJSON the map is handed and MapLibre drops\n' +
+    '        the whole feature — the route vanishes, with nothing logged.',
+);
+
+// The eraser, in the pixel space it actually works in. A synthetic projection
+// rather than a real camera: 1 pixel per 0.0001°, north-up, so the expected
+// answers below are arithmetic rather than trigonometry.
+const flatProject = ([lat, lng]) => ({ x: lng * 10000, y: -lat * 10000 });
+const flatUnproject = (x, y) => [-y / 10000, x / 10000];
+const straight = [
+  [
+    [0, 0],
+    [0, 0.1],
+  ],
+];
+
+check(
+  'the eraser reports no change when the disk touches nothing',
+  liveErase(straight, [0.05, 0.05], flatProject, flatUnproject, 16) === null,
+  '        null is what lets a drag across empty ground cost nothing: the\n' +
+    '        planner skips the state update, and behind it the elevation\n' +
+    '        recompute. Returning a fresh copy of an unchanged route instead\n' +
+    '        starts several hundred Kartverket requests per touch sample.',
+);
+
+check(
+  'the eraser cuts the middle out of a long straight leg',
+  (() => {
+    // The cursor sits on the line, halfway along, with both vertices far
+    // outside the disk — the mid-edge case. RDP leaves vertices hundreds of
+    // metres apart on a straight leg, so this is the ordinary case rather than
+    // an edge case, and a vertex-by-vertex eraser leaves the leg visibly
+    // intact.
+    const out = liveErase(straight, [0, 0.05], flatProject, flatUnproject, 16);
+    if (!out || out.length !== 2) return false;
+    const [first, second] = out;
+    // Two pieces, each ending 16 px — 0.0016° at this scale — short of the
+    // cursor.
+    return (
+      Math.abs(first[first.length - 1][1] - 0.0484) < 1e-6 &&
+      Math.abs(second[0][1] - 0.0516) < 1e-6
+    );
+  })(),
+  '        This is the case the mid-edge quadratic exists for, and the first\n' +
+    '        thing a rewrite drops. Without it the eraser appears to do nothing\n' +
+    '        on exactly the parts of a route that are longest and straightest.',
+);
+
+check(
+  'the eraser drops a fragment too short to be a line',
+  (() => {
+    // A disk wide enough to swallow a short segment whole. What must not come
+    // back is a segment holding a single surviving vertex.
+    const out = liveErase(
+      [
+        [
+          [0, 0],
+          [0, 0.001],
+        ],
+      ],
+      [0, 0.0005],
+      flatProject,
+      flatUnproject,
+      64,
+    );
+    return Array.isArray(out) && out.length === 0;
+  })(),
+  '        A one-vertex segment draws as nothing and still counts as a segment\n' +
+    "        for the dotted connector legs that bridge gaps — so it shows up as\n" +
+    '        a dotted line straight across the mountain to a point that is not\n' +
+    '        on the map.',
+);
+
+check(
+  "the eraser's default radius is the shared constant",
+  JSON.stringify(liveErase(straight, [0, 0.05], flatProject, flatUnproject)) ===
+    JSON.stringify(
+      liveErase(straight, [0, 0.05], flatProject, flatUnproject, liveRadius),
+    ),
+  '        The default is what the phone and both web maps rely on being the\n' +
+    '        same number. A default that has drifted from ERASER_RADIUS_PX is\n' +
+    '        an eraser that reaches further wherever the argument is omitted.',
+);
+
 console.log(
   failures === 0
     ? '\nAll mobile app checks passed.\n'
