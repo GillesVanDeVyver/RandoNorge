@@ -25,3 +25,43 @@
 packages:
   - apps/*
   - packages/*
+
+# ---------------------------------------------------------------------------
+# Dependency overrides.
+#
+# These lived in the root package.json under `pnpm.overrides` until pnpm
+# stopped reading that field. It now warns
+#
+#   The "pnpm" field in package.json is no longer read by pnpm. The following
+#   keys were ignored: "pnpm.overrides"
+#
+# and ignores it, which means the pins below were silently NOT in effect. They
+# are moved here, their documented home, unchanged. Nothing referred to their
+# old location: scripts/verify-mobile-app.mjs section 9 checks what autolinking
+# actually resolves rather than where the pin is written, which is why this move
+# does not touch it — though its failure message still advises adding "a
+# pnpm.overrides entry at the root", and that sentence is now stale.
+#
+# WHY THEY EXIST. Three React Native native modules, forced to the versions in
+# expo/bundledNativeModules.json. They are peer dependencies of expo-router and
+# @expo/ui that pnpm installs automatically, and it resolves each to the newest
+# version satisfying the PEER's range rather than the one Expo pinned for SDK 57
+# — which put react-native-worklets 0.12.1 in the tree against Expo's 0.10.1 and
+# failed the Android build in the C++ compiler, because expo-modules-core calls a
+# WorkletRuntime::executeSync that 0.12 had removed.
+#
+# apps/mobile/package.json declares all three explicitly as well; this override
+# is the other half, and it is needed because Expo's native autolinking scans the
+# whole store, so one declared copy does not stop a second copy reaching the
+# native build.
+#
+# Overriding across the workspace is safe because all three are React Native only
+# — apps/web and the Worker never resolve them. react and react-dom are
+# deliberately NOT overridden: apps/web legitimately runs a newer React than the
+# phone, and forcing them together would break the web app in order to tidy a
+# warning.
+# ---------------------------------------------------------------------------
+overrides:
+  react-native-gesture-handler: '~2.32.0'
+  react-native-reanimated: '4.5.1'
+  react-native-worklets: '0.10.1'
