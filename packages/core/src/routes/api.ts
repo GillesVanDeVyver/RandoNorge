@@ -17,6 +17,23 @@ import { parseSnapshot, type ForecastSnapshot } from '../forecast/snapshot';
 import { translate } from '../i18n/locale.ts';
 import { apiUrl, authHeaders, usesCookieCredentials } from '../net/base.ts';
 
+/**
+ * What the server will accept in a route's name and notes.
+ *
+ * These are `MAX_NAME_LENGTH` and `MAX_DESCRIPTION_LENGTH` in worker/routes.js,
+ * which answers 400 to anything longer. They are stated here because a save
+ * form has to know them in order to stop a user typing past the limit and
+ * losing the paragraph they just wrote — and there were already two statements
+ * of each (the worker's, and literal `maxLength` attributes in the web's
+ * SaveRouteDialog) before the phone's form would have become the third.
+ *
+ * The worker keeps its own copy, and should: it is plain JavaScript outside
+ * this package's module graph, and it is the only one of the three an attacker
+ * cannot simply skip. What these two do is stop the FORMS disagreeing with it.
+ */
+export const MAX_ROUTE_NAME_LENGTH = 120;
+export const MAX_ROUTE_DESCRIPTION_LENGTH = 2000;
+
 /** What the API stores in the `geometry` column. */
 interface RouteFeature {
   type: 'Feature';

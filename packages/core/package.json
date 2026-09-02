@@ -42,6 +42,7 @@
     "./elevation/runout": "./src/elevation/runout.ts",
     "./elevation/steepness": "./src/elevation/steepness.ts",
     "./elevation/useProfile": "./src/elevation/useProfile.ts",
+    "./map/view": "./src/map/view.ts",
     "./offline/layers": "./src/offline/layers.ts",
     "./offline/maskGeometry": "./src/offline/maskGeometry.ts",
     "./offline/tileMath": "./src/offline/tileMath.ts",

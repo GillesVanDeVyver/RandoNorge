@@ -3,6 +3,10 @@ import L from 'leaflet';
 import { MapContainer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { DrawStyle, LatLng, Mode, Overlay, Route } from '@fjellrute/core/types';
+// Where the map stands before anything has told it where to stand. In core
+// because the phone's blank planner opens on the same view, and because this
+// file and OfflineMapsPage.tsx each used to declare it separately.
+import { INITIAL_CENTER, INITIAL_ZOOM } from '@fjellrute/core/map/view';
 import type { RouteProgress } from '../tracking/useRouteProgress';
 import {
   FLAT_MAX_ZOOM,
@@ -139,9 +143,6 @@ function FitToRoute({
   return null;
 }
 
-const INITIAL_CENTER: [number, number] = [65, 13];
-const INITIAL_ZOOM = 5;
-
 interface Props {
   mode: Mode;
   /** Freehand stroke or straight legs between clicked vertices. */
@@ -227,7 +228,7 @@ export function Map({
       center={
         opening ? [opening.center[1], opening.center[0]] : INITIAL_CENTER
       }
-      zoom={opening ? toLeafletZoom(opening.zoom) : INITIAL_ZOOM}
+      zoom={toLeafletZoom(opening ? opening.zoom : INITIAL_ZOOM)}
       // The range lives in viewCamera.ts because the terrain view has to know
       // it too: it aims the end of its tilt at a zoom this map can hold, since
       // anything else would be clamped at the moment of the hand-back.

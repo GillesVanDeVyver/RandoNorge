@@ -364,16 +364,18 @@ function ActionCard({
 }
 
 /**
- * Shared by the two stub screens, so `/planner` and `/completed` look like
- * deliberate placeholders rather than broken pages.
+ * Used by `/completed`, so the one destination still unbuilt looks like a
+ * deliberate placeholder rather than a broken page.
  *
  * Exported from this file because it is the hub's own idea of what an unbuilt
- * destination looks like, and because two stubs are not enough to justify a
- * third file. When either becomes real, its use of this goes away with it.
+ * destination looks like, and because one stub is not enough to justify a file
+ * of its own. `/planner` used this as well until the planner landed — which is
+ * what "when a stub becomes real, its use of this goes away with it" looks like,
+ * and what is expected of `/completed` in turn.
  *
  * NOTE that it stays on the cream canvas while the hub above has moved onto the
- * photograph. That is not an oversight: the stubs are pushed onto the stack and
- * keep the navigation header, and the web has no photo behind its inner pages
+ * photograph. That is not an oversight: the stub is pushed onto the stack and
+ * keeps the navigation header, and the web has no photo behind its inner pages
  * either — only the login page and this hub are full-bleed.
  */
 export function ComingSoon({ title, text }: { title: string; text: string }) {

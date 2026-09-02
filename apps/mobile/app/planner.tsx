@@ -1,40 +1,26 @@
 // `/planner` — the phone's counterpart to apps/web's RoutePlannerPage.
 //
-// A STUB ON PURPOSE, and the reason it exists as a file at all is that the
-// route, not the screen, is what this phase delivers. The web's planner is the
-// largest view in the app: a draggable waypoint layer over the map, live
-// distance and ascent as the line changes, the elevation profile, and the
-// snow/avalanche/weather readouts along the drawn route. Every one of those has
-// a phase of its own further down docs/mobile-web-parity-plan.md, and none of
-// them can be started before the phone agrees with the web about where the
-// planner LIVES. That agreement is this file.
+// A BLANK PLANNER IS THE SAME PLANNER. This file used to be a stub, and the
+// thing that ended the stub was not new screen code but the realisation that a
+// planner with no route loaded is the planner with `routeId === null`: the map,
+// the layer pill, the pencil, the eraser, the elevation profile and the
+// forecast cards are all wanted here exactly as they are wanted over a saved
+// tour, and the only differences — where the camera opens, and whether saving
+// creates or updates — are two decisions inside src/ui/Planner.tsx rather than
+// two screens.
 //
-// It is also what makes the hub honest: a card that navigates to a real screen
-// saying "not yet" is a promise with a date on it, where a card that navigates
-// nowhere is a bug, and a card that isn't there at all hides the gap. The
-// harness counts routes against the web's view set, so this stub is the thing
-// that makes the count true rather than the thing that fakes it.
+// That is also how the web does it: one App.tsx serves both, keyed on whether
+// there is a route id. Splitting them on the phone would have meant a second
+// copy of the map, the layers and the profile, and the second copy is the one
+// that quietly stops matching.
 //
-// WHEN IT BECOMES REAL, this file gets the planner and `ComingSoon` stops being
-// imported here. Nothing else about the shell has to move.
+// WHAT THIS FILE STILL OWNS is the route's existence and its header title,
+// which app/_layout.tsx registers as "Planlegg"/"Plan". The planner only
+// overrides that title when it has a saved route's name to put there, so a
+// blank planner keeps it.
 
-import { useT } from '@fjellrute/core/i18n';
-import { ComingSoon } from './index';
+import { Planner } from '../src/ui/Planner';
 
 export default function PlannerScreen() {
-  const t = useT();
-
-  return (
-    <ComingSoon
-      title={t('Ruteplanlegging kommer', 'Route planning is coming')}
-      // Says WHERE to do this today rather than only that the phone cannot.
-      // Someone who opened this card wants to plan a tour, and the web app can
-      // already do it — the routes they draw there are the ones that show up
-      // under Saved routes on this phone.
-      text={t(
-        'Tegn ruter på fjellrute.no for nå. Turene du lagrer der finner du under «Lagrede ruter» her.',
-        'Draw routes at fjellrute.no for now. The tours you save there appear under “Saved routes” here.',
-      )}
-    />
-  );
+  return <Planner routeId={null} />;
 }

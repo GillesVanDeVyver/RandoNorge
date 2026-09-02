@@ -663,7 +663,7 @@ check(
 
 check(
   'the map screen does not derive tile templates on its own',
-  !/replace\(String\(/.test(read(MOBILE, 'app/route/[id].tsx')),
+  !/replace\(String\(/.test(read(MOBILE, 'src/ui/Planner.tsx')),
   '        Found a local copy of the sentinel-substitution trick. It belongs in\n' +
     '        packages/core/src/offline/layers.ts beside the descriptors, so the\n' +
     '        web app and the phone cannot disagree about a tile URL.',
@@ -2279,11 +2279,16 @@ for (const subpath of ['./draw/tools', './geometry/viewport']) {
 }
 
 // E. The two assumptions core's viewport makes about the map it projects for.
-// Both are enforced by props on the route screen, and both fail silently: a
-// tilted map draws the line increasingly far from the finger up the screen, and
-// a map that still pans on one finger moves the camera out from under a stroke
-// that has already started.
-const plannerSource = stripComments(read(MOBILE, 'app/route/[id].tsx'));
+// Both are enforced by props on the planner, and both fail silently: a tilted
+// map draws the line increasingly far from the finger up the screen, and a map
+// that still pans on one finger moves the camera out from under a stroke that
+// has already started.
+//
+// The planner is src/ui/Planner.tsx rather than a screen file because both
+// app/planner.tsx and app/route/[id].tsx render it — a blank canvas and a saved
+// route being the same screen with and without an id. Reading the component is
+// therefore reading both routes at once, which is the whole reason it is shared.
+const plannerSource = stripComments(read(MOBILE, 'src/ui/Planner.tsx'));
 
 check(
   'the phone map cannot be pitched',

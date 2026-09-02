@@ -6,6 +6,8 @@ import { ArrowLeftIcon, MapIcon, TrashIcon } from './icons';
 import { OfflineTileLayerComponent } from '../offline/OfflineTileLayerComponent';
 import { OfflineDownloadPanel } from './OfflineDownloadPanel';
 import { OFFLINE_LAYER_LIST } from '@fjellrute/core/offline/layers';
+import { INITIAL_CENTER, INITIAL_ZOOM } from '@fjellrute/core/map/view';
+import { toLeafletZoom } from '../viewCamera';
 import { removeRegion } from '../offline/download';
 import { clearAllOffline } from '../offline/db';
 import { useOfflineRegions } from '../offline/useOfflineRegions';
@@ -18,8 +20,6 @@ interface Props {
   onBack: () => void;
 }
 
-const INITIAL_CENTER: [number, number] = [65, 13];
-const INITIAL_ZOOM = 5;
 
 // Leaflet only re-measures on its own resize events; when the surrounding
 // flex layout reshapes (e.g. the mobile stacked layout) the map keeps drawing
@@ -125,7 +125,9 @@ export function OfflineMapsPage({ onBack }: Props) {
         )}
         <MapContainer
           center={INITIAL_CENTER}
-          zoom={INITIAL_ZOOM}
+          // core stores the zoom in MapLibre's scale, which is one level below
+          // Leaflet's for the same ground scale. See @fjellrute/core/map/view.
+          zoom={toLeafletZoom(INITIAL_ZOOM)}
           minZoom={3}
           maxZoom={18}
           zoomControl={false}

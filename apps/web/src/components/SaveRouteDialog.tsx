@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useT } from '@fjellrute/core/i18n';
+import {
+  MAX_ROUTE_DESCRIPTION_LENGTH,
+  MAX_ROUTE_NAME_LENGTH,
+} from '@fjellrute/core/routes/api';
 import styles from './SaveRouteDialog.module.css';
 
 interface Props {
@@ -122,7 +126,7 @@ export function SaveRouteDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t('f.eks. Storebjørn fra Krossbu', 'e.g. Storebjørn from Krossbu')}
-            maxLength={120}
+            maxLength={MAX_ROUTE_NAME_LENGTH}
             required
             disabled={busy}
           />
@@ -143,7 +147,7 @@ export function SaveRouteDialog({
               'Conditions, plan B, things to remember…',
             )}
             rows={3}
-            maxLength={2000}
+            maxLength={MAX_ROUTE_DESCRIPTION_LENGTH}
             disabled={busy}
           />
 
