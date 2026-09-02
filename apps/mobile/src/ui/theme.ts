@@ -177,9 +177,11 @@ export const colors = {
 
   // -------------------------------------------------------------------------
   // THE PHOTO PAGES. Everything above is a custom property in index.css; the
-  // eight below are colours apps/web writes as LITERALS, in
-  // AccountOverview.module.css and the dialogs, because they belong to one
-  // composition rather than to the palette. They are here for the reason
+  // ones below are colours apps/web writes as LITERALS, in
+  // AccountOverview.module.css, RoutesListPage.module.css and the dialogs,
+  // because they belong to one composition rather than to the palette. The
+  // first eight came with the account overview; the six after `iconTile` came
+  // with the saved-routes list. They are here for the reason
   // `dangerSurface` is here: section 13's parity table only covers the pairs it
   // lists, and a value with no `--custom-property` to point at still must not
   // be typed into a StyleSheet — that is what section 14 checks, and it is the
@@ -211,6 +213,55 @@ export const colors = {
    *  ink at 0.06 — dark enough to read as a container on white, light enough
    *  to disappear against the glass it is on. */
   iconTile: 'rgba(20, 28, 38, 0.06)',
+
+  /** `.routeCard` / `.deleteBtn` / `.exportBtn` / `.confirmCancel` in
+   *  RoutesListPage.module.css: white at 0.55, a card ON a card. It is
+   *  translucent because it sits on the panel's own glass, and going opaque
+   *  would make each row a slab rather than a division of one surface. */
+  routeCard: 'rgba(255, 255, 255, 0.55)',
+
+  /** `.visToggle:hover` / `.copyLinkBtn:hover`'s teal wash, at 0.12. Distinct
+   *  from `accentWash` (0.1, `.cardPrimary`'s fill) by two hundredths, which is
+   *  not worth reconciling: they are different rules in different stylesheets
+   *  and collapsing them would make one of the two wrong on purpose. Here it is
+   *  the PRESSED state — the phone has no hover — for the sharing controls. */
+  accentWashStrong: 'rgba(45, 212, 191, 0.12)',
+
+  /** `.deleteBtn:hover`, `.confirmDelete`, `.listError`: `#c0392b`.
+   *
+   *  NOT `danger` (`#dd4a3c`), and the difference is deliberate on the web's
+   *  part. `--danger` is the palette's red, tuned to sit beside the descent
+   *  figures; this is a deeper, less orange red that the route list uses for
+   *  the one irreversible thing on the screen. Copied rather than unified
+   *  because unifying it here would be this file deciding a question that
+   *  belongs to the stylesheet. */
+  dangerDeep: '#c0392b',
+
+  /** `.confirmDelete`'s label: `#fff` on that deep red.
+   *
+   *  Its own name rather than `surface` or `onPhoto`, both of which are also
+   *  `#ffffff`, because both of those say what they are for and neither is
+   *  this: `surface` is the colour of a card and `onPhoto` is ink on a
+   *  photograph. Three white tokens is not duplication when the three answer
+   *  different questions — it is what stops a card turning bone-white from
+   *  quietly repainting a button label. */
+  onDanger: '#ffffff',
+
+  /** `.copyLinkBtnCopied`: the green the copy-link label flashes for 1.8s. A
+   *  hair darker than `ascentStrong` (`#1f9e48`) and, again, the web's own
+   *  value — this is a confirmation, not an ascent figure. */
+  copied: '#1f8a4c',
+
+  /** `.thumb`'s placeholder — the clear colour of the steepness canvas the web
+   *  draws its mini-maps on, and therefore the tile the phone's SVG route shape
+   *  is drawn over. See src/ui/RouteThumbnail.tsx for why the phone stops at
+   *  the shape and does not fetch the map behind it. */
+  mapTile: '#e8edf2',
+
+  /** `.emptyIcon`'s dashed circle fill: `--text-1` ink at 0.05, a shade lighter
+   *  than `iconTile`'s 0.06 because this one is 56px rather than 46 and the
+   *  same alpha over that much area reads heavier. The web writes both. */
+  emptyTile: 'rgba(20, 28, 38, 0.05)',
 
   /** What a modal dialog dims the app with — the web's `.backdrop`, shared by
    *  FeedbackDialog, DisclaimerModal and TermsDialog. */

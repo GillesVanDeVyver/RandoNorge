@@ -5,13 +5,13 @@
 // actually renders are here — the web file has around thirty, and copying the
 // rest would be a pile of things to keep in sync that nothing on this platform
 // draws. Phase 4 added the four the edit toolbar needs, and the account
-// overview added five more when it grew the web's icon tiles; the twenty-odd
-// for controls the phone still does not have (import, export, print, 3D, the
-// draw-style pair, the folded map for an offline store that does not exist yet)
-// are still not here, for the same reason. The web's `ArrowRightIcon` is one of
-// them: its cards carry a chevron that slides and turns teal on `:hover`, and a
-// hover affordance drawn static on a touch screen is decoration — see the note
-// in app/index.tsx.
+// overview added five more when it grew the web's icon tiles, and the saved
+// list added five more again; the rest — for controls the phone still does not
+// have (import, print, 3D, the draw-style pair, the folded map for an offline
+// store that does not exist yet) — are still not here, for the same reason. The
+// web's `ArrowRightIcon` is one of them: its cards carry a chevron that slides
+// and turns teal on `:hover`, and a hover affordance drawn static on a touch
+// screen is decoration — see the note in app/index.tsx.
 //
 // `currentColor` does not exist in React Native — there is no cascade for a
 // stroke to inherit through — so colour is a required prop rather than an
@@ -315,6 +315,148 @@ export function MessageIcon({ color, size = SIZE }: IconProps) {
     <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
       <Path
         d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+// ---- The saved-routes list ------------------------------------------------
+// Five more traced from apps/web/src/components/icons.tsx, for the list's top
+// bar and its row controls. `TrashIcon` above is reused for delete — the same
+// glyph the web's `.deleteBtn` draws — and `BookmarkIcon` for the panel header,
+// which is why only five are new.
+
+export function ArrowLeftIcon({ color, size = SIZE }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
+      <Path
+        d="m12 19-7-7 7-7"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M19 12H5"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function GlobeIcon({ color, size = SIZE }: IconProps) {
+  // Lucide "globe" — reads as "public / shared with the world".
+  return (
+    <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
+      <Circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M2 12h20"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function LockIcon({ color, size = SIZE }: IconProps) {
+  // Lucide "lock" — reads as "private / only you".
+  return (
+    <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
+      <Rect
+        x="3"
+        y="11"
+        width="18"
+        height="11"
+        rx="2"
+        ry="2"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M7 11V7a5 5 0 0 1 10 0v4"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function LinkIcon({ color, size = SIZE }: IconProps) {
+  // Lucide "link" — the copy-share-link affordance.
+  return (
+    <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
+      <Path
+        d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function DownloadIcon({ color, size = SIZE }: IconProps) {
+  // Lucide "download": a tray with an arrow pointing into it. On the web this
+  // means the browser's download folder; here it opens the OS share sheet,
+  // because a phone has no such folder to point at. Same glyph regardless —
+  // "get this file out of the app" is the meaning both times.
+  return (
+    <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
+      <Path
+        d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Polyline
+        points="7 10 12 15 17 10"
+        stroke={color}
+        strokeWidth={STROKE_WIDTH}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Line
+        x1="12"
+        y1="3"
+        x2="12"
+        y2="15"
         stroke={color}
         strokeWidth={STROKE_WIDTH}
         strokeLinecap="round"

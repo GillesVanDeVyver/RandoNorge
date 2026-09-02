@@ -109,10 +109,14 @@ function SessionGate() {
         name="planner"
         options={{ title: t('Planlegg', 'Plan') }}
       />
-      <Stack.Screen
-        name="saved"
-        options={{ title: t('Lagrede ruter', 'Saved routes') }}
-      />
+      {/* NO HEADER ON THE SAVED LIST EITHER, and for the hub's reason. It is
+          now the web's RoutesListPage: the same photograph, the same scrim, a
+          glass panel whose own header says "Saved routes" beside a bookmark
+          tile, and a back pill in the top-left where the web puts `.backBtn`.
+          A cream stack bar above that would be a seam across a photograph
+          carrying a title the panel already carries and a chevron for a button
+          the screen already draws. */}
+      <Stack.Screen name="saved" options={{ headerShown: false }} />
       <Stack.Screen
         name="completed"
         options={{ title: t('Fullførte ruter', 'Completed routes') }}

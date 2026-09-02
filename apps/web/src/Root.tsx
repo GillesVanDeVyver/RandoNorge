@@ -36,6 +36,7 @@ import {
 } from './tracking/api.ts';
 import { formatAscent, formatDate, formatDistance } from '@fjellrute/core/routes/format';
 import { routeToGpx, gpxFilename } from '@fjellrute/core/routes/gpx';
+import { publicShareUrl, type ShareKind } from '@fjellrute/core/routes/share';
 import { downloadTextFile } from './routes/download.ts';
 
 /**
@@ -218,17 +219,24 @@ function publicToPath(nav: PublicNav): string {
 /** Public link to a shared item, namespaced under the owner's handle:
  *  /u/<username>/(r|t)/<slug>. Undefined until the item is shared (has a
  *  slug) and the owner's handle is known, which is what hides the row's
- *  copy-link button in the meantime. */
+ *  copy-link button in the meantime.
+ *
+ *  The building is @fjellrute/core/routes/share's now, because the phone's list
+ *  needs the same link and core may not read `window`. This wrapper is what
+ *  supplies the origin it can't. */
 function shareUrlFor(
-  kind: 'r' | 't',
+  kind: ShareKind,
   isShared: boolean | undefined,
   slug: string | null | undefined,
   username: string | null,
 ): string | undefined {
-  if (!isShared || !slug || !username) return undefined;
-  return `${window.location.origin}/u/${encodeURIComponent(
+  return publicShareUrl({
+    origin: window.location.origin,
+    kind,
+    isShared,
+    slug,
     username,
-  )}/${kind}/${slug}`;
+  });
 }
 
 /** SavedTrack (API) → the preformatted strings the list rows render.

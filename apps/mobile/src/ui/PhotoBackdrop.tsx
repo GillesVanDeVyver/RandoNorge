@@ -17,9 +17,9 @@
 //      <Image> has nothing behind it to shine through.
 //
 //   2. `.scrim` — a three-stop vertical gradient darkening the photo so white
-//      text stays legible: 0.52 at the top, easing to 0.40 at 40%, then down to
-//      0.58 at the bottom where the cards sit. This photo's fog is bright,
-//      which is why it is darker than the login page's.
+//      text stays legible. Each photo page mixes its own, because how much
+//      darkening a photograph needs depends on the photograph and on what is
+//      laid over it; see the two exported below.
 //
 // WHY THE GRADIENT IS AN SVG. React Native has no CSS gradients, and the two
 // ways to draw one are expo-linear-gradient or react-native-svg's
@@ -43,24 +43,18 @@ import Svg, {
   Rect,
   Stop,
 } from 'react-native-svg';
+import { OVERVIEW_SCRIM, type ScrimStop } from './scrim';
 import { colors } from './theme';
-
-/** The web's three gradient stops, as offset/opacity pairs. Read them against
- *  `.scrim` in AccountOverview.module.css — same numbers, same order. The ink
- *  they are all drawn in is `colors.scrimInk`; only the opacity varies, which
- *  is the whole reason the colour is a token and these are not. */
-const SCRIM_STOPS: readonly { offset: string; opacity: number }[] = [
-  { offset: '0%', opacity: 0.52 },
-  { offset: '40%', opacity: 0.4 },
-  { offset: '100%', opacity: 0.58 },
-];
 
 type Props = {
   /** A bundled image, from `OVERVIEW_PHOTOS[season].src` in ./season.ts. */
   photo: number;
+  /** Which page's gradient to draw — see ./scrim.ts. Defaults to the hub's,
+   *  which is the one this component was written for. */
+  scrim?: readonly ScrimStop[];
 };
 
-export function PhotoBackdrop({ photo }: Props) {
+export function PhotoBackdrop({ photo, scrim = OVERVIEW_SCRIM }: Props) {
   return (
     <View style={styles.root} pointerEvents="none">
       <Image
@@ -79,7 +73,7 @@ export function PhotoBackdrop({ photo }: Props) {
           {/* x1/y1 → x2/y2 top-to-bottom in the gradient's own object space,
               which is what `linear-gradient(180deg, …)` means on the web. */}
           <LinearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
-            {SCRIM_STOPS.map(({ offset, opacity }) => (
+            {scrim.map(({ offset, opacity }) => (
               <Stop
                 key={offset}
                 offset={offset}

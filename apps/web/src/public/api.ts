@@ -208,36 +208,15 @@ export async function getPublicProfile(username: string): Promise<PublicProfile>
 }
 
 // ---- The signed-in user's own handle -----------------------------------
-
-export async function getMyUsername(): Promise<string | null> {
-  const res = await fetch('/api/me/username');
-  if (!res.ok) return null;
-  const data = (await res.json()) as { username: string | null };
-  return data.username;
-}
-
-/** Set/change the handle. Throws with the server's message on 4xx (e.g.
- *  "that username is taken", validation errors). */
-export async function setMyUsername(username: string): Promise<string> {
-  const res = await fetch('/api/me/username', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username }),
-  });
-  const data = (await res.json().catch(() => ({}))) as {
-    username?: string;
-    error?: string;
-  };
-  if (!res.ok)
-    throw new Error(
-      data.error ||
-        translate(
-          `Forespørselen mislyktes (${res.status})`,
-          `Request failed (${res.status})`,
-        ),
-    );
-  return data.username ?? username;
-}
+//
+// Both moved to @fjellrute/core/account/username when the phone's saved-routes
+// list needed the handle to build /u/<handle>/r/<slug> share links. They are
+// re-exported from here rather than relocated at every call site: this module
+// is where the app has always asked about handles, the core versions issue the
+// same request in a browser, and a rename touching six files would hide the one
+// change that matters (the URL now goes through apiUrl(), so it also works
+// where there is no document).
+export { getMyUsername, setMyUsername } from '@fjellrute/core/account/username';
 
 // ---- Accepted policy versions ------------------------------------------
 

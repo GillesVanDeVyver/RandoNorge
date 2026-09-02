@@ -7,6 +7,7 @@
   "//exports": "The subpaths are written out one by one rather than as a `./*` wildcard. They are the package's public surface, and a wildcard would make every internal file public — including the adapters' private halves — so a web module could reach past an entry point without anything noticing. It is also what keeps each import in the apps a plain rename of the relative path it replaced, so the module graph and Vite's chunking are unchanged by the extraction.",
   "exports": {
     "./types": "./src/types/index.ts",
+    "./account/username": "./src/account/username.ts",
     "./geometry": "./src/geometry/index.ts",
     "./geometry/viewport": "./src/geometry/viewport.ts",
     "./draw/tools": "./src/draw/tools.ts",
@@ -26,8 +27,10 @@
     "./routes/format": "./src/routes/format.ts",
     "./routes/gpx": "./src/routes/gpx.ts",
     "./routes/import": "./src/routes/import.ts",
+    "./routes/share": "./src/routes/share.ts",
     "./routes/style": "./src/routes/style.ts",
     "./routes/tcx": "./src/routes/tcx.ts",
+    "./routes/thumbnail": "./src/routes/thumbnail.ts",
     "./routes/xml": "./src/routes/xml.ts",
     "./chart/axis": "./src/chart/axis.ts",
     "./time/calendar": "./src/time/calendar.ts",
