@@ -5,10 +5,13 @@
 // actually renders are here — the web file has around thirty, and copying the
 // rest would be a pile of things to keep in sync that nothing on this platform
 // draws. Phase 4 added the four the edit toolbar needs, and the account
-// overview added six more when it grew the web's icon tiles; the twenty-odd for
-// controls the phone still does not have (import, export, print, 3D, the
+// overview added five more when it grew the web's icon tiles; the twenty-odd
+// for controls the phone still does not have (import, export, print, 3D, the
 // draw-style pair, the folded map for an offline store that does not exist yet)
-// are still not here, for the same reason.
+// are still not here, for the same reason. The web's `ArrowRightIcon` is one of
+// them: its cards carry a chevron that slides and turns teal on `:hover`, and a
+// hover affordance drawn static on a touch screen is decoration — see the note
+// in app/index.tsx.
 //
 // `currentColor` does not exist in React Native — there is no cascade for a
 // stroke to inherit through — so colour is a required prop rather than an
@@ -312,31 +315,6 @@ export function MessageIcon({ color, size = SIZE }: IconProps) {
     <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
       <Path
         d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-        stroke={color}
-        strokeWidth={STROKE_WIDTH}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
-export function ArrowRightIcon({ color, size = SIZE }: IconProps) {
-  // Replaces the literal '→' the hub's cards used to carry. The character was
-  // the honest choice while this file had no arrow in it; now that the cards
-  // wear the web's icon tiles, an arrow in a different hand from every other
-  // glyph on the screen is the thing that looks wrong.
-  return (
-    <Svg width={size} height={size} viewBox={VIEW_BOX} fill="none">
-      <Path
-        d="M5 12h14"
-        stroke={color}
-        strokeWidth={STROKE_WIDTH}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <Path
-        d="m12 5 7 7-7 7"
         stroke={color}
         strokeWidth={STROKE_WIDTH}
         strokeLinecap="round"

@@ -33,6 +33,13 @@
 //     src/ui/season.ts, so the day a phone screen has room for it, it is there.
 //   - The `/summer`-style seasonal override. See the note in src/ui/season.ts:
 //     it is a URL a developer types, and a phone has no address bar.
+//   - `.cardArrow` / `.feedbackArrow`, the small chevron in each card's
+//     bottom-right corner. On the web it is a HOVER affordance — it slides 3px
+//     right and turns teal on `:hover`, which is how a cursor learns the whole
+//     tile is clickable and not just the words in it. A finger already knows;
+//     what it gets instead is `cardPressed`, the wash the rest of the app uses.
+//     Static, the arrow was decoration that added a row of height to every card
+//     and repeated what the card already says.
 //
 // WHAT IS SHARED: `listRoutes` for the saved count, `sendFeedback` and
 // `seasonFromDate` for the two things this screen adds, and the i18n store. As
@@ -40,7 +47,7 @@
 
 import { useCallback, useEffect, useState, type ComponentType } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Link, useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useT } from '@fjellrute/core/i18n';
@@ -51,7 +58,6 @@ import { FeedbackDialog } from '../src/ui/FeedbackDialog';
 import { PhotoBackdrop } from '../src/ui/PhotoBackdrop';
 import { overviewPhoto } from '../src/ui/season';
 import {
-  ArrowRightIcon,
   BookmarkIcon,
   CircleCheckIcon,
   MessageIcon,
@@ -242,7 +248,6 @@ export default function OverviewScreen() {
                 )}
               </Text>
             </View>
-            <Arrow />
           </Pressable>
         </View>
       </ScrollView>
@@ -288,81 +293,73 @@ function ActionCard({
   loadingLabel,
 }: ActionCardProps) {
   const hasCount = count !== undefined;
+  const router = useRouter();
 
   return (
-    // `asChild` so the Pressable IS the link rather than sitting inside one:
-    // nesting them gives the card two overlapping touch targets, and the outer
-    // one wins on Android.
-    <Link href={href as never} asChild>
-      <Pressable
-        style={({ pressed }) => [
-          styles.card,
-          primary && styles.cardPrimary,
-          pressed && styles.cardPressed,
-        ]}
-        accessibilityRole="link"
-        // The count is read out as part of the label rather than left to be
-        // discovered as a separate line, so the card announces "3 saved routes"
-        // the way it reads.
-        accessibilityLabel={
-          hasCount && count !== null ? `${count} ${title}` : title
-        }
-      >
-        {/* The web's `.cardPrimary` background is a 160° teal gradient LAYERED
-            over `--surface-2`, so the wash is its own layer here too rather
-            than a hand-mixed opaque colour — the numbers below stay the
-            stylesheet's. It is flat where the web's ramps from 0.20 to 0.05:
-            across a 330pt card that ramp reads as one pale mint tint either
-            way, and unlike PhotoBackdrop's scrim — which spans the screen and
-            is what keeps the headline legible — nothing depends on it. */}
-        {primary && <View style={styles.cardWash} />}
-
-        <View style={[styles.cardIcon, primary && styles.cardIconPrimary]}>
-          <Icon
-            color={primary ? colors.accentContrast : colors.text}
-            size={22}
-          />
-        </View>
-
-        <View style={styles.cardBody}>
-          {hasCount &&
-            (count === null ? (
-              <Text style={styles.cardTitle}>{loadingLabel}</Text>
-            ) : (
-              // `.cardStat`: count and label on one baseline, "12  Saved
-              // routes". A row of two Texts rather than one string, because the
-              // two are different sizes and weights.
-              <View style={styles.cardStat}>
-                <Text style={styles.cardCount}>{count}</Text>
-                <Text style={styles.cardTitle}>{title}</Text>
-              </View>
-            ))}
-          {!hasCount && <Text style={styles.cardTitle}>{title}</Text>}
-          <Text style={styles.cardText}>{text}</Text>
-        </View>
-
-        <Arrow primary={primary} />
-      </Pressable>
-    </Link>
-  );
-}
-
-/** The bottom-right affordance arrow. `.cardArrow` is `--text-3`, and
- *  `.cardPrimary .cardArrow` steps up to `--text-2` so it does not vanish into
- *  the teal wash. Decorative: the card's own accessibility label already says
- *  where it goes, and an arrow announced after it is noise. */
-function Arrow({ primary = false }: { primary?: boolean }) {
-  return (
-    <View
-      style={styles.cardArrow}
-      accessibilityElementsHidden
-      importantForAccessibility="no"
+    // NOT `<Link asChild>`, AND THE REASON IS WORTH THE PARAGRAPH, because the
+    // bug it caused is invisible in a diff and total on screen.
+    //
+    // `asChild` renders through expo-router's <Slot>, which is Radix's Slot with
+    // a React Native shim. Radix merges the slot's props into the child's, and
+    // it special-cases `style` by OBJECT-SPREADING the two together:
+    // `{ ...slotStyle, ...childStyle }`. A Pressable's style is allowed to be a
+    // `({ pressed }) => …` FUNCTION, and spreading a function into an object
+    // yields `{}` — functions have no enumerable own properties. So the card's
+    // entire style silently became an empty object: no white surface, no
+    // padding, no radius, no shadow. The text sat straight on the photograph,
+    // which is exactly what "the colours and brightness look off" looked like.
+    // (Slot's own dev check catches an ARRAY passed this way and throws; a
+    // function slips past it.)
+    //
+    // apps/mobile/app/saved.tsx keeps `<Link asChild>` and is fine, because the
+    // Pressable it wraps carries no style of its own. The rule, then: a styled
+    // Pressable navigates itself. `navigate` rather than `push` because that is
+    // the event a plain <Link> fires, and one touch target either way.
+    <Pressable
+      onPress={() => router.navigate(href as never)}
+      style={({ pressed }) => [
+        styles.card,
+        primary && styles.cardPrimary,
+        pressed && styles.cardPressed,
+      ]}
+      accessibilityRole="link"
+      // The count is read out as part of the label rather than left to be
+      // discovered as a separate line, so the card announces "3 saved routes"
+      // the way it reads.
+      accessibilityLabel={
+        hasCount && count !== null ? `${count} ${title}` : title
+      }
     >
-      <ArrowRightIcon
-        color={primary ? colors.textMuted : colors.textFaint}
-        size={18}
-      />
-    </View>
+      {/* The web's `.cardPrimary` background is a 160° teal gradient LAYERED
+          over `--surface-2`, so the wash is its own layer here too rather
+          than a hand-mixed opaque colour — the numbers below stay the
+          stylesheet's. It is flat where the web's ramps from 0.20 to 0.05:
+          across a 330pt card that ramp reads as one pale mint tint either
+          way, and unlike PhotoBackdrop's scrim — which spans the screen and
+          is what keeps the headline legible — nothing depends on it. */}
+      {primary && <View style={styles.cardWash} />}
+
+      <View style={[styles.cardIcon, primary && styles.cardIconPrimary]}>
+        <Icon color={primary ? colors.accentContrast : colors.text} size={22} />
+      </View>
+
+      <View style={styles.cardBody}>
+        {hasCount &&
+          (count === null ? (
+            <Text style={styles.cardTitle}>{loadingLabel}</Text>
+          ) : (
+            // `.cardStat`: count and label on one baseline, "12  Saved
+            // routes". A row of two Texts rather than one string, because the
+            // two are different sizes and weights.
+            <View style={styles.cardStat}>
+              <Text style={styles.cardCount}>{count}</Text>
+              <Text style={styles.cardTitle}>{title}</Text>
+            </View>
+          ))}
+        {!hasCount && <Text style={styles.cardTitle}>{title}</Text>}
+        <Text style={styles.cardText}>{text}</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -549,8 +546,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.textMuted,
   },
-  cardArrow: { alignSelf: 'flex-end' },
-
   feedbackCard: {
     flexDirection: 'row',
     alignItems: 'center',
